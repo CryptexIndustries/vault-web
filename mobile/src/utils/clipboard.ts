@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { androidCredentials } from "@/utils/android-credentials";
 import { isAutoLockDue } from "@/utils/session-timeout";
+import { getVaultLockEpoch } from "@/utils/vault-lock-epoch";
 
 export const SECRET_CLEAR_MS = 30_000;
 
@@ -36,6 +37,7 @@ async function clearIfStillSecret() {
  */
 export async function copySecretToClipboard(text: string): Promise<boolean> {
     if (!text || isAutoLockDue()) return false;
+    const lockEpoch = getVaultLockEpoch();
 
     try {
         if (androidCredentials.available) {
@@ -47,8 +49,9 @@ export async function copySecretToClipboard(text: string): Promise<boolean> {
         return false;
     }
 
-    if (isAutoLockDue()) {
-        // A suspended native write can complete after the session expires.
+    if (isAutoLockDue() || getVaultLockEpoch() !== lockEpoch) {
+        // A suspended native write can complete after the session expires,
+        // or after a lock started and already cleared the clipboard.
         if (androidCredentials.available)
             androidCredentials.clearSensitiveClipboardIfOwned();
         clearScheduledClear();

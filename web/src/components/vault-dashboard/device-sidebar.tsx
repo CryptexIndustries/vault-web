@@ -62,6 +62,7 @@ import { SyncConnectionController } from "@cryptex-industries/vault-core/synchro
 import { useDeviceLongPress } from "./use-device-long-press";
 
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
+import { ConnectedAgentsSection } from "@/components/agents/connected-agents-section";
 
 import { BackupSidebarEntry } from "./backup-dialog";
 
@@ -109,7 +110,12 @@ interface DeviceSidebarProps {
     onOpenBackup: () => void;
     vaultId?: string;
     vaultBlob?: EncryptedBlob;
-    activeView: "credentials" | "security-report" | "shared-links";
+    activeView: "credentials" | "security-report" | "shared-links" | "agent";
+    /** The agent open in the main panel, if any. */
+    activeAgentId?: string | null;
+    onOpenAgent?: (agentId: string) => void;
+    onConnectAgent?: () => void;
+    onOpenAgentRelaySettings?: () => void;
     onLockVault?: () => void;
     signalingConfig: VaultSignalingConfig;
     onSaveSignalingConfig: (
@@ -701,6 +707,10 @@ export function DeviceSidebar({
     vaultId,
     vaultBlob,
     activeView,
+    activeAgentId = null,
+    onOpenAgent,
+    onConnectAgent,
+    onOpenAgentRelaySettings,
     onLockVault,
     signalingConfig,
     onSaveSignalingConfig,
@@ -934,6 +944,24 @@ export function DeviceSidebar({
                             );
                         })}
                     </div>
+                    {onOpenAgent &&
+                    onConnectAgent &&
+                    onOpenAgentRelaySettings ? (
+                        <ConnectedAgentsSection
+                            activeAgentId={
+                                activeView === "agent" ? activeAgentId : null
+                            }
+                            onOpenAgent={(agentId) =>
+                                handleSidebarAction(() => onOpenAgent(agentId))
+                            }
+                            onConnectAgent={() =>
+                                handleSidebarAction(onConnectAgent)
+                            }
+                            onOpenRelaySettings={() =>
+                                handleSidebarAction(onOpenAgentRelaySettings)
+                            }
+                        />
+                    ) : null}
                 </ScrollArea>
             </div>
 

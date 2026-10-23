@@ -27,6 +27,7 @@ import {
     startVaultTimeoutSession,
     stopVaultTimeoutSession,
 } from "@/utils/session-timeout";
+import { markVaultLockStarted } from "@/utils/vault-lock-epoch";
 
 jest.mock("@/utils/android-credentials", () => ({
     androidCredentials: {
@@ -140,6 +141,28 @@ describe("clipboard secret clear", () => {
         );
         const copy = copySecretToClipboard("late secret");
         jest.setSystemTime(1_060_000);
+        finishWrite();
+        await expect(copy).resolves.toBe(false);
+        expect(androidCredentials.clearSensitiveClipboardIfOwned).toHaveBeenCalled();
+        expect(__getClipboardForTests()).toBe("");
+        expect(getPendingClipboardSecretForTests()).toBeNull();
+    });
+
+    it("clears a native write that finishes after a lock started", async () => {
+        // Lock clears the clipboard before this write lands; the copy must not
+        // leave the secret behind for the 30 s timer.
+        startVaultTimeoutSession();
+        androidCredentials.available = true;
+        let finishWrite!: () => void;
+        jest.mocked(androidCredentials.setSensitiveClipboardString).mockImplementationOnce(
+            async (value) => {
+                await new Promise<void>((resolve) => { finishWrite = resolve; });
+                __setClipboardForTests(value);
+            },
+        );
+        const copy = copySecretToClipboard("private key");
+        markVaultLockStarted();
+        await clearPendingSecretFromClipboard();
         finishWrite();
         await expect(copy).resolves.toBe(false);
         expect(androidCredentials.clearSensitiveClipboardIfOwned).toHaveBeenCalled();

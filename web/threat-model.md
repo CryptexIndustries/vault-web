@@ -1,13 +1,13 @@
 # Web app threat model
 
-| Field                      | Value                                                                   |
-| -------------------------- | ----------------------------------------------------------------------- |
-| Product                    | Cryptex Vault web app                                                   |
-| Document revision          | 1.1                                                                     |
-| Updated                    | October 2026                                                            |
-| Audience                   | Engineering and security reviewers                                      |
-| Status                     | Internal engineering review                                             |
-| Risk owners and acceptance | Unassigned unless recorded below; acceptance requires an assigned owner |
+| Field                      | Value                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| Product                    | Cryptex Vault web app                                                                     |
+| Document revision          | 1.1                                                                                       |
+| Updated                    | October 2026                                                                              |
+| Audience                   | Engineering and security reviewers                                                        |
+| Status                     | Internal engineering review                                                               |
+| Risk owners and acceptance | Milivoj Bošnjak (8l4cksmith) owns every risk below; acceptance requires an assigned owner |
 
 ## 1. Purpose and method
 
@@ -215,12 +215,12 @@ Repudiation remains unassessed. This review does not establish an audit-evidence
 
 Priorities are qualitative engineering judgments, not CVSS scores. Per-risk likelihood and impact scores, review dates, and acceptance authorities have not been assigned. Extension-only and mobile-only risks are outside this document's scope.
 
-| ID  | Priority | Risk                                                                                     | Status                       | Owner      | Next action                                                                                            |
-| --- | -------- | ---------------------------------------------------------------------------------------- | ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
-| R5  | Medium   | Web secret copies are not automatically cleared from the clipboard                       | Open                         | Unassigned | Add optional timed clearing where browser support and UX allow                                         |
-| R6  | Medium   | Link security depends on a 12-word mnemonic; MAC uses mnemonic bytes directly            | Needs review                 | Unassigned | Review mnemonic entropy and MAC key derivation; determine whether a separate derived MAC key is needed |
-| R8  | Medium   | Client UX can imply backend guarantees that this repository cannot establish             | Needs decision               | Unassigned | Keep claims conditional and link separate backend assurance when available                             |
-| R9  | Low      | Development tRPC logs include full inputs/results when real accounts or secrets are used | Documented; enforcement open | Unassigned | Keep real secrets out of development builds; consider automated redaction                              |
+| ID  | Priority | Risk                                                                                     | Status                       | Owner                        | Next action                                                                                            |
+| --- | -------- | ---------------------------------------------------------------------------------------- | ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| R5  | Medium   | Web secret copies are not automatically cleared from the clipboard                       | Open                         | Milivoj Bošnjak (8l4cksmith) | Add optional timed clearing where browser support and UX allow                                         |
+| R6  | Medium   | Link security depends on a 12-word mnemonic; MAC uses mnemonic bytes directly            | Needs review                 | Milivoj Bošnjak (8l4cksmith) | Review mnemonic entropy and MAC key derivation; determine whether a separate derived MAC key is needed |
+| R8  | Medium   | Client UX can imply backend guarantees that this repository cannot establish             | Needs decision               | Milivoj Bošnjak (8l4cksmith) | Keep claims conditional and link separate backend assurance when available                             |
+| R9  | Low      | Development tRPC logs include full inputs/results when real accounts or secrets are used | Documented; enforcement open | Milivoj Bošnjak (8l4cksmith) | Keep real secrets out of development builds; consider automated redaction                              |
 
 ## 8. External services and privacy
 

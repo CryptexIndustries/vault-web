@@ -96,11 +96,13 @@ message EncryptedBlob {
 //#endregion Vault Metadata
 
 enum ItemType {
-    SSHKey = 0;
+    // Missing or unknown types read as ordinary credentials.
+    Unspecified = 0;
     Credentials = 1;
     Note = 2;
     Identity = 3;
     Passkey = 4;
+    SSHKey = 5;
 }
 
 enum CustomFieldType {
@@ -140,7 +142,147 @@ message Vault {
     repeated ShareLink ShareLinks = 11;
     // Which share server this device uses. Device-local, not synced.
     optional ShareSettings ShareSettings = 12;
+    // Keyless SSH agents (cryptex-agent) paired with one of this vault's
+    // devices. Synced.
+    repeated ConnectedAgent ConnectedAgents = 13;
+    // This device's SSH agent approver keys and agent relay settings.
+    // Device-local: stripped wherever the vault leaves this device (linking,
+    // backups, managed backups), never synced or exported.
+    optional AgentApproverSettings AgentApprover = 14;
 }
+
+//#region ConnectedAgents
+// A Linux machine running cryptex-agent. It holds no private keys and asks
+// its approver (the device that paired it) to sign with granted SSH key
+// items. Synced so every linked device lists the agent and can revoke it;
+// only the approver answers its requests. See agent.proto for the protocol.
+message ConnectedAgent {
+    // Unpadded base64url of AgentSignPublicKey.
+    string ID = 1;
+    // Chosen by the user when pairing.
+    string Name = 2;
+    // The agent's Ed25519 relay key and X-Wing encryption key.
+    bytes AgentSignPublicKey = 3;
+    bytes AgentKEMPublicKey = 4;
+    // From the pairing offer; reported by the machine, so unverified.
+    string Hostname = 5;
+    string OS = 6;
+    string Arch = 7;
+    string AgentVersion = 8;
+    // The approving device's relay keys and name. A device recognizes
+    // itself as the approver by its own relay key.
+    bytes ApproverSignPublicKey = 9;
+    bytes ApproverKEMPublicKey = 10;
+    string ApproverName = 11;
+    // Ed25519 seed of the key registered for POST /v1/revoke, so any linked
+    // device can revoke the agent.
+    bytes RevocationSeed = 12;
+    // Relay URL, such as "https://relay.example.com" or, behind a path,
+    // "https://example.com/relay"; empty for the hosted relay (Online
+    // Services). Fixed at pairing: merges keep the first value.
+    string RelayOrigin = 13;
+    // SSH key items (Credential IDs) the agent may use, in the order offered.
+    repeated string CredentialIDs = 14;
+    uint64 KeysRevision = 15;
+    int64 PairedAtTimestamp = 16;
+    int64 LastUsedTimestamp = 17;
+    // Newest first, at most 90 days and 200 entries.
+    repeated AgentRequestRecord History = 18;
+
+    string Hash = 19;
+    int32 Version = 20;
+    int64 DateModifiedTimestamp = 21;
+    bool Deleted = 22;
+    // Server names the user approved per host key, so the approval screen can
+    // warn when a known host key comes under a new name or a known name with
+    // a new host key. Written only when the user approves a request. Merges
+    // take the union; at most 100, oldest dropped.
+    repeated AgentKnownHost KnownHosts = 23;
+    // Paused agents get every request refused without asking. Any device can
+    // pause or resume.
+    bool Paused = 24;
+}
+
+message AgentKnownHost {
+    // SHA256 fingerprint of the verified server host key.
+    string Fingerprint = 1;
+    // The name the machine reported for it (its known_hosts).
+    string Name = 2;
+    int64 FirstSeenTimestamp = 3;
+}
+
+enum AgentRequestKind {
+    AgentRequestUnknown = 0;
+    // An SSH login (userauth).
+    AgentRequestLogin = 1;
+    // An SSHSIG signature (git commits, ssh-keygen -Y sign); see Namespace.
+    AgentRequestSignature = 2;
+    // Anything else.
+    AgentRequestOther = 3;
+}
+
+enum AgentRequestOutcome {
+    AgentOutcomeUnknown = 0;
+    AgentOutcomeApproved = 1;
+    // Approved by a remembered rule without asking.
+    AgentOutcomeApprovedByRule = 2;
+    AgentOutcomeDenied = 3;
+    // Nobody answered before the request expired.
+    AgentOutcomeExpired = 4;
+    // Refused by a check (invalid data, key no longer granted).
+    AgentOutcomeRefused = 5;
+}
+
+message AgentRequestRecord {
+    int64 Timestamp = 1;
+    AgentRequestKind Kind = 2;
+    AgentRequestOutcome Outcome = 3;
+    // SSHSIG namespace, such as "git".
+    string Namespace = 4;
+    // Server name as reported by the machine's known_hosts, if any.
+    string Host = 5;
+    // SHA256 fingerprint of the verified server host key, if any.
+    string HostKeyFingerprint = 6;
+    bool Forwarded = 7;
+    bool DestinationUnknown = 8;
+    // The SSH key item used.
+    string CredentialID = 9;
+    // The calling program as reported by the machine, such as "git push".
+    string Process = 10;
+}
+// Device-local state of this device's approver (the web dashboard keeps it
+// in the vault; Android keeps it in secure storage instead).
+message AgentApproverSettings {
+    // Seeds of the approver identity: Ed25519 relay key and X-Wing
+    // encryption key, 32 bytes each. Agents pin their public halves.
+    bytes SignSeed = 1;
+    bytes KEMSeed = 2;
+    // Self-hosted relays (token mode) this device uses.
+    repeated AgentRelaySettings CustomRelays = 3;
+    // The hosted relay pass last issued for SignSeed's public key.
+    string RelayPass = 4;
+    int64 RelayPassExpiresAt = 5;
+    // Agents this device paired and the keys it last sent each one. The
+    // approver serves only these, and only keys both here and in the synced
+    // record, so a synced record alone can't add an agent or a grant.
+    repeated AgentLocalApproval ApprovedAgents = 6;
+}
+
+message AgentLocalApproval {
+    // ConnectedAgent.ID
+    string AgentID = 1;
+    // SSH wire public keys this device sent the agent.
+    repeated bytes Keys = 2;
+}
+
+message AgentRelaySettings {
+    // Normalized relay URL, such as "https://relay.example.com" or
+    // "https://example.com/relay".
+    string Origin = 1;
+    // The relay's access token.
+    string Token = 2;
+}
+//#endregion ConnectedAgents
 
 //#region ShareLinks
 message ShareLink {
@@ -321,6 +463,16 @@ message PasskeyData {
     bool Discoverable = 11;
 }
 
+// SSH key material. The private key is an unencrypted OpenSSH private key; the
+// vault's own encryption protects it. Algorithm, size and fingerprint are
+// derived from PublicKey when needed.
+message SSHKeyData {
+    string PrivateKey = 1;
+    // "<algorithm> <base64 blob>", without the comment.
+    string PublicKey = 2;
+    string Comment = 3;
+}
+
 message Credential {
     string ID = 1;
     ItemType Type = 2;
@@ -351,6 +503,7 @@ message Credential {
     CredentialURLMatchMode URLMatchMode = 22;
     repeated CredentialURL AdditionalURLs = 23;
     optional PasskeyData Passkey = 24;
+    optional SSHKeyData SSHKey = 25;
 }
 
 message TOTP {
@@ -409,18 +562,21 @@ message SyncHelloMessage {
     repeated VersionVector CredentialVersionVectors = 1;
     repeated VersionVector DirectoryVersionVectors = 2;
     repeated VersionVector ShareLinkVersionVectors = 3;
+    repeated VersionVector ConnectedAgentVersionVectors = 4;
 }
 
 message SyncHelloEchoMessage {
     repeated VersionVector CredentialVersionVectors = 1;
     repeated VersionVector DirectoryVersionVectors = 2;
     repeated VersionVector ShareLinkVersionVectors = 3;
+    repeated VersionVector ConnectedAgentVersionVectors = 4;
 }
 
 enum SyncItemType {
     CredentialItem = 0;
     DirectoryItem = 1;
     ShareLinkItem = 2;
+    ConnectedAgentItem = 3;
 }
 
 message SyncItemReference {
@@ -436,6 +592,7 @@ message SyncDataResponseMessage {
     repeated Credential Credentials = 1;
     repeated Directory Directories = 2;
     repeated ShareLink ShareLinks = 3;
+    repeated ConnectedAgent ConnectedAgents = 4;
 }
 //#endregion Synchronization Message
 

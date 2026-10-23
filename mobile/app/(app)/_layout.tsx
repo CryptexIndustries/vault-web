@@ -11,6 +11,7 @@ import { useVaultScreenPrivacy } from "@/hooks/use-vault-screen-privacy";
 import { SyncControllerProvider } from "@/components/sync-controller-provider";
 import { VaultLockScreen } from "@/components/unlocked/unlocked-ui";
 import { UnlockedConfirmationProvider } from "@/components/unlocked/confirmation-sheet";
+import { UnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
 import { vaultLockStateAtom } from "@/utils/vault-lock";
 import { colors } from "@/theme";
 
@@ -38,6 +39,7 @@ function UnlockedShell({ children }: { children: ReactNode }) {
             {lockState === "idle" ? (
                 <UnlockedConfirmationProvider>
                     {children}
+                    <UnlockedSnackbar />
                 </UnlockedConfirmationProvider>
             ) : (
                 <VaultLockScreen onContinueEditing={resumeAfterFailedLock} />

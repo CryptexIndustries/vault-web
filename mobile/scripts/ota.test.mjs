@@ -22,7 +22,7 @@ test('both unsigned channels use real EAS identity and fingerprint runtime witho
 test('standard development/test channels are isolated and invalid distribution choices fail',()=>fixture(({project})=>{
  assert.equal(getOtaConfig({profile:'preprod',mode:'e2e',projectFile:project}).updates.requestHeaders['expo-channel-name'],'preprod-e2e');
  assert.equal(getOtaConfig({profile:'production',mode:'development',projectFile:project}).updates.requestHeaders['expo-channel-name'],'production-dev');
- assert.throws(()=>getOtaConfig({profile:'preprod',distribution:'fdroid',projectFile:project}),/production/);
+ assert.equal(getOtaConfig({profile:'preprod',distribution:'fdroid',projectFile:project}).updates.enabled,false);
  assert.throws(()=>getOtaConfig({profile:'production',signingEnabled:'0',projectFile:project}),/true or false/);
 }));
 test('F-Droid disables OTA without a remote URL, channel or signing certificate in every mode',()=>fixture(({project})=>{
@@ -96,7 +96,7 @@ test('actual SDK fingerprint stays compatible for JS/revision changes and reject
   writeFileSync(join(root,'package.json'),JSON.stringify({name:'ota-native-regression',version:'1.0.0',dependencies:{expo:'57.0.17'}}));
   const app=revision=>JSON.stringify({expo:{name:'Fixture',slug:'fixture',version:'1.0.0',android:{package:'test.ota.fixture'},extra:{revision,configHash:revision}}});
   writeFileSync(join(root,'app.json'),app('first'));writeFileSync(join(root,'App.js'),'export default "first";');
-  for(const name of ['plugins','modules/cryptex-android-credentials/android','config','fdroid','android/app/src/main/assets'])mkdirSync(join(root,name),{recursive:true});mkdirSync(join(dir,'patches'));
+  for(const name of ['plugins','modules/cryptex-android-credentials/android','modules/cryptex-agent-service/android','config','fdroid','android/app/src/main/assets'])mkdirSync(join(root,name),{recursive:true});mkdirSync(join(dir,'patches'));
   writeFileSync(join(root,'fdroid/toolchain.json'),'{"compileSdk":"36"}');
   writeFileSync(join(root,'fdroid/dependencies.gradle'),'native-version-1');
   writeFileSync(join(root,'fdroid/verification-metadata.xml'),'<verification-metadata>first</verification-metadata>');

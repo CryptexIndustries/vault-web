@@ -48,6 +48,8 @@ type RemoteConfig = {
     maxLinks?: number;
     managedEncryptedBackups?: boolean;
     passwordSharing?: boolean;
+    sshAgentRelay?: boolean;
+    maxSshAgents?: number;
     recoveryTokenCreatedAt?: Date | string | null;
 };
 
@@ -57,6 +59,8 @@ type Subscription = {
     status?: string | null;
     cancelAtPeriodEnd?: boolean | null;
     expiresAt?: Date | string | null;
+    trialEligible?: boolean;
+    trialEndsAt?: Date | string | null;
     nonFree?: boolean;
     resourceStatus?: { linkedDevices?: number };
 };
@@ -157,10 +161,17 @@ export function AccountSummary({
         onPurchaseHandled,
     ]);
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices ?? 0;
-    const billingDateLabel = subscription?.cancelAtPeriodEnd
-        ? "Expires"
-        : "Renews";
-    const billingDate = formatAccountDate(subscription?.expiresAt);
+    const inTrial = subscription?.status === "trialing";
+    const billingDateLabel = inTrial
+        ? subscription?.cancelAtPeriodEnd
+            ? "Access ends"
+            : "Trial ends"
+        : subscription?.cancelAtPeriodEnd
+          ? "Expires"
+          : "Renews";
+    const billingDate = formatAccountDate(
+        subscription?.trialEndsAt ?? subscription?.expiresAt,
+    );
     const canManageBilling = hasSession && !!subscription?.nonFree;
     // Store subscriptions can only be changed in the store that bills them.
     const provider = canManageBilling ? subscription.provider : null;
@@ -205,7 +216,7 @@ export function AccountSummary({
                                 {tierName}
                             </CardTitle>
                             <Badge variant="outline">
-                                {subscriptionStatus}
+                                {inTrial ? "Free trial" : subscriptionStatus}
                             </Badge>
                         </div>
                     </CardHeader>
@@ -216,6 +227,9 @@ export function AccountSummary({
                                 <span className="font-medium text-foreground">
                                     {billingDate}
                                 </span>
+                                {inTrial && subscription.cancelAtPeriodEnd
+                                    ? ". You won't be charged."
+                                    : null}
                             </p>
                         ) : subscription ? null : (
                             <p className="text-sm text-muted-foreground">
@@ -270,6 +284,8 @@ export function AccountSummary({
                     onUpgrade: () => setCheckoutOpen(true),
                     canUpgrade,
                     checkoutOpen,
+                    trialEligible:
+                        subscriptionReady && !!subscription?.trialEligible,
                 }}
             />
 

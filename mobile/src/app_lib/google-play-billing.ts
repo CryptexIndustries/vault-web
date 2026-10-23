@@ -1,5 +1,8 @@
 import { trpc } from "@/utils/trpc";
-import type { PurchasesStoreProduct } from "react-native-purchases";
+import type {
+    PurchasesStoreProduct,
+    SubscriptionOption,
+} from "react-native-purchases";
 import {
     getUnlockedVault,
     onlineServicesDataAtom,
@@ -15,6 +18,7 @@ import {
     isGooglePlayBuild,
     type BillingResult,
     type CheckoutTier,
+    type PlanTerms,
     type StorePlan,
 } from "./online-services-billing";
 import { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
@@ -124,34 +128,58 @@ async function prepare(
     assertSession(session);
     return sdk;
 }
+// Play returns these new-customer offers only to eligible Google accounts.
+const trialOffers: Record<CheckoutTier, string> = {
+    premiumMonthly: "trial-14d-monthly",
+    premiumYearly: "trial-14d-yearly",
+};
+function isExpectedOption(
+    option: SubscriptionOption | undefined,
+    tier: CheckoutTier,
+    trial: boolean,
+): option is SubscriptionOption {
+    // billingPeriod and fullPricePhase describe the last pricing phase.
+    const free = option?.pricingPhases[0];
+    return (
+        !!option &&
+        option.billingPeriod?.iso8601 ===
+            (tier === "premiumMonthly" ? "P1M" : "P1Y") &&
+        option.fullPricePhase?.recurrenceMode === 1 &&
+        !option.isPrepaid &&
+        option.installmentsInfo == null &&
+        option.pricingPhases.length === (trial ? 2 : 1) &&
+        (!trial ||
+            (free?.price.amountMicros === 0 &&
+                free.offerPaymentMode === "FREE_TRIAL" &&
+                free.billingCycleCount === 1 &&
+                ["P2W", "P14D"].includes(free.billingPeriod.iso8601)))
+    );
+}
 function selectOption(
     products: PurchasesStoreProduct[],
     tier: CheckoutTier,
     [productId, basePlanId]: [string, string],
+    trialEligible: boolean,
 ) {
-    const option = products
+    const options = products
         .flatMap((product) => product.subscriptionOptions ?? [])
-        .find(
-            (option) =>
-                option.productId === productId &&
-                option.id === basePlanId &&
-                option.isBasePlan,
-        );
-    if (
-        !option ||
-        option.billingPeriod?.iso8601 !==
-            (tier === "premiumMonthly" ? "P1M" : "P1Y") ||
-        !option.fullPricePhase ||
-        option.isPrepaid ||
-        option.installmentsInfo != null ||
-        option.pricingPhases.length !== 1 ||
-        option.fullPricePhase.recurrenceMode !== 1
-    ) {
+        .filter((option) => option.productId === productId);
+    const offer = options.find(
+        (option) => option.id === `${basePlanId}:${trialOffers[tier]}`,
+    );
+    // A missing or unexpected offer falls back to the base plan.
+    if (trialEligible && isExpectedOption(offer, tier, true)) {
+        return { option: offer, trial: true };
+    }
+    const option = options.find(
+        (option) => option.id === basePlanId && option.isBasePlan,
+    );
+    if (!isExpectedOption(option, tier, false)) {
         throw new BillingError(
             "The selected Google Play subscription is unavailable. Please try again later.",
         );
     }
-    return option;
+    return { option, trial: false };
 }
 function hasSubscription(
     active: string[],
@@ -222,7 +250,9 @@ async function syncMembership(
     // Only the backend subscription endpoint grants membership.
     return { ok: true };
 }
-export async function loadGooglePlayPlans(): Promise<StorePlan[]> {
+export async function loadGooglePlayPlans(
+    trialEligible = false,
+): Promise<StorePlan[]> {
     const config = configuration();
     return serialized(async () => {
         // Store prices are public; only payment operations identify an account.
@@ -234,13 +264,23 @@ export async function loadGooglePlayPlans(): Promise<StorePlan[]> {
         );
         const products = await sdk.getProducts([...new Set(productIds)]);
         return (Object.keys(config.plans) as CheckoutTier[]).map((tier) => {
-            const option = selectOption(products, tier, config.plans[tier]);
-            return { tier, price: option.fullPricePhase!.price.formatted };
+            const { option, trial } = selectOption(
+                products,
+                tier,
+                config.plans[tier],
+                trialEligible,
+            );
+            return {
+                tier,
+                price: option.fullPricePhase!.price.formatted,
+                trial,
+            };
         });
     });
 }
 export async function purchaseGooglePlayPlan(
     tier: CheckoutTier,
+    terms: PlanTerms = { trialEligible: false, trial: false },
 ): Promise<BillingResult> {
     try {
         const session = captureSession();
@@ -260,9 +300,23 @@ export async function purchaseGooglePlayPlan(
                 config.plans[tier][0],
             ]);
             assertSession(session);
-            await purchases.purchaseSubscriptionOption(
-                selectOption(products, tier, config.plans[tier]),
+            const { option, trial } = selectOption(
+                products,
+                tier,
+                config.plans[tier],
+                terms.trialEligible,
             );
+            // Never buy different terms than the ones the user saw.
+            if (trial !== terms.trial) {
+                return {
+                    ok: false,
+                    offerChanged: { trial },
+                    message: trial
+                        ? "This plan now starts with a 14-day free trial. Check the plan and try again."
+                        : "The free trial is no longer available for this plan. Check the plan and try again.",
+                };
+            }
+            await purchases.purchaseSubscriptionOption(option);
             return syncMembership(
                 session,
                 "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly.",

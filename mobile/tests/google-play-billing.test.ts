@@ -393,7 +393,9 @@ it.each<["purchase" | "restore", string]>([
         expect(result).toEqual({
             ok: false,
             retryable: false,
-            message: expect.stringContaining("belongs to another Cryptex Vault account"),
+            message: expect.stringContaining(
+                "belongs to another Cryptex Vault account",
+            ),
         });
         expect(mockSync).not.toHaveBeenCalled();
     },
@@ -426,5 +428,119 @@ it("does not sync a native purchase for a new account after an account switch", 
     userId = "account-b";
     pending.resolve({});
     expect((await purchase).ok).toBe(false);
+    expect(mockSync).not.toHaveBeenCalled();
+});
+
+function trialOffer(tier: "monthly" | "yearly", freePeriod = "P2W") {
+    const base = option(tier, tier === "monthly" ? "P1M" : "P1Y");
+    const free = {
+        recurrenceMode: 2,
+        billingCycleCount: 1,
+        offerPaymentMode: "FREE_TRIAL",
+        billingPeriod: { iso8601: freePeriod },
+        price: { formatted: "Free", amountMicros: 0 },
+    };
+    return {
+        ...base,
+        id: `${tier}:trial-14d-${tier}`,
+        isBasePlan: false,
+        pricingPhases: [free, base.fullPricePhase],
+    };
+}
+const purchased = () =>
+    (mockSdk.purchaseSubscriptionOption.mock.calls[0] as unknown[])[0] as {
+        id: string;
+    };
+
+it("starts the matching 14-day trial offer only for eligible accounts", async () => {
+    mockSdk.getProducts.mockResolvedValue([
+        {
+            subscriptionOptions: [
+                ...catalog[0]!.subscriptionOptions,
+                trialOffer("monthly"),
+                trialOffer("yearly", "P14D"),
+            ],
+        },
+    ]);
+    expect(await billing.loadGooglePlayPlans(true)).toEqual([
+        { tier: "premiumMonthly", price: "$4.99", trial: true },
+        { tier: "premiumYearly", price: "$4.99", trial: true },
+    ]);
+    expect(await billing.loadGooglePlayPlans(false)).toEqual([
+        { tier: "premiumMonthly", price: "$4.99", trial: false },
+        { tier: "premiumYearly", price: "$4.99", trial: false },
+    ]);
+    const trial = { trialEligible: true, trial: true };
+    expect(
+        (await billing.purchaseGooglePlayPlan("premiumYearly", trial)).ok,
+    ).toBe(true);
+    expect(purchased().id).toBe("yearly:trial-14d-yearly");
+    mockSdk.purchaseSubscriptionOption.mockClear();
+    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
+        true,
+    );
+    expect(purchased().id).toBe("monthly");
+});
+
+it("falls back to the base plan when the trial offer is missing", async () => {
+    expect(await billing.loadGooglePlayPlans(true)).toEqual([
+        { tier: "premiumMonthly", price: "$4.99", trial: false },
+        { tier: "premiumYearly", price: "$4.99", trial: false },
+    ]);
+});
+
+it.each<[string, (offer: ReturnType<typeof trialOffer>) => object]>([
+    [
+        "a paid first phase",
+        (offer) => ({
+            ...offer,
+            pricingPhases: [
+                {
+                    ...offer.pricingPhases[0],
+                    offerPaymentMode: "SINGLE_PAYMENT",
+                    price: { formatted: "$0.99", amountMicros: 990000 },
+                },
+                offer.pricingPhases[1],
+            ],
+        }),
+    ],
+    [
+        "a yearly price after a monthly trial",
+        (offer) => ({ ...offer, billingPeriod: { iso8601: "P1Y" } }),
+    ],
+])(
+    "uses the base plan instead of a trial offer with %s",
+    async (_, malform) => {
+        mockSdk.getProducts.mockResolvedValue([
+            {
+                subscriptionOptions: [
+                    ...catalog[0]!.subscriptionOptions,
+                    malform(trialOffer("monthly")),
+                ],
+            },
+        ]);
+        expect((await billing.loadGooglePlayPlans(true))[0]!.trial).toBe(false);
+    },
+);
+
+it.each([
+    ["a shown trial whose offer is gone", false, true],
+    ["a shown full price when the trial offer appears", true, false],
+])("buys nothing for %s", async (_, offerAtPurchase, shownTrial) => {
+    mockSdk.getProducts.mockResolvedValue([
+        {
+            subscriptionOptions: [
+                ...catalog[0]!.subscriptionOptions,
+                ...(offerAtPurchase ? [trialOffer("monthly")] : []),
+            ],
+        },
+    ]);
+    expect(
+        await billing.purchaseGooglePlayPlan("premiumMonthly", {
+            trialEligible: true,
+            trial: shownTrial,
+        }),
+    ).toMatchObject({ ok: false, offerChanged: { trial: offerAtPurchase } });
+    expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
     expect(mockSync).not.toHaveBeenCalled();
 });

@@ -25,6 +25,7 @@ import {
     setVaultDEKInSession,
 } from "../../src/utils/vault-session";
 import { lockUnlockedVault } from "../../src/utils/vault-lock";
+import { addVaultLockListener } from "../../src/utils/vault-lock-listeners";
 
 jest.mock("../../src/app_lib/auth-session", () => ({
     logoutOnlineServicesSession: jest.fn(async () => {
@@ -35,6 +36,18 @@ jest.mock("../../src/app_lib/auth-session", () => ({
         );
     }),
 }));
+
+/** A decrypted vault in the session, as after an unlock. */
+async function openSession() {
+    setVaultDEKInSession(
+        await crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt", "decrypt"],
+        ),
+    );
+    vaultStore.set(unlockedVaultAtom, new Vault());
+}
 
 describe("lockUnlockedVault", () => {
     beforeEach(() => {
@@ -98,6 +111,46 @@ describe("lockUnlockedVault", () => {
         expect(nextVault).not.toBe(vault);
     });
 
+    it("tells listeners at once, before the save, and still saves when one throws", async () => {
+        await openSession();
+        const events: string[] = [];
+        let finish: () => void = () => undefined;
+        const stopBroken = addVaultLockListener({
+            lockStarted: () => {
+                events.push("broken");
+                throw new Error("broken listener");
+            },
+        });
+        const stop = addVaultLockListener({
+            lockStarted: () => events.push("started"),
+        });
+        try {
+            const locking = lockUnlockedVault({
+                unlockedVaultMetadata: {
+                    DBIndex: 1,
+                    // A save that waits on the disk or the network.
+                    save: () => {
+                        events.push("save");
+                        return new Promise<void>((resolve) => {
+                            finish = resolve;
+                        });
+                    },
+                } as never,
+                setUnlockedVault: async () => undefined,
+                setUnlockedVaultMetadata: () => undefined,
+            });
+            expect(events).toEqual(["broken", "started"]);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            finish();
+            expect((await locking).isOk()).toBe(true);
+        } finally {
+            stopBroken();
+            stop();
+            finish();
+        }
+        expect(events).toEqual(["broken", "started", "save"]);
+    });
+
     it("does not clear session state when save fails", async () => {
         const dek = await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
@@ -122,5 +175,30 @@ describe("lockUnlockedVault", () => {
         expect(result.isErr()).toBe(true);
         expect((result as { error: string }).error).toBe("VAULT_SAVE_FAILED");
         expect(getVaultDEKFromSession().isOk()).toBe(true);
+    });
+
+    it("shares a lock already running for the same session instead of queueing a second", async () => {
+        await openSession();
+        let finish: () => void = () => undefined;
+        const save = jest.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        const options = {
+            unlockedVaultMetadata: { DBIndex: 1, save } as never,
+            setUnlockedVault: async () => undefined,
+            setUnlockedVaultMetadata: () => undefined,
+        };
+        // The Lock button, then leaving the page while it saves.
+        const first = lockUnlockedVault(options);
+        const second = lockUnlockedVault(options);
+        await Promise.resolve();
+        finish();
+        expect((await first).isOk()).toBe(true);
+        // A queued second lock would have found the session closed.
+        expect((await second).isOk()).toBe(true);
+        expect(save).toHaveBeenCalledTimes(1);
     });
 });

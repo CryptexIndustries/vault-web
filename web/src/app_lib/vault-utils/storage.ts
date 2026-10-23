@@ -913,6 +913,16 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         return VaultUtilTypes.Vault.encode(cleanVaultInstance).finish();
     }
 
+    /**
+     * Reads a vault's metadata from the database as it is now. Null when it
+     * is gone.
+     */
+    public static async load(dbIndex: number): Promise<VaultMetadata | null> {
+        const row = await db.vaults.get(dbIndex);
+        if (!row) return null;
+        return VaultMetadata.deserializeMetadataBinary(row.data, row.id);
+    }
+
     public static deserializeMetadataBinary(
         data: Uint8Array,
         dbIndex?: number,
@@ -962,6 +972,10 @@ export const serializeVault = async (
 
     // Clear the LinkedDevices object
     cleanVault.LinkedDevices = new LinkedDevices();
+
+    // This device's agent approver keys stay here; a restored copy must not
+    // answer for agents paired on this device.
+    cleanVault.AgentApprover = undefined;
 
     // Serialize the vault instance
     const _vaultBytes = VaultUtilTypes.Vault.encode(cleanVault).finish();

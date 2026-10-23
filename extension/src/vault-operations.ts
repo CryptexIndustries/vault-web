@@ -1,5 +1,9 @@
 import type { VaultOperations } from "@cryptex-industries/vault-core/synchronization";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import {
+    connectedAgentsFromTransport,
+    connectedAgentsToTransport,
+} from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 
 import {
     EncryptedEnvelope,
@@ -39,6 +43,13 @@ export function createCachedSyncConfigLoader(
     };
 }
 
+const emptySyncItems = (): VaultUtilTypes.SyncDataResponseMessage => ({
+    Credentials: [],
+    Directories: [],
+    ShareLinks: [],
+    ConnectedAgents: [],
+});
+
 const getItems = async (
     serverPublicKey: ServerPublicKey,
     items: VaultUtilTypes.SyncItemReference[],
@@ -61,6 +72,8 @@ const getItems = async (
                   credentials: VaultUtilTypes.Credential[];
                   directories: VaultUtilTypes.Directory[];
                   shareLinks?: VaultUtilTypes.ShareLink[];
+                  /** Base64 protobuf, see connectedAgentsToTransport. */
+                  connectedAgents?: string[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -68,7 +81,7 @@ const getItems = async (
                 "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):",
                 decryptedPayload.error,
             );
-            return { Credentials: [], Directories: [], ShareLinks: [] };
+            return emptySyncItems();
         }
 
         if (!decryptedPayload.payload.ok) {
@@ -76,13 +89,16 @@ const getItems = async (
                 "[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):",
                 decryptedPayload.payload.error,
             );
-            return { Credentials: [], Directories: [], ShareLinks: [] };
+            return emptySyncItems();
         }
 
         return {
             Credentials: decryptedPayload.payload.credentials,
             Directories: decryptedPayload.payload.directories,
             ShareLinks: decryptedPayload.payload.shareLinks ?? [],
+            ConnectedAgents: connectedAgentsFromTransport(
+                decryptedPayload.payload.connectedAgents,
+            ),
         };
     }
 
@@ -90,7 +106,7 @@ const getItems = async (
         "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):",
         res.payload,
     );
-    return { Credentials: [], Directories: [], ShareLinks: [] };
+    return emptySyncItems();
 };
 
 const getVersionVectors = async (
@@ -99,6 +115,7 @@ const getVersionVectors = async (
     credentialVersionVectors: VaultUtilTypes.VersionVector[];
     directoryVersionVectors: VaultUtilTypes.VersionVector[];
     shareLinkVersionVectors: VaultUtilTypes.VersionVector[];
+    connectedAgentVersionVectors: VaultUtilTypes.VersionVector[];
 }> => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncGetVersionVectors,
@@ -118,6 +135,7 @@ const getVersionVectors = async (
                   credentialVersionVectors: VaultUtilTypes.VersionVector[];
                   directoryVersionVectors: VaultUtilTypes.VersionVector[];
                   shareLinkVersionVectors?: VaultUtilTypes.VersionVector[];
+                  connectedAgentVersionVectors?: VaultUtilTypes.VersionVector[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -129,6 +147,7 @@ const getVersionVectors = async (
                 credentialVersionVectors: [],
                 directoryVersionVectors: [],
                 shareLinkVersionVectors: [],
+                connectedAgentVersionVectors: [],
             };
         }
 
@@ -141,6 +160,7 @@ const getVersionVectors = async (
                 credentialVersionVectors: [],
                 directoryVersionVectors: [],
                 shareLinkVersionVectors: [],
+                connectedAgentVersionVectors: [],
             };
         }
 
@@ -148,6 +168,8 @@ const getVersionVectors = async (
             ...decryptedPayload.payload,
             shareLinkVersionVectors:
                 decryptedPayload.payload.shareLinkVersionVectors ?? [],
+            connectedAgentVersionVectors:
+                decryptedPayload.payload.connectedAgentVersionVectors ?? [],
         };
     }
 
@@ -159,6 +181,7 @@ const getVersionVectors = async (
         credentialVersionVectors: [],
         directoryVersionVectors: [],
         shareLinkVersionVectors: [],
+        connectedAgentVersionVectors: [],
     };
 };
 
@@ -211,10 +234,16 @@ const updateItems = async (
     directories: VaultUtilTypes.Directory[],
     credentials: VaultUtilTypes.Credential[],
     shareLinks: VaultUtilTypes.ShareLink[],
+    connectedAgents: VaultUtilTypes.ConnectedAgent[],
 ) => {
     const envelope = await createEncryptedEnvelope(
         MessageType.SyncUpdateItems,
-        { directories, credentials, shareLinks },
+        {
+            directories,
+            credentials,
+            shareLinks,
+            connectedAgents: connectedAgentsToTransport(connectedAgents),
+        },
         serverPublicKey.publicKeyJwk,
         serverPublicKey.keyId,
         "popup",
@@ -271,15 +300,25 @@ export const createVaultOperations = (
             return (await getVersionVectors(serverPublicKey))
                 .shareLinkVersionVectors;
         },
+        getConnectedAgentVersionVectors: async () => {
+            return (await getVersionVectors(serverPublicKey))
+                .connectedAgentVersionVectors;
+        },
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) => {
             return await getItems(serverPublicKey, items);
         },
-        updateItems: async (directories, credentials, shareLinks) => {
+        updateItems: async (
+            directories,
+            credentials,
+            shareLinks,
+            connectedAgents,
+        ) => {
             await updateItems(
                 serverPublicKey,
                 directories,
                 credentials,
                 shareLinks,
+                connectedAgents,
             );
             await onCredentialsUpdated?.();
         },

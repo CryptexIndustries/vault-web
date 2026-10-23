@@ -6,6 +6,7 @@
 import * as OTPAuth from "otpauth";
 import * as VaultUtilTypes from "../proto/vault";
 import type { SharePayload } from "./share-link";
+import { describeSSHKey, sshPublicKeyLine } from "./ssh-key-info";
 
 type SharedCredential = Pick<
     VaultUtilTypes.Credential,
@@ -17,6 +18,7 @@ type SharedCredential = Pick<
     | "Notes"
     | "TOTP"
     | "CustomFields"
+    | "SSHKey"
 >;
 
 export type CredentialShareSelection = {
@@ -26,11 +28,16 @@ export type CredentialShareSelection = {
     url: boolean;
     notes: boolean;
     totp: boolean;
+    sshPrivateKey: boolean;
+    sshPublicKey: boolean;
     /** IDs of the custom fields to include. */
     customFieldIds: string[];
 };
 
-/** Name, username, password and URL on; everything else needs an opt-in. */
+/**
+ * Name, username, password, URL and both halves of an SSH key on; everything
+ * else needs an opt-in.
+ */
 export function defaultCredentialShareSelection(): CredentialShareSelection {
     return {
         name: true,
@@ -39,6 +46,8 @@ export function defaultCredentialShareSelection(): CredentialShareSelection {
         url: true,
         notes: false,
         totp: false,
+        sshPrivateKey: true,
+        sshPublicKey: true,
         customFieldIds: [],
     };
 }
@@ -65,6 +74,32 @@ export function buildCredentialSharePayload(
     selection: CredentialShareSelection,
 ): SharePayload {
     const fields: SharePayload["fields"] = [];
+    const sshKey = credential.SSHKey;
+    if (sshKey) {
+        // Older share pages show any "secret" field, so the private key needs
+        // no new field kind.
+        if (selection.sshPrivateKey && sshKey.PrivateKey) {
+            fields.push({
+                label: "Private key",
+                value: sshKey.PrivateKey,
+                kind: "secret",
+            });
+        }
+        if (selection.sshPublicKey && sshKey.PublicKey) {
+            fields.push({
+                label: "Public key",
+                value: sshPublicKeyLine(sshKey),
+                kind: "text",
+            });
+        }
+        const info = fields.length > 0 ? describeSSHKey(sshKey) : null;
+        if (info) {
+            fields.push(
+                { label: "Fingerprint", value: info.fingerprint, kind: "text" },
+                { label: "Type", value: info.label, kind: "text" },
+            );
+        }
+    }
     if (selection.username && credential.Username) {
         fields.push({
             label: "Username",

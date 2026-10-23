@@ -1,0 +1,38 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Window.setHideOverlayWindows on the SSH approval screen (normal permission). -->
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
+
+    <application>
+        <service
+            android:name="com.cryptex.vault.agent.CryptexAgentForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a connection to the user's SSH agent relay so the user can approve SSH sign requests from their own computer" />
+        </service>
+
+        <!-- Runs the CryptexAgentRuntime JS task. Started only by the foreground service. -->
+        <service
+            android:name="com.cryptex.vault.agent.CryptexAgentHeadlessService"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.cryptex.vault.agent.CryptexAgentDenyReceiver"
+            android:exported="false" />
+
+        <!-- Exported only so the system can deliver these protected broadcasts. -->
+        <receiver
+            android:name="com.cryptex.vault.agent.CryptexAgentBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

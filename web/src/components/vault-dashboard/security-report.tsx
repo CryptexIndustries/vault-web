@@ -4,6 +4,7 @@ import {
     ArrowUpDown,
     CheckCircle2,
     ExternalLink,
+    FileKey,
     LoaderCircle,
     RefreshCw,
     Search,
@@ -17,7 +18,9 @@ import type {
     SecurityAnalysisResult,
     SecurityFindingIdentity,
     WeakPasswordFinding,
+    WeakSSHKeyFinding,
 } from "@cryptex-industries/vault-core/vault-utils/security-report";
+import { WEAK_RSA_BITS } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +54,7 @@ type SecurityReportProps = {
     analyzedAt: number | null;
     onBack: () => void;
     onEditCredential: (credentialId: string) => void;
+    onViewCredential: (credentialId: string) => void;
     onOpenCredentialUrl: (credentialId: string) => void;
     onRefresh: () => void;
 };
@@ -522,6 +526,68 @@ function SecurityFindingGrid({
     );
 }
 
+function WeakSSHKeysCard({
+    findings,
+    onViewCredential,
+}: {
+    findings: WeakSSHKeyFinding[];
+    onViewCredential: (credentialId: string) => void;
+}) {
+    return (
+        <Card className="overflow-hidden shadow-sm">
+            <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <FileKey className="h-4 w-4 text-primary" />
+                    Weak SSH keys
+                </CardTitle>
+                <CardDescription className="text-foreground/70">
+                    RSA keys under {WEAK_RSA_BITS} bits are weak. Create a new
+                    Ed25519 key, then replace the old key wherever it's used.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+                {findings.map((finding) => (
+                    <div
+                        key={finding.credentialId}
+                        className="flex items-center gap-3 border-t border-border px-3 py-3 sm:px-4"
+                    >
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                                {finding.name}
+                            </p>
+                            <p className="text-xs text-foreground/65">
+                                {finding.severity === "critical"
+                                    ? "Too short to be safe. Replace it now."
+                                    : `Below the recommended ${WEAK_RSA_BITS} bits.`}
+                            </p>
+                        </div>
+                        <Badge
+                            variant="outline"
+                            className={
+                                finding.severity === "critical"
+                                    ? "shrink-0 border-destructive/60 bg-destructive/15 text-foreground"
+                                    : "shrink-0 border-primary/60 bg-primary/15 text-foreground"
+                            }
+                        >
+                            {finding.keyLabel} key
+                        </Badge>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 text-foreground hover:text-foreground"
+                            onClick={() =>
+                                onViewCredential(finding.credentialId)
+                            }
+                        >
+                            View
+                        </Button>
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
 export function SecurityReport({
     analysis,
     progress,
@@ -530,6 +596,7 @@ export function SecurityReport({
     analyzedAt,
     onBack,
     onEditCredential,
+    onViewCredential,
     onOpenCredentialUrl,
     onRefresh,
 }: SecurityReportProps) {
@@ -544,19 +611,32 @@ export function SecurityReport({
             : 0;
     const lastChecked = analyzedAt ? new Date(analyzedAt) : null;
 
-    const actionCount = rows.filter(isActionableFinding).length;
+    const weakSSHKeys = analysis?.weakSSHKeyFindings ?? [];
+    const passwordActionCount = rows.filter(isActionableFinding).length;
+    const actionCount = passwordActionCount + weakSSHKeys.length;
+    const passwordsAtRisk = rows.some(isCriticalFinding);
     const actionHeadline =
         analysis?.healthBand === "good"
             ? "No password changes recommended"
             : analysis?.healthBand === "needs-attention"
-              ? `${actionCount} ${actionCount === 1 ? "credential could" : "credentials could"} use a stronger password`
+              ? passwordActionCount === 0
+                  ? `${actionCount} ${actionCount === 1 ? "SSH key should" : "SSH keys should"} be replaced`
+                  : weakSSHKeys.length === 0
+                    ? `${actionCount} ${actionCount === 1 ? "credential could" : "credentials could"} use a stronger password`
+                    : `${actionCount} items could be stronger`
               : `${actionCount} ${actionCount === 1 ? "credential needs" : "credentials need"} attention`;
     const actionDescription =
         analysis?.healthBand === "good"
-            ? "No reused or weak passwords were found."
+            ? "No reused passwords, weak passwords or weak SSH keys were found."
             : analysis?.healthBand === "needs-attention"
-              ? "Some passwords could be made stronger."
-              : "Reused or critically weak passwords need your attention.";
+              ? passwordActionCount === 0
+                  ? "Some SSH keys are weaker than recommended."
+                  : weakSSHKeys.length === 0
+                    ? "Some passwords could be made stronger."
+                    : "Some passwords and SSH keys could be made stronger."
+              : passwordsAtRisk
+                ? "Reused or critically weak passwords need your attention."
+                : "Some SSH keys are too short to be safe.";
 
     return (
         <main className="relative z-10 min-w-0 flex-1 overflow-y-auto bg-background text-foreground shadow-2xl">
@@ -683,6 +763,13 @@ export function SecurityReport({
                                     : ""}
                             </p>
                         </div>
+
+                        {weakSSHKeys.length > 0 ? (
+                            <WeakSSHKeysCard
+                                findings={weakSSHKeys}
+                                onViewCredential={onViewCredential}
+                            />
+                        ) : null}
 
                         <SecurityFindingGrid
                             rows={rows}

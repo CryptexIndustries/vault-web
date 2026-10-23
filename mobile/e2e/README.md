@@ -62,6 +62,8 @@ pnpm mobile:e2e -- security
 pnpm mobile:e2e -- cloud
 pnpm mobile:e2e -- devices
 pnpm mobile:e2e -- import-export
+pnpm mobile:e2e -- ssh-keys
+pnpm mobile:e2e -- ssh-agent
 ```
 
 Maestro options can follow the suite, for example
@@ -209,6 +211,44 @@ DocumentsUI to restore the encrypted `.cryx` file and import readable JSON into
 a separate empty vault. It rejects an incorrect restore password, checks
 credential fields including the password, and checks restored data after an app
 restart. The share receiver belongs only to the separate test APK.
+
+## SSH keys
+
+`ssh-keys` also needs the native target fixture, for its share receiver, and
+`ssh-keygen` on the host. The runner pushes the encrypted fixture key
+`ed25519-aes256-ctr.key` into Downloads. The journey generates a key, imports
+the fixture through DocumentsUI with a wrong and then the right passphrase,
+copies the public key, saves the private key with a passphrase, and checks the
+SSH keys filter and search. It then pastes the copied public key into the import
+field to confirm the clipboard holds the fixture's `.pub` line. Afterwards the
+runner pulls the captured file and checks that it is encrypted and that
+`ssh-keygen -y` with the export passphrase gives the fixture's public key.
+
+## SSH agent
+
+`ssh-agent` needs Go, `ssh-keygen`, `ssh-add` and `script` (util-linux) on the
+host. `e2e/run-ssh-agent.mjs` builds `relay-server` and `cryptex-agent` from
+`services/`, starts the relay in token mode on `127.0.0.1:43112` (set
+`CRYPTEX_E2E_RELAY_PORT` to change it) and forwards that port to the device
+with `adb reverse`, so the phone and the agent reach the relay at the same
+origin. The agent gets its own temporary `HOME` and XDG directories.
+
+The runner first runs `flows/ssh-agent-setup.yaml`, which creates a vault with
+one SSH key. Only then does it start `cryptex-agent pair`, because a pairing
+code lasts three minutes and the setup can take most of that on a freshly
+booted emulator. It passes the pairing code and relay token to
+`flows/ssh-agent.yaml`. The flow pastes the code, enters the token for the
+self-hosted relay and connects; the
+runner presses Enter on the agent once it shows the confirmation code. It then
+runs `cryptex-agent run` and two `ssh-keygen -Y sign -n file` requests: the
+flow approves the first, which the runner checks with `ssh-keygen -Y verify`,
+and denies the second, which must fail. The flow revokes the agent and the
+runner checks that `cryptex-agent status` reports it. Everything it started is
+stopped and its temporary files are removed when it ends.
+
+```sh
+pnpm mobile:e2e -- ssh-agent --device emulator-5556
+```
 
 ## Two-device sync
 

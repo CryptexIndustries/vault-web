@@ -160,6 +160,8 @@ export function AccountDialog({
     const [recoveryKitFromRegistration, setRecoveryKitFromRegistration] =
         useState(false);
     const [rotateRecoveryOpen, setRotateRecoveryOpen] = useState(false);
+    const [recoverConfirmOpen, setRecoverConfirmOpen] = useState(false);
+    const [recoveryKitOfferOpen, setRecoveryKitOfferOpen] = useState(false);
     const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
     const [deleteAccountPending, setDeleteAccountPending] = useState(false);
 
@@ -432,7 +434,10 @@ export function AccountDialog({
         }
     };
 
-    const handleRecover = async () => {
+    const normalizedRecoverPhrase = () =>
+        joinRecoveryPhrase(splitRecoveryPhraseIntoSlots(recoverPhrase));
+
+    const handleRecover = () => {
         if (!recoverCaptcha.trim()) {
             toast.error("Complete the captcha.");
             return;
@@ -441,11 +446,8 @@ export function AccountDialog({
             toast.error("User ID and recovery phrase are required.");
             return;
         }
-        const normalizedPhrase = joinRecoveryPhrase(
-            splitRecoveryPhraseIntoSlots(recoverPhrase),
-        );
         if (
-            countRecoveryPhraseWords(normalizedPhrase) !==
+            countRecoveryPhraseWords(normalizedRecoverPhrase()) !==
             RECOVERY_PHRASE_WORD_COUNT
         ) {
             toast.error(
@@ -453,6 +455,12 @@ export function AccountDialog({
             );
             return;
         }
+        setRecoverConfirmOpen(true);
+    };
+
+    const recoverAccount = async () => {
+        setRecoverConfirmOpen(false);
+        const normalizedPhrase = normalizedRecoverPhrase();
         try {
             const { publicKey, privateKey } = await generateKeyPair();
             const pub = publicKeyJwkToString(publicKey);
@@ -494,6 +502,11 @@ export function AccountDialog({
                 toast.success("Account recovered. Sign-in refreshed.");
                 setRecoverCaptcha("");
                 setRecoverPhrase("");
+                // Recovery spends the Kit (review accounts keep theirs).
+                const { data: config } = await refetchConfig();
+                if (config && !config.recoveryTokenCreatedAt) {
+                    setRecoveryKitOfferOpen(true);
+                }
             }
         } catch (e) {
             onlineServicesLog.error("Online Services account recovery failed", {
@@ -898,7 +911,7 @@ export function AccountDialog({
                                         recoverPhrase={recoverPhrase}
                                         onRecoverPhraseChange={setRecoverPhrase}
                                         onRegister={() => void handleRegister()}
-                                        onRecover={() => void handleRecover()}
+                                        onRecover={handleRecover}
                                         registerPending={registerMut.isPending}
                                         recoverPending={recoverMut.isPending}
                                         busy={busy}
@@ -1040,6 +1053,63 @@ export function AccountDialog({
                             onClick={() => void createRecoveryPackage("rotate")}
                         >
                             Rotate package
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={recoverConfirmOpen}
+                onOpenChange={setRecoverConfirmOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Recover this account?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Recovering removes every other device from this
+                            account and signs them out. It also uses up this
+                            Recovery Kit; you can save a new one next.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={recoverMut.isPending}
+                            onClick={() => void recoverAccount()}
+                        >
+                            Recover account
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={recoveryKitOfferOpen}
+                onOpenChange={setRecoveryKitOfferOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Create a new Recovery Kit?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The Kit you used no longer works, so this account
+                            has none. Create one now, or later from Account &gt;
+                            Security.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Later</AlertDialogCancel>
+                        <Button
+                            onClick={() => {
+                                setRecoveryKitOfferOpen(false);
+                                void createRecoveryPackage();
+                            }}
+                        >
+                            Create Recovery Kit
                         </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -10,6 +10,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
     ArrowUpDown,
     ChevronRight,
+    FileKey,
     KeyRound,
     ShieldCheck,
 } from "lucide-react-native";
@@ -18,6 +19,7 @@ import {
     type SecurityAnalysisResult,
     type SecurityFindingIdentity,
     type WeakPasswordFinding,
+    type WeakSSHKeyFinding,
 } from "@cryptex-industries/vault-core/vault-utils/security-report";
 import { useSecurityReport } from "@/components/security-report-provider";
 import {
@@ -29,7 +31,7 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
 
-type FindingFilter = "all" | "reused" | "critical" | "weak" | "old";
+type FindingFilter = "all" | "reused" | "critical" | "weak" | "old" | "ssh";
 type FindingSort = "risk" | "name" | "strength" | "reuse" | "age";
 
 type SecurityFindingRow = SecurityFindingIdentity & {
@@ -37,6 +39,7 @@ type SecurityFindingRow = SecurityFindingIdentity & {
     reuseCount: number;
     reuseGroup?: SecurityFindingIdentity[];
     passwordAgeDays?: number;
+    sshKey?: WeakSSHKeyFinding;
 };
 
 const SORT_CYCLE: FindingSort[] = ["risk", "name", "strength", "reuse", "age"];
@@ -74,12 +77,19 @@ function buildFindingRows(
     for (const finding of analysis.ageFindings) {
         getRow(finding).passwordAgeDays = finding.passwordAgeDays;
     }
+    for (const finding of analysis.weakSSHKeyFindings ?? []) {
+        getRow(finding).sshKey = finding;
+    }
 
     return Array.from(rows.values());
 }
 
 function isCriticalFinding(row: SecurityFindingRow): boolean {
-    return row.reuseCount > 1 || row.strength?.severity === "critical";
+    return (
+        row.reuseCount > 1 ||
+        row.strength?.severity === "critical" ||
+        row.sshKey?.severity === "critical"
+    );
 }
 
 function matchesCategory(
@@ -95,6 +105,8 @@ function matchesCategory(
             return row.strength?.score === 2;
         case "old":
             return row.passwordAgeDays != null;
+        case "ssh":
+            return row.sshKey != null;
         default:
             return true;
     }
@@ -112,7 +124,8 @@ function readFilter(value: string | string[] | undefined): FindingFilter {
     return filter === "reused" ||
         filter === "critical" ||
         filter === "weak" ||
-        filter === "old"
+        filter === "old" ||
+        filter === "ssh"
         ? filter
         : "all";
 }
@@ -166,7 +179,7 @@ export function SecurityReportScreen({
             // risk
             const rank = (row: SecurityFindingRow) => {
                 if (isCriticalFinding(row)) return 0;
-                if (row.strength?.score === 2) return 1;
+                if (row.strength?.score === 2 || row.sshKey) return 1;
                 return 2;
             };
             return (
@@ -209,6 +222,12 @@ export function SecurityReportScreen({
             short: "Old",
             hint: "Last changed a year or more ago",
         },
+        {
+            value: "ssh",
+            label: "Weak SSH keys",
+            short: "SSH keys",
+            hint: "RSA keys under 3072 bits",
+        },
     ];
     const counts = {
         all: rows.length,
@@ -216,6 +235,7 @@ export function SecurityReportScreen({
         critical: rows.filter((row) => matchesCategory(row, "critical")).length,
         weak: rows.filter((row) => matchesCategory(row, "weak")).length,
         old: rows.filter((row) => matchesCategory(row, "old")).length,
+        ssh: rows.filter((row) => matchesCategory(row, "ssh")).length,
     };
     const urgentCount = rows.filter(isCriticalFinding).length;
     const openFindings = (category: FindingFilter) => {
@@ -256,9 +276,13 @@ export function SecurityReportScreen({
             row.passwordAgeDays != null
                 ? `Changed ${formatPasswordAge(row.passwordAgeDays)} ago`
                 : "",
+            row.sshKey
+                ? `${row.sshKey.keyLabel} key, too short to stay secure`
+                : "",
         ]
             .filter(Boolean)
             .join("; ");
+        const RowIcon = row.sshKey ? FileKey : KeyRound;
         return (
             <Pressable
                 key={row.credentialId}
@@ -289,7 +313,7 @@ export function SecurityReportScreen({
                         gap: 13,
                     }}
                 >
-                    <KeyRound
+                    <RowIcon
                         size={22}
                         color={
                             isCriticalFinding(row)
@@ -566,7 +590,9 @@ export function SecurityReportScreen({
                                                     ? `${urgentCount} with reused or critically weak passwords. Start there.`
                                                     : counts.weak
                                                       ? "Focus on making weak passwords stronger."
-                                                      : "Only age reminders remain. Review whether changes are needed."}
+                                                      : counts.ssh
+                                                        ? "Replace weak SSH keys with new Ed25519 keys."
+                                                        : "Only age reminders remain. Review whether changes are needed."}
                                             </Text>
                                         </>
                                     )}
@@ -577,8 +603,8 @@ export function SecurityReportScreen({
                                             marginTop: 4,
                                         }}
                                     >
-                                        {analysis.analyzedCount} passwords
-                                        checked on this device
+                                        {analysis.analyzedCount} items checked
+                                        on this device
                                     </Text>
                                 </View>
                                 {analysis.analyzedCount > 0 ? (
@@ -841,9 +867,10 @@ export function SecurityReportScreen({
                                     lineHeight: 18,
                                 }}
                             >
-                                Checks password strength, reuse, and age.
-                                Data breaches are not checked. Age alone does
-                                not mean a password is compromised.
+                                Checks password strength, reuse, and age, and
+                                SSH key sizes. Data breaches are not checked.
+                                Age alone does not mean a password is
+                                compromised.
                             </Text>
                         </View>
                         <Button

@@ -1,0 +1,148 @@
+appId: ${CRYPTEX_APP_ID}
+name: SSH key items
+---
+- runFlow: setup-vault.yaml
+- tapOn: Add item
+- tapOn:
+      id: add-item-login
+- tapOn: Credential name
+- inputText: Plain Login
+- hideKeyboard
+- tapOn:
+      id: credential-submit
+- assertVisible: Plain Login
+- tapOn: Back
+
+# Generate: the key is ready at once and its comment follows the name.
+- tapOn: Add item
+- tapOn:
+      id: add-item-ssh-key
+- assertVisible: Add SSH key
+- assertVisible:
+      id: ssh-key-generated
+- assertVisible: Ed25519
+- tapOn: SSH key name
+- inputText: Generated key
+- hideKeyboard
+- assertVisible: "ssh-ed25519 AAAA\\S+ Generated key"
+- tapOn:
+      id: ssh-key-submit
+- assertVisible: Item details
+- assertVisible: ".*SSH key"
+- assertVisible: Ed25519
+- assertVisible: Generated key
+- tapOn: Back
+
+# Import the encrypted fixture key from Downloads.
+- tapOn: Add item
+- tapOn:
+      id: add-item-ssh-key
+- tapOn:
+      id: ssh-key-source-import
+- tapOn: Choose key file
+- runFlow: pick-exported-file.yaml
+- extendedWaitUntil:
+      visible:
+          id: ssh-key-passphrase
+      timeout: 15000
+- tapOn:
+      id: ssh-key-passphrase
+- inputText: wrong horse
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          text: Unlock
+      direction: DOWN
+- tapOn: Unlock
+- extendedWaitUntil:
+      visible: The passphrase is incorrect.
+      timeout: 30000
+- tapOn:
+      id: ssh-key-passphrase
+- eraseText: 40
+- inputText: correct horse
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          text: Unlock
+      direction: DOWN
+- tapOn: Unlock
+- extendedWaitUntil:
+      visible:
+          id: ssh-key-imported
+      timeout: 30000
+- scrollUntilVisible:
+      element:
+          text: SHA256:FgJyvLLzDuDxEny970gdFu3G8z6d8daahg2A\+LVGV68
+      direction: DOWN
+- assertVisible: SHA256:FgJyvLLzDuDxEny970gdFu3G8z6d8daahg2A\+LVGV68
+# Swipe below the key field, which scrolls by itself.
+- swipe:
+      start: 50%, 84%
+      end: 50%, 30%
+- assertVisible: ed25519-enc@fixtures
+- tapOn: SSH key name
+- inputText: Imported key
+- hideKeyboard
+- tapOn:
+      id: ssh-key-submit
+- assertVisible: Item details
+- assertVisible: Imported key
+- assertVisible: ".*SSH key"
+- assertVisible: Ed25519
+- assertVisible: SHA256:FgJyvLLzDuDxEny970gdFu3G8z6d8daahg2A\+LVGV68
+
+# Save the private key with a passphrase; the runner checks the captured file.
+- tapOn: Copy Public key
+- scrollUntilVisible:
+      element:
+          text: Save private key
+      direction: DOWN
+- tapOn: Save private key
+- tapOn:
+      id: ssh-key-file-passphrase
+- inputText: export horse
+- tapOn:
+      id: ssh-key-file-passphrase-confirm
+- inputText: export horse
+- hideKeyboard
+- tapOn:
+      id: ssh-key-file-save
+# Encrypting runs on the key worker and can take a while without a JIT.
+- extendedWaitUntil:
+      visible: Capture E2E export
+      timeout: 60000
+- runFlow: export-capture.yaml
+- assertVisible: Item details
+- tapOn: Back
+
+# The filter shows only SSH keys.
+- tapOn: Filter items.*
+- tapOn: SSH keys
+- assertVisible: Generated key
+- assertVisible: Imported key
+- assertNotVisible: Plain Login
+- assertVisible: "Ed25519, ed25519-enc@fixtures"
+
+# Search finds the comment.
+- tapOn: Search your vault
+- inputText: ed25519-enc
+- assertVisible: Imported key
+- assertNotVisible: Generated key
+- hideKeyboard
+- tapOn: Back
+- assertVisible: Add item
+
+# The copied public key is the imported key's .pub line.
+- tapOn: Add item
+- tapOn:
+      id: add-item-ssh-key
+- tapOn:
+      id: ssh-key-source-import
+- longPressOn:
+      id: ssh-key-private-key
+- tapOn: Paste
+- assertVisible: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM0WTpF53QEFgxvkp1z95vsy4uS8aRSd3n3f69GlNysu ed25519-enc@fixtures
+- assertVisible: This is a public key.*
+- tapOn: Cancel editing
+- tapOn: Discard

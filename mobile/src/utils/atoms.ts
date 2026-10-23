@@ -22,6 +22,8 @@ export type OnlineServicesData = {
         canPromoteDevices?: boolean;
         maxLinks: number;
         passwordSharing?: boolean;
+        sshAgentRelay?: boolean;
+        maxSshAgents?: number;
         recoveryTokenCreatedAt: Date | null;
         recoveryGenerationNeeded?: boolean;
     } | null;

@@ -10,3 +10,8 @@ services:
             context: ../../services
             dockerfile: cmd/share-server/Dockerfile
         pull_policy: never
+    relay:
+        build:
+            context: ../../services
+            dockerfile: cmd/relay-server/Dockerfile
+        pull_policy: never

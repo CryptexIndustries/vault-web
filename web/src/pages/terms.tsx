@@ -16,7 +16,7 @@ export default function TermsOfService() {
                     These terms cover Cryptex Vault and the optional Online
                     Services operated by Cryptex Industries d.o.o., Croatia.
                 </p>
-                <p>Last updated: 12 October 2026</p>
+                <p>Last updated: 22 October 2026</p>
             </section>
 
             <Section
@@ -85,10 +85,10 @@ export default function TermsOfService() {
                 <h2>Prices, renewal and cancellation</h2>
                 <p>
                     See the <Link href="/pricing">pricing page</Link> for
-                    monthly and annual subscription prices, including VAT.
-                    Checkout shows the amount, currency and billing interval
-                    before you pay. A subscription renews at that interval until
-                    cancelled.
+                    monthly and yearly subscription prices, including VAT.
+                    Checkout shows the amount, currency, billing interval and
+                    any free trial before you subscribe. A subscription renews
+                    at that interval until cancelled.
                 </p>
                 <p>
                     Price increases apply only from a future renewal, after
@@ -123,6 +123,35 @@ export default function TermsOfService() {
                     period. You retain the paid service until then and will not
                     be charged for another period.
                 </p>
+                <h3 id="free-trial">Free trial</h3>
+                <p>
+                    Your first Online Services subscription, monthly or yearly,
+                    starts with a 14-day free trial. Each account can have one
+                    free trial, and only if it has never had a Stripe or Google
+                    Play subscription. Google Play also allows one free trial
+                    per Google account and may decline a trial on that basis.
+                    During the trial you get the same Online Services as a paid
+                    subscriber.
+                </p>
+                <p>
+                    You must add a payment method to start the trial. When the
+                    trial ends, the subscription becomes a paid subscription at
+                    the price and billing interval shown at checkout, and that
+                    payment method is charged automatically, unless you cancel
+                    before the trial ends. The first paid billing period starts
+                    when the trial ends.
+                </p>
+                <p>
+                    To cancel during the trial, follow the same steps as above:{" "}
+                    <strong>Manage billing</strong> for a Stripe subscription,
+                    or{" "}
+                    <a href="https://play.google.com/store/account/subscriptions">
+                        Subscriptions in Google Play
+                    </a>{" "}
+                    for a Google Play subscription. If you cancel during the
+                    trial, you keep Online Services until the trial ends, you
+                    are not charged, and the subscription then ends.
+                </p>
             </Section>
 
             <Section
@@ -150,6 +179,13 @@ export default function TermsOfService() {
                     </a>{" "}
                     and give "cooling off period" as the reason for your refund
                     request.
+                </p>
+                <p>
+                    If your subscription starts with a free trial, you receive
+                    access when the trial starts. The 14 days under Link's terms
+                    therefore run during the trial, and nothing is charged in
+                    that time. To end the subscription without paying, cancel
+                    before the trial ends.
                 </p>
                 <p>
                     To request a refund for a Stripe purchase, follow{" "}

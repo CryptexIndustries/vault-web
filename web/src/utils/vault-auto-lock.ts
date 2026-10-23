@@ -57,6 +57,16 @@ export type VaultAutoLockController = {
     notifyActivity: () => void;
 };
 
+/** When the running idle auto-lock is due (unix ms), null while none runs. */
+let idleLockDueAt: number | null = null;
+
+/**
+ * True once the idle auto-lock is due, even if its timer hasn't fired yet:
+ * browsers run timers in hidden tabs late, and signing must not wait for it.
+ */
+export const isVaultAutoLockDue = (now = Date.now()) =>
+    idleLockDueAt !== null && now >= idleLockDueAt;
+
 const clearTimer = (timer: ReturnType<typeof setTimeout> | null) => {
     if (timer) {
         clearTimeout(timer);
@@ -81,6 +91,7 @@ export function startVaultAutoLock({
     const scheduleIdleLock = () => {
         clearTimer(idleTimer);
         if (stopped || lockInFlight) return;
+        idleLockDueAt = Date.now() + idleMs;
         idleTimer = setTimeout(() => {
             void runLock("idle");
         }, idleMs);
@@ -117,6 +128,7 @@ export function startVaultAutoLock({
     return {
         stop: () => {
             stopped = true;
+            idleLockDueAt = null;
             stopTimers();
             VAULT_AUTO_LOCK_ACTIVITY_EVENTS.forEach((eventName) => {
                 windowObj.removeEventListener(eventName, notifyActivity);

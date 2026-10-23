@@ -3,6 +3,7 @@
   "EXPO_PUBLIC_OTA_SIGNING_ENABLED": "false",
   "EXPO_PUBLIC_APP_URL": "https://www.cryptex-vault.com",
   "EXPO_PUBLIC_ONLINE_SERVICES_API_URL": "https://api.cryptex-vault.com",
+  "EXPO_PUBLIC_RELAY_URL": "https://relay.cryptex-vault.com",
   "EXPO_PUBLIC_BACKUP_STORAGE_ORIGIN": "https://cryptex-vault-managed-backups.s3.eu-central-003.backblazeb2.com",
   "EXPO_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAAEsYPRa1soBMl4f",
   "EXPO_PUBLIC_PUSHER_APP_ID": "3252ad7d-21ca-4482-a0ed-0833c9aff678",

@@ -4,10 +4,7 @@ import { usePreventRemove } from "expo-router/react-navigation";
 
 import { UnlockedDialogTitle as DialogTitle } from "@/components/unlocked/unlocked-ui";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
-import {
-    Snackbar,
-    useSnackbar,
-} from "@/components/snackbar";
+import { Snackbar, useSnackbar } from "@/components/snackbar";
 import {
     getVaultSessionGeneration,
     isSameActiveVaultSession,
@@ -74,6 +71,11 @@ function SubscriptionSignupSheet({
         dismiss: dismissFeedback,
     } = useSnackbar(getVaultSessionGeneration(), open);
     const checkoutTierRef = useRef<CheckoutTier>("premiumMonthly");
+    const checkoutTrialRef = useRef(false);
+    // Until the subscription loads, only an account created here counts as new.
+    const [createdHere, setCreatedHere] = useState(false);
+    const trialEligible =
+        account.subscription?.trialEligible ?? (!account.bound || createdHere);
     const pendingRef = useRef(false);
     const [localPending, setLocalPending] = useState(
         pendingConfirmation ?? false,
@@ -122,14 +124,22 @@ function SubscriptionSignupSheet({
     });
 
     const createAccount = useCallback(
-        async (tier: CheckoutTier) => {
+        async (tier: CheckoutTier, trial: boolean) => {
             if (pendingRef.current) return;
             pendingRef.current = true;
             dismissFeedback();
             checkoutTierRef.current = tier;
+            checkoutTrialRef.current = trial;
+            const wasBound = account.bound;
             try {
                 await account.handleRegister();
             } finally {
+                if (
+                    mounted.current &&
+                    !wasBound &&
+                    vaultStore.get(unlockedVaultAtom).OnlineServices?.UserID
+                )
+                    setCreatedHere(true);
                 pendingRef.current = false;
             }
         },
@@ -191,10 +201,22 @@ function SubscriptionSignupSheet({
                 ? { ok: true as const }
                 : checking
                   ? await checkStorePurchaseStatus()
-                  : await purchaseMembership(checkoutTierRef.current);
+                  : await purchaseMembership(checkoutTierRef.current, {
+                        trialEligible,
+                        trial: checkoutTrialRef.current,
+                    });
             if (!isCurrent()) return;
             if (!result.ok) {
-                if (result.pending) markPending(true);
+                if (result.offerChanged) {
+                    // Retrying buys the new terms the message describes.
+                    checkoutTrialRef.current = result.offerChanged.trial;
+                    showFeedback(
+                        result.offerChanged.trial
+                            ? "This plan now starts with a 14-day free trial. Retry to start it."
+                            : "The free trial is no longer available for this plan. Retry to subscribe at the full price.",
+                        recovery,
+                    );
+                } else if (result.pending) markPending(true);
                 else if (!result.canceled)
                     showFeedback(
                         result.message,
@@ -276,6 +298,7 @@ function SubscriptionSignupSheet({
             ) : (
                 <MembershipUpgrade
                     canUpgrade
+                    trialEligible={trialEligible}
                     initialTier={checkoutTierRef.current}
                     refreshing={account.mutationBusy}
                     onContinue={createAccount}

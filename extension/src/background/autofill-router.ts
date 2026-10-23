@@ -10,6 +10,7 @@
  */
 
 import { calculateTOTP } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { describeSSHKey } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     credentialMatchesPageUrl,
@@ -25,6 +26,7 @@ import {
     GetCredentialSecretResponse,
     GenerateTOTPResponse,
     LiteCredential,
+    LiteSSHKey,
     PendingSavePrompt,
     SaveCredentialPromptRequest,
 } from "../types/sw-messaging";
@@ -64,7 +66,24 @@ export function toLiteCredential(
                   UserDisplayName: c.Passkey.UserDisplayName,
               }
             : undefined,
+        sshKey: toLiteSSHKey(c),
     };
+}
+
+function toLiteSSHKey(c: VaultUtilTypes.Credential): LiteSSHKey | undefined {
+    if (c.Type !== VaultUtilTypes.ItemType.SSHKey || !c.SSHKey)
+        return undefined;
+    const info = describeSSHKey(c.SSHKey);
+    return {
+        label: info?.label ?? "",
+        fingerprint: info?.fingerprint ?? "",
+        comment: c.SSHKey.Comment,
+    };
+}
+
+/** SSH key items are never offered, filled or matched by autofill. */
+export function isAutofillCandidate(c: VaultUtilTypes.Credential): boolean {
+    return !c.Deleted && c.Type !== VaultUtilTypes.ItemType.SSHKey;
 }
 
 /** Adds non-secret search fields for privileged extension UI surfaces. */
@@ -86,7 +105,7 @@ export function matchCredentialsForOrigin(
     const matches: LiteCredential[] = [];
 
     for (const cred of credentials ?? []) {
-        if (cred.Deleted) continue;
+        if (!isAutofillCandidate(cred)) continue;
         const match = findCredentialUrlMatch(cred, request.url);
         if (match) matches.push(toLiteCredential(cred, match.rule));
     }
@@ -128,7 +147,7 @@ export async function handleGetCredentialSecret(
     }
 
     const cred = (vault.Credentials ?? []).find(
-        (c) => c.ID === payload.id && !c.Deleted,
+        (c) => c.ID === payload.id && isAutofillCandidate(c),
     );
     if (!cred) {
         return { ok: false, error: "NOT_FOUND" };
@@ -166,7 +185,7 @@ export async function handleGenerateTOTP(
         return { ok: false, error: "VAULT_NOT_UNLOCKED" };
     }
     const cred = (vault.Credentials ?? []).find(
-        (c) => c.ID === payload.id && !c.Deleted,
+        (c) => c.ID === payload.id && isAutofillCandidate(c),
     );
     if (!cred) return { ok: false, error: "NOT_FOUND" };
     const originCheck = credentialMatchesRequestOrigin(cred, requestOrigin);

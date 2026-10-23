@@ -5,12 +5,12 @@
 | Field               | Value                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------ |
 | Application         | Cryptex Vault mobile application                                                     |
-| Application version | 0.2.0                                                                                |
+| Application version | 0.3.0                                                                                |
 | Platform in scope   | Android                                                                              |
 | Document version    | 1.1                                                                                  |
 | Status              | Active engineering threat model                                                      |
 | Last reviewed       | 2026-10-14                                                                           |
-| Document owner      | Mobile engineering                                                                   |
+| Document owner      | Milivoj Bošnjak (8l4cksmith)                                                         |
 | Source baseline     | `ab30ca53358c0b883438c31381fecf7ccc38e5c0`, published to `origin/development` on 2026-10-14 |
 | Security reviewer   | Milivoj Bošnjak (8l4cksmith), 2026-10-14                                              |
 | Review cadence      | Before each production release and whenever a review trigger in section 18 occurs    |
@@ -74,6 +74,7 @@ Risk responses use four terms:
 - Import, restore, export, recovery kits, clipboard, camera and QR input, file sharing, diagnostics, and temporary files.
 - Device linking, encrypted peer synchronization, signaling, STUN, and TURN configuration.
 - Optional Online Services sessions, managed backups, account recovery, and the Turnstile WebView.
+- SSH agent approval: the approver runtime, its relay connection, request notifications, and the `cryptex-agent-service` foreground service. The relay server and the Linux agent are covered by their own threat models under `services/cmd/`.
 - One-time share links: the Share once screen, the Shared links list, share server settings, and the link handed to the clipboard or sharesheet. The share server itself is covered by its own [threat model](../services/cmd/share-server/threat-model.md).
 - Android build, signing, dependencies, permissions, backup rules, and publication checks.
 
@@ -209,6 +210,11 @@ flowchart LR
 | Turnstile token                                  | Confidential, ephemeral         | WebView to one API request                              | Validate origin and nonce; do not persist or log                     |
 | One-time share link and its key                  | Restricted                      | Share screen memory; clipboard or sharesheet recipient  | Copy as a sensitive clip; never log; one view on the server          |
 | Share manage tokens and share settings           | Restricted                      | Encrypted vault, synced between the user's devices      | Validate synced records; keep creation tokens off linked devices     |
+| SSH approver identity seeds                      | Restricted                      | SecureStore outside the vault, after first unlock       | Never sync or log; enough for Deny and notifications, not for signing |
+| Approved agent cache                             | Public, integrity-sensitive     | Plain app storage outside the vault                     | Holds only agent IDs, names and public keys; names feed notifications |
+| Relay pass and custom relay tokens               | Restricted                      | SecureStore outside the vault                           | Send only to the relay they were issued for; never log               |
+| SSH sign request content                         | Confidential                    | Approver memory and the request screen                  | End-to-end encrypted on the relay; notification shows only agent name |
+| Remembered SSH approvals                         | Security-sensitive              | Approver memory while the vault is unlocked             | Clear on lock; never for forwarded, destination-unknown or non-git SSHSIG requests |
 | Private release signing key and passwords        | Restricted                      | Private directory outside the checkout; signing process | Never enter source or APK; keep an encrypted offline backup          |
 | Public release configuration and certificate     | Public, integrity-sensitive      | Checked-in JSON; public configuration and APK signature  | Review changes; require the approved configuration and signer        |
 
@@ -229,6 +235,8 @@ flowchart LR
 | TB-11 | Untrusted file or QR to parsers                     | Vault, import, credential, TOTP, and device-link data             | A 1 GB outer-file limit before JavaScript materialization, format checks, and cryptographic authentication where defined | Expanded-size, nesting, QR, and wire-message limits remain incomplete                             |
 | TB-12 | Source and dependencies to release APK              | Code, native libraries, flags, signing identity                   | Frozen lock, Maven checksums, pinned toolchain/actions, isolated production build, final APK policy and signer checks    | Publication still needs an identified source baseline, protected key backup and F-Droid recipe review |
 | TB-13 | Application to share server                         | Share ciphertext, token hashes, manage tokens, subscriber tickets | Client-side AES-256-GCM, key only in the link fragment, ticket audience check, HTTPS-only production network policy     | An intercepted link opens the share; a custom server serves its own recipient page                |
+| TB-14 | Approver to SSH agent relay and paired agents       | Encrypted sign requests and answers, relay pass, relay tokens     | End-to-end encryption to paired agent keys, relay pass bound to the identity key, connection only while an agent is approved | The relay sees connection metadata and timing and can drop or delay requests                      |
+| TB-15 | Lock screen and notification shade                  | Agent name, request ID, Review and Deny actions                   | Private notifications with a public "Approval needed" version, non-exported Deny receiver, signing needs the unlocked vault | Anyone holding the unlocked phone can see the agent name and tap Deny                             |
 
 ## 8. Entry points
 
@@ -249,6 +257,8 @@ flowchart LR
 | EP-13 | Environment variables and build configuration                           | Build operator-controlled                      | Wrong endpoints, E2E flags, debug signing, supply-chain compromise          |
 | EP-14 | Dependency installation and native build inputs                         | Registry and upstream-controlled               | Malicious package, stale native library, mutable CI dependency              |
 | EP-15 | Share server responses and synced share records                         | External service and other user devices        | Forged status reports, records pointing at another server, oversized lists  |
+| EP-16 | SSH agent relay messages and paired agent requests                      | External service and user-paired computer      | Forged or replayed requests, misleading names, request floods               |
+| EP-17 | Agent notification actions, boot and app-update broadcasts              | Android-mediated                               | Spoofed Deny or Review, unwanted service restart                            |
 
 ## 9. Threat actors
 
@@ -325,6 +335,7 @@ The security claims in this model depend on these assumptions:
 - Autofill request IDs, timestamps, package or website targets, and session generations are checked before completion.
 - The accessibility fallback is separately enabled by the user and requires an explicit fill or save action. Browser fills also require a separate in-app destination review, including for matching logins.
 - Main and credential-relay activities set `FLAG_SECURE` before sensitive UI renders. The separate debug-signed, `testOnly` E2E variant deliberately permits screenshots; production release does not.
+- The SSH agent service is a non-exported `specialUse` foreground service. It runs only while at least one agent is approved on this device, and the boot receiver restarts it only when the user left it on. Its Deny receiver and headless task service are non-exported; the boot receiver accepts only the protected `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` broadcasts. The app opens the battery optimization list but does not declare `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Release verification checks these components.
 - Camera use is limited to QR functions. The application blocks microphone, storage, media, overlay, and WebRTC audio permissions that it does not need.
 
 ### 11.6 MASVS-CODE
@@ -514,6 +525,24 @@ Required invariants:
 - Device linking does not copy share settings, so a self-hosted creation token stays on the device where it was entered.
 - Once the link leaves through the clipboard or sharesheet, Cryptex cannot recall it. The server's one-view rule and revoke are the only controls.
 
+### 12.11 SSH agent approval
+
+1. The user pairs a computer running `cryptex-agent`. The phone keeps the agent ID, name and public key outside the vault, and its own approver identity seeds and relay credentials in SecureStore.
+2. While at least one agent is approved here, the foreground service keeps the process alive and the JavaScript runtime keeps one relay connection. The hosted relay needs a relay pass from Online Services; a self-hosted relay uses a custom token.
+3. A sign request arrives end-to-end encrypted. The approver posts a notification that names the agent while the phone is unlocked (see the invariants below). With the vault locked it asks the user to unlock first.
+4. Review opens the app. Deny from the notification answers without unlocking. Approval signs inside the unlocked vault and returns the encrypted answer through the relay.
+
+Required invariants:
+
+- Identity seeds, the relay pass and relay tokens stay outside the vault so Deny and notifications work while locked. No SSH private key leaves the vault, and signing needs the unlocked vault.
+- The agent cache holds public data only. Agent names are display text; they are cleaned before they reach a notification.
+- Request notifications name the agent only while the phone is unlocked. One posted while the phone is locked or the screen is off reads "Approval needed", and turning the screen off changes the ones already showing back to "Approval needed", whatever the lock screen setting. Residual: a notification outlives the app process, and nothing redacts it while the process is dead. If Android kills the app while a named request notification shows and the phone then locks, the agent name can show on the lock screen until the process restarts or the request times out (at most 90 seconds). When the service or app starts again, request notifications it no longer tracks are re-posted as "Approval needed".
+- Work that hands a secret to something outside the app (vault, private-key, Recovery Kit, link package, backup and diagnostics files to the share sheet; secret copies; credential fills and passkey answers) checks the vault session after every wait and right before the hand-off. A lock that starts while one is in flight stops it for good, even if the vault is unlocked again: nothing reaches the share sheet or the requesting app, a temporary file already written is deleted, and a copied secret is cleared. The Android credential provider stops releasing synchronously when a lock starts, before the save; only a fresh unlock or "Keep editing" after a failed lock reopens it.
+- The approval screen drops touches that pass through or land beside another app's window drawn on top (fully or partially obscured), and hides other apps' overlays on Android 12 and later.
+- Notification actions go to non-exported components. A Deny tapped while JavaScript is not running is kept for at most 2 minutes and answered when the runtime starts.
+- Remembered approvals live in memory only and end when the vault locks. Forwarded, destination-unknown and non-git SSHSIG requests are never remembered.
+- The service and relay connection stop when no agent is approved on this device.
+
 ## 13. STRIDE coverage summary
 
 | STRIDE category        | Mobile examples                                                                     | Principal controls                                                                                | Open risk IDs                                                 |
@@ -544,7 +573,7 @@ Required invariants:
 - **Affected assets:** Website credentials and TOTP values.
 - **Controls:** The user enables the service, chooses a login, and confirms the browser address before each fill. The service rechecks the active browser and address before writing fields. Standard Android autofill uses a field's reported website when available and excludes fields that report another website.
 - **Decision:** The project maintainer accepted this limitation on 2026-09-28 to retain the fallback. The confirmation is a user choice, not verification of each field's origin. Review this decision if browsers provide field origins to accessibility or if testing reveals different behavior.
-- **Owner:** Project maintainer and Android credential integration.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
 - **Source anchors:** `CryptexAccessibilityService.kt`, `PendingCredentialRequest.kt`, `mobile/docs/ANDROID_AUTOFILL.md`.
 
 ### 14.3 Medium risks
@@ -555,7 +584,7 @@ Required invariants:
 - **Existing controls:** The failed-lock screen states that the vault is still unlocked and offers retry, continued editing, or a separately confirmed "Lock anyway" action. That action skips saving, revokes the DEK, clears the in-memory vault, and starts session cleanup. Unsaved changes may be lost.
 - **Required response:** Define an unattended automatic-save-failure cleanup policy without silently discarding unsaved data. Keep the manual "Lock anyway" path independent of persistence and cleanup failures, and preserve timeout denial while that decision is pending.
 - **Verification:** Fault-inject a save failure, confirm all three manual choices, and verify that "Lock anyway" revokes the DEK and plaintext before native cleanup. Device-test the unattended automatic-lock case.
-- **Owner:** Mobile session engineering.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
 - **Source anchors:** `mobile/src/utils/vault-lock.ts`, `mobile/app/(app)/_layout.tsx`, `mobile/app/credential-request.tsx`.
 
 #### MOB-T07: attacker-selected KDF costs
@@ -563,7 +592,7 @@ Required invariants:
 - **Risk statement:** A crafted restored envelope can supply excessive Argon2id memory or operation counts. Unlock performs synchronous native derivation before ciphertext authentication, which can freeze or terminate the application.
 - **Required response:** Enforce minimum and device-appropriate maximum KDF parameters before persistence and before derivation. Cover legacy formats. Reject unsupported values without silently lowering an existing vault's cost and move permitted expensive work off the UI thread.
 - **Verification:** Boundary tests must reject negative, fractional, overflow, multi-gigabyte, and excessive-pass configurations before calling the KDF.
-- **Owner:** Shared-crypto and mobile vault engineering.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
 - **Source anchors:** `packages/vault-core/src/vault-utils/encryption.ts`, `packages/vault-core/src/vault-utils/envelope-encryption.ts`, `mobile/src/shims/libsodium-wrappers-sumo.ts`.
 
 #### MOB-T08: unbounded parser and transfer work
@@ -573,7 +602,7 @@ Required invariants:
 - Managed backup downloads stream to an app-owned native temporary file. Transfers cancel when progress exceeds the snapshot's declared size, and the completed file must match that size before JavaScript decoding. Checksums remain mandatory. Progress cancellation can briefly overshoot on disk; an independent mobile snapshot-size limit remains absent. Account and recovery downloads, oversized responses, upload round trips, and temporary-file cleanup passed against the local API on port 3001 in a hardware-accelerated development emulator.
 - **Required response:** Keep the outer-file check and define tighter per-format compressed bytes, expanded bytes, nesting depth, item and string counts, QR frames, accumulated QR bytes, collection time, wire-message bytes, and per-peer rates before materialization.
 - **Verification:** Add zip-bomb, deep-XML, oversized JSON, excessive-frame, fragmented-message, and high-rate peer tests. Record the exact limit and rejection code for each entry point.
-- **Owner:** Mobile import, shared parsing, and sync engineering.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
 - **Source anchors:** `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/mobile-import-file.ts`, `mobile/src/app_lib/managed-backups.ts`, `packages/vault-core/src/vault-utils/import-export.ts`, `packages/shared-ui/src/lib/chunked-qr.ts`, `packages/vault-core/src/synchronization.ts`.
 
 ## 15. Recorded design decisions
@@ -651,6 +680,7 @@ Review this threat model when any of the following changes:
 - Device linking, QR transport, sync authentication, signaling, STUN, TURN, WebRTC, or merge logic.
 - Cloud authentication, tokens, account recovery, managed backup, billing, or Turnstile.
 - One-time share links: envelope, token derivation, share server endpoints, ticket handling, or share record sync rules.
+- SSH agent approval: relay protocol, approver identity storage, notifications, remembered approvals, or the foreground service.
 - Import and export formats, parsers, document picker, cache handling, clipboard, screenshots, logs, or diagnostics.
 - Shared code aliases, native libraries, package versions, Gradle plugins, CI actions, signing, or release channels.
 - A new Android major version, supported browser, app store, or F-Droid distribution model.
@@ -680,6 +710,7 @@ Primary implementation anchors for this model:
 - Managed backup: `mobile/src/app_lib/managed-backup-coordinator.ts`, `mobile/src/app_lib/managed-backup-hooks.ts`, `mobile/app/(app)/settings/backup-center/`.
 - Turnstile: `mobile/src/components/account/turnstile-bridge.ts`, `mobile/src/components/account/turnstile-challenge.tsx`.
 - One-time share links: `mobile/app/(app)/share/`, `mobile/src/app_lib/share-links.ts`, `packages/vault-core/src/vault-utils/share-link.ts`, `packages/vault-core/src/vault-utils/share-service.ts`, `packages/vault-core/src/vault-utils/share-records.ts`.
+- SSH agent approval: `mobile/src/agent/`, `mobile/modules/cryptex-agent-service/`, `packages/vault-core/src/agent/`.
 - Import, export, and temporary files: `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/secret-temp-files.ts`, `mobile/app/(app)/settings/import-export/index.tsx`, `mobile/src/components/vault-import/`, `packages/vault-core/src/vault-utils/import-export.ts`.
 - QR handling: `mobile/src/utils/qr-scan-session.ts`, `packages/shared-ui/src/lib/chunked-qr.ts`.
 - Screen and clipboard privacy: `mobile/plugins/with-android-screen-privacy.js`, `mobile/src/utils/clipboard.ts`, `mobile/modules/cryptex-android-credentials/android/src/main/java/com/cryptex/vault/credentials/SensitiveClipboard.kt`.

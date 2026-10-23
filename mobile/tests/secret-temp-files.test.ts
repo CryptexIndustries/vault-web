@@ -5,6 +5,7 @@ import {
     isAppOwnedTempFile,
     purgeSecretTempFiles,
     writeSecretTempFile,
+    writeSecretTempNamedFile,
 } from "@/utils/secret-temp-files";
 
 jest.mock("expo-file-system/legacy", () => ({
@@ -112,6 +113,48 @@ describe("secret temporary files", () => {
             "file:///cache/DocumentPicker/",
             { idempotent: true },
         );
+    });
+
+    it("writes a named share file alone in a random directory and removes the directory", async () => {
+        const uri = await writeSecretTempNamedFile(
+            "id_work-laptop.pub",
+            "ssh-ed25519 AAAA",
+            FileSystem.EncodingType.UTF8,
+        );
+        expect(uri).toMatch(
+            /^file:\/\/\/cache\/secret-temp\/[0-9a-f]{32}\/id_work-laptop\.pub$/,
+        );
+        const directory = uri.slice(0, uri.lastIndexOf("/") + 1);
+        expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith(directory, {
+            intermediates: true,
+        });
+        expect(isAppOwnedTempFile(uri)).toBe(true);
+        await deleteAppOwnedTempFile(uri);
+        expect(FileSystem.deleteAsync).toHaveBeenLastCalledWith(directory, {
+            idempotent: true,
+        });
+    });
+
+    it("rejects unsafe share file names and foreign nested paths", async () => {
+        for (const name of ["", ".ssh", "../id", "a/b", "id key", "a\\b"]) {
+            await expect(
+                writeSecretTempNamedFile(
+                    name,
+                    "secret",
+                    FileSystem.EncodingType.UTF8,
+                ),
+            ).rejects.toThrow("Secret temporary storage is unavailable");
+        }
+        for (const uri of [
+            "file:///cache/secret-temp/nothex/id_key",
+            "file:///cache/secret-temp/0123456789abcdef0123456789abcdef/../id",
+            "file:///cache/secret-temp/0123456789abcdef0123456789abcdef/a/b",
+            "file:///cache/DocumentPicker/0123456789abcdef0123456789abcdef/id",
+        ]) {
+            expect(isAppOwnedTempFile(uri)).toBe(false);
+        }
+        await deleteAppOwnedTempFile("file:///cache/secret-temp/nothex/id_key");
+        expect(FileSystem.deleteAsync).not.toHaveBeenCalled();
     });
 
     it("removes an incomplete share file if writing fails", async () => {

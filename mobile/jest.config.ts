@@ -25,8 +25,8 @@ const config: Config = {
         ],
     },
     transformIgnorePatterns: [
-        "<rootDir>/../node_modules/.pnpm/(?!(?:@noble\\+hashes|@scure\\+(?:base|bip39))@)",
-        "node_modules/(?!.pnpm|@noble/hashes|@scure/(?:base|bip39))",
+        "<rootDir>/../node_modules/.pnpm/(?!(?:@noble\\+(?:hashes|curves|ciphers|post-quantum)|@scure\\+(?:base|bip39))@)",
+        "node_modules/(?!.pnpm|@noble/(?:hashes|curves|ciphers|post-quantum)|@scure/(?:base|bip39))",
     ],
     globalSetup: "<rootDir>/tests/global-setup.cjs",
     setupFiles: ["<rootDir>/tests/setup.ts"],

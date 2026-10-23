@@ -18,7 +18,7 @@ import {
 import { verifyRelease } from "../scripts/verify-release.mjs";
 import { prepareSource } from "./prepare-source.mjs";
 import { buildSkiaLibraries, skiaTargets } from "./skia-source.mjs";
-import { artifactName, selectedArchitectures } from "../scripts/release-config.mjs";
+import { artifactName, getProfile, selectedArchitectures } from "../scripts/release-config.mjs";
 
 // F-Droid scans between these phases. Never prebuild again after that scan.
 const mobile = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -45,14 +45,18 @@ if (phase === "build") {
 }
 const arch = process.env.CRYPTEX_BUILD_ARCH || 'all';
 const abis = selectedArchitectures(arch);
+// Preprod test builds export CRYPTEX_APP_PROFILE=preprod; F-Droid's own recipe never sets it.
+const profile = getProfile(process.env.CRYPTEX_APP_PROFILE || "production");
 const { options, config, toolchain, env, metadata } = prepareProduction([
     "--unsigned",
+    "--profile",
+    profile.name,
     "--distribution",
     "fdroid",
     "--arch",
     arch,
     "--config",
-    join(mobile, "release-config.json"),
+    join(mobile, profile.configFile),
 ]);
 const run = (command, args, cwd) =>
     execFileSync(command, args, { cwd, env, stdio: "inherit" });
@@ -230,6 +234,7 @@ if (phase === "prebuild") {
     );
     const verification = verifyRelease(apk, {
         unsigned: true,
+        profile: profile.name,
         distribution: "fdroid",
         arch,
         env,

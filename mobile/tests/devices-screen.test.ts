@@ -261,6 +261,7 @@ jest.mock("lucide-react-native", () =>
             "ChevronDown",
             "ChevronRight",
             "Clock3",
+            "FileKey",
             "HardDrive",
             "Laptop",
             "Link2",
@@ -272,7 +273,9 @@ jest.mock("lucide-react-native", () =>
             "RotateCw",
             "Search",
             "Send",
+            "Settings",
             "Smartphone",
+            "SquareTerminal",
             "Target",
             "X",
         ].map((name) => [name, name]),
@@ -286,6 +289,7 @@ jest.mock("@/components/unlocked/unlocked-ui", () => ({
     UnlockedInput: "Input",
     UnlockedDialogTitle: "Title",
 }));
+jest.mock("@/components/ui/input", () => ({ Input: "Input" }));
 jest.mock("@/components/ui/dialog", () => ({
     Dialog: ({
         open,
@@ -320,6 +324,20 @@ jest.mock("@/components/devices/use-device-topology", () => ({
 }));
 jest.mock("@/components/devices/use-device-actions", () => ({
     useDeviceActions: jest.fn(),
+}));
+let mockAgents: { ID: string; Name: string; Hostname: string }[] = [];
+jest.mock("@/agent/use-agents", () => ({
+    useConnectedAgents: () => ({
+        agents: mockAgents,
+        approvedHere: () => true,
+        statusLabel: () => null,
+    }),
+}));
+jest.mock("@/components/agents/agent-notifications-notice", () => ({
+    AgentNotificationsNotice: "AgentNotificationsNotice",
+}));
+jest.mock("@cryptex-industries/vault-core/agent/agent-format", () => ({
+    agentRowSubtitle: () => "1 key",
 }));
 jest.mock("@/utils/clipboard", () => ({
     copyTextToClipboard: jest
@@ -862,13 +880,43 @@ describe("mobile devices screen", () => {
             true,
         );
     });
-    it("preserves both existing invitation routes", async () => {
+    it("lists agents with cleaned names, the notifications notice and relay settings", async () => {
+        mockAgents = [{ ID: "agent-1", Name: "prod\u202egit\u200b", Hostname: "box" }];
+        try {
+            await mount();
+            await press("device-view-list");
+            // The list mock keeps its footer as a prop; render it on its own.
+            let footer: ReactTestRenderer | undefined;
+            await act(async () => {
+                footer = create(
+                    renderer!.root.findByType("FlatList" as never).props
+                        .ListFooterComponent,
+                );
+            });
+            const inFooter = (id: string) =>
+                footer!.root.findAll((node) => node.props.testID === id)[0]!;
+            expect(inFooter("agent-row-agent-1").props.accessibilityLabel).toBe(
+                "prod\ufffdgit\ufffd, 1 key",
+            );
+            expect(
+                footer!.root.findAllByType("AgentNotificationsNotice" as never),
+            ).toHaveLength(1);
+            await act(async () => inFooter("agent-relay-shortcut").props.onPress());
+            expect(router.push).toHaveBeenCalledWith(
+                "/(app)/devices/connectivity/agent-relay",
+            );
+        } finally {
+            mockAgents = [];
+        }
+    });
+    it("keeps both invitation routes and adds connecting an agent", async () => {
         await mount();
         await press("device-link");
         const menus = renderer!.root.findAllByType("MenuRow" as never);
         expect(menus.map((item) => item.props.title)).toEqual([
             "Create invitation",
             "Use invitation",
+            "Connect an agent",
         ]);
         await act(async () => menus[0]!.props.onPress());
         expect(router.push).toHaveBeenCalledWith("/(app)/devices/link-send");
@@ -879,6 +927,13 @@ describe("mobile devices screen", () => {
                 .props.onPress(),
         );
         expect(router.push).toHaveBeenCalledWith("/link-receive");
+        await press("device-link");
+        await act(async () =>
+            renderer!.root
+                .findAllByType("MenuRow" as never)[2]!
+                .props.onPress(),
+        );
+        expect(router.push).toHaveBeenCalledWith("/(app)/devices/connect-agent");
     });
     it("refreshes a bound account once during the ten second cooldown", async () => {
         jest.useFakeTimers();

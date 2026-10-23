@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, View } from "react-native";
 
 import { Check } from "lucide-react-native";
@@ -285,9 +285,23 @@ function LinkingTimelineRow({
     );
 }
 
+/** Whole seconds until deadline (epoch ms), updated every second. */
+function useSecondsLeft(deadline: number | null): number | null {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (deadline === null) return;
+        setNow(Date.now());
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, [deadline]);
+    if (deadline === null) return null;
+    return Math.max(0, Math.ceil((deadline - now) / 1000));
+}
+
 export function LinkingProgress({
     items,
     status,
+    deadline = null,
     activity,
     failure,
     onCancel,
@@ -297,6 +311,8 @@ export function LinkingProgress({
 }: {
     items: LinkProgressItem[];
     status: string;
+    /** When the current wait gives up (epoch ms); shown as a countdown. */
+    deadline?: number | null;
     activity: LinkActivityEntry[];
     failure: LinkFailure | null;
     onCancel: () => void;
@@ -304,6 +320,7 @@ export function LinkingProgress({
     onUseNewInvitation?: () => void;
     failureTitle?: string;
 }) {
+    const secondsLeft = useSecondsLeft(failure ? null : deadline);
     return (
         <View className="gap-3">
             <View
@@ -314,6 +331,14 @@ export function LinkingProgress({
                 <Text className="flex-1 text-[13px] leading-5 text-muted-foreground">
                     {failure?.message ?? status}
                 </Text>
+                {secondsLeft !== null ? (
+                    <Text
+                        className="ml-2 text-xs text-muted-foreground"
+                        style={{ fontVariant: ["tabular-nums"] }}
+                    >
+                        {`${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")} left`}
+                    </Text>
+                ) : null}
             </View>
 
             <View accessibilityLabel="Linking progress">

@@ -18,6 +18,8 @@ name: Create Android autofill URI-rule fixtures
 - openLink: ${CRYPTEX_APP_SCHEME}://
 
 - tapOn: Add item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: Exact URI Rule
 - tapOn: Credential username
@@ -42,6 +44,8 @@ name: Create Android autofill URI-rule fixtures
 - back
 
 - tapOn: Add item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: Domain URI Rule
 - tapOn: Credential username
@@ -68,6 +72,8 @@ name: Create Android autofill URI-rule fixtures
 - back
 
 - tapOn: Add item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: Wildcard URI Rule
 - tapOn: Credential username

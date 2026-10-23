@@ -93,6 +93,7 @@ export function AccountAuth({
                 </Text>
                 <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
                     Use the User ID and 24-word phrase from your account Recovery Kit.
+                    Recovering removes every other device from the account.
                 </Text>
             </View>
             <View

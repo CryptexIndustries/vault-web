@@ -11,7 +11,7 @@ export default function Pricing() {
     return (
         <Site
             title="Pricing"
-            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, one-time share links, and device management."
+            description="Cryptex Vault is free forever. Optional Online Services include managed P2P infrastructure, encrypted backups, one-time share links, a hosted SSH agent relay, and device management."
         >
             <section className={s.pageHero}>
                 <Label>PRICING / A SIMPLE CHOICE</Label>
@@ -87,6 +87,9 @@ export default function Pricing() {
                     <div>
                         <dt>Price &amp; refunds</dt>
                         <dd>
+                            Your first subscription starts with a 14-day free
+                            trial. Checkout asks for a card, and it is charged
+                            when the trial ends unless you cancel before then.
                             We recommend starting with monthly billing. We do
                             not offer voluntary subscription refunds; your
                             statutory consumer rights are unaffected. For
@@ -141,13 +144,26 @@ export default function Pricing() {
                         </dd>
                     </div>
                     <div>
+                        <dt>SSH agent relay</dt>
+                        <dd>
+                            Up to 25 connected agents per account. The relay
+                            carries only encrypted requests and answers. When
+                            your subscription ends, agents on the hosted relay
+                            stop working within 7 days, once your devices&apos;
+                            relay passes expire. Pair them with your own relay
+                            to keep using them.
+                        </dd>
+                    </div>
+                    <div>
                         <dt>Managing cancellation</dt>
                         <dd>
                             Manage a Stripe subscription through Stripe’s
                             billing portal, accessible from the app. Manage a
                             Google Play subscription in Google Play.
                             Cancellation takes effect at the end of the current
-                            paid period.
+                            paid period. If you cancel during the free trial,
+                            you keep access until the trial ends and nothing is
+                            charged.
                         </dd>
                     </div>
                     <div>
@@ -183,11 +199,30 @@ export default function Pricing() {
                             </summary>
                             <p>
                                 Yes. Run the signaling, STUN and TURN
-                                infrastructure yourself. The synchronization
-                                model is unchanged: sync can start automatically
-                                after connecting or manually, and it remains
-                                end-to-end encrypted. Both vaults must be open
-                                and unlocked.
+                                infrastructure yourself, and the SSH agent relay
+                                too. The synchronization model is unchanged:
+                                sync can start automatically after connecting or
+                                manually, and it remains end-to-end encrypted.
+                                Both vaults must be open and unlocked.
+                            </p>
+                        </details>
+                        <details>
+                            <summary>
+                                How does the free trial work?<span>+</span>
+                            </summary>
+                            <p>
+                                Your first Online Services subscription, on the
+                                web or through Google Play, starts with 14 days
+                                free on the monthly or yearly plan. The trial
+                                includes everything a paid subscription does.
+                                You need a card to start it. When the trial
+                                ends, the card is charged and the subscription
+                                renews as usual. Cancel before then and you pay
+                                nothing. Each account gets one trial, and only
+                                if it has never had a subscription. Google Play
+                                also allows one trial per Google account. Link
+                                emails you when a web trial starts and before it
+                                ends, and Google Play sends its own reminder.
                             </p>
                         </details>
                         <details>
@@ -198,10 +233,11 @@ export default function Pricing() {
                             <p>
                                 The subscription currently covers managed P2P
                                 infrastructure, managed encrypted backups,
-                                one-time share links, and Online Services device
-                                management. You can manage registered devices,
-                                view and control their linking relationships,
-                                and revoke their access to Online Services.
+                                one-time share links, the hosted SSH agent
+                                relay, and Online Services device management.
+                                You can manage registered devices, view and
+                                control their linking relationships, and revoke
+                                their access to Online Services.
                             </p>
                         </details>
                         <details>

@@ -142,6 +142,12 @@ jest.mock("@/utils/vault-session", () => ({
     getVaultSessionGeneration: () => mockVaultGeneration,
     isSameActiveVaultSession: (generation: number) =>
         generation === mockVaultGeneration,
+    captureVaultSession: () => ({
+        generation: mockVaultGeneration,
+        lockEpoch: 0,
+    }),
+    isVaultSessionCurrent: (session: { generation: number }) =>
+        session.generation === mockVaultGeneration,
     MISSING_VAULT_SECRET_ERROR: "Unlock the vault again.",
 }));
 jest.mock("@/utils/logging", () => ({
@@ -166,7 +172,11 @@ jest.mock("@/utils/trpc", () => {
     });
     const query = {
         useQuery: () => ({
-            data: { root: mockRootDevice, nonFree: mockNonFree },
+            data: {
+                root: mockRootDevice,
+                nonFree: mockNonFree,
+                trialEligible: mockTrialEligible,
+            },
             refetch: mockRefetch,
             isFetching: false,
         }),
@@ -233,6 +243,8 @@ let mockNavigationGuard = false;
 let mockVaultGeneration = 1;
 let mockRootDevice = false;
 let mockNonFree = false;
+let mockTrialEligible = false;
+const paidTerms = { trialEligible: false, trial: false };
 let renderer: ReactTestRenderer | undefined;
 let mockRecoveryPhrase: string;
 const originalFromBase64 = Object.getOwnPropertyDescriptor(
@@ -354,8 +366,8 @@ async function chooseYearly() {
 beforeEach(() => {
     mockPlayBuild = false;
     mockStorePlans.mockReset().mockResolvedValue([
-        { tier: "premiumMonthly", price: "$4.99" },
-        { tier: "premiumYearly", price: "$49.99" },
+        { tier: "premiumMonthly", price: "$4.99", trial: false },
+        { tier: "premiumYearly", price: "$49.99", trial: false },
     ]);
     Object.defineProperty(Uint8Array, "fromBase64", {
         configurable: true,
@@ -420,6 +432,7 @@ beforeEach(() => {
     mockVaultGeneration = 1;
     mockRootDevice = false;
     mockNonFree = false;
+    mockTrialEligible = false;
 });
 
 afterEach(async () => {
@@ -468,7 +481,7 @@ it("starts with the interval picker and opens the chosen checkout only after sav
             .find((node) => node.props.children === "Recovery Kit copied."),
     ).toBeDefined();
     await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly");
+    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
     expect(mockBillingOpened).toHaveBeenCalledTimes(1);
     expect(mockClosed).toHaveBeenCalledWith(false);
 });
@@ -484,7 +497,7 @@ it("keeps the selected interval after captcha cancellation", async () => {
     await press("Continue");
     await press("Copy Recovery Kit");
     await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly");
+    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
 });
 
 it.each(["session", "configuration", "recovery"])(
@@ -508,7 +521,7 @@ it.each(["session", "configuration", "recovery"])(
         expect(mockRequestToken).toHaveBeenCalledTimes(1);
         await press("Copy Recovery Kit");
         await press("I've saved my kit. Continue to payment");
-        expect(mockCheckout).toHaveBeenCalledWith("premiumYearly");
+        expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
     },
 );
 
@@ -524,7 +537,7 @@ it("can dismiss offline setup and resume the same bound account and interval", a
     expect(mockRegister).toHaveBeenCalledTimes(1);
     await press("Copy Recovery Kit");
     await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly");
+    expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
 });
 
 it("retains a generated kit when the subsequent configuration refresh fails", async () => {
@@ -537,7 +550,7 @@ it("retains a generated kit when the subsequent configuration refresh fails", as
     expect(button("Copy Recovery Kit")).toBeDefined();
     await press("Copy Recovery Kit");
     await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout).toHaveBeenCalledWith("premiumMonthly");
+    expect(mockCheckout).toHaveBeenCalledWith("premiumMonthly", paidTerms);
 });
 
 it("shows a generated kit while its subsequent configuration refresh is still pending", async () => {
@@ -726,8 +739,8 @@ it("retries failed payment with the same account, interval, and kit", async () =
     expect(mockNavigationGuard).toBe(false);
     await press("I've saved my kit. Continue to payment");
     expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly"],
-        ["premiumYearly"],
+        ["premiumYearly", paidTerms],
+        ["premiumYearly", paidTerms],
     ]);
     expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
     expect(mockRegister).toHaveBeenCalledTimes(1);
@@ -814,7 +827,7 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
             account().setRecoverUserId("recovered-user");
             account().setRecoverPhrase(mockRecoveryPhrase);
         });
-        let result: Promise<boolean> | undefined;
+        let result: Promise<"recovered" | "kit-missing" | false> | undefined;
         await act(async () => {
             result = account().handleRecover();
         });
@@ -914,7 +927,7 @@ it("recovers and deletes the account binding when the originating vault session 
         account().setRecoverPhrase(mockRecoveryPhrase);
     });
     await act(async () => {
-        expect(await account().handleRecover()).toBe(true);
+        expect(await account().handleRecover()).toBe("kit-missing");
     });
     expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
         "recovered-device",
@@ -993,7 +1006,7 @@ it("shows localized Play prices once, then opens the selected payment directly a
     ).toBe(true);
     await press("Copy Recovery Kit");
     await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout.mock.calls).toEqual([["premiumYearly"]]);
+    expect(mockCheckout.mock.calls).toEqual([["premiumYearly", paidTerms]]);
     expect(mockStorePlans).toHaveBeenCalledTimes(1);
     await act(async () => payment.resolve({ ok: true }));
     expect(mockPendingChange).toHaveBeenCalledWith(true);
@@ -1139,8 +1152,8 @@ it.each(["pending", "canceled"])(
         } else {
             await press("I've saved my kit. Continue to payment");
             expect(mockCheckout.mock.calls).toEqual([
-                ["premiumYearly"],
-                ["premiumYearly"],
+                ["premiumYearly", paidTerms],
+                ["premiumYearly", paidTerms],
             ]);
         }
     },
@@ -1239,8 +1252,8 @@ it("retries Play preflight failures with the same account, selected interval, an
     const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
     await act(async () => retry.props.onPress());
     expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly"],
-        ["premiumYearly"],
+        ["premiumYearly", paidTerms],
+        ["premiumYearly", paidTerms],
     ]);
     expect(mockRegister).toHaveBeenCalledTimes(1);
     expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
@@ -1254,15 +1267,20 @@ it("offers no Retry when the Play subscription belongs to another account", asyn
     mockCheckout.mockResolvedValueOnce({
         ok: false,
         retryable: false,
-        message: "This Google Play subscription belongs to another Cryptex Vault account.",
+        message:
+            "This Google Play subscription belongs to another Cryptex Vault account.",
     });
     await press("I've saved my kit. Continue to payment");
     expect(
         renderer!.root.findAll(
-            (node) => node.props.children === "This Google Play subscription belongs to another Cryptex Vault account.",
+            (node) =>
+                node.props.children ===
+                "This Google Play subscription belongs to another Cryptex Vault account.",
         ).length,
     ).toBeGreaterThan(0);
-    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Retry" })).toHaveLength(0);
+    expect(
+        renderer!.root.findAllByProps({ accessibilityLabel: "Retry" }),
+    ).toHaveLength(0);
 });
 
 it("ignores a payment Retry from a previous signup sheet lifetime", async () => {
@@ -1291,9 +1309,9 @@ it("keeps the Recovery Kit and shows an actionable snackbar if Stripe checkout r
     mockCheckout.mockRejectedValueOnce(new Error("private transport error"));
     await press("I've saved my kit. Continue to payment");
     expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     expect(
         renderer!.root
             .findAllByType("Text" as never)
@@ -1311,9 +1329,9 @@ it("uses the snackbar for registration failures without exposing server diagnost
     mockRegister.mockRejectedValueOnce(new Error("private SQL failure"));
     await renderSignup();
     await press("Continue");
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     expect(
         renderer!.root
             .findAllByType("Text" as never)
@@ -1341,4 +1359,33 @@ it("does not close a newer screen when an old Stripe payment completes after unm
     await act(async () => payment.resolve({ ok: true }));
     expect(mockClosed).not.toHaveBeenCalled();
     expect(mockBillingOpened).not.toHaveBeenCalled();
+});
+
+it("retries a changed Play offer only with the terms the snackbar describes", async () => {
+    mockPlayBuild = true;
+    mockTrialEligible = true;
+    await renderSignup();
+    await press("Continue");
+    await press("Copy Recovery Kit");
+    mockCheckout.mockResolvedValueOnce({
+        ok: false,
+        offerChanged: { trial: true },
+        message: "changed",
+    });
+    await press("I've saved my kit. Continue to payment");
+    expect(
+        renderer!.root
+            .findAllByType("Text" as never)
+            .some(
+                (node) =>
+                    node.props.children ===
+                    "This plan now starts with a 14-day free trial. Retry to start it.",
+            ),
+    ).toBe(true);
+    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
+    await act(async () => retry.props.onPress());
+    expect(mockCheckout.mock.calls).toEqual([
+        ["premiumMonthly", { trialEligible: true, trial: false }],
+        ["premiumMonthly", { trialEligible: true, trial: true }],
+    ]);
 });

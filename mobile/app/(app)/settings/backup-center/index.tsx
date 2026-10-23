@@ -4,8 +4,9 @@ import { View } from "react-native";
 import { router } from "expo-router";
 import { Archive, Cloud, KeyRound } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
-import { deleteAppOwnedTempFile, writeSecretTempFile } from "@/utils/secret-temp-files";
-import * as Sharing from "expo-sharing";
+import { writeSecretTempFile } from "@/utils/secret-temp-files";
+import { useSecretRelease } from "@/utils/secret-release";
+import { shareSecretFile } from "@/utils/secret-share";
 
 import { trpcReact } from "@/utils/trpc";
 import { uint8ToBase64 } from "@cryptex-industries/vault-core/encoding";
@@ -111,27 +112,34 @@ export function BackupCenterScreen({
         }
     };
 
+    // A downloaded backup on its way to the share sheet; a lock or leaving stops it.
+    const startDownloadRelease = useSecretRelease();
+
     const download = async (snapshotId: string) => {
+        const release = startDownloadRelease();
         setBusy(true);
         setMessage("");
-        let path: string | undefined;
         try {
             const result = await downloadBackupBytes(snapshotId);
-            path = await writeSecretTempFile(
-                "cryx",
-                uint8ToBase64(result.bytes),
-                FileSystem.EncodingType.Base64,
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        "cryx",
+                        uint8ToBase64(result.bytes),
+                        FileSystem.EncodingType.Base64,
+                    ),
+                {
+                    isCurrent: release.current,
+                    mimeType: "application/octet-stream",
+                },
             );
-            await Sharing.shareAsync(path, {
-                mimeType: "application/octet-stream",
-            });
-            setMessage("Encrypted backup ready.");
+            if (shared === "shared") setMessage("Encrypted backup ready.");
+            else if (shared === "unavailable") setMessage("Sharing is unavailable on this device.");
         } catch (error) {
             setMessage(
                 error instanceof Error ? error.message : "Download failed.",
             );
         } finally {
-            if (path) await deleteAppOwnedTempFile(path).catch(() => undefined);
             setBusy(false);
         }
     };

@@ -10,6 +10,7 @@ const mockClipboardClear = jest.fn(async () => undefined);
 const mockLogout = jest.fn(async () => undefined);
 const mockStopBackup = jest.fn();
 const mockClearProvider = jest.fn();
+const mockRevokeProvider = jest.fn();
 
 jest.mock("jotai", () => ({ atom: (initial: unknown) => ({ initial }) }));
 jest.mock("@/utils/atoms", () => ({
@@ -44,7 +45,10 @@ jest.mock("@/app_lib/managed-backup-hooks", () => ({
     stopManagedBackup: mockStopBackup,
 }));
 jest.mock("@/utils/android-credentials", () => ({
-    androidCredentials: { clearProviderCredentials: mockClearProvider },
+    androidCredentials: {
+        clearProviderCredentials: mockClearProvider,
+        revokeProviderSession: mockRevokeProvider,
+    },
 }));
 jest.mock("@/utils/logging", () => ({
     vaultLog: { error: jest.fn() },
@@ -76,6 +80,13 @@ describe("lock after a save failure", () => {
         expect(result.isErr()).toBe(true);
         expect(values.get(vaultLockStateAtom)).toBe("failed");
         expect(mockClearDEK).not.toHaveBeenCalled();
+        // The credential provider stopped releasing before the save, and stays
+        // stopped after it failed (only "Keep editing" reopens it).
+        expect(mockRevokeProvider).toHaveBeenCalledTimes(1);
+        expect(mockRevokeProvider.mock.invocationCallOrder[0]).toBeLessThan(
+            mockSave.mock.invocationCallOrder[0]!,
+        );
+        expect(mockClearProvider).not.toHaveBeenCalled();
         expect(values.get(metadataAtom)).not.toBeNull();
 
         const teardown = jest.fn(() => {

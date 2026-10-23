@@ -440,6 +440,10 @@ class CryptexAndroidCredentialsModule : Module() {
       ProviderCredentialCache.clear()
     }
 
+    Function("revokeProviderSession") {
+      ProviderCredentialCache.revoke()
+    }
+
     Function("refreshProviderSession") { timeoutMinutes: Double ->
       ProviderCredentialCache.refresh(timeoutMinutes)
     }

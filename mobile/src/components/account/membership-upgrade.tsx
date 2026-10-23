@@ -27,11 +27,12 @@ export type MembershipUpgradeProps = {
     onExternalBillingOpened: (
         outcome?: "success" | "resume" | "external",
     ) => void;
-    onContinue?: (tier: CheckoutTier) => Promise<void>;
+    onContinue?: (tier: CheckoutTier, trial: boolean) => Promise<void>;
     initialTier?: CheckoutTier;
     onBillingBusyChange?: (busy: boolean) => void;
     pendingConfirmation?: boolean;
     onPendingChange?: (pending: boolean) => void;
+    trialEligible?: boolean;
 };
 export function MembershipUpgrade({
     canUpgrade,
@@ -42,6 +43,7 @@ export function MembershipUpgrade({
     onBillingBusyChange,
     pendingConfirmation,
     onPendingChange,
+    trialEligible = false,
     initialTier = "premiumMonthly",
 }: MembershipUpgradeProps) {
     const play = isGooglePlayBuild();
@@ -79,7 +81,7 @@ export function MembershipUpgrade({
         let current = true;
         setPlans(undefined);
         setPricesUnavailable(false);
-        void loadStorePlans()
+        void loadStorePlans(trialEligible)
             .then((value) => {
                 if (current) setPlans(value);
             })
@@ -100,7 +102,7 @@ export function MembershipUpgrade({
         return () => {
             current = false;
         };
-    }, [play, onMessage, reload]);
+    }, [play, onMessage, reload, trialEligible]);
     const savings = (
         Number(currentPriceList.monthly.price) * 12 -
         Number(currentPriceList.yearly.price)
@@ -128,6 +130,8 @@ export function MembershipUpgrade({
                   caption: `Save €${savings} a year`,
               },
           };
+    const trial = play ? !!selectedPlan?.trial : trialEligible;
+    const fullPrice = intervalPlans[tier]?.price;
     const disabled = busy || refreshing;
     const submit = async (checking = false) => {
         if (
@@ -153,12 +157,12 @@ export function MembershipUpgrade({
         };
         try {
             if (onContinue) {
-                await onContinue(tier);
+                await onContinue(tier, trial);
                 return;
             }
             const result = checking
                 ? await checkStorePurchaseStatus()
-                : await purchaseMembership(tier);
+                : await purchaseMembership(tier, { trialEligible, trial });
             if (!isCurrent()) return;
             if (!play) {
                 if (result.ok) onExternalBillingOpened();
@@ -173,6 +177,10 @@ export function MembershipUpgrade({
                 setPending(!checking);
                 onPendingChange?.(!checking);
                 onExternalBillingOpened("success");
+            } else if (result.offerChanged) {
+                // Show the new terms before the user can buy again.
+                setReload((value) => value + 1);
+                onMessage(result.message);
             } else if (result.pending) {
                 pendingRef.current = true;
                 setPending(true);
@@ -237,14 +245,28 @@ export function MembershipUpgrade({
                     >
                         {onContinue
                             ? "Continue"
-                            : play && pricesUnavailable
-                              ? "Retry prices"
-                              : play && !plans
-                                ? "Loading prices…"
-                                : tier === "premiumYearly"
-                                  ? "Continue with yearly"
-                                  : "Continue with monthly"}
+                            : trial
+                              ? "Start 14-day free trial"
+                              : play && pricesUnavailable
+                                ? "Retry prices"
+                                : play && !plans
+                                  ? "Loading prices…"
+                                  : tier === "premiumYearly"
+                                    ? "Continue with yearly"
+                                    : "Continue with monthly"}
                     </Button>
+                    {trial && fullPrice ? (
+                        <Text
+                            style={{
+                                color: colors.muted,
+                                fontSize: 11,
+                                lineHeight: 17,
+                                textAlign: "center",
+                            }}
+                        >
+                            {`Free for 14 days, then ${fullPrice} every ${tier === "premiumMonthly" ? "month" : "year"}. You're charged when the trial ends unless you cancel before then${play ? " in Google Play Subscriptions" : ""}. If you cancel during the trial, you keep access until it ends and pay nothing.`}
+                        </Text>
+                    ) : null}
                     {onContinue || !play || selectedPlan ? (
                         <Text
                             style={{
@@ -261,7 +283,7 @@ export function MembershipUpgrade({
                                   : "VAT included. Checkout opens in your browser."}
                         </Text>
                     ) : null}
-                    {selectedPlan ? (
+                    {selectedPlan && !trial ? (
                         <Text
                             style={{
                                 color: colors.muted,

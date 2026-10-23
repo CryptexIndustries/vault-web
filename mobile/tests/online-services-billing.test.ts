@@ -393,7 +393,10 @@ it("keeps Play purchases and management out of Stripe, including unavailable bil
         ok: false,
         message: "Not configured",
     });
-    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumYearly");
+    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumYearly", {
+        trialEligible: false,
+        trial: false,
+    });
     await openBillingManagement();
     expect(Linking.openURL).toHaveBeenCalledWith(
         "https://play.google.com/store/account/subscriptions?sku=online_services&package=com.cryptexindustries.vault",
@@ -403,7 +406,11 @@ it("keeps Play purchases and management out of Stripe, including unavailable bil
 });
 
 it.each<
-    [string, Parameters<typeof billingManagement>[0], ReturnType<typeof billingManagement>]
+    [
+        string,
+        Parameters<typeof billingManagement>[0],
+        ReturnType<typeof billingManagement>,
+    ]
 >([
     ["standard", "stripe", "stripe"],
     ["fdroid", "stripe", "stripe"],
@@ -414,16 +421,23 @@ it.each<
     ["play", "google_play", "google_play"],
     ["play", "app_store", null],
     ["play", undefined, "google_play"],
-])("manages a %s build's %s subscription through %s", (distribution, provider, expected) => {
-    Constants.expoConfig!.extra!.buildDetails.distribution = distribution;
-    expect(billingManagement(provider)).toBe(expected);
-});
+])(
+    "manages a %s build's %s subscription through %s",
+    (distribution, provider, expected) => {
+        Constants.expoConfig!.extra!.buildDetails.distribution = distribution;
+        expect(billingManagement(provider)).toBe(expected);
+    },
+);
 
 it("keeps F-Droid Stripe management on the portal and sends Play subscribers to Google Play", async () => {
     Constants.expoConfig!.extra!.buildDetails.distribution = "fdroid";
-    expect(await openBillingManagement(billingManagement("stripe"))).toEqual({ ok: true });
+    expect(await openBillingManagement(billingManagement("stripe"))).toEqual({
+        ok: true,
+    });
     expect(portal).toHaveBeenCalledTimes(1);
-    expect(Linking.openURL).toHaveBeenLastCalledWith("https://billing.stripe.com/p/session/test");
+    expect(Linking.openURL).toHaveBeenLastCalledWith(
+        "https://billing.stripe.com/p/session/test",
+    );
     await openBillingManagement(billingManagement("google_play"));
     expect(Linking.openURL).toHaveBeenLastCalledWith(
         "https://play.google.com/store/account/subscriptions",
@@ -439,7 +453,11 @@ it("opens nothing for a subscription this build cannot manage", async () => {
     expect(portal).not.toHaveBeenCalled();
 });
 
-it.each([["android", "fdroid"], ["ios", "play"], ["web", "play"]])("preserves existing billing on %s / %s", async (os, distribution) => {
+it.each([
+    ["android", "fdroid"],
+    ["ios", "play"],
+    ["web", "play"],
+])("preserves existing billing on %s / %s", async (os, distribution) => {
     Object.assign(Platform, { OS: os });
     Constants.expoConfig!.extra!.buildDetails.distribution = distribution;
     await purchaseMembership();

@@ -17,6 +17,16 @@ const userGuides = [
         "Move data from another password manager or browser and check the result.",
     ],
     [
+        "SSH keys",
+        "/docs/ssh-keys",
+        "Generate, import and download SSH keys stored in your vault.",
+    ],
+    [
+        "SSH agent",
+        "/docs/ssh-agent",
+        "Use your vault's SSH keys on Linux and approve each signature on your phone or in the web app.",
+    ],
+    [
         "Chromium Extension & autofill",
         "/docs/browser-extension",
         "Install the Chromium Extension, link your vault, and fill a login.",

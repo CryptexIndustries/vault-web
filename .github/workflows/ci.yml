@@ -47,15 +47,17 @@ jobs:
               run: pnpm lint:web
             - name: Type-check web client
               run: pnpm lint-tsc:web
+            - name: Type-check shared packages
+              run: pnpm lint-tsc:packages
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 
     services-quality:
         name: Go services quality
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 15
         container:
-            image: golang:1.26@sha256:d7722066f0b60ceccb6c0643cbed1f5f9e15506ac237146c95333504d7805d89
+            image: golang:1.26@sha256:3745f1aa11822297b79113f5e84ce2bffeb039734571c39855809cfe9e5d7be6
         defaults:
             run:
                 working-directory: services
@@ -65,8 +67,18 @@ jobs:
               run: test -z "$(gofmt -l .)"
             - name: Vet Go services
               run: go vet ./...
+            # The cryptex-agent end-to-end tests log in to a local sshd.
+            - name: Install OpenSSH server
+              run: apt-get update -qq && apt-get install -y -qq --no-install-recommends openssh-server
             - name: Test Go services
               run: go test -race ./...
+            - name: Verify Go module checksums
+              run: go mod verify
+            # Fails on known vulnerabilities in code paths we actually call, in
+            # dependencies and in this Go toolchain's standard library. Release
+            # jobs need this job, so nothing ships past a known vulnerability.
+            - name: Audit Go dependencies
+              run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
     extension-quality:
         name: Extension quality
@@ -242,6 +254,7 @@ jobs:
 
                   {
                     echo "name=${image}"
+                    echo "version=${version#v}"
                     echo "tags<<EOF"
                     echo "${image}:${GITHUB_SHA}"
                     echo "${image}:${version}"
@@ -275,8 +288,84 @@ jobs:
                   file: services/cmd/share-server/Dockerfile
                   push: true
                   tags: ${{ steps.image.outputs.tags }}
+                  build-args: VERSION=${{ steps.image.outputs.version }}
                   labels: |
                       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.version=${{ steps.image.outputs.version }}
                       org.opencontainers.image.revision=${{ github.sha }}
                   cache-from: type=gha,scope=share-server-production
                   cache-to: type=gha,mode=max,scope=share-server-production
+
+    relay-server-image:
+        name: Agent relay container image
+        needs: [services-quality]
+        # Released on its own tags so web releases never restart it.
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'relay-server-v')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Derive lowercase GHCR image name and tags
+              id: image
+              shell: bash
+              run: |
+                  repository="${GITHUB_REPOSITORY,,}"
+                  image="ghcr.io/${repository}/relay-server"
+
+                  # relay-server-v1.2.3 publishes the image tag v1.2.3.
+                  version="${GITHUB_REF_NAME#relay-server-}"
+                  if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+                    echo "Release tags look like relay-server-v1.2.3 or relay-server-v1.2.3-rc1, not ${GITHUB_REF_NAME}" >&2
+                    exit 1
+                  fi
+
+                  {
+                    echo "name=${image}"
+                    echo "tags<<EOF"
+                    echo "${image}:${GITHUB_SHA}"
+                    echo "${image}:${version}"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Validate Docker Swarm stack
+              env:
+                  RELAY_IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+                  # Required by the stack too; a placeholder is enough to validate it.
+                  RELAY_PUBLIC_URL: https://relay.example.invalid
+              run: |
+                  if out=$(env -u RELAY_IMAGE docker stack config -c services/cmd/relay-server/compose.swarm.yaml 2>&1); then
+                    echo "services/cmd/relay-server/compose.swarm.yaml must reject a missing RELAY_IMAGE" >&2
+                    exit 1
+                  fi
+                  if ! grep -q 'RELAY_IMAGE' <<<"${out}"; then
+                    echo "docker stack config failed without RELAY_IMAGE, but not because of it:" >&2
+                    echo "${out}" >&2
+                    exit 1
+                  fi
+                  docker stack config -c services/cmd/relay-server/compose.swarm.yaml >/dev/null
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and publish relay image
+              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              with:
+                  context: services
+                  file: services/cmd/relay-server/Dockerfile
+                  push: true
+                  tags: ${{ steps.image.outputs.tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                  cache-from: type=gha,scope=relay-server-production
+                  cache-to: type=gha,mode=max,scope=relay-server-production

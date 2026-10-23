@@ -205,7 +205,7 @@ export function DirectoryManagerDialog({
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                     aria-label={`Delete ${directory.Name}`}
                                     onClick={() => {
                                         setError("");

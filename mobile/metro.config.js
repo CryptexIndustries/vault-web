@@ -94,7 +94,7 @@ config.resolver.assetExts = config.resolver.assetExts.filter(
 );
 config.resolver.sourceExts = [...config.resolver.sourceExts, "wasm"];
 
-// Generate the isolated worker from shared source whenever Metro starts.
-module.exports = require("./scripts/build-security-worker.cjs")
-    .buildSecurityWorker()
+// Generate the isolated workers from shared source whenever Metro starts.
+module.exports = require("./scripts/build-workers.cjs")
+    .buildWorkers()
     .then(() => withNativeWind(config, { input: "./global.css" }));

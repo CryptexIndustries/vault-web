@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CredentialConstants } from "@/utils/consts";
 import type { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { getSSHKeyInfo } from "@/utils/ssh-key";
 
 const FIELDS = ["name", "tag", "note"] as const;
 type Field = (typeof FIELDS)[number];
@@ -66,6 +67,8 @@ export function credentialMatchesSearch(
             credential.Passkey?.RPID ?? "",
             credential.Passkey?.UserName ?? "",
             credential.Passkey?.UserDisplayName ?? "",
+            credential.SSHKey?.Comment ?? "",
+            getSSHKeyInfo(credential.SSHKey)?.fingerprint ?? "",
             ...tags,
         ].some((value) => includesCI(value, freeText));
 

@@ -143,6 +143,16 @@ object ProviderCredentialCache {
     return unlocked
   }
 
+  /**
+   * A lock started: nothing may be released from here on, even while the save runs. Unlike
+   * clear(), the cache stays expired, so a late publication can't reopen it; only a fresh unlock
+   * or "Keep editing" after a failed lock (clear() then replace()) does.
+   */
+  @Synchronized
+  fun revoke() {
+    expire()
+  }
+
   @Synchronized
   fun clear() {
     expiryHandler.removeCallbacks(expiryAction)

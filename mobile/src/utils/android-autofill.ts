@@ -3,7 +3,10 @@ import {
     credentialMatchesPageUrl,
     normalizeAndroidAppUri,
 } from "@cryptex-industries/vault-core/credential-url";
-import { CredentialURLMatchMode } from "@cryptex-industries/vault-core/proto";
+import {
+    CredentialURLMatchMode,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 import type { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type { PendingAndroidCredentialRequest } from "@/utils/android-credentials";
 
@@ -60,9 +63,10 @@ export function autofillEmail(
 export function buildAutofillTarget(
     request: PendingAndroidCredentialRequest,
 ): AutofillTarget {
-    // An address bar without a scheme cannot establish HTTPS. Keep a concrete
-    // URL for the picker, but never offer automatic matches for this case.
-    const scheme = request.webScheme === "https" ? "https" : "http";
+    // An address bar without a scheme cannot establish HTTPS, so this case never
+    // gets automatic matches. A login saved from it still defaults to HTTPS,
+    // which never matches an HTTP page later.
+    const scheme = request.webScheme === "http" ? "http" : "https";
     const domain = request.webDomain?.trim().toLowerCase() || null;
     const pageUrl = domain ? `${scheme}://${domain}` : null;
     const warningType = domain && request.webScheme !== "http" && request.webScheme !== "https"
@@ -86,6 +90,15 @@ export function buildAutofillTarget(
     };
 }
 
+/** Logins that can fill a form. SSH keys are never offered, even with a password. */
+export function isAutofillCandidate(credential: VaultCredential): boolean {
+    return (
+        !credential.Deleted &&
+        credential.Type !== ItemType.SSHKey &&
+        !!credential.Password
+    );
+}
+
 export function matchingAutofillCredentials(
     credentials: readonly VaultCredential[],
     target: AutofillTarget,
@@ -93,8 +106,7 @@ export function matchingAutofillCredentials(
     if (target.warningType === "unverified-web-scheme") return [];
     return credentials.filter(
         (credential) =>
-            !credential.Deleted &&
-            !!credential.Password &&
+            isAutofillCandidate(credential) &&
             (target.pageUrl != null
                 ? credentialMatchesPageUrl(credential, target.pageUrl, {
                       ignorePort: true,

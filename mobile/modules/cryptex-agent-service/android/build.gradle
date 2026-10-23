@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.cryptex.vault'
+version = '0.1.0'
+
+android {
+  namespace 'com.cryptex.vault.agent'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // androidx.core (NotificationCompat, ServiceCompat, ContextCompat) comes through
+  // react-android's api dependency on androidx.appcompat.
+  implementation 'com.facebook.react:react-android'
+  testImplementation 'junit:junit:4.13.2'
+}

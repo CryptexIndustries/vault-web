@@ -33,6 +33,8 @@ export const userRouterConfiguration = protectedProcedure
             canPromoteDevices: z.boolean(),
             managedEncryptedBackups: z.boolean(),
             passwordSharing: z.boolean(),
+            sshAgentRelay: z.boolean(),
+            maxSshAgents: z.number(),
             securityReportBasic: z.boolean(),
             securityReportAdvanced: z.boolean(),
             recoveryTokenCreatedAt: z.date().nullable(),

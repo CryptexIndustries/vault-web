@@ -13,6 +13,9 @@ export const colors = {
     secondary: "#22293a",
     trackOff: "#3d4559",
     destructive: "#ef4444",
+    /** Connected agent glyphs only, never buttons. */
+    agent: "#5b9cff",
+    agentTint: "rgba(91,156,255,0.14)",
     overlay: "rgba(0,0,0,0.6)",
 } as const;
 

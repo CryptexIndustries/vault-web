@@ -117,6 +117,7 @@ describe("encrypted link protocol", () => {
             Directories: [],
             Credentials: [],
             ShareLinks: [],
+            ConnectedAgents: [],
             OnlineServices: undefined,
         }).finish();
 

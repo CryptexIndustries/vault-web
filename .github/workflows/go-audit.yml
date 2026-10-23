@@ -1,0 +1,28 @@
+name: Go dependency audit
+
+# CI audits on every push. This weekly run catches advisories published while
+# nothing was pushed.
+on:
+    schedule:
+        - cron: "17 6 * * 1"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    govulncheck:
+        name: govulncheck
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        container:
+            image: golang:1.26@sha256:3745f1aa11822297b79113f5e84ce2bffeb039734571c39855809cfe9e5d7be6
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Verify Go module checksums
+              run: go mod verify
+            - name: Audit Go dependencies
+              run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...

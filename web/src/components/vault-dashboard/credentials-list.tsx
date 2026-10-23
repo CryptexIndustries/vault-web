@@ -17,6 +17,7 @@ import {
     Fingerprint,
     ArrowUpDown,
     LoaderCircle,
+    FileKey,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,13 +54,18 @@ import {
     DirectoryEditorDialog,
     DirectoryManagerDialog,
 } from "@/components/vault-dashboard/directory-dialogs";
+import { getSSHKeyInfo } from "@/utils/ssh-key";
+
+/** Directory selector value that lists SSH key items from every directory. */
+export const SSH_KEYS_FILTER = "ssh-keys";
 
 interface CredentialsListProps {
     credentials: VaultCredential[];
     selectedId: string | null;
     onSelect: (credential: VaultCredential) => void;
-    onAddNew: () => void;
+    onAddNew: (type: ItemType) => void;
     onCopyUsername: (credential: VaultCredential) => void;
+    onCopyPublicKey: (credential: VaultCredential) => void;
     onCopyPassword: (credential: VaultCredential) => void;
     onCopyTOTP: (credential: VaultCredential) => void;
     onOpenUrl: (credential: VaultCredential) => void;
@@ -131,22 +137,27 @@ function compareCredentials(
     );
 }
 
-function VaultEmptyState() {
+function VaultEmptyState({ sshKeys }: { sshKeys: boolean }) {
+    const Icon = sshKeys ? FileKey : Inbox;
     return (
         <div className="flex min-h-full items-center justify-center p-6">
             <div className="w-full max-w-sm text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Inbox className="h-7 w-7" />
+                    <Icon className="h-7 w-7" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
-                    There are no credentials in this directory.
+                    {sshKeys
+                        ? "There are no SSH keys yet."
+                        : "There are no credentials in this directory."}
                 </p>
                 <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
-                    You can add a new credential by clicking the{" "}
+                    {sshKeys
+                        ? "Open the arrow next to"
+                        : "You can add a new credential by clicking the"}{" "}
                     <span className="font-medium text-foreground">
-                        + Add New
+                        {sshKeys ? "Add New" : "+ Add New"}
                     </span>{" "}
-                    button.
+                    {sshKeys ? "and choose SSH key." : "button."}
                 </p>
             </div>
         </div>
@@ -188,6 +199,7 @@ export function CredentialsList({
     onSelect,
     onAddNew,
     onCopyUsername,
+    onCopyPublicKey,
     onCopyPassword,
     onCopyTOTP,
     onOpenUrl,
@@ -342,15 +354,19 @@ export function CredentialsList({
     const selectedDirectoryLabel =
         selectedDirectoryID === "all"
             ? "All credentials"
-            : selectedDirectoryID === ""
-              ? "Root"
-              : (selectedDirectory?.Name ?? "All credentials");
+            : selectedDirectoryID === SSH_KEYS_FILTER
+              ? "SSH keys"
+              : selectedDirectoryID === ""
+                ? "Root"
+                : (selectedDirectory?.Name ?? "All credentials");
     const selectedDirectoryCount =
         selectedDirectoryID === "all"
             ? (credentialCounts.all ?? 0)
-            : selectedDirectoryID === ""
-              ? (credentialCounts.root ?? 0)
-              : (credentialCounts[selectedDirectoryID] ?? 0);
+            : selectedDirectoryID === SSH_KEYS_FILTER
+              ? (credentialCounts[SSH_KEYS_FILTER] ?? 0)
+              : selectedDirectoryID === ""
+                ? (credentialCounts.root ?? 0)
+                : (credentialCounts[selectedDirectoryID] ?? 0);
 
     const openDirectoryEditor = (directory: Directory | null) => {
         setEditingDirectory(directory);
@@ -374,6 +390,9 @@ export function CredentialsList({
                                 <span className="flex min-w-0 items-center gap-2">
                                     {selectedDirectoryID === "all" ? (
                                         <LayoutList className="h-4 w-4 shrink-0" />
+                                    ) : selectedDirectoryID ===
+                                      SSH_KEYS_FILTER ? (
+                                        <FileKey className="h-4 w-4 shrink-0" />
                                     ) : selectedDirectoryID === "" ? (
                                         <FolderRoot className="h-4 w-4 shrink-0" />
                                     ) : (
@@ -407,6 +426,21 @@ export function CredentialsList({
                                 <span className="flex-1">All credentials</span>
                                 <span className="text-xs text-muted-foreground">
                                     {credentialCounts.all ?? 0}
+                                </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className={cn(
+                                    selectedDirectoryID === SSH_KEYS_FILTER &&
+                                        "bg-accent",
+                                )}
+                                onSelect={() =>
+                                    onSelectDirectory(SSH_KEYS_FILTER)
+                                }
+                            >
+                                <FileKey className="mr-2 h-4 w-4" />
+                                <span className="flex-1">SSH keys</span>
+                                <span className="text-xs text-muted-foreground">
+                                    {credentialCounts[SSH_KEYS_FILTER] ?? 0}
                                 </span>
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -465,14 +499,51 @@ export function CredentialsList({
                             onChange={setSearchQuery}
                             focusRequestToken={searchFocusRequestToken}
                         />
-                        <Button
-                            onClick={onAddNew}
-                            className="inline-flex shrink-0 gap-2"
-                            size="sm"
-                        >
-                            <Plus className="h-4 w-4" />
-                            <span>Add New</span>
-                        </Button>
+                        <div className="inline-flex shrink-0">
+                            <Button
+                                onClick={() => onAddNew(ItemType.Credentials)}
+                                className="inline-flex gap-2 rounded-r-none"
+                                size="sm"
+                            >
+                                <Plus className="h-4 w-4" />
+                                <span>Add New</span>
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        className="rounded-l-none border-l border-primary-foreground/25 px-2"
+                                        aria-label="Choose item type"
+                                    >
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-44"
+                                    onCloseAutoFocus={(event) =>
+                                        event.preventDefault()
+                                    }
+                                >
+                                    <DropdownMenuItem
+                                        onSelect={() =>
+                                            onAddNew(ItemType.Credentials)
+                                        }
+                                    >
+                                        <Globe className="mr-2 h-4 w-4" />
+                                        Login
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onSelect={() =>
+                                            onAddNew(ItemType.SSHKey)
+                                        }
+                                    >
+                                        <FileKey className="mr-2 h-4 w-4" />
+                                        SSH key
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center justify-between gap-3 px-2 pt-2">
@@ -562,7 +633,9 @@ export function CredentialsList({
             {/* Credentials list */}
             <div className="min-h-0 flex-1">
                 {credentials.length === 0 ? (
-                    <VaultEmptyState />
+                    <VaultEmptyState
+                        sshKeys={selectedDirectoryID === SSH_KEYS_FILTER}
+                    />
                 ) : filteredCredentials.length === 0 ? (
                     <SearchEmptyState />
                 ) : (
@@ -579,6 +652,11 @@ export function CredentialsList({
                                 tags.length - MAX_VISIBLE_TAGS,
                                 0,
                             );
+                            const isSSHKey =
+                                credential.Type === ItemType.SSHKey;
+                            const sshKeyInfo = isSSHKey
+                                ? getSSHKeyInfo(credential.SSHKey)
+                                : null;
                             return (
                                 <div className="px-1 first:pt-3 sm:px-2 sm:first:pt-2">
                                     <div
@@ -634,6 +712,8 @@ export function CredentialsList({
                                             {credential.Type ===
                                             ItemType.Passkey ? (
                                                 <Fingerprint className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
+                                            ) : isSSHKey ? (
+                                                <FileKey className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
                                             ) : (
                                                 <Globe className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
                                             )}
@@ -666,16 +746,35 @@ export function CredentialsList({
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                                {credential.Type ===
-                                                ItemType.Passkey
-                                                    ? credential.Passkey
-                                                          ?.UserDisplayName ||
-                                                      credential.Passkey
-                                                          ?.UserName ||
-                                                      credential.URL
-                                                    : credential.Username}
-                                            </p>
+                                            {isSSHKey ? (
+                                                <p className="flex min-w-0 gap-2 text-xs text-muted-foreground sm:text-sm">
+                                                    <span className="shrink-0">
+                                                        {sshKeyInfo?.label ??
+                                                            "SSH key"}
+                                                    </span>
+                                                    {credential.SSHKey
+                                                        ?.Comment && (
+                                                        <span className="min-w-0 truncate font-mono opacity-75">
+                                                            {
+                                                                credential
+                                                                    .SSHKey
+                                                                    .Comment
+                                                            }
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            ) : (
+                                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                                    {credential.Type ===
+                                                    ItemType.Passkey
+                                                        ? credential.Passkey
+                                                              ?.UserDisplayName ||
+                                                          credential.Passkey
+                                                              ?.UserName ||
+                                                          credential.URL
+                                                        : credential.Username}
+                                                </p>
+                                            )}
                                             <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
                                                 {visibleTags.map((tag) => (
                                                     <Badge
@@ -755,13 +854,17 @@ export function CredentialsList({
                                                 <DropdownMenuItem
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onCopyUsername(
+                                                        (isSSHKey
+                                                            ? onCopyPublicKey
+                                                            : onCopyUsername)(
                                                             credential,
                                                         );
                                                     }}
                                                 >
                                                     <Copy className="mr-2 h-4 w-4" />
-                                                    Copy username
+                                                    {isSSHKey
+                                                        ? "Copy public key"
+                                                        : "Copy username"}
                                                 </DropdownMenuItem>
                                                 {credential.Password && (
                                                     <DropdownMenuItem

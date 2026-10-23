@@ -39,6 +39,7 @@ import {
 } from "@/app_lib/share-links";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
+import { runSSHKeyTaskOnWorker } from "@/utils/ssh-key-worker";
 import { colors } from "@/theme";
 
 type ServerState =
@@ -189,6 +190,26 @@ export default function ShareScreen() {
         }
     }, [credential, selection, text]);
 
+    // Copy and reveal in the app give the OpenSSH file with the current
+    // comment, so the link carries the same text.
+    const withExportedSSHKey = async (
+        built: SharePayload,
+    ): Promise<SharePayload> => {
+        const sshKey = credential?.SSHKey;
+        if (!credential || !sshKey || !selection.sshPrivateKey) return built;
+        const result = await runSSHKeyTaskOnWorker({
+            kind: "export",
+            data: sshKey,
+        });
+        if (!result.ok || result.kind !== "export") {
+            throw new Error("SSH_KEY_EXPORT_FAILED");
+        }
+        return buildCredentialSharePayload(
+            { ...credential, SSHKey: { ...sshKey, PrivateKey: result.text } },
+            selection,
+        );
+    };
+
     const create = async () => {
         if (!payload) return;
         if (usePassphrase && !passphrase) {
@@ -199,7 +220,7 @@ export default function ShareScreen() {
         setCreating(true);
         try {
             const created = await createShareLink(mobileShareDeps(), {
-                payload,
+                payload: await withExportedSSHKey(payload),
                 label: (credential ? credential.Name : label).trim(),
                 credentialId: credential?.ID ?? "",
                 ttlSeconds: Number(expiry),
@@ -380,6 +401,25 @@ export default function ShareScreen() {
                                     value={selection.name}
                                     onValueChange={() => toggle("name")}
                                 />
+                                {credential.SSHKey ? (
+                                    <>
+                                        <SwitchRow
+                                            label="Private key"
+                                            hint="Anyone who opens the link can use this key on every server that accepts it."
+                                            value={selection.sshPrivateKey}
+                                            onValueChange={() =>
+                                                toggle("sshPrivateKey")
+                                            }
+                                        />
+                                        <SwitchRow
+                                            label="Public key"
+                                            value={selection.sshPublicKey}
+                                            onValueChange={() =>
+                                                toggle("sshPublicKey")
+                                            }
+                                        />
+                                    </>
+                                ) : null}
                                 {credential.Username ? (
                                     <SwitchRow
                                         label="Username"

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 
 import {
     UnlockedButton as Button,
@@ -10,10 +9,9 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { InlineNotice } from "@/components/inline-notice";
 import { copySecretToClipboard } from "@/utils/clipboard";
-import {
-    deleteAppOwnedTempFile,
-    writeSecretTempFile,
-} from "@/utils/secret-temp-files";
+import { useSecretRelease } from "@/utils/secret-release";
+import { shareSecretFile } from "@/utils/secret-share";
+import { writeSecretTempFile } from "@/utils/secret-temp-files";
 
 import {
     buildRecoveryKitCopyText,
@@ -71,46 +69,43 @@ export function RecoveryKitDialog({
         }
     };
 
+    // The kit on its way to the share sheet; a lock or leaving stops it.
+    const startShareRelease = useSecretRelease();
+
     const handleShareKit = async () => {
         if (!kit) return;
-        let path: string | undefined;
+        const release = startShareRelease();
         try {
-            const html = buildRecoveryKitPrintHtml(
-                kit.userId,
-                kit.recoveryPhrase,
+            const shared = await shareSecretFile(
+                () =>
+                    writeSecretTempFile(
+                        "html",
+                        buildRecoveryKitPrintHtml(kit.userId, kit.recoveryPhrase),
+                        FileSystem.EncodingType.UTF8,
+                    ),
+                {
+                    isCurrent: release.current,
+                    mimeType: "text/html",
+                    dialogTitle: "Save Recovery Kit",
+                    UTI: "public.html",
+                },
             );
-            path = await writeSecretTempFile(
-                "html",
-                html,
-                FileSystem.EncodingType.UTF8,
-            );
-            if (!(await Sharing.isAvailableAsync())) {
+            if (shared === "cancelled") return;
+            if (shared === "unavailable") {
                 setStatus({
                     tone: "error",
                     text: "Sharing is not available on this device.",
                 });
                 return;
             }
-            await Sharing.shareAsync(path, {
-                mimeType: "text/html",
-                dialogTitle: "Save Recovery Kit",
-                UTI: "public.html",
-            });
             markSaved();
             setStatus({
                 tone: "success",
                 text: "Share sheet opened. Save the kit offline.",
             });
         } catch {
-            setStatus({ tone: "error", text: "Could not share Recovery Kit." });
-        } finally {
-            if (path) {
-                try {
-                    await deleteAppOwnedTempFile(path);
-                } catch {
-                    // Best-effort cleanup; never retain plaintext deliberately.
-                }
-            }
+            if (release.current())
+                setStatus({ tone: "error", text: "Could not share Recovery Kit." });
         }
     };
 

@@ -1,0 +1,105 @@
+# Agent relay stack for Docker Swarm. It sits behind your HTTPS proxy, which
+# must pass WebSocket upgrades through:
+#   docker stack deploy --with-registry-auth -c services/cmd/relay-server/compose.swarm.yaml cryptex-vault-relay
+# See docs/swarm-deployment.md.
+services:
+    # Forwards encrypted SSH agent requests between cryptex-agent and the
+    # approving device. Registrations live in SQLite, so it runs as one
+    # replica on one labelled node.
+    relay:
+        image: ${RELAY_IMAGE:?RELAY_IMAGE must reference an exact published image tag}
+        environment:
+            # The public URL clients use, such as https://relay.example.com.
+            # Clients sign its origin, and relay passes must name it.
+            RELAY_PUBLIC_URL: ${RELAY_PUBLIC_URL:?RELAY_PUBLIC_URL must be the relay's public https URL}
+            # "ticket" for Online Services (relay passes from the API),
+            # "token" for a self-hosted relay with one access token.
+            RELAY_AUTH_MODE: ${RELAY_AUTH_MODE:-token}
+            RELAY_ACCESS_TOKEN: ${RELAY_ACCESS_TOKEN:-}
+            # Or mount a Swarm secret and point this at /run/secrets/<name>.
+            RELAY_ACCESS_TOKEN_FILE: ${RELAY_ACCESS_TOKEN_FILE:-}
+            RELAY_PASS_PUBLIC_KEYS: ${RELAY_PASS_PUBLIC_KEYS:-}
+            RELAY_PASS_PUBLIC_KEYS_FILE: ${RELAY_PASS_PUBLIC_KEYS_FILE:-}
+            # Token mode: agents allowed on the whole relay.
+            RELAY_MAX_AGENTS: ${RELAY_MAX_AGENTS:-25}
+            # Clients ping after this many idle seconds. Behind Cloudflare,
+            # which drops WebSockets idle for 100 seconds, use 90.
+            RELAY_KEEPALIVE_SECONDS: ${RELAY_KEEPALIVE_SECONDS:-240}
+            # Header your HTTPS proxy sets to the real client address, and how
+            # many proxies append to it. Empty uses the socket address.
+            RELAY_CLIENT_IP_HEADER: ${RELAY_CLIENT_IP_HEADER:-X-Forwarded-For}
+            RELAY_TRUSTED_PROXY_HOPS: ${RELAY_TRUSTED_PROXY_HOPS:-1}
+            RELAY_MAX_PAIRING_SLOTS: ${RELAY_MAX_PAIRING_SLOTS:-1000}
+            # /v1/connect sockets allowed to wait for Auth at once; more get
+            # HTTP 503.
+            RELAY_MAX_PENDING_CONNECTIONS: ${RELAY_MAX_PENDING_CONNECTIONS:-1000}
+            # Bytes of envelopes held in memory across all recipients. Raise
+            # the memory limit below with it.
+            RELAY_MAX_QUEUE_BYTES: ${RELAY_MAX_QUEUE_BYTES:-67108864}
+            # The same bytes per account (pass subject, or approver key in
+            # token mode); more get LIMIT_REACHED.
+            RELAY_MAX_ACCOUNT_QUEUE_BYTES: ${RELAY_MAX_ACCOUNT_QUEUE_BYTES:-4194304}
+            # Makes the Go GC work harder before the container limit below,
+            # instead of letting the heap double past it.
+            GOMEMLIMIT: ${RELAY_GOMEMLIMIT:-320MiB}
+            # Days an approver's agents stay registered after its last pass
+            # expired (ticket mode).
+            RELAY_REGISTRATION_GRACE_DAYS: ${RELAY_REGISTRATION_GRACE_DAYS:-30}
+            # Prometheus metrics, reachable only from the networks below.
+            # "off" turns them off.
+            RELAY_METRICS_ADDR: ${RELAY_METRICS_ADDR:-:9090}
+        volumes:
+            - relay_data:/data
+        labels:
+            cryptex.logging.app: ${CRYPTEX_LOGGING_APP:-cryptex-vault-web}
+            cryptex.logging.service: relay
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+        networks:
+            # Your HTTPS proxy reaches the relay on port 8080 here.
+            cryptex-vault-relay-proxy:
+                aliases:
+                    - cryptex-vault-relay
+            # Metrics only: Alloy scrapes port 9090 here. The relay never
+            # joins the network with the database and Redis.
+            cryptex-vault-metrics: {}
+        deploy:
+            replicas: 1
+            placement:
+                # The SQLite volume is local to one node. Label it with
+                # docker node update --label-add cryptex-vault.relay=true <node>
+                constraints:
+                    - node.labels.cryptex-vault.relay == true
+            restart_policy:
+                condition: any
+                delay: 5s
+            update_config:
+                parallelism: 1
+                # SQLite has one writer; never run two copies at once.
+                order: stop-first
+                failure_action: rollback
+                monitor: 30s
+            resources:
+                limits:
+                    # A full 64 MiB queue budget, its copies while being
+                    # written out, 1000 sockets waiting for Auth and GC
+                    # headroom.
+                    memory: 384M
+                    cpus: "0.5"
+
+volumes:
+    relay_data:
+
+networks:
+    # Shared with your HTTPS proxy. Create it once:
+    #   docker network create --driver overlay cryptex-vault-relay-proxy
+    cryptex-vault-relay-proxy:
+        external: true
+        name: ${RELAY_PROXY_NETWORK:-cryptex-vault-relay-proxy}
+    # Created by the Online Services stack next to Alloy.
+    cryptex-vault-metrics:
+        external: true
+        name: ${METRICS_STACK_NAME:-cryptex}_cryptex-vault-metrics

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Cryptex Vault",
     "slug": "cryptex-vault",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "cryptex",
@@ -30,13 +30,18 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.cryptexindustries.vault",
-      "versionCode": 3,
+      "versionCode": 4,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.HIDE_OVERLAY_WINDOWS"
       ],
       "blockedPermissions": [
         "android.permission.BLUETOOTH",

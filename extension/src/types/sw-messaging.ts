@@ -284,6 +284,15 @@ export type LiteCredential = {
     directoryId: string;
     type: ItemType;
     passkey?: Pick<PasskeyData, "RPID" | "UserName" | "UserDisplayName">;
+    /** Public details of an SSH key item. Never carries the private key. */
+    sshKey?: LiteSSHKey;
+};
+
+export type LiteSSHKey = {
+    /** "Ed25519", "RSA 4096"; empty if the stored key can't be read. */
+    label: string;
+    fingerprint: string;
+    comment: string;
 };
 
 export interface CreateDirectoryRequest {
@@ -450,6 +459,13 @@ export type ConsumePasskeyAssertionResultResponse =
 export type CredentialDraftMode = "create" | "edit";
 
 /**
+ * Which option the SSH key form was on. Only "import" is recorded: the popup
+ * stashes it when Choose file hands off to the full-page tab, so the tab
+ * reopens the form on "Use an existing key".
+ */
+export type CredentialDraftSSHKeySource = "import";
+
+/**
  * In-flight credential form draft owned by the SW in session storage.
  * Modeled on the Proton Pass extension's item drafts: a single active
  * draft whose form data is captured while the user types. Session-scoped:
@@ -470,6 +486,7 @@ export interface CredentialDraft {
     form: CredentialFormSchemaType;
     /** Epoch millis when the draft was stashed. */
     stashedAt: number;
+    sshKeySource?: CredentialDraftSSHKeySource;
 }
 
 /** Payload for `MessageType.SaveCredentialDraft`. */
@@ -478,6 +495,7 @@ export interface SaveCredentialDraftRequest {
     /** Required in edit mode. */
     credentialId?: string;
     form: CredentialFormSchemaType;
+    sshKeySource?: CredentialDraftSSHKeySource;
 }
 
 /** Response for `MessageType.GetCredentialDraft`. */

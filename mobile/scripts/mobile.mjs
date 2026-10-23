@@ -58,7 +58,7 @@ Pass the same --distribution to mobile:dev so Metro bundles the matching billing
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
-        sync, fixture, cloud-fixture, target, qr, crypto, crypto-audit, native
+        ssh-keys, ssh-agent, sync, fixture, cloud-fixture, target, qr, crypto, crypto-audit, native
 Sync requires E2E_SYNC_SENDER, E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.
 CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 `;
@@ -219,8 +219,8 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         for (const check of selection ? [selection] : checks) {
             if (check === "lint") exec(["oxlint"]);
             if (check === "types") {
-                // The security worker bundle isn't tracked; its import needs the file.
-                execute(process.execPath, ["scripts/build-security-worker.cjs"]);
+                // The worker bundles aren't tracked; their imports need the files.
+                execute(process.execPath, ["scripts/build-workers.cjs"]);
                 exec(["tsgo", "--noEmit", "--strict"]);
             }
             if (check === "unit") exec(["jest", "--config", "./jest.config.ts", ...args]);
@@ -309,6 +309,13 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         rejectArguments();
         requireDevice();
         execute("bash", [suite === "autofill-accessibility" ? "e2e/run-accessibility-fallback.sh" : "e2e/run-provider-auto-lock.sh"], deviceEnv);
+    } else if (suite === "ssh-keys") {
+        requireDevice();
+        execute("bash", ["e2e/run-ssh-keys.sh", ...args], deviceEnv);
+    } else if (suite === "ssh-agent") {
+        requireDevice();
+        mkdirSync(join(mobile, "e2e/results"), { recursive: true });
+        execute(process.execPath, ["e2e/run-ssh-agent.mjs", "--format", "junit", "--output", "e2e/results/ssh-agent.xml", ...args], deviceEnv);
     } else if (["cloud", "devices"].includes(suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });

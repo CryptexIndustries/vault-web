@@ -45,6 +45,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+    clearDeviceLocalFields,
     Directory,
     LinkedDevices,
     OnlineServices,
@@ -124,6 +125,7 @@ import {
 import { trpcReact } from "@/utils/trpc";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { cn } from "@/lib/utils";
+import { formatSecondsLeft, useSecondsLeft } from "@/utils/use-seconds-left";
 import {
     createChunkedQRCodeFrames,
     DEFAULT_CHUNKED_QR_CHARS,
@@ -187,6 +189,7 @@ const EmbeddedCheckoutDialog = dynamic(
         ),
     { ssr: false },
 );
+const CONNECTION_LOST_ERROR = "The connection to the other device was lost.";
 const MISSING_SYNC_SIGNING_KEY_ERROR =
     "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
 const SEND_LINK_QR_CYCLE_MS = DEFAULT_CHUNKED_QR_CYCLE_MS;
@@ -1376,15 +1379,24 @@ export function SendLinkRequestDialog({
             }
         };
 
+        // Set by our own teardown, so the events it causes aren't failures.
+        let linkEnded = false;
+
         const teardownLinkingConnections = () => {
+            linkEnded = true;
             clearSignalingSetupTimeout();
             webRTCDataChannel.close();
             webRTConnection.close();
             signalingServerConnection.disconnect();
         };
 
-        const failActiveLinking = async () => {
+        const failActiveLinking = async (message?: string) => {
+            if (linkEnded) return;
             teardownLinkingConnections();
+            if (message) {
+                addToProgressLog(message, "error");
+                toast.error(message);
+            }
             await rollbackRegisteredOnlineServicesDevice(
                 onlineServicesDeviceID,
             );
@@ -1393,6 +1405,7 @@ export function SendLinkRequestDialog({
 
         const reportSignalingFailure = (message: string) => {
             if (
+                linkEnded ||
                 signalingFailureReported ||
                 vaultTransferSentRef.current ||
                 webRTConnection.connectionState === "connected"
@@ -1441,7 +1454,7 @@ export function SendLinkRequestDialog({
                 webRTConnection.connectionState === "failed"
             ) {
                 if (!vaultTransferSentRef.current) {
-                    void failActiveLinking();
+                    void failActiveLinking(CONNECTION_LOST_ERROR);
                 }
             }
         };
@@ -1542,11 +1555,13 @@ export function SendLinkRequestDialog({
 
             const waitStartedAt = Date.now();
             while (
+                !linkEnded &&
                 !remoteKeyBundleRef.current &&
                 Date.now() - waitStartedAt < 15_000
             ) {
                 await new Promise((resolve) => setTimeout(resolve, 50));
             }
+            if (linkEnded) return;
 
             const remoteKeyBundle = remoteKeyBundleRef.current;
             if (!remoteKeyBundle) {
@@ -1649,8 +1664,7 @@ export function SendLinkRequestDialog({
             if (vaultTransferSentRef.current) {
                 return;
             }
-            addToProgressLog("Failed to send vault data.", "error");
-            void failActiveLinking();
+            void failActiveLinking("Failed to send vault data.");
         };
         webRTCDataChannel.onclose = () => {
             if (vaultTransferSentRef.current) {
@@ -1658,7 +1672,7 @@ export function SendLinkRequestDialog({
                 return;
             }
             webRTConnection.close();
-            void failActiveLinking();
+            void failActiveLinking(CONNECTION_LOST_ERROR);
         };
 
         webRTConnection.onicecandidate = (event) => {
@@ -1671,8 +1685,7 @@ export function SendLinkRequestDialog({
             }
 
             if (iceCandidatesGenerated === 0 && !event.candidate) {
-                addToProgressLog("Failed to generate ICE candidates.", "error");
-                void failActiveLinking();
+                void failActiveLinking("Failed to generate ICE candidates.");
             }
         };
 
@@ -2427,7 +2440,10 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
 
 async function parseReceivedVault(data: Uint8Array) {
     const rawVault = VaultUtilTypes.Vault.decode(data);
-    const receivedVault = Object.assign(new Vault(), rawVault);
+    // Device-local fields never come from the sender, even a crafted one.
+    const receivedVault = clearDeviceLocalFields(
+        Object.assign(new Vault(), rawVault),
+    );
     receivedVault.LinkedDevices = LinkedDevices.fromGeneric(
         receivedVault.LinkedDevices,
     );
@@ -2702,17 +2718,20 @@ function ReceiveLinkTerminalPanel({
 
 function ReceiveLinkActiveLinkingPanel({
     statusMessage,
+    deadline,
     phaseProgress,
     progressLog,
     showLogDetails,
     onToggleLogDetails,
 }: {
     statusMessage: string;
+    deadline: number | null;
     phaseProgress: number;
     progressLog: ProgressLogType[];
     showLogDetails: boolean;
     onToggleLogDetails: () => void;
 }) {
+    const secondsLeft = useSecondsLeft(deadline);
     return (
         <>
             <div className="space-y-3 rounded-xl border bg-muted/10 p-4">
@@ -2721,6 +2740,11 @@ function ReceiveLinkActiveLinkingPanel({
                     <span className="text-muted-foreground">
                         {statusMessage}
                     </span>
+                    {secondsLeft !== null ? (
+                        <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+                            {formatSecondsLeft(secondsLeft)}
+                        </span>
+                    ) : null}
                 </div>
                 <Progress value={phaseProgress} />
             </div>
@@ -2743,6 +2767,7 @@ export function ReceiveLinkRequestDialog({
 }: ReceiveLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
+    const [waitDeadline, setWaitDeadline] = useState<number | null>(null);
     const [inputStep, setInputStep] = useState<ReceiveInputStep>("package");
     const [method, setMethod] = useState<ReceiveLinkMethod>("qr");
     const [secret, setSecret] = useState("");
@@ -3014,6 +3039,7 @@ export function ReceiveLinkRequestDialog({
         if (failedRef.current && status.State !== LinkingProcessState.Error) {
             return;
         }
+        if (status.Deadline !== undefined) setWaitDeadline(status.Deadline);
 
         setSteps((currentSteps) =>
             currentSteps.map((step) =>
@@ -3054,7 +3080,9 @@ export function ReceiveLinkRequestDialog({
         setMergeSummary(null);
 
         if (secret.trim().length <= 1) {
-            setFormError("Enter the verification words from the sending device.");
+            setFormError(
+                "Enter the verification words from the sending device.",
+            );
             return;
         }
         if (method === "qr" && !qrCodeData.trim()) {
@@ -3135,6 +3163,7 @@ export function ReceiveLinkRequestDialog({
 
             linkingStarted = true;
             setStage("linking");
+            setWaitDeadline(null);
             setShowLogDetails(false);
             setSteps(createReceiveLinkSteps());
             setProgressLog([]);
@@ -3204,6 +3233,7 @@ export function ReceiveLinkRequestDialog({
                 throw new Error("Failed to persist synchronization keys.");
             }
 
+            let vaultReceived = false;
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
@@ -3217,6 +3247,7 @@ export function ReceiveLinkRequestDialog({
                         status.State === LinkingProcessState.Completed &&
                         status.VaultBinaryData
                     ) {
+                        vaultReceived = true;
                         try {
                             await mergeReceivedVault(
                                 status.VaultBinaryData,
@@ -3246,6 +3277,13 @@ export function ReceiveLinkRequestDialog({
                         if (abortedRef.current || failedRef.current) return;
                         completedRef.current = true;
                         controllerRef.current = null;
+                        if (!vaultReceived) {
+                            failedRef.current = true;
+                            setStage("failed");
+                            addReceiveLog("No vault data received.", "error");
+                            toast.error("No vault data received.");
+                            return;
+                        }
                         setStage("done");
                         toast.success("Link received.");
                     }
@@ -3712,6 +3750,7 @@ export function ReceiveLinkRequestDialog({
                         ) : stage === "linking" ? (
                             <ReceiveLinkActiveLinkingPanel
                                 statusMessage={linkingStatusMessage}
+                                deadline={waitDeadline}
                                 phaseProgress={linkingPhaseProgress}
                                 progressLog={progressLog}
                                 showLogDetails={showLogDetails}
@@ -4060,7 +4099,7 @@ export function VaultSignalingConfigDialog({
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                                 onClick={() =>
                                                     setDraftSTUNServers(
                                                         (servers) =>
@@ -4166,7 +4205,7 @@ export function VaultSignalingConfigDialog({
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                                 onClick={() =>
                                                     setDraftTURNServers(
                                                         (servers) =>
@@ -4328,7 +4367,7 @@ export function VaultSignalingConfigDialog({
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                                 onClick={() =>
                                                     setDraftSignalingServers(
                                                         (servers) =>

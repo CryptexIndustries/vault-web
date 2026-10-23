@@ -12,6 +12,12 @@ export const env = {
     get ONLINE_SERVICES_API_URL() {
         return process.env.EXPO_PUBLIC_ONLINE_SERVICES_API_URL ?? "";
     },
+    /** Hosted SSH agent relay (Online Services). */
+    get RELAY_URL() {
+        return (
+            process.env.EXPO_PUBLIC_RELAY_URL || "https://relay.cryptex-vault.com"
+        );
+    },
     get CLOUD_ENABLED() {
         return (
             (process.env.EXPO_PUBLIC_CLOUD_ENABLED ?? "true").toLowerCase() !==

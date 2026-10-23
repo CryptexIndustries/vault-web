@@ -7,10 +7,13 @@ import { useAtomValue } from "jotai";
 import { AUTO_CONNECT_KEY } from "@/components/sync-controller-provider";
 import { ConnectivityPanel } from "@/components/devices/connectivity-panel";
 import { Switch } from "@/components/ui/switch";
+import { BatteryCharging, SquareTerminal } from "lucide-react-native";
 import {
+    UnlockedMenuRow,
     UnlockedTaskScreen,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
+import { agentService } from "@/agent/agent-service";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { colors } from "@/theme";
 
@@ -102,6 +105,24 @@ export default function ConnectivityScreen() {
                     }
                 }}
             />
+            <Text className="mb-1 mt-6 text-[10px] uppercase tracking-[1.1px] text-muted-foreground">
+                SSH agents
+            </Text>
+            <UnlockedMenuRow
+                testID="agent-relay-settings"
+                icon={SquareTerminal}
+                title="Agent relays"
+                subtitle="How connected agents reach this phone"
+                onPress={() => router.push("/(app)/devices/connectivity/agent-relay")}
+            />
+            {agentService.available ? (
+                <UnlockedMenuRow
+                    icon={BatteryCharging}
+                    title="Battery settings"
+                    subtitle="Let Cryptex Vault run in the background so agents can reach it"
+                    onPress={() => agentService.openBatterySettings()}
+                />
+            ) : null}
         </UnlockedTaskScreen>
     );
 }

@@ -1,13 +1,13 @@
 # Share server threat model
 
-| Field                      | Value                                                                   |
-| -------------------------- | ----------------------------------------------------------------------- |
-| Product                    | Cryptex Vault share server (one-time share links)                       |
-| Document revision          | 1.1                                                                     |
-| Updated                    | 14 October 2026                                                         |
-| Audience                   | Engineering and security reviewers                                      |
-| Status                     | Internal engineering review                                             |
-| Risk owners and acceptance | Unassigned unless recorded below; acceptance requires an assigned owner |
+| Field                      | Value                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| Product                    | Cryptex Vault share server (one-time share links)                                         |
+| Document revision          | 1.1                                                                                       |
+| Updated                    | 14 October 2026                                                                           |
+| Audience                   | Engineering and security reviewers                                                        |
+| Status                     | Internal engineering review                                                               |
+| Risk owners and acceptance | Milivoj Bošnjak (8l4cksmith) owns every risk below; acceptance requires an assigned owner |
 
 ## 1. Purpose and method
 
@@ -188,15 +188,15 @@ Repudiation is not addressed by design: the server keeps no record of who create
 
 Priorities are qualitative engineering judgments, not CVSS scores.
 
-| ID  | Priority | Risk                                                                                                                            | Status                   | Owner      | Next action                                                                                 |
-| --- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ---------- | ------------------------------------------------------------------------------------------- |
-| R1  | Medium   | A leaked ticket signing seed lets anyone mint tickets until the key is rotated                                                  | Documented               | Unassigned | Keep the seed in Docker secrets, one per environment; rotate by key ID                      |
-| R2  | Medium   | A wrong `SHARE_TRUSTED_PROXY_HOPS` lets clients choose their rate-limit address                                                 | Documented               | Unassigned | Add a deployment check that compares the header seen by the server with the proxy's address |
-| R3  | Low      | Rate limits are per replica and in memory; restarts reset them                                                                  | Accepted for one replica | Unassigned | Revisit if the server ever runs more than one replica                                       |
-| R4  | Low      | Aggregate metrics are readable from the web container's network too                                                             | Accepted                 | Unassigned | Add a subnet allowlist if metrics ever carry sensitive labels                               |
-| R5  | Low      | Anyone with a link can burn a passphrase share with five wrong guesses                                                          | Accepted                 | Unassigned | None; the sender can create a new link                                                      |
-| R6  | Medium   | Clients that reach the web container without the HTTPS proxy choose their rate-limit address                                    | Documented               | Unassigned | Keep the web port unpublished or firewalled; development uses the socket address            |
-| R7  | Low      | A compromised linked device can sync a share record naming any server; opening Shared links then sends its status request there | Accepted                 | Unassigned | None; a linked device already holds the whole vault                                         |
+| ID  | Priority | Risk                                                                                                                            | Status                   | Owner                        | Next action                                                                                 |
+| --- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| R1  | Medium   | A leaked ticket signing seed lets anyone mint tickets until the key is rotated                                                  | Documented               | Milivoj Bošnjak (8l4cksmith) | Keep the seed in Docker secrets, one per environment; rotate by key ID                      |
+| R2  | Medium   | A wrong `SHARE_TRUSTED_PROXY_HOPS` lets clients choose their rate-limit address                                                 | Documented               | Milivoj Bošnjak (8l4cksmith) | Add a deployment check that compares the header seen by the server with the proxy's address |
+| R3  | Low      | Rate limits are per replica and in memory; restarts reset them                                                                  | Accepted for one replica | Milivoj Bošnjak (8l4cksmith) | Revisit if the server ever runs more than one replica                                       |
+| R4  | Low      | Aggregate metrics are readable from the web container's network too                                                             | Accepted                 | Milivoj Bošnjak (8l4cksmith) | Add a subnet allowlist if metrics ever carry sensitive labels                               |
+| R5  | Low      | Anyone with a link can burn a passphrase share with five wrong guesses                                                          | Accepted                 | Milivoj Bošnjak (8l4cksmith) | None; the sender can create a new link                                                      |
+| R6  | Medium   | Clients that reach the web container without the HTTPS proxy choose their rate-limit address                                    | Documented               | Milivoj Bošnjak (8l4cksmith) | Keep the web port unpublished or firewalled; development uses the socket address            |
+| R7  | Low      | A compromised linked device can sync a share record naming any server; opening Shared links then sends its status request there | Accepted                 | Milivoj Bošnjak (8l4cksmith) | None; a linked device already holds the whole vault                                         |
 
 ## 8. External services and privacy
 
@@ -223,7 +223,7 @@ Ticket mode ran end to end against a local backend: a subscriber account got a t
 
 All paths below are relative to this document.
 
-- [Server entry point](main.go), [HTTP handlers](../../internal/share/server.go), [store](../../internal/share/store.go), [tickets](../../internal/share/ticket.go), [rate limiter](../../internal/share/ratelimit.go), and [metrics](../../internal/share/metrics.go).
+- [Server entry point](main.go), [HTTP handlers](../../internal/share/server.go), [store](../../internal/share/store.go), [tickets](../../internal/share/ticket.go), [rate limiter](../../internal/serverkit/ratelimit.go), and [metrics](../../internal/share/metrics.go).
 - [Share envelope and links](../../../packages/vault-core/src/vault-utils/share-link.ts), [client](../../../packages/vault-core/src/vault-utils/share-client.ts), [service](../../../packages/vault-core/src/vault-utils/share-service.ts), and [records](../../../packages/vault-core/src/vault-utils/share-records.ts).
 - [Recipient page](../../../web/src/components/share/share-reveal.tsx) and [API proxy](../../../web/src/proxy.ts).
 - [Swarm stack](compose.swarm.yaml), [Swarm deployment guide](../../../docs/swarm-deployment.md), and [self-hosting Compose file](../../../deploy/self-hosting/compose.yaml).

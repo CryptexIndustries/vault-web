@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { KeyRound, Laptop } from "lucide-react";
+import { Fingerprint, Laptop } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -70,7 +70,7 @@ export default function PopupPasskeyAssertion({
         <main className="space-y-3 p-4">
             <div className="flex items-start gap-3">
                 <span className="rounded-full bg-primary/15 p-2 text-primary">
-                    <KeyRound className="h-4 w-4" />
+                    <Fingerprint className="h-4 w-4" />
                 </span>
                 <div>
                     <h1 className="text-sm font-semibold">Use a passkey</h1>
@@ -93,7 +93,7 @@ export default function PopupPasskeyAssertion({
                             checked={selected === candidate.credentialId}
                             onChange={() => setSelected(candidate.credentialId)}
                         />
-                        <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <Fingerprint className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className="min-w-0">
                             <span className="block truncate text-sm font-medium">
                                 {candidate.userDisplayName}

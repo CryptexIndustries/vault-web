@@ -15,6 +15,11 @@ import type {
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { mergeReceivedShareLinks } from "@cryptex-industries/vault-core/vault-utils/share-records";
 import {
+    connectedAgentsFromTransport,
+    connectedAgentsToTransport,
+    mergeReceivedConnectedAgents,
+} from "@cryptex-industries/vault-core/vault-utils/connected-agents";
+import {
     parseShareLinksPayload,
     parseShareSettingsPayload,
 } from "./background/share-links";
@@ -1088,7 +1093,29 @@ async function processMessageUncoordinated(
                 const shareLinks = (vault.ShareLinks ?? []).filter(
                     (shareLink) => shareLinkIDs.has(shareLink.ID),
                 );
-                return { ok: true, credentials, directories, shareLinks };
+                const connectedAgentIDs = new Set(
+                    payload.items
+                        .filter(
+                            (item: VaultUtilTypes.SyncItemReference) =>
+                                item.Type ===
+                                VaultUtilTypes.SyncItemType.ConnectedAgentItem,
+                        )
+                        .map(
+                            (item: VaultUtilTypes.SyncItemReference) => item.ID,
+                        ),
+                );
+                const connectedAgents = connectedAgentsToTransport(
+                    (vault.ConnectedAgents ?? []).filter((agent) =>
+                        connectedAgentIDs.has(agent.ID),
+                    ),
+                );
+                return {
+                    ok: true,
+                    credentials,
+                    directories,
+                    shareLinks,
+                    connectedAgents,
+                };
             }
             case MessageType.SyncGetVersionVectors: {
                 const vault = await getVaultFromSessionStorage();
@@ -1098,6 +1125,7 @@ async function processMessageUncoordinated(
                         credentialVersionVectors: [],
                         directoryVersionVectors: [],
                         shareLinkVersionVectors: [],
+                        connectedAgentVersionVectors: [],
                         error: "VAULT_NOT_UNLOCKED",
                     };
                 }
@@ -1125,6 +1153,9 @@ async function processMessageUncoordinated(
                     directoryVersionVectors,
                     shareLinkVersionVectors: getSyncVersionVectors(
                         vault.ShareLinks ?? [],
+                    ),
+                    connectedAgentVersionVectors: getSyncVersionVectors(
+                        vault.ConnectedAgents ?? [],
                     ),
                 };
             }
@@ -1240,6 +1271,10 @@ async function processMessageUncoordinated(
                 vault.ShareLinks = mergeReceivedShareLinks(
                     vault.ShareLinks ?? [],
                     payload.shareLinks ?? [],
+                );
+                vault.ConnectedAgents = mergeReceivedConnectedAgents(
+                    vault.ConnectedAgents ?? [],
+                    connectedAgentsFromTransport(payload.connectedAgents),
                 );
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
@@ -1509,6 +1544,9 @@ async function processMessageUncoordinated(
                             : null,
                     ),
                     stashedAt: Date.now(),
+                    ...(validation.request.sshKeySource
+                        ? { sshKeySource: validation.request.sshKeySource }
+                        : {}),
                 });
                 return { ok: true };
             }
@@ -1937,9 +1975,23 @@ async function ensureActiveKeyPair(): Promise<void> {
     }
 }
 
+// chrome.storage.session stores JSON, which can't hold the Uint8Array keys in
+// ConnectedAgents. They are kept as base64 protobuf and restored on read.
+type SessionVault = Omit<VaultUtilTypes.Vault, "ConnectedAgents"> & {
+    ConnectedAgents?: unknown;
+};
+
 async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null> {
     const _vault = await chrome.storage.session.get([UNLOCKED_VAULT_KEY]);
-    return _vault[UNLOCKED_VAULT_KEY] as VaultUtilTypes.Vault | null;
+    const stored = _vault[UNLOCKED_VAULT_KEY] as
+        | SessionVault
+        | null
+        | undefined;
+    if (!stored) return null;
+    return {
+        ...stored,
+        ConnectedAgents: connectedAgentsFromTransport(stored.ConnectedAgents),
+    };
 }
 
 async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.VaultMetadata | null> {
@@ -1979,7 +2031,12 @@ async function setVaultInSessionStorage(
         .toBase64();
     await chrome.storage.session.set({
         [UNLOCKED_VAULT_METADATA_KEY]: encodedMetadata,
-        [UNLOCKED_VAULT_KEY]: vault,
+        [UNLOCKED_VAULT_KEY]: {
+            ...vault,
+            ConnectedAgents: connectedAgentsToTransport(
+                vault.ConnectedAgents ?? [],
+            ),
+        } satisfies SessionVault,
         [ACTIVE_VAULT_DB_INDEX_KEY]: vaultDbIndex,
     });
 }

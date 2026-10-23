@@ -11,7 +11,11 @@ export type BillingProvider = z.infer<typeof billingProviderSchema>;
 export const getSubscriptionOutputSchema = z.object({
     provider: billingProviderSchema.nullable(),
     expiresAt: z.date().nullish(),
+    /** `trialing` during a free trial on any provider. */
     status: z.string().nullish(),
+    trialEligible: z.boolean(),
+    /** End of the current free trial; null outside a trial. */
+    trialEndsAt: z.date().nullable(),
     cancelAtPeriodEnd: z.boolean().nullish(),
     productName: z.string(),
     nonFree: z.boolean(),

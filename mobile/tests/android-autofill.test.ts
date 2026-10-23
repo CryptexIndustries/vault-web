@@ -58,7 +58,7 @@ describe("Android autofill matching", () => {
             webDomain: "example.test",
             webScheme: "unknown",
         });
-        expect(target.pageUrl).toBe("http://example.test");
+        expect(target.pageUrl).toBe("https://example.test");
         expect(target.warningType).toBe("unverified-web-scheme");
         expect(target.appUri).toBeNull();
         expect(matchingAutofillCredentials([credential("secure", "https://example.test")], target)).toEqual([]);

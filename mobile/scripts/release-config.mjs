@@ -47,7 +47,6 @@ export function parseReleaseOptions(args, { cwd = process.cwd(), allowApk = fals
     }
     const profile = getProfile(options.profile);
     assert.ok(["standard", "fdroid", "play"].includes(options.distribution), "Choose standard, fdroid or play distribution.");
-    assert.ok(options.distribution !== "fdroid" || options.profile === "production", "F-Droid distribution requires the production profile.");
     options.configPath ??= join(mobile, profile.configFile);
     if (options.distribution === "play") {
         assert.ok(!options.offlineServices, "Google Play builds require Online Services.");

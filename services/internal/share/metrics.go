@@ -73,6 +73,10 @@ func NewMetrics(store *Store, logger *slog.Logger) *Metrics {
 	store.observe = func(event string, n int) {
 		m.events.WithLabelValues(event).Add(float64(n))
 	}
+	// Both results start at zero, so an alert sees the first failed sweep.
+	for _, result := range []string{"ok", "error"} {
+		m.sweeps.WithLabelValues(result)
+	}
 	return m
 }
 

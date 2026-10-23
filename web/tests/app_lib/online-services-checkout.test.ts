@@ -13,7 +13,8 @@ import { TRPCClientError } from "@trpc/client";
 
 const checkoutSessionQueryMock =
     jest.fn<(input?: { tier?: string }) => Promise<string>>();
-const subscriptionQueryMock = jest.fn<() => Promise<{ nonFree: boolean }>>();
+const subscriptionQueryMock =
+    jest.fn<() => Promise<{ nonFree: boolean; status?: string }>>();
 const syncRemoteConfigurationMock = jest.fn(async () => undefined);
 
 const toastLoadingMock = jest.fn((..._args: unknown[]) => "toast-checkout");
@@ -146,7 +147,7 @@ describe("finalizeCheckoutCompletion", () => {
         expect(syncRemoteConfigurationMock).toHaveBeenCalledTimes(1);
         expect(onSynced).toHaveBeenCalledTimes(1);
         expect(toastLoadingMock).toHaveBeenCalledWith(
-            "Activating subscription...",
+            "Activating Online Services...",
         );
         expect(toastSuccessMock).toHaveBeenCalledWith(
             "Subscription upgraded.",
@@ -154,6 +155,19 @@ describe("finalizeCheckoutCompletion", () => {
                 id: "toast-checkout",
             },
         );
+    });
+
+    it("confirms a started free trial", async () => {
+        subscriptionQueryMock.mockResolvedValue({
+            nonFree: true,
+            status: "trialing",
+        });
+
+        await finalizeCheckoutCompletion();
+
+        expect(toastSuccessMock).toHaveBeenCalledWith("Free trial started.", {
+            id: "toast-checkout",
+        });
     });
 
     it("still refreshes client state when activation polling times out", async () => {
@@ -167,7 +181,7 @@ describe("finalizeCheckoutCompletion", () => {
         expect(syncRemoteConfigurationMock).toHaveBeenCalledTimes(1);
         expect(onSynced).toHaveBeenCalledTimes(1);
         expect(toastMessageMock).toHaveBeenCalledWith(
-            "Payment received. Your plan may take a moment to update.",
+            "Checkout complete. Your plan may take a moment to update.",
             { id: "toast-checkout" },
         );
         expect(toastSuccessMock).not.toHaveBeenCalled();

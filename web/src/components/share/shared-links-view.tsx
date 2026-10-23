@@ -511,7 +511,7 @@ function SharedLinkRow({
                 <DropdownMenuContent align="end">
                     {status === "active" ? (
                         <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
+                            className="text-destructive"
                             onSelect={onRevoke}
                         >
                             <XCircle className="mr-2 h-4 w-4" />

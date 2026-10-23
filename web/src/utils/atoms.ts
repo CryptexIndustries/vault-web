@@ -18,6 +18,8 @@ export type OnlineServicesData = {
         canLink: boolean;
         maxLinks: number;
         passwordSharing?: boolean;
+        sshAgentRelay?: boolean;
+        maxSshAgents?: number;
         recoveryTokenCreatedAt: Date | null;
         recoveryGenerationNeeded?: boolean;
     } | null;

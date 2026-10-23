@@ -25,12 +25,14 @@ export function getSyncVersionVectors(
 }
 
 export function selectSyncItems(
-    vault: Pick<Vault, "Credentials" | "Directories" | "ShareLinks">,
+    vault: Pick<Vault, "Credentials" | "Directories" | "ShareLinks"> &
+        Partial<Pick<Vault, "ConnectedAgents">>,
     items: readonly SyncItemReference[],
 ): SyncDataResponseMessage {
     const credentialIDs = new Set<string>();
     const directoryIDs = new Set<string>();
     const shareLinkIDs = new Set<string>();
+    const connectedAgentIDs = new Set<string>();
     for (const item of items) {
         if (item.Type === SyncItemType.CredentialItem) {
             credentialIDs.add(item.ID);
@@ -38,6 +40,8 @@ export function selectSyncItems(
             directoryIDs.add(item.ID);
         } else if (item.Type === SyncItemType.ShareLinkItem) {
             shareLinkIDs.add(item.ID);
+        } else if (item.Type === SyncItemType.ConnectedAgentItem) {
+            connectedAgentIDs.add(item.ID);
         }
     }
     return {
@@ -49,6 +53,9 @@ export function selectSyncItems(
         ),
         ShareLinks: (vault.ShareLinks ?? []).filter((shareLink) =>
             shareLinkIDs.has(shareLink.ID),
+        ),
+        ConnectedAgents: (vault.ConnectedAgents ?? []).filter((agent) =>
+            connectedAgentIDs.has(agent.ID),
         ),
     };
 }

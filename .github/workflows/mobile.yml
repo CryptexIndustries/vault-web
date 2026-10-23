@@ -41,9 +41,15 @@ on:
         default: preprod
         type: choice
         options: [preprod, production]
+      distribution:
+        description: Preproduction only; fdroid builds arm64-v8a and x86_64 with the F-Droid recipe instead of the standard APK
+        required: true
+        default: standard
+        type: choice
+        options: [standard, fdroid]
 
 concurrency:
-  group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}
+  group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}-${{ inputs.distribution || 'standard' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch') }}
 
 permissions:
@@ -219,7 +225,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: [check, smoke]
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod'
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution != 'fdroid'
     environment: Mobile - Preproduction
     steps:
       - name: Checkout
@@ -320,10 +326,13 @@ jobs:
           if-no-files-found: error
 
   fdroid:
-    name: build production F-Droid APKs
+    name: build F-Droid APKs
     needs: check
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && (inputs.profile == 'production' || inputs.distribution == 'fdroid'))
     uses: ./.github/workflows/mobile-fdroid.yml
+    with:
+      profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'preprod' || 'production' }}
+      abis: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && '["arm64-v8a", "x86_64"]' || '["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]' }}
 
   fdroid_sign:
     name: sign production F-Droid APKs
@@ -391,5 +400,74 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mobile-fdroid-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release/
+          if-no-files-found: error
+
+  fdroid_preprod_sign:
+    name: sign preproduction F-Droid APKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [fdroid, smoke]
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution == 'fdroid'
+    environment: Mobile - Preproduction
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install pinned APK inspection and signing tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
+
+      - name: Download verified unsigned APKs and their configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: mobile-fdroid-unsigned-${{ github.run_id }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Sign and verify the preproduction APKs
+        env:
+          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
+          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
+          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
+        run: node mobile/scripts/ci-release.mjs sign preprod "$RUNNER_TEMP/mobile-release" fdroid
+
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke test signed preproduction APK
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb -s "$ANDROID_SERIAL" install "$RUNNER_TEMP/mobile-release/$(node --input-type=module -e 'import { artifactName } from "./mobile/scripts/release-config.mjs"; console.log(artifactName({ profile: "preprod", distribution: "fdroid", arch: "x86_64" }));')"
+            adb -s "$ANDROID_SERIAL" shell am start -W -n com.cryptexindustries.vault.preprod/.MainActivity
+            sleep 10
+            adb -s "$ANDROID_SERIAL" logcat -d -b crash -v brief
+            adb -s "$ANDROID_SERIAL" shell pidof com.cryptexindustries.vault.preprod
+
+      - name: Upload signed F-Droid APKs, configuration and checksums
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-fdroid-preprod-release-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error

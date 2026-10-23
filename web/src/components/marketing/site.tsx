@@ -694,6 +694,11 @@ const coreFeatures: { title: string; description?: string }[] = [
         description:
             "Run the open-source share server and send links from your own domain.",
     },
+    {
+        title: "SSH keys and the SSH agent on your own relay",
+        description:
+            "Keep SSH keys in your vault and approve logins from your phone or the web app, through an agent relay you run.",
+    },
 ];
 export function Plans({ detailed = false }: { detailed?: boolean }) {
     const [annual, setAnnual] = useState(false);
@@ -709,7 +714,7 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     Monthly
                 </button>
                 <button aria-pressed={annual} onClick={() => setAnnual(true)}>
-                    Annually <span>Save €{yearlySaving(currentPriceList)}</span>
+                    Yearly <span>Save €{yearlySaving(currentPriceList)}</span>
                 </button>
             </div>
             <div className={`${s.plans} grid grid-cols-[1fr_1fr] gap-[24px]`}>
@@ -757,6 +762,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         Price as of {currentPriceList.referenceDate}: €
                         {Number(price.referencePrice)} / {period}
                     </small>
+                    <small className={s.referencePrice}>
+                        14-day free trial on your first subscription
+                    </small>
                     <p>
                         Your vault stays yours. We run the supporting
                         infrastructure.
@@ -765,8 +773,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         Continue with {annual ? "yearly" : "monthly"} plan
                     </Action>
                     <small className={s.purchaseNote}>
-                        New to Online Services? Start with monthly billing
-                        before committing to a year.
+                        The trial needs a card, which is charged when the trial
+                        ends unless you cancel first. New to Online Services?
+                        Start with monthly billing before committing to a year.
                     </small>
                     <ul>
                         <li className={s.featureBenefit}>
@@ -799,6 +808,16 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                                     Send a login or secret to anyone, even
                                     people without Cryptex Vault. It opens once,
                                     then it&apos;s deleted.
+                                </small>
+                            </span>
+                        </li>
+                        <li className={s.featureBenefit}>
+                            <Check size={16} />
+                            <span>
+                                Hosted SSH agent relay
+                                <small>
+                                    Approve SSH logins on up to 25 Linux
+                                    machines without running your own relay.
                                 </small>
                             </span>
                         </li>

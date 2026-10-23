@@ -1,5 +1,13 @@
 # Extension Threat Model
 
+| Field                      | Value                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| Product                    | Cryptex Vault Chromium Extension                                                          |
+| Updated                    | 21 October 2026                                                                           |
+| Audience                   | Engineering and security reviewers                                                        |
+| Status                     | Internal engineering review                                                               |
+| Risk owners and acceptance | Milivoj Bošnjak (8l4cksmith) owns every risk below; acceptance requires an assigned owner |
+
 This document describes trust boundaries, assets, attackers, controls, and
 residual risks for the Cryptex Vault browser extension. It synthesizes the
 architecture docs under `extension/docs/`.
@@ -351,30 +359,30 @@ trustworthy as that server's recipient page. See the
 
 ## Residual risks (prioritized)
 
-| Priority | Risk                                                | Mitigation status | Notes                                                                                              |
-| -------- | --------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
-| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                                            |
-| P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                                                |
-| P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                                        |
-| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                                        |
-| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens                                                      |
-| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required                                                            |
-| P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary                      |
-| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                                                   |
-| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                                        |
-| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                                               |
-| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                                       |
-| P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                                                  |
-| P3       | Local backup receipts persist after lock            | Accepted          | DEK-authenticated; opaque without session DEK                                                      |
-| P3       | Downloaded `.cryx` on disk                          | Accepted          | Encrypted; receipt cannot prove the file still exists                                              |
-| P3       | Object-store CORS vs extension origin               | Accepted          | Signed URL fetch uses CORS, not `host_permissions`; bucket must allow `chrome-extension://` or `*` |
-| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                                                |
-| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                                      |
-| P3       | Share link intercepted before the recipient         | Accepted          | One view; optional passphrase; sender sees "Opened"                                                |
-| P3       | Custom share server serves the recipient page       | Accepted          | Inherent to self-hosting; managed tickets never go to it                                           |
-| P3       | Synced share record names an attacker's server      | Accepted          | Only a linked device can add one, and it already holds the whole vault                             |
-| P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    |
-| P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      |
+| Priority | Risk                                                | Mitigation status | Notes                                                                                              | Owner                        |
+| -------- | --------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
+| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                                            | Milivoj Bošnjak (8l4cksmith) |
+| P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                                                | Milivoj Bošnjak (8l4cksmith) |
+| P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                                        | Milivoj Bošnjak (8l4cksmith) |
+| P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                                        | Milivoj Bošnjak (8l4cksmith) |
+| P2       | `window.open` without `noopener` on credential URLs | Fixed             | `noopener,noreferrer` on credential URL opens                                                      | Milivoj Bošnjak (8l4cksmith) |
+| P2       | Pending save password in session (5 min)            | Accepted          | Bounded TTL; user confirmation required                                                            | Milivoj Bošnjak (8l4cksmith) |
+| P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary                      | Milivoj Bošnjak (8l4cksmith) |
+| P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                                                   | Milivoj Bošnjak (8l4cksmith) |
+| P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                                        | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                                               | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                                       | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                                                  | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Local backup receipts persist after lock            | Accepted          | DEK-authenticated; opaque without session DEK                                                      | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Downloaded `.cryx` on disk                          | Accepted          | Encrypted; receipt cannot prove the file still exists                                              | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Object-store CORS vs extension origin               | Accepted          | Signed URL fetch uses CORS, not `host_permissions`; bucket must allow `chrome-extension://` or `*` | Milivoj Bošnjak (8l4cksmith) |
+| P3       | WAR exposes bundle hashes                           | Accepted          | Fingerprinting only                                                                                | Milivoj Bošnjak (8l4cksmith) |
+| P3       | `SyncUpdateCredentials` trusts peer after crypto    | Partial           | Crypto verifies channel, not semantic content                                                      | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Share link intercepted before the recipient         | Accepted          | One view; optional passphrase; sender sees "Opened"                                                | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Custom share server serves the recipient page       | Accepted          | Inherent to self-hosting; managed tickets never go to it                                           | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Synced share record names an attacker's server      | Accepted          | Only a linked device can add one, and it already holds the whole vault                             | Milivoj Bošnjak (8l4cksmith) |
+| P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    | Milivoj Bošnjak (8l4cksmith) |
+| P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      | Milivoj Bošnjak (8l4cksmith) |
 
 ## Data flow diagrams
 

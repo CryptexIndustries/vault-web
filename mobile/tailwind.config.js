@@ -40,6 +40,7 @@ module.exports = {
                     foreground: "hsl(var(--card-foreground))",
                 },
                 success: "hsl(var(--success))",
+                agent: "hsl(var(--agent))",
             },
             borderRadius: {
                 lg: "var(--radius)",

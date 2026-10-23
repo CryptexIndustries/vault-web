@@ -703,6 +703,49 @@ describe("vault-utils/storage", () => {
         expect(mockEncryptDataBlob).not.toHaveBeenCalled();
     });
 
+    it("serializeVault leaves this device's agent approver keys out of backups", async () => {
+        const existingBlob = EncryptedBlob.CreateDefault();
+        existingBlob.Envelope = {
+            Version: 3,
+            DEKAlgo: "AES-GCM-256",
+            Slots: [],
+            PrimaryProtectionKind:
+                VaultUtilTypes.AdditionalKeyProtectionKind.NONE,
+            VaultID: "test-vault",
+        };
+        const vault = new Vault();
+        const signSeed = new Uint8Array(32).fill(7);
+        vault.AgentApprover = {
+            SignSeed: signSeed,
+            KEMSeed: new Uint8Array(32).fill(8),
+            CustomRelays: [
+                { Origin: "https://relay.example.com", Token: "secret-token" },
+            ],
+            RelayPass: "pass",
+            RelayPassExpiresAt: 1,
+            ApprovedAgents: [
+                { AgentID: "agent-a", Keys: [new Uint8Array([1, 2])] },
+            ],
+        };
+        const dek = await webcrypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt", "decrypt"],
+        );
+        let serialized: VaultUtilTypes.Vault | undefined;
+        mockReencryptVaultBytesWithDEK.mockImplementationOnce(async (blob) => {
+            serialized = VaultUtilTypes.Vault.decode(blob);
+            return existingBlob;
+        });
+
+        await serializeVault(vault, existingBlob, dek);
+
+        expect(serialized).toBeDefined();
+        expect(serialized?.AgentApprover).toBeUndefined();
+        // Managed backups use the same serializer; the vault in memory keeps the keys.
+        expect(vault.AgentApprover?.SignSeed).toEqual(signSeed);
+    });
+
     it("createNewVault throws when post-create envelope unlock fails", async () => {
         mockOpenEnvelopeBlob.mockResolvedValueOnce(err("UNLOCK_FAILED"));
 

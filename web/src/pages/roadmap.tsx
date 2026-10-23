@@ -23,12 +23,6 @@ const roadmap = [
                 target: "Q4 2026",
                 description: "Use Cryptex Vault on Android.",
             },
-            {
-                title: "SSH agent",
-                target: "Q4 2026",
-                description:
-                    "Keep SSH keys in your vault and use them on Linux. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
-            },
         ],
     },
     {
@@ -72,6 +66,12 @@ const roadmap = [
         label: "BUILT AND AVAILABLE",
         available: true,
         items: [
+            {
+                title: "SSH agent",
+                target: null,
+                description:
+                    "Keep SSH keys in your vault and use them on Linux. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
+            },
             {
                 title: "Android application",
                 target: null,

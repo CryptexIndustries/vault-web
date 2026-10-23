@@ -1,4 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
+// SSH key descriptions need TextDecoder.
+import "../helpers/jsdom-encoding";
+import { sshPublicKey } from "../helpers/ssh-fixtures";
 
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 import {
@@ -192,6 +195,7 @@ describe("analyzeCredentialSecurity", () => {
             weakFindings: [],
             reuseGroups: [],
             ageFindings: [],
+            weakSSHKeyFindings: [],
         });
 
         const mixedVault = Array.from({ length: 500 }, (_, index) =>
@@ -209,5 +213,66 @@ describe("analyzeCredentialSecurity", () => {
         expect(result.analyzedCount).toBe(487);
         expect(result.reuseGroups).toHaveLength(1);
         expect(result.healthBand).toBe("at-risk");
+    });
+
+    describe("SSH keys", () => {
+        const sshKey = (id: string, fixture: string) =>
+            credential({
+                ID: id,
+                Name: id,
+                Type: ItemType.SSHKey,
+                Username: "",
+                Password: "",
+                URL: "",
+                SSHKey: {
+                    PrivateKey: "",
+                    PublicKey: sshPublicKey(fixture),
+                    Comment: "",
+                },
+            });
+
+        it("flags RSA keys under 3072 bits and skips password checks", () => {
+            const result = analyzeCredentialSecurity(
+                [
+                    sshKey("rsa-1024", "rsa-1024.key"),
+                    sshKey("rsa-2048", "rsa-pkcs8.key"),
+                    sshKey("rsa-3072", "rsa-3072.key"),
+                    sshKey("ed25519", "ed25519.key"),
+                ],
+                NOW,
+            );
+
+            expect(result.analyzedCount).toBe(4);
+            expect(result.weakFindings).toEqual([]);
+            expect(
+                result.weakSSHKeyFindings.map(
+                    ({ credentialId, keyLabel, severity }) => ({
+                        credentialId,
+                        keyLabel,
+                        severity,
+                    }),
+                ),
+            ).toEqual([
+                {
+                    credentialId: "rsa-1024",
+                    keyLabel: "RSA 1024",
+                    severity: "critical",
+                },
+                {
+                    credentialId: "rsa-2048",
+                    keyLabel: "RSA 2048",
+                    severity: "warning",
+                },
+            ]);
+            expect(result.healthBand).toBe("at-risk");
+        });
+
+        it("treats a 2048-bit RSA key as needing attention", () => {
+            const result = analyzeCredentialSecurity(
+                [sshKey("rsa-2048", "rsa-pkcs8.key")],
+                NOW,
+            );
+            expect(result.healthBand).toBe("needs-attention");
+        });
     });
 });

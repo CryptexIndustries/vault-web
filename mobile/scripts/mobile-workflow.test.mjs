@@ -8,6 +8,7 @@ import yaml from "js-yaml";
 const workflow = yaml.load(readFileSync(new URL("../../.github/workflows/mobile.yml", import.meta.url), "utf8"));
 const fdroid = yaml.load(readFileSync(new URL("../../.github/workflows/mobile-fdroid.yml", import.meta.url), "utf8"));
 const toolchain = JSON.parse(readFileSync(new URL("../fdroid/toolchain.json", import.meta.url), "utf8"));
+const expression = (value, context) => runInNewContext(value.replace(/^\$\{\{\s*|\s*\}\}$/g, ""), context);
 
 test("mobile CI uses full action commit hashes and read-only credentials", () => {
     for (const definition of [workflow, fdroid]) {
@@ -94,25 +95,34 @@ test("smoke builds only its test APK and Online Services overrides stay test-onl
 test("release triggers select preproduction manually and production only for tags or explicit dispatch", () => {
     assert.deepEqual(workflow.on.workflow_dispatch.inputs.profile.options, ["preprod", "production"]);
     assert.equal(workflow.on.workflow_dispatch.inputs.profile.default, "preprod");
+    assert.deepEqual(workflow.on.workflow_dispatch.inputs.distribution.options, ["standard", "fdroid"]);
+    assert.equal(workflow.on.workflow_dispatch.inputs.distribution.default, "standard");
     assert.deepEqual(workflow.on.push.tags, ["mobile-v*"]);
     assert.deepEqual(Object.keys(fdroid.on), ["workflow_call"]);
+    const all = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
+    // [smoke, preprod_build, fdroid, fdroid_sign, fdroid_preprod_sign], then the F-Droid profile and ABIs.
     const cases = [
-        ["pull_request", "refs/pull/1/merge", {}, [false, false, false]],
-        ["push", "refs/heads/development", {}, [false, false, false]],
-        ["push", "refs/heads/master", {}, [false, false, false]],
-        ["push", "refs/tags/mobile-v0.1.0", {}, [true, false, true]],
-        ["workflow_dispatch", "refs/heads/development", { profile: "preprod" }, [true, true, false]],
-        ["workflow_dispatch", "refs/tags/mobile-v0.1.0", { profile: "production" }, [true, false, true]],
+        ["pull_request", "refs/pull/1/merge", {}, [false, false, false, false, false]],
+        ["push", "refs/heads/development", {}, [false, false, false, false, false]],
+        ["push", "refs/heads/master", {}, [false, false, false, false, false]],
+        ["push", "refs/tags/mobile-v0.1.0", {}, [true, false, true, true, false], "production", all],
+        ["workflow_dispatch", "refs/heads/development", { profile: "preprod", distribution: "standard" }, [true, true, false, false, false]],
+        ["workflow_dispatch", "refs/heads/development", { profile: "preprod", distribution: "fdroid" }, [true, false, true, false, true], "preprod", ["arm64-v8a", "x86_64"]],
+        ["workflow_dispatch", "refs/tags/mobile-v0.1.0", { profile: "production", distribution: "standard" }, [true, false, true, true, false], "production", all],
+        ["workflow_dispatch", "refs/tags/mobile-v0.1.0", { profile: "production", distribution: "fdroid" }, [true, false, true, true, false], "production", all],
     ];
-    for (const [event_name, ref, inputs, expected] of cases) {
+    for (const [event_name, ref, inputs, expected, profile, abis] of cases) {
         const context = { github: { event_name, ref }, inputs, startsWith: (value, prefix) => value.startsWith(prefix) };
-        const actual = ["smoke", "preprod_build", "fdroid"].map(name => Boolean(runInNewContext(workflow.jobs[name].if, context)));
+        const actual = ["smoke", "preprod_build", "fdroid", "fdroid_sign", "fdroid_preprod_sign"].map(name => Boolean(runInNewContext(workflow.jobs[name].if, context)));
         assert.deepEqual(actual, expected, `${event_name} ${ref} ${JSON.stringify(inputs)}`);
-        assert.equal(Boolean(runInNewContext(workflow.jobs.fdroid_sign.if, context)), expected[2]);
+        if (!profile) continue;
+        assert.equal(expression(workflow.jobs.fdroid.with.profile, context), profile);
+        assert.deepEqual(JSON.parse(expression(workflow.jobs.fdroid.with.abis, context)), abis);
     }
     assert.deepEqual(workflow.jobs.preprod_build.needs, ["check", "smoke"]);
     assert.equal(workflow.jobs.fdroid.needs, "check");
     assert.deepEqual(workflow.jobs.fdroid_sign.needs, ["fdroid", "smoke"]);
+    assert.deepEqual(workflow.jobs.fdroid_preprod_sign.needs, ["fdroid", "smoke"]);
 });
 
 test("production dispatch rejects branches and version mismatches before building", () => {
@@ -130,22 +140,24 @@ test("production dispatch rejects branches and version mismatches before buildin
 });
 
 test("signing credentials are scoped to separate signing steps and the matching environment", () => {
-    for (const [jobs, signer, builder, environment, profile] of [
-        [workflow.jobs, "preprod_sign", "preprod_build", "Mobile - Preproduction", "preprod"],
-        [workflow.jobs, "fdroid_sign", "fdroid", "Mobile - Production", "production"],
+    for (const [jobs, signer, builder, environment, profile, distribution] of [
+        [workflow.jobs, "preprod_sign", "preprod_build", "Mobile - Preproduction", "preprod", "standard"],
+        [workflow.jobs, "fdroid_sign", "fdroid", "Mobile - Production", "production", "fdroid"],
+        [workflow.jobs, "fdroid_preprod_sign", "fdroid", "Mobile - Preproduction", "preprod", "fdroid"],
     ]) {
-        const build = profile === "production" ? fdroid.jobs.build : jobs[builder];
-        assert.deepEqual(jobs[signer].needs, profile === "production" ? ["fdroid", "smoke"] : builder);
+        const reusable = builder === "fdroid";
+        const build = reusable ? fdroid.jobs.build : jobs[builder];
+        assert.deepEqual(jobs[signer].needs, reusable ? ["fdroid", "smoke"] : builder);
         assert.equal(jobs[signer].environment, environment);
-        assert.equal(build.environment, environment);
+        assert.equal(reusable ? expression(build.environment, { inputs: { profile } }) : build.environment, environment);
         const secretSteps = jobs[signer].steps.filter(step => JSON.stringify(step).includes("secrets.CRYPTEX_"));
         assert.equal(secretSteps.length, 1);
-        assert.match(secretSteps[0].run, new RegExp(`ci-release.mjs sign ${profile}`));
+        assert.match(secretSteps[0].run, new RegExp(`ci-release.mjs sign ${profile} "\\$RUNNER_TEMP/mobile-release"${profile === "preprod" && distribution === "fdroid" ? " fdroid" : ""}$`));
         assert.deepEqual(Object.keys(secretSteps[0].env).sort(), ["CRYPTEX_KEYSTORE_BASE64", "CRYPTEX_KEYSTORE_PASSWORD", "CRYPTEX_KEY_PASSWORD"].sort());
         assert.ok(!jobs[signer].steps.some(step => /pnpm install|mobile:build|gradle/.test(step.run || "")), "Signing must not install app dependencies or rebuild the APK");
         const download = jobs[signer].steps.find(step => step.uses?.startsWith("actions/download-artifact@"));
         assert.ok(!JSON.stringify(build).includes("secrets.CRYPTEX_"));
-        const upload = build.steps.find(step => profile === "production"
+        const upload = build.steps.find(step => reusable
             ? step.with?.name === download.with.pattern.replace('*', '${{ matrix.abi }}')
             : step.with?.name === download.with.name);
         assert.ok(upload, "Signing must consume the artifact uploaded by its build job");
@@ -156,13 +168,18 @@ test("signing credentials are scoped to separate signing steps and the matching 
 });
 
 test("F-Droid runs every ABI independently and signing waits for the whole matrix", () => {
-    assert.deepEqual(fdroid.jobs.build.strategy, { "fail-fast": false,
-        matrix: { abi: ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"] } });
+    assert.deepEqual(fdroid.jobs.build.strategy, { "fail-fast": false, matrix: { abi: "${{ fromJSON(inputs.abis) }}" } });
+    assert.deepEqual(JSON.parse(fdroid.on.workflow_call.inputs.abis.default), ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]);
+    assert.equal(fdroid.on.workflow_call.inputs.profile.default, "production");
     const build = fdroid.jobs.build.steps.find(step => step.run?.includes('/app/mobile/fdroid/ci.sh'));
     assert.equal(build.env.CRYPTEX_BUILD_ARCH, '${{ matrix.abi }}');
+    assert.equal(build.env.CRYPTEX_APP_PROFILE, '${{ inputs.profile }}');
     assert.match(build.run, /--env CRYPTEX_BUILD_ARCH/);
+    assert.match(build.run, /--env CRYPTEX_APP_PROFILE/);
     assert.ok(!fdroid.jobs.build.concurrency, "ABI jobs must not share a job concurrency lock");
-    const download = workflow.jobs.fdroid_sign.steps.find(step => step.uses?.startsWith('actions/download-artifact@'));
-    assert.equal(download.with['merge-multiple'], true);
-    assert.deepEqual(workflow.jobs.fdroid_sign.needs, ['fdroid', 'smoke']);
+    for (const signer of ['fdroid_sign', 'fdroid_preprod_sign']) {
+        const download = workflow.jobs[signer].steps.find(step => step.uses?.startsWith('actions/download-artifact@'));
+        assert.equal(download.with['merge-multiple'], true);
+        assert.deepEqual(workflow.jobs[signer].needs, ['fdroid', 'smoke']);
+    }
 });

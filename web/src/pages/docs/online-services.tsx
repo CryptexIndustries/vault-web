@@ -20,6 +20,7 @@ export default function OnlineServices() {
                 { href: "#backups", label: "Backup lifecycle" },
                 { href: "#recovery", label: "Recovery authorization" },
                 { href: "#limits", label: "Limits and retention" },
+                { href: "#trial", label: "Subscription and free trial" },
                 { href: "#ending", label: "Ending service" },
                 { href: "#references", label: "Client implementation" },
             ]}
@@ -371,6 +372,22 @@ export default function OnlineServices() {
                 </p>
             </DocSection>
 
+            <DocSection id="trial" title="Subscription and free trial">
+                <dl>
+                    <div className={t.definition}>
+                        <dt>Free trial</dt>
+                        <dd>
+                            A first subscription starts with a 14-day free trial
+                            with full Online Services. The card added at
+                            checkout is charged when the trial ends unless you
+                            cancel first. See{" "}
+                            <Link href="/pricing">Pricing</Link> for who can get
+                            one.
+                        </dd>
+                    </div>
+                </dl>
+            </DocSection>
+
             <DocSection id="ending" title="Entitlement loss and deletion">
                 <dl>
                     <div className={t.definition}>
@@ -387,7 +404,9 @@ export default function OnlineServices() {
                             Cancel a Stripe subscription from Manage billing, or
                             a Google Play subscription in Google Play. Paid
                             access continues to the end of the paid period.
-                            After entitlement ends, new uploads stop.
+                            Cancelling during the free trial keeps access until
+                            the trial ends, and nothing is charged. After
+                            entitlement ends, new uploads stop.
                         </dd>
                     </div>
                     <div className={t.definition}>

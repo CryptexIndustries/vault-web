@@ -22,10 +22,16 @@ import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import type {
     CredentialDraft,
     CredentialDraftMode,
+    CredentialDraftSSHKeySource,
     SaveCredentialDraftRequest,
 } from "../types/sw-messaging";
 
 const DRAFT_STORAGE_KEY = "DRAFT_SAVE";
+
+const isSSHKeySource = (
+    value: unknown,
+): value is CredentialDraftSSHKeySource | undefined =>
+    value === undefined || value === "import";
 
 /** Structural guard for the raw session-storage read. */
 export function isCredentialDraft(value: unknown): value is CredentialDraft {
@@ -39,7 +45,8 @@ export function isCredentialDraft(value: unknown): value is CredentialDraft {
             candidate.credentialId !== null) ||
         (typeof candidate.credentialVersion !== "number" &&
             candidate.credentialVersion !== null) ||
-        typeof candidate.stashedAt !== "number"
+        typeof candidate.stashedAt !== "number" ||
+        !isSSHKeySource(candidate.sshKeySource)
     ) {
         return false;
     }
@@ -128,9 +135,13 @@ export function validateSaveCredentialDraftRequest(
         mode?: unknown;
         credentialId?: unknown;
         form?: unknown;
+        sshKeySource?: unknown;
     };
     if (candidate.mode !== "create" && candidate.mode !== "edit") {
         return { ok: false, error: "INVALID_DRAFT_MODE" };
+    }
+    if (!isSSHKeySource(candidate.sshKeySource)) {
+        return { ok: false, error: "INVALID_DRAFT_SSH_KEY_SOURCE" };
     }
     let credentialId: string | undefined;
     if (candidate.mode === "edit") {
@@ -153,6 +164,9 @@ export function validateSaveCredentialDraftRequest(
             mode: candidate.mode,
             credentialId,
             form: parsed.data,
+            ...(candidate.sshKeySource
+                ? { sshKeySource: candidate.sshKeySource }
+                : {}),
         },
     };
 }

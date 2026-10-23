@@ -10,6 +10,7 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { mergeReceivedShareLinks } from "@cryptex-industries/vault-core/vault-utils/share-records";
+import { mergeReceivedConnectedAgents } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 import {
     applyReceivedSyncDirectories,
     getSyncVersionVectors,
@@ -45,12 +46,15 @@ export const createVaultOperations = (): VaultOperations => {
             getSyncVersionVectors(getVault().Directories),
         getShareLinkVersionVectors: async () =>
             getSyncVersionVectors(getVault().ShareLinks ?? []),
+        getConnectedAgentVersionVectors: async () =>
+            getSyncVersionVectors(getVault().ConnectedAgents ?? []),
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) =>
             selectSyncItems(getVault(), items),
         updateItems: async (
             directories: VaultUtilTypes.Directory[],
             credentials: VaultUtilTypes.Credential[],
             shareLinks: VaultUtilTypes.ShareLink[],
+            connectedAgents: VaultUtilTypes.ConnectedAgent[],
         ) => {
             const mutationResult = await persistVaultMutation(
                 "synchronization.apply",
@@ -100,6 +104,10 @@ export const createVaultOperations = (): VaultOperations => {
                     updatedVault.ShareLinks = mergeReceivedShareLinks(
                         currentVault.ShareLinks ?? [],
                         shareLinks,
+                    );
+                    updatedVault.ConnectedAgents = mergeReceivedConnectedAgents(
+                        currentVault.ConnectedAgents ?? [],
+                        connectedAgents,
                     );
                     return { vault: updatedVault, result: undefined };
                 },

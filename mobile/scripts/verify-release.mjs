@@ -70,6 +70,53 @@ export function assertProductionManifest(manifest, { profile = "production", ver
         assert.match(component, /:exported\([^)]*\)=true\b/, `${name} must remain available to Android`);
         assert.match(component, new RegExp(`^[ \\t]*A: [^\\s"=]*:permission\\(0x01010006\\)="android\\.permission\\.${permission}"(?:[ \\t]|$)`, "m"), `${name} lost its framework binding permission`);
     }
+    assertAgentServiceManifest(manifest);
+}
+
+// SSH agent approver components. Child elements (properties, intent filters) are found by
+// aapt2 indentation, so a sibling element cannot stand in for them.
+function assertAgentServiceManifest(manifest) {
+    assert.doesNotMatch(manifest, /:name\(0x01010003\)="android\.permission\.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/, "The app must not request a battery optimization exemption");
+    const lines = manifest.split("\n");
+    const indent = line => line.match(/^[ \t]*/)[0].length;
+    const ownAttributes = block => block.split(/^[ \t]*E:/m)[0];
+    const nameOf = block => ownAttributes(block).match(/^[ \t]*A: [^\s"=]*:name\(0x01010003\)="([^"\n]+)"(?:[ \t]|$)/m)?.[1];
+    const componentTree = name => {
+        for (let start = 0; start < lines.length; start++) {
+            if (!/^[ \t]*E: (?:activity|service|receiver|provider)\b/.test(lines[start])) continue;
+            let end = start + 1;
+            while (end < lines.length && !(/^[ \t]*E:/.test(lines[end]) && indent(lines[end]) <= indent(lines[start]))) end++;
+            const tree = lines.slice(start + 1, end).join("\n");
+            if (nameOf(tree) === name) return tree;
+        }
+        assert.fail(`Missing security-sensitive component: ${name}`);
+    };
+    const children = (tree, type) => tree.split(/(?=^[ \t]*E: )/m)
+        .filter(block => new RegExp(`^[ \\t]*E: ${type}\\b`).test(block))
+        .map(block => block.split("\n").slice(1).join("\n"));
+    const notExported = /:exported\([^)]*\)=false\b/;
+    const agent = name => `com.cryptex.vault.agent.${name}`;
+
+    const service = componentTree(agent("CryptexAgentForegroundService"));
+    assert.match(ownAttributes(service), notExported, "SSH agent service must not be exported");
+    const type = ownAttributes(service).match(/:foregroundServiceType\(0x01010599\)=((?:0x)?[0-9a-f]+)\b/i)?.[1];
+    assert.equal(Number(type), 0x40000000, "SSH agent service must be a specialUse foreground service only");
+    const subtype = children(service, "property").filter(block => nameOf(block) === "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE");
+    assert.equal(subtype.length, 1, "SSH agent service needs one special-use subtype property");
+    assert.match(subtype[0], /:value\(0x01010024\)="[^"\n]{20,}"/, "SSH agent service subtype must describe the use");
+
+    for (const name of ["CryptexAgentHeadlessService", "CryptexAgentDenyReceiver"]) {
+        const tree = componentTree(agent(name));
+        assert.match(ownAttributes(tree), notExported, `${name} must not be exported`);
+        assert.equal(children(tree, "intent-filter").length, 0, `${name} must not declare intent filters`);
+    }
+
+    const boot = componentTree(agent("CryptexAgentBootReceiver"));
+    const allowed = new Set(["android.intent.action.BOOT_COMPLETED", "android.intent.action.MY_PACKAGE_REPLACED"]);
+    const actions = children(boot, "action").map(nameOf);
+    assert.ok(actions.length > 0, "SSH agent boot receiver lost its boot actions");
+    for (const action of actions) assert.ok(allowed.has(action), `SSH agent boot receiver must only handle boot and update broadcasts, not ${action}`);
+    assert.equal(children(boot, "data").length + children(boot, "category").length, 0, "SSH agent boot receiver filter must stay action-only");
 }
 
 export function assertUpdatesPolicy(manifest, resources, expected, { fingerprintAsset } = {}) {

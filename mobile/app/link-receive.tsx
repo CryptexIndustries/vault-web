@@ -67,6 +67,7 @@ import {
     mergeReceivedVaultIntoActive,
     receiverSyncKeyMaterial,
 } from "@/utils/link-merge";
+import { decodeReceivedVault } from "@/utils/received-vault";
 import { onlineServicesLog } from "@/utils/logging";
 import { Screen } from "@/components/screen";
 import {
@@ -346,6 +347,7 @@ function LinkReceiveContent({
         useState<OnlineServices | null>(null);
     const [linkProgress, setLinkProgress] = useState(INITIAL_PROGRESS);
     const [linkActivity, setLinkActivity] = useState<LinkActivityEntry[]>([]);
+    const [linkDeadline, setLinkDeadline] = useState<number | null>(null);
     const [linkFailure, setLinkFailure] = useState<LinkFailure | null>(null);
 
     const controllerRef = useRef<LinkingProcessController | null>(null);
@@ -720,11 +722,7 @@ function LinkReceiveContent({
         sealInFlightRef.current = true;
         setSaving(true);
         try {
-            const raw = VaultUtilTypes.Vault.decode(rawVaultBinary);
-            const vault = Object.assign(new Vault(), raw);
-            vault.LinkedDevices = LinkedDevices.fromGeneric(
-                vault.LinkedDevices,
-            );
+            const vault = decodeReceivedVault(rawVaultBinary);
 
             if (pendingSyncKeysRef.current) {
                 vault.LinkedDevices.SyncSigningPublicKey =
@@ -965,6 +963,7 @@ function LinkReceiveContent({
         let wrongWords = false;
         setStatusMessage("Checking verification words…");
         linkStartedAtRef.current = Date.now();
+        setLinkDeadline(null);
         linkActivityIdRef.current = 0;
         setLinkActivity([]);
         setLinkFailure(null);
@@ -1081,6 +1080,8 @@ function LinkReceiveContent({
             const onStatusChange = async (status: LinkingProcessStatus) => {
                 if (attempt !== linkAttemptRef.current || failedRef.current)
                     return;
+                if (status.Deadline !== undefined)
+                    setLinkDeadline(status.Deadline);
                 if (status.LogMessage?.message) {
                     setStatusMessage(status.LogMessage.message);
                     appendLinkActivity(
@@ -1878,6 +1879,7 @@ function LinkReceiveContent({
                     <LinkingProgress
                         items={progressItems}
                         status={statusMessage || "Linking in progress…"}
+                        deadline={stage === "linking" ? linkDeadline : null}
                         activity={linkActivity}
                         failure={linkFailure}
                         onCancel={abortWaiting}

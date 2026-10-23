@@ -16,6 +16,7 @@ import {
     GripVertical,
     Fingerprint,
     QrCode,
+    FileKey,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,12 +77,19 @@ import {
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialURLRulesEditor } from "@/components/vault-dashboard/credential-url-rules";
 import BarcodeScanner from "@/components/general/qr-scanner";
+import {
+    NewSSHKeyFields,
+    SSHKeySummary,
+    useNewSSHKey,
+} from "@/components/vault-dashboard/ssh-key-editor";
 
 interface EditDrawerProps {
     credential: VaultCredential | null;
     isOpen: boolean;
     onClose: () => void;
     onSave: (form: CredentialFormSchemaType) => Promise<boolean>;
+    /** What a new item is: a login (the default) or an SSH key. */
+    newItemType?: ItemType;
     directories: Directory[];
     initialDirectoryID?: string;
     onCreateDirectory: (name: string) => Promise<string | void> | string | void;
@@ -179,6 +187,7 @@ export function EditDrawer({
     isOpen,
     onClose,
     onSave,
+    newItemType = ItemType.Credentials,
     directories,
     initialDirectoryID = "",
     onCreateDirectory,
@@ -204,7 +213,7 @@ export function EditDrawer({
     const buildDefaultValues = useCallback(
         (): CredentialFormSchemaType => ({
             ID: null,
-            Type: ItemType.Credentials,
+            Type: newItemType,
             DirectoryID: initialDirectoryIDRef.current,
             Name: "",
             Username: "",
@@ -214,10 +223,11 @@ export function EditDrawer({
             URL: "",
             URLMatchMode: CredentialURLMatchMode.ExactHost,
             AdditionalURLs: [],
+            SSHKey: null,
             Notes: "",
             CustomFields: [],
         }),
-        [],
+        [newItemType],
     );
 
     const {
@@ -227,7 +237,7 @@ export function EditDrawer({
         handleSubmit,
         setValue,
         watch,
-        formState: { errors, isSubmitting, isDirty },
+        formState: { errors, isSubmitting, isDirty, isSubmitted },
     } = useForm<CredentialFormSchemaType>({
         resolver: zodResolver(CredentialFormSchema),
         defaultValues: buildDefaultValues(),
@@ -247,7 +257,23 @@ export function EditDrawer({
     const watchedType = watch("Type");
     const isPasskeyOnly = watchedType === ItemType.Passkey;
     const hasPasskey = Boolean(watch("Passkey"));
+    const isSSHKey = watchedType === ItemType.SSHKey;
+    const watchedSSHKey = watch("SSHKey");
+    const sshDraft = useNewSSHKey(
+        watch("Name") ?? "",
+        isOpen && isNew && isSSHKey,
+    );
+    const resetSSHDraft = sshDraft.reset;
+    const draftSSHKey = sshDraft.current;
+    // Saving waits while an imported key is being checked or unlocked.
+    const sshKeyBusy = isNew && isSSHKey && sshDraft.busy;
     const showWarningDialogFnRef = useRef<WarningDialogShowFn | null>(null);
+
+    // A new SSH key item saves whichever key the editor currently shows.
+    useEffect(() => {
+        if (!isNew || !isSSHKey) return;
+        setValue("SSHKey", draftSSHKey, { shouldValidate: isSubmitted });
+    }, [draftSSHKey, isNew, isSSHKey, isSubmitted, setValue]);
 
     useEffect(() => {
         if (credential) {
@@ -262,6 +288,7 @@ export function EditDrawer({
                 URLMatchMode: credential.URLMatchMode,
                 AdditionalURLs: credential.AdditionalURLs,
                 Passkey: credential.Passkey ?? null,
+                SSHKey: credential.SSHKey ?? null,
                 Notes: credential.Notes,
                 Tags: credential.Tags || "",
                 TOTP: credential.TOTP ?? null,
@@ -275,7 +302,8 @@ export function EditDrawer({
         setRevealedCustomFieldIds({});
         setIsTotpScanning(false);
         setTotpScanError("");
-    }, [buildDefaultValues, credential, isOpen, reset]);
+        resetSSHDraft();
+    }, [buildDefaultValues, credential, isOpen, reset, resetSSHDraft]);
 
     const handleAddCustomField = () => {
         append({
@@ -363,6 +391,17 @@ export function EditDrawer({
                 (field) => field.Name.trim() && field.Value.trim(),
             ),
         };
+        if (isSSHKey) {
+            // SSH key items carry no login fields.
+            Object.assign(normalizedFormData, {
+                Username: "",
+                Password: "",
+                URL: "",
+                AdditionalURLs: [],
+                TOTP: null,
+                CustomFields: [],
+            });
+        }
 
         if (await onSave(normalizedFormData)) {
             onClose();
@@ -372,7 +411,7 @@ export function EditDrawer({
     const requestClose = () => {
         if (isSubmitting) return;
 
-        if (isDirty) {
+        if (isDirty || (isNew && isSSHKey && sshDraft.isDirty)) {
             showWarningDialogFnRef.current?.(
                 "You have unsaved changes.",
                 () => onClose(),
@@ -399,16 +438,24 @@ export function EditDrawer({
                 >
                     <SheetHeader className="border-b border-border p-6 pb-4">
                         <SheetTitle className="text-lg">
-                            {isNew
-                                ? "Add New Credential"
-                                : isPasskeyOnly
-                                  ? "Edit Passkey"
-                                  : "Edit Credential"}
+                            {isSSHKey
+                                ? isNew
+                                    ? "Add SSH key"
+                                    : "Edit SSH key"
+                                : isNew
+                                  ? "Add New Credential"
+                                  : isPasskeyOnly
+                                    ? "Edit Passkey"
+                                    : "Edit Credential"}
                         </SheetTitle>
                         <SheetDescription>
-                            {isNew
-                                ? "Add a new credential to your secure vault"
-                                : "Update the details of this credential"}
+                            {isSSHKey
+                                ? isNew
+                                    ? "Generate a new key or use one you already have"
+                                    : "Update the details of this SSH key"
+                                : isNew
+                                  ? "Add a new credential to your secure vault"
+                                  : "Update the details of this credential"}
                         </SheetDescription>
                     </SheetHeader>
 
@@ -436,6 +483,24 @@ export function EditDrawer({
                                     </div>
                                 )}
 
+                                {isSSHKey && isNew && (
+                                    <NewSSHKeyFields
+                                        draft={sshDraft}
+                                        error={errors.SSHKey?.message}
+                                    />
+                                )}
+
+                                {isSSHKey && !isNew && watchedSSHKey && (
+                                    <div className="space-y-2">
+                                        <SSHKeySummary sshKey={watchedSSHKey} />
+                                        <p className="text-xs text-muted-foreground">
+                                            The key itself can't be changed. To
+                                            use a different key, add a new SSH
+                                            key item.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <Label
                                         htmlFor="name"
@@ -447,10 +512,18 @@ export function EditDrawer({
                                         </span>
                                     </Label>
                                     <div className="relative">
-                                        <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        {isSSHKey ? (
+                                            <FileKey className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        ) : (
+                                            <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        )}
                                         <Input
                                             id="name"
-                                            placeholder="e.g., GitHub, AWS Console"
+                                            placeholder={
+                                                isSSHKey
+                                                    ? "e.g., Work laptop, Deploy key"
+                                                    : "e.g., GitHub, AWS Console"
+                                            }
                                             {...register("Name")}
                                             className={cn(
                                                 "pl-10",
@@ -465,6 +538,56 @@ export function EditDrawer({
                                         </p>
                                     )}
                                 </div>
+
+                                {isSSHKey && (
+                                    <div className="space-y-2">
+                                        <Label
+                                            htmlFor="ssh-comment"
+                                            className="text-sm font-medium"
+                                        >
+                                            Comment
+                                        </Label>
+                                        <Input
+                                            id="ssh-comment"
+                                            placeholder="e.g., you@laptop"
+                                            spellCheck={false}
+                                            autoComplete="off"
+                                            disabled={
+                                                isNew
+                                                    ? !draftSSHKey
+                                                    : !watchedSSHKey
+                                            }
+                                            value={
+                                                (isNew
+                                                    ? draftSSHKey?.Comment
+                                                    : watchedSSHKey?.Comment) ??
+                                                ""
+                                            }
+                                            onChange={(event) => {
+                                                if (isNew) {
+                                                    sshDraft.setComment(
+                                                        event.target.value,
+                                                    );
+                                                } else if (watchedSSHKey) {
+                                                    setValue(
+                                                        "SSHKey",
+                                                        {
+                                                            ...watchedSSHKey,
+                                                            Comment:
+                                                                event.target
+                                                                    .value,
+                                                        },
+                                                        { shouldDirty: true },
+                                                    );
+                                                }
+                                            }}
+                                            className="font-mono"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Shown at the end of the public key.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">
@@ -495,7 +618,7 @@ export function EditDrawer({
                                     </Button>
                                 </div>
 
-                                {!isPasskeyOnly && (
+                                {!isPasskeyOnly && !isSSHKey && (
                                     <>
                                         <div className="space-y-2">
                                             <Label
@@ -663,11 +786,13 @@ export function EditDrawer({
                                     </div>
                                 )}
 
-                                <CredentialURLRulesEditor
-                                    control={control}
-                                    errors={errors}
-                                    register={register}
-                                />
+                                {!isSSHKey && (
+                                    <CredentialURLRulesEditor
+                                        control={control}
+                                        errors={errors}
+                                        register={register}
+                                    />
+                                )}
 
                                 <div className="space-y-2">
                                     <Label
@@ -708,23 +833,25 @@ export function EditDrawer({
                             </div>
 
                             {/* Two-Factor Auth */}
-                            <Separator />
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-0.5">
-                                    <Label className="text-sm font-medium">
-                                        Two-Factor Authentication
-                                    </Label>
-                                    <p className="text-xs text-muted-foreground">
-                                        Enable TOTP for this credential
-                                    </p>
+                            {!isSSHKey && <Separator />}
+                            {!isSSHKey && (
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-medium">
+                                            Two-Factor Authentication
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Enable TOTP for this credential
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        aria-label="Enable TOTP"
+                                        checked={!!watchedTotp}
+                                        onCheckedChange={handleTotpToggle}
+                                    />
                                 </div>
-                                <Switch
-                                    aria-label="Enable TOTP"
-                                    checked={!!watchedTotp}
-                                    onCheckedChange={handleTotpToggle}
-                                />
-                            </div>
-                            {watchedTotp && (
+                            )}
+                            {watchedTotp && !isSSHKey && (
                                 <div className="space-y-3 rounded-lg border p-3">
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between gap-3">
@@ -892,261 +1019,269 @@ export function EditDrawer({
                             )}
 
                             {/* Custom Fields */}
-                            <Separator />
-                            <div>
-                                <div className="mb-4 flex items-center justify-between">
-                                    <div>
-                                        <Label className="text-sm font-medium">
-                                            Custom Fields
-                                        </Label>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
-                                            Add additional information
-                                        </p>
+                            {!isSSHKey && <Separator />}
+                            {!isSSHKey && (
+                                <div>
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <div>
+                                            <Label className="text-sm font-medium">
+                                                Custom Fields
+                                            </Label>
+                                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                                Add additional information
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleAddCustomField}
+                                            className="gap-1.5"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Add Field
+                                        </Button>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleAddCustomField}
-                                        className="gap-1.5"
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                        Add Field
-                                    </Button>
-                                </div>
 
-                                {customFields.length > 0 && (
-                                    <div className="space-y-3">
-                                        {customFields.map((field, index) => {
-                                            const fieldType = watch(
-                                                `CustomFields.${index}.Type`,
-                                            );
-                                            const isRevealed =
-                                                !!revealedCustomFieldIds[
-                                                    field.id
-                                                ];
-                                            const isMasked =
-                                                fieldType ===
-                                                CustomFieldType.MaskedText;
-                                            const valueInput = (
-                                                <Textarea
-                                                    placeholder="Value"
-                                                    rows={1}
-                                                    {...register(
-                                                        `CustomFields.${index}.Value`,
-                                                    )}
-                                                    className={cn(
-                                                        "h-8 min-h-8 resize-y py-1 font-mono text-sm",
-                                                        isMasked
-                                                            ? cn(
-                                                                  plainFieldClassName,
-                                                                  "w-full",
-                                                                  !isRevealed &&
-                                                                      "secret-masked",
-                                                              )
-                                                            : "min-w-0 flex-1",
-                                                    )}
-                                                />
-                                            );
-                                            return (
-                                                <div
-                                                    key={field.id}
-                                                    className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3"
-                                                >
-                                                    <GripVertical className="mt-2.5 h-4 w-4 cursor-grab text-muted-foreground" />
-                                                    <div className="flex-1 space-y-2">
-                                                        <Input
-                                                            placeholder="Field name"
+                                    {customFields.length > 0 && (
+                                        <div className="space-y-3">
+                                            {customFields.map(
+                                                (field, index) => {
+                                                    const fieldType = watch(
+                                                        `CustomFields.${index}.Type`,
+                                                    );
+                                                    const isRevealed =
+                                                        !!revealedCustomFieldIds[
+                                                            field.id
+                                                        ];
+                                                    const isMasked =
+                                                        fieldType ===
+                                                        CustomFieldType.MaskedText;
+                                                    const valueInput = (
+                                                        <Textarea
+                                                            placeholder="Value"
+                                                            rows={1}
                                                             {...register(
-                                                                `CustomFields.${index}.Name`,
+                                                                `CustomFields.${index}.Value`,
                                                             )}
-                                                            className="h-8 text-sm"
+                                                            className={cn(
+                                                                "h-8 min-h-8 resize-y py-1 font-mono text-sm",
+                                                                isMasked
+                                                                    ? cn(
+                                                                          plainFieldClassName,
+                                                                          "w-full",
+                                                                          !isRevealed &&
+                                                                              "secret-masked",
+                                                                      )
+                                                                    : "min-w-0 flex-1",
+                                                            )}
                                                         />
-                                                        <div className="flex items-start gap-2">
-                                                            {fieldType ===
-                                                            CustomFieldType.Boolean ? (
-                                                                <Controller
-                                                                    control={
-                                                                        control
-                                                                    }
-                                                                    name={`CustomFields.${index}.Value`}
-                                                                    render={({
-                                                                        field: valueField,
-                                                                    }) => (
-                                                                        <div className="flex h-8 min-w-0 flex-1 items-center gap-2">
-                                                                            <Switch
-                                                                                checked={
-                                                                                    valueField.value ===
-                                                                                    "true"
-                                                                                }
-                                                                                onCheckedChange={(
-                                                                                    checked,
-                                                                                ) =>
-                                                                                    valueField.onChange(
-                                                                                        String(
-                                                                                            checked,
-                                                                                        ),
-                                                                                    )
-                                                                                }
-                                                                                aria-label="Custom field value"
-                                                                            />
-                                                                            <span className="text-sm text-muted-foreground">
-                                                                                {valueField.value ===
-                                                                                "true"
-                                                                                    ? "Yes"
-                                                                                    : "No"}
-                                                                            </span>
-                                                                        </div>
+                                                    );
+                                                    return (
+                                                        <div
+                                                            key={field.id}
+                                                            className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3"
+                                                        >
+                                                            <GripVertical className="mt-2.5 h-4 w-4 cursor-grab text-muted-foreground" />
+                                                            <div className="flex-1 space-y-2">
+                                                                <Input
+                                                                    placeholder="Field name"
+                                                                    {...register(
+                                                                        `CustomFields.${index}.Name`,
                                                                     )}
+                                                                    className="h-8 text-sm"
                                                                 />
-                                                            ) : isMasked ? (
-                                                                <ControlWithActions
-                                                                    align="start"
-                                                                    className="min-w-0 flex-1 items-center"
-                                                                    actions={
-                                                                        <div className="pr-0.5">
-                                                                            <TooltipProvider>
-                                                                                <Tooltip>
-                                                                                    <TooltipTrigger
-                                                                                        asChild
-                                                                                    >
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="h-7 w-7"
-                                                                                            aria-label={
-                                                                                                isRevealed
-                                                                                                    ? "Hide value"
-                                                                                                    : "Show value"
-                                                                                            }
-                                                                                            onClick={() =>
-                                                                                                toggleCustomFieldReveal(
-                                                                                                    field.id,
-                                                                                                )
-                                                                                            }
-                                                                                        >
-                                                                                            {isRevealed ? (
-                                                                                                <EyeOff className="h-3.5 w-3.5" />
-                                                                                            ) : (
-                                                                                                <Eye className="h-3.5 w-3.5" />
-                                                                                            )}
-                                                                                        </Button>
-                                                                                    </TooltipTrigger>
-                                                                                    <TooltipContent>
-                                                                                        {isRevealed
-                                                                                            ? "Hide"
-                                                                                            : "Show"}
-                                                                                    </TooltipContent>
-                                                                                </Tooltip>
-                                                                            </TooltipProvider>
-                                                                        </div>
-                                                                    }
-                                                                >
-                                                                    {valueInput}
-                                                                </ControlWithActions>
-                                                            ) : (
-                                                                valueInput
-                                                            )}
-                                                            <Controller
-                                                                control={
-                                                                    control
-                                                                }
-                                                                name={`CustomFields.${index}.Type`}
-                                                                render={({
-                                                                    field: typeField,
-                                                                }) => (
-                                                                    <Select
-                                                                        value={String(
-                                                                            typeField.value ??
-                                                                                CustomFieldType.Text,
-                                                                        )}
-                                                                        onValueChange={(
-                                                                            value,
-                                                                        ) => {
-                                                                            const nextType =
-                                                                                Number(
-                                                                                    value,
-                                                                                );
-                                                                            typeField.onChange(
-                                                                                nextType,
-                                                                            );
-                                                                            if (
-                                                                                nextType ===
-                                                                                CustomFieldType.Boolean
-                                                                            ) {
-                                                                                setValue(
-                                                                                    `CustomFields.${index}.Value`,
-                                                                                    watch(
-                                                                                        `CustomFields.${index}.Value`,
-                                                                                    ) ===
-                                                                                        "true"
-                                                                                        ? "true"
-                                                                                        : "false",
-                                                                                    {
-                                                                                        shouldDirty: true,
-                                                                                    },
-                                                                                );
+                                                                <div className="flex items-start gap-2">
+                                                                    {fieldType ===
+                                                                    CustomFieldType.Boolean ? (
+                                                                        <Controller
+                                                                            control={
+                                                                                control
                                                                             }
-                                                                        }}
-                                                                    >
-                                                                        <SelectTrigger className="h-8 w-24">
-                                                                            <SelectValue />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem
+                                                                            name={`CustomFields.${index}.Value`}
+                                                                            render={({
+                                                                                field: valueField,
+                                                                            }) => (
+                                                                                <div className="flex h-8 min-w-0 flex-1 items-center gap-2">
+                                                                                    <Switch
+                                                                                        checked={
+                                                                                            valueField.value ===
+                                                                                            "true"
+                                                                                        }
+                                                                                        onCheckedChange={(
+                                                                                            checked,
+                                                                                        ) =>
+                                                                                            valueField.onChange(
+                                                                                                String(
+                                                                                                    checked,
+                                                                                                ),
+                                                                                            )
+                                                                                        }
+                                                                                        aria-label="Custom field value"
+                                                                                    />
+                                                                                    <span className="text-sm text-muted-foreground">
+                                                                                        {valueField.value ===
+                                                                                        "true"
+                                                                                            ? "Yes"
+                                                                                            : "No"}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                        />
+                                                                    ) : isMasked ? (
+                                                                        <ControlWithActions
+                                                                            align="start"
+                                                                            className="min-w-0 flex-1 items-center"
+                                                                            actions={
+                                                                                <div className="pr-0.5">
+                                                                                    <TooltipProvider>
+                                                                                        <Tooltip>
+                                                                                            <TooltipTrigger
+                                                                                                asChild
+                                                                                            >
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="h-7 w-7"
+                                                                                                    aria-label={
+                                                                                                        isRevealed
+                                                                                                            ? "Hide value"
+                                                                                                            : "Show value"
+                                                                                                    }
+                                                                                                    onClick={() =>
+                                                                                                        toggleCustomFieldReveal(
+                                                                                                            field.id,
+                                                                                                        )
+                                                                                                    }
+                                                                                                >
+                                                                                                    {isRevealed ? (
+                                                                                                        <EyeOff className="h-3.5 w-3.5" />
+                                                                                                    ) : (
+                                                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                                                    )}
+                                                                                                </Button>
+                                                                                            </TooltipTrigger>
+                                                                                            <TooltipContent>
+                                                                                                {isRevealed
+                                                                                                    ? "Hide"
+                                                                                                    : "Show"}
+                                                                                            </TooltipContent>
+                                                                                        </Tooltip>
+                                                                                    </TooltipProvider>
+                                                                                </div>
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                valueInput
+                                                                            }
+                                                                        </ControlWithActions>
+                                                                    ) : (
+                                                                        valueInput
+                                                                    )}
+                                                                    <Controller
+                                                                        control={
+                                                                            control
+                                                                        }
+                                                                        name={`CustomFields.${index}.Type`}
+                                                                        render={({
+                                                                            field: typeField,
+                                                                        }) => (
+                                                                            <Select
                                                                                 value={String(
-                                                                                    CustomFieldType.Text,
+                                                                                    typeField.value ??
+                                                                                        CustomFieldType.Text,
                                                                                 )}
+                                                                                onValueChange={(
+                                                                                    value,
+                                                                                ) => {
+                                                                                    const nextType =
+                                                                                        Number(
+                                                                                            value,
+                                                                                        );
+                                                                                    typeField.onChange(
+                                                                                        nextType,
+                                                                                    );
+                                                                                    if (
+                                                                                        nextType ===
+                                                                                        CustomFieldType.Boolean
+                                                                                    ) {
+                                                                                        setValue(
+                                                                                            `CustomFields.${index}.Value`,
+                                                                                            watch(
+                                                                                                `CustomFields.${index}.Value`,
+                                                                                            ) ===
+                                                                                                "true"
+                                                                                                ? "true"
+                                                                                                : "false",
+                                                                                            {
+                                                                                                shouldDirty: true,
+                                                                                            },
+                                                                                        );
+                                                                                    }
+                                                                                }}
                                                                             >
-                                                                                Text
-                                                                            </SelectItem>
-                                                                            <SelectItem
-                                                                                value={String(
-                                                                                    CustomFieldType.MaskedText,
-                                                                                )}
-                                                                            >
-                                                                                Hidden
-                                                                            </SelectItem>
-                                                                            <SelectItem
-                                                                                value={String(
-                                                                                    CustomFieldType.Boolean,
-                                                                                )}
-                                                                            >
-                                                                                Checkbox
-                                                                            </SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                )}
-                                                            />
+                                                                                <SelectTrigger className="h-8 w-24">
+                                                                                    <SelectValue />
+                                                                                </SelectTrigger>
+                                                                                <SelectContent>
+                                                                                    <SelectItem
+                                                                                        value={String(
+                                                                                            CustomFieldType.Text,
+                                                                                        )}
+                                                                                    >
+                                                                                        Text
+                                                                                    </SelectItem>
+                                                                                    <SelectItem
+                                                                                        value={String(
+                                                                                            CustomFieldType.MaskedText,
+                                                                                        )}
+                                                                                    >
+                                                                                        Hidden
+                                                                                    </SelectItem>
+                                                                                    <SelectItem
+                                                                                        value={String(
+                                                                                            CustomFieldType.Boolean,
+                                                                                        )}
+                                                                                    >
+                                                                                        Checkbox
+                                                                                    </SelectItem>
+                                                                                </SelectContent>
+                                                                            </Select>
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    remove(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
                                                         </div>
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            remove(index)
-                                                        }
-                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                                    );
+                                                },
+                                            )}
+                                        </div>
+                                    )}
 
-                                {customFields.length === 0 && (
-                                    <div className="rounded-lg border border-dashed border-border py-6 text-center">
-                                        <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                                        <p className="text-sm text-muted-foreground">
-                                            No custom fields yet
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                                    {customFields.length === 0 && (
+                                        <div className="rounded-lg border border-dashed border-border py-6 text-center">
+                                            <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                                            <p className="text-sm text-muted-foreground">
+                                                No custom fields yet
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </ScrollArea>
 
@@ -1162,7 +1297,7 @@ export function EditDrawer({
                             </Button>
                             <Button
                                 onClick={handleSubmit(onSubmit)}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || sshKeyBusy}
                                 className="flex-1"
                             >
                                 {isSubmitting ? (
@@ -1171,7 +1306,11 @@ export function EditDrawer({
                                         Saving...
                                     </>
                                 ) : isNew ? (
-                                    "Create Credential"
+                                    isSSHKey ? (
+                                        "Create SSH key"
+                                    ) : (
+                                        "Create Credential"
+                                    )
                                 ) : (
                                     "Save Changes"
                                 )}

@@ -228,6 +228,11 @@ describe("share link records", () => {
                 { Credentials: [], Directories: [], ShareLinks: [a, b] },
                 [{ Type: SyncItemType.ShareLinkItem, ID: "b" }],
             ),
-        ).toEqual({ Credentials: [], Directories: [], ShareLinks: [b] });
+        ).toEqual({
+            Credentials: [],
+            Directories: [],
+            ShareLinks: [b],
+            ConnectedAgents: [],
+        });
     });
 });

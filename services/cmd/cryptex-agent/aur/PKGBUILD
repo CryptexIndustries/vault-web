@@ -1,0 +1,35 @@
+# Maintainer: Cryptex Industries
+#
+# Built from the release tarballs (services/cmd/cryptex-agent/package.sh).
+# The release job edits pkgver, pkgrel and the checksums with sed, so keep
+# each of those on its own single line.
+
+pkgname=cryptex-agent-bin
+pkgver=0.1.1
+pkgrel=1
+pkgdesc="SSH agent that holds no keys and asks Cryptex Vault on your phone to sign"
+arch=('x86_64' 'aarch64')
+url="https://github.com/CryptexIndustries/vault-web"
+license=('AGPL-3.0-only')
+provides=('cryptex-agent')
+conflicts=('cryptex-agent')
+optdepends=('libnotify: desktop notification while a request waits for approval')
+options=('!strip' '!debug')
+source_x86_64=("https://github.com/CryptexIndustries/vault-web/releases/download/cryptex-agent-v${pkgver}/cryptex-agent-${pkgver}-linux-amd64.tar.gz")
+source_aarch64=("https://github.com/CryptexIndustries/vault-web/releases/download/cryptex-agent-v${pkgver}/cryptex-agent-${pkgver}-linux-arm64.tar.gz")
+# SKIP until the release job fills in the tarballs' SHA-256.
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+	local goarch
+	case "$CARCH" in
+	x86_64) goarch=amd64 ;;
+	aarch64) goarch=arm64 ;;
+	esac
+	cd "$srcdir/cryptex-agent-${pkgver}-linux-${goarch}"
+	install -Dm755 cryptex-agent "$pkgdir/usr/bin/cryptex-agent"
+	install -Dm644 cryptex-agent.service "$pkgdir/usr/lib/systemd/user/cryptex-agent.service"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/cryptex-agent/README.md"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

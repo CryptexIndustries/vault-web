@@ -34,6 +34,8 @@ web/out/
 *.p12
 *.pfx
 *.key
+# Throwaway SSH keys the tests read.
+!**/fixtures/ssh/*.key
 signing.env
 todo.md
 

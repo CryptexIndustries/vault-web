@@ -3,14 +3,27 @@
 }
 
 {$VAULT_DOMAIN} {
-	reverse_proxy web:3000
+	# SSH agent relay. The web app has no routes under /v1/.
+	@relay path /v1/connect /v1/pair /v1/revoke
+	handle @relay {
+		reverse_proxy relay:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
 }
 
 {$SIGNAL_DOMAIN} {
 	# Only the WebSocket endpoint is public, not Soketi's publishing API.
+	# respond runs before reverse_proxy in Caddy's directive order, so both
+	# go in handle blocks to keep them in the order written.
 	@websocket path /app/*
-	reverse_proxy @websocket soketi:6001
-	respond 404
+	handle @websocket {
+		reverse_proxy soketi:6001
+	}
+	handle {
+		respond 404
+	}
 }
 
 # Certbot HTTP-01 validation only. TURN TLS terminates in coturn on 5349.

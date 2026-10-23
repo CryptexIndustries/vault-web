@@ -7,7 +7,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 function getOtaConfig({ profile, distribution = 'standard', signingEnabled = false, mode = 'release', projectFile = resolve(mobile, 'eas-project.json') }) {
     profile = getProfile(typeof profile === 'string' ? profile : profile.name);
     if (!['standard', 'fdroid', 'play'].includes(distribution)) throw new Error('Distribution must be standard, fdroid or play.');
-    if (distribution === 'fdroid' && profile.name !== 'production') throw new Error('F-Droid requires the production profile.');
     if (![true, false, 'true', 'false'].includes(signingEnabled)) throw new Error('EXPO_PUBLIC_OTA_SIGNING_ENABLED must be true or false.');
     if (!existsSync(projectFile)) throw new Error('Missing EAS project configuration. Restore mobile/eas-project.json.');
     const project = JSON.parse(readFileSync(projectFile, 'utf8'));

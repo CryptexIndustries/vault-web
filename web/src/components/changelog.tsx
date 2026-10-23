@@ -41,6 +41,32 @@ const CHANGE_LABELS: Record<
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.7.0",
+        date: "2026-10-21",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "SSH key items. Generate or import Ed25519, ECDSA and RSA keys, copy or save the public key, and share a key through a one-time link.",
+            },
+            {
+                type: "added",
+                description:
+                    "An SSH agent for Linux that holds no private keys. Your phone or the web app approves each signature, and you can pause or revoke an agent from any linked device.",
+            },
+            {
+                type: "added",
+                description:
+                    "A 14-day free trial of Online Services for new subscribers. Add a card to start it. You're charged when the trial ends unless you cancel before then.",
+            },
+            {
+                type: "changed",
+                description:
+                    "The vault can be open in only one browser tab at a time, and leaving it for another page of the site locks it after saving.",
+            },
+        ],
+    },
+    {
         version: "v1.6.0",
         date: "2026-10-15",
         changes: [
@@ -98,7 +124,7 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
             {
                 type: "changed",
                 description:
-                    "The device linking dialog now says \"Verification words\" instead of \"Mnemonic\", the same term the extension, Android app and documentation use.",
+                    'The device linking dialog now says "Verification words" instead of "Mnemonic", the same term the extension, Android app and documentation use.',
             },
             {
                 type: "fix",

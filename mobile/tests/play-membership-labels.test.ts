@@ -44,8 +44,8 @@ const props = {
     onPendingChange: jest.fn(),
 };
 const plans = [
-    { tier: "premiumMonthly" as const, price: "4,99 €" },
-    { tier: "premiumYearly" as const, price: "49,99 €" },
+    { tier: "premiumMonthly" as const, price: "4,99 €", trial: false },
+    { tier: "premiumYearly" as const, price: "49,99 €", trial: false },
 ];
 function deferred<T>() {
     let resolve!: (value: T) => void, reject!: (error: Error) => void;
@@ -125,7 +125,7 @@ it("loads localized prices before account setup without blocking registration or
     expect(button("Continue").props.disabled).toBe(false);
     await act(async () => radio("Yearly").props.onPress());
     await press("Continue");
-    expect(onContinue).toHaveBeenCalledWith("premiumYearly");
+    expect(onContinue).toHaveBeenCalledWith("premiumYearly", false);
     expect(purchaseMembership).not.toHaveBeenCalled();
     await act(async () => prices.resolve(plans));
     expect(radio("Monthly").props.accessibilityLabel).toBe(
@@ -182,7 +182,7 @@ it("keeps Continue available on price failure and retries through snackbar feedb
         "Monthly, 4,99 € per month",
     );
     await press("Continue");
-    expect(onContinue).toHaveBeenCalledWith("premiumMonthly");
+    expect(onContinue).toHaveBeenCalledWith("premiumMonthly", false);
     expect(purchaseMembership).not.toHaveBeenCalled();
 });
 
@@ -260,7 +260,10 @@ it("keeps the selected interval through loading, unavailable prices, retry, and 
     const payment = deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
     jest.mocked(purchaseMembership).mockReturnValueOnce(payment.promise);
     await press("Continue with yearly");
-    expect(purchaseMembership).toHaveBeenCalledWith("premiumYearly");
+    expect(purchaseMembership).toHaveBeenCalledWith("premiumYearly", {
+        trialEligible: false,
+        trial: false,
+    });
     expect(radio("Yearly").props.disabled).toBe(true);
     expect(texts()).toContain("Yearly");
     await act(async () =>
@@ -325,8 +328,8 @@ it("retries Play preflight failures through the same selected tier and expires a
     expect(recovery.label).toBe("Retry");
     await act(async () => recovery.onPress());
     expect(jest.mocked(purchaseMembership).mock.calls).toEqual([
-        ["premiumYearly"],
-        ["premiumYearly"],
+        ["premiumYearly", { trialEligible: false, trial: false }],
+        ["premiumYearly", { trialEligible: false, trial: false }],
     ]);
     expect(radio("Yearly").props.accessibilityState.checked).toBe(true);
     expect(props.onMessage).toHaveBeenCalledTimes(1);
@@ -507,4 +510,29 @@ it("reports one Stripe busy lifecycle for duplicate taps and clears it on succes
         expect.objectContaining({ label: "Retry" }),
     );
     expect(props.onExternalBillingOpened).toHaveBeenCalledTimes(1);
+});
+
+it("reloads Play plans without a Retry when the offer changed before purchase", async () => {
+    await renderUpgrade({ trialEligible: true });
+    expect(loadStorePlans).toHaveBeenLastCalledWith(true);
+    jest.mocked(loadStorePlans).mockResolvedValueOnce(
+        plans.map((plan) => ({ ...plan, trial: true })),
+    );
+    jest.mocked(purchaseMembership).mockResolvedValueOnce({
+        ok: false,
+        offerChanged: { trial: true },
+        message: "Offer changed",
+    });
+    await press("Continue with monthly");
+    expect(purchaseMembership).toHaveBeenCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: false,
+    });
+    expect(props.onMessage).toHaveBeenCalledWith("Offer changed");
+    expect(loadStorePlans).toHaveBeenCalledTimes(2);
+    await press("Start 14-day free trial");
+    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: true,
+    });
 });

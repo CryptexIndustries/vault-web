@@ -149,7 +149,7 @@ export function CredentialURLRulesEditor({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => remove(index)}
                                 aria-label={`Remove additional website ${index + 1}`}
                             >

@@ -19,6 +19,7 @@ import {
     TOTPFormSchema,
     TOTPFormSchemaType,
 } from "./form-schemas";
+import { hasSSHKeyShape } from "./ssh-key-info";
 
 export class Vault implements VaultUtilTypes.Vault {
     /*
@@ -35,6 +36,9 @@ export class Vault implements VaultUtilTypes.Vault {
     public Credentials: VaultCredential[];
     public ShareLinks: VaultUtilTypes.ShareLink[] = [];
     public ShareSettings?: VaultUtilTypes.ShareSettings;
+    public ConnectedAgents: VaultUtilTypes.ConnectedAgent[] = [];
+    /** This device's SSH agent approver keys. Device-local, never leaves it. */
+    public AgentApprover?: VaultUtilTypes.AgentApproverSettings;
 
     constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
@@ -531,6 +535,14 @@ export const CredentialFormBaseSchema = z.object({
         })
         .optional()
         .nullable(),
+    SSHKey: z
+        .object({
+            PrivateKey: z.string(),
+            PublicKey: z.string(),
+            Comment: z.string(),
+        })
+        .optional()
+        .nullable(),
     Notes: z.string(),
     // DateCreated: z.string().optional(), // Used only in diffing
     // DateModified: z.string().optional(), // Used only in diffing
@@ -557,6 +569,18 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                     code: z.ZodIssueCode.custom,
                     path: ["Passkey"],
                     message: "Passkey credential material is incomplete.",
+                });
+            }
+        }
+
+        if (form.Type === VaultUtilTypes.ItemType.SSHKey) {
+            if (!form.SSHKey || !hasSSHKeyShape(form.SSHKey)) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["SSHKey"],
+                    message: form.SSHKey
+                        ? "This SSH key's data is damaged."
+                        : "Generate a new key or import an existing one.",
                 });
             }
         }
@@ -616,6 +640,7 @@ export class VaultCredential
     public URLMatchMode: VaultUtilTypes.CredentialURLMatchMode;
     public AdditionalURLs: VaultUtilTypes.CredentialURL[];
     public Passkey?: VaultUtilTypes.PasskeyData | undefined;
+    public SSHKey?: VaultUtilTypes.SSHKeyData | undefined;
     public Notes: string;
 
     /**
@@ -639,7 +664,8 @@ export class VaultCredential
     constructor(form?: CredentialFormSchemaType) {
         this.ID = form?.ID ? String(form.ID).trim() : ulid();
 
-        this.Type = form?.Type ?? VaultUtilTypes.ItemType.Credentials;
+        // Unspecified (0) also becomes an ordinary credential.
+        this.Type = form?.Type || VaultUtilTypes.ItemType.Credentials;
         this.DirectoryID = form?.DirectoryID
             ? String(form.DirectoryID).trim()
             : "";
@@ -661,6 +687,10 @@ export class VaultCredential
             form?.AdditionalURLs,
         );
         this.Passkey = form?.Passkey ?? undefined;
+        this.SSHKey =
+            this.Type === VaultUtilTypes.ItemType.SSHKey && form?.SSHKey
+                ? { ...form.SSHKey, Comment: form.SSHKey.Comment.trim() }
+                : undefined;
         this.Notes = form?.Notes ? String(form.Notes).trim() : "";
 
         // The version is 0 for new credentials. This is to be incremented when the credential is modified.
@@ -715,6 +745,7 @@ const prepareCredentialForHashing = (credential: VaultCredential) => {
         "Username",
         "Password",
         "Passkey",
+        "SSHKey",
         // "TOTP",
         "Tags",
         "URL",
@@ -889,6 +920,12 @@ export const updateCredentialFromForm = async (
         form.AdditionalURLs ?? moddedCredential.AdditionalURLs,
     );
     moddedCredential.Passkey = form.Passkey ?? undefined;
+    // Forms that don't carry the key (for example a folder move) keep it.
+    const sshKey = form.SSHKey ?? existingCredential.SSHKey;
+    moddedCredential.SSHKey =
+        moddedCredential.Type === VaultUtilTypes.ItemType.SSHKey && sshKey
+            ? { ...sshKey, Comment: sshKey.Comment.trim() }
+            : undefined;
     moddedCredential.Notes = form.Notes ?? moddedCredential.Notes;
 
     // The date created cannot be changed, so we don't check for it
@@ -1154,6 +1191,19 @@ export const deleteDirectory = async (
 //#endregion Directory Methods
 
 /**
+ * Clears the device-local fields (ShareSettings, field 12, and
+ * AgentApprover, field 14). The sender strips them; receive paths clear
+ * them again after decoding, so a crafted package can't plant them.
+ */
+export function clearDeviceLocalFields<
+    V extends Pick<Vault, "ShareSettings" | "AgentApprover">,
+>(vault: V): V {
+    vault.ShareSettings = undefined;
+    vault.AgentApprover = undefined;
+    return vault;
+}
+
+/**
  * Packages the vault for linking to another device.
  * Creates a copy, resets linked-device sync state, and sets OnlineServices for the peer.
  */
@@ -1175,8 +1225,13 @@ export const packageForLinking = (
     // Clear the Online Services configuration because this data is delivered in the original linking package
     vaultCopy.OnlineServices = undefined;
 
-    // The share server choice and its creation token stay on this device.
-    vaultCopy.ShareSettings = undefined;
+    // The share server choice and its creation token stay on this device,
+    // and so do this device's agent approver keys and relay tokens: a copy
+    // would let the other device answer for agents paired here.
+    clearDeviceLocalFields(vaultCopy);
+
+    // ShareLinks and ConnectedAgents are synced data and travel with the copy,
+    // so the new device can list and revoke agents paired elsewhere.
 
     // Copy over only the used STUN and TURN servers, and the signaling server
     vaultCopy.LinkedDevices.STUNServers =

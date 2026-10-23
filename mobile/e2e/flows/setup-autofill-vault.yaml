@@ -2,6 +2,8 @@ appId: ${CRYPTEX_APP_ID}
 ---
 - runFlow: setup-vault.yaml
 - tapOn: Add your first item
+- tapOn:
+      id: add-item-login
 - tapOn: Credential name
 - inputText: Fixture Login
 - tapOn: Credential username

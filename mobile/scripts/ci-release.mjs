@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,7 +16,10 @@ const sha256 = path => createHash("sha256").update(readFileSync(path)).digest("h
 export function signCiRelease(profile, directory, env = process.env, distribution = profile === "production" ? "fdroid" : "standard") {
     const selected = getProfile(profile);
     assert.ok(["standard", "fdroid", "play"].includes(distribution), "Unknown release distribution.");
-    const targets = distribution === "fdroid" ? architectures : ["all"];
+    // Releases sign all four ABIs; preprod F-Droid runs sign the ABIs they built.
+    const targets = distribution !== "fdroid" ? ["all"] : profile === "production" ? architectures
+        : architectures.filter(arch => existsSync(join(directory, artifactName({ profile, distribution, arch, unsigned: true }))));
+    assert.ok(targets.length, "No unsigned APKs to sign.");
     const configPath = join(directory, "release-config.json");
     const config = loadReleaseConfig(configPath);
     const app = JSON.parse(readFileSync(join(mobile, "app.json"), "utf8")).expo;
@@ -82,7 +85,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         if (command === "sign" && first && second) {
             for (const apk of signCiRelease(first, resolve(second), process.env, distribution)) console.log(`Verified signed APK: ${apk}`);
         }
-        else throw new Error("Use sign <production|preprod> <artifact directory> [play].");
+        else throw new Error("Use sign <production|preprod> <artifact directory> [fdroid|play].");
     } catch (error) {
         // Child process failures must never print their environment or input.
         console.error(error.message);

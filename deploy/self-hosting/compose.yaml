@@ -55,6 +55,7 @@ services:
         depends_on:
             - web
             - soketi
+            - relay
         restart: unless-stopped
         logging: *logging
 
@@ -74,6 +75,31 @@ services:
             SHARE_METRICS_ADDR: ${SHARE_METRICS_ADDR:-:9090}
         volumes:
             - share_data:/data
+        restart: unless-stopped
+        logging: *logging
+
+    # SSH agent relay for cryptex-agent. Caddy sends /v1/connect, /v1/pair and
+    # /v1/revoke on VAULT_DOMAIN here, so the relay URL is https://VAULT_DOMAIN.
+    # Requests are end-to-end encrypted; the SQLite file holds public keys only.
+    relay:
+        image: ${RELAY_IMAGE:?Set RELAY_IMAGE in .env}
+        environment:
+            # Clients sign this origin; it must match the URL they pair with.
+            RELAY_PUBLIC_URL: https://${VAULT_DOMAIN:?Set VAULT_DOMAIN in .env}
+            RELAY_AUTH_MODE: token
+            RELAY_ACCESS_TOKEN: ${RELAY_ACCESS_TOKEN:?Set RELAY_ACCESS_TOKEN in .env}
+            # Agents allowed on the whole relay.
+            RELAY_MAX_AGENTS: ${RELAY_MAX_AGENTS:-25}
+            # Clients ping after this many idle seconds. Behind Cloudflare,
+            # which drops WebSockets idle for 100 seconds, use 90.
+            RELAY_KEEPALIVE_SECONDS: ${RELAY_KEEPALIVE_SECONDS:-240}
+            # Caddy sets the address it saw, so the client is the last entry.
+            RELAY_CLIENT_IP_HEADER: ${RELAY_CLIENT_IP_HEADER:-X-Forwarded-For}
+            RELAY_TRUSTED_PROXY_HOPS: ${RELAY_TRUSTED_PROXY_HOPS:-1}
+            # Prometheus metrics on port 9090, never published; "off" turns them off.
+            RELAY_METRICS_ADDR: ${RELAY_METRICS_ADDR:-:9090}
+        volumes:
+            - relay_data:/data
         restart: unless-stopped
         logging: *logging
 
@@ -116,3 +142,4 @@ volumes:
     caddy_data:
     caddy_config:
     share_data:
+    relay_data:

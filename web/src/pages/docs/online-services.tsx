@@ -187,6 +187,14 @@ export default function OnlineServices() {
                     account's device-linking entitlement.
                 </p>
                 <p>
+                    One account covers all of a person's devices. You create it
+                    on one device, and the others join it by{" "}
+                    <Link href="/docs/linking-devices">linking</Link>, which
+                    registers them under the same account. Signing up on a
+                    second device creates a separate account with its own
+                    subscription.
+                </p>
+                <p>
                     A root device has account administration permissions (not
                     operating-system root access). The first registered device
                     is a root device; newly linked devices start without root

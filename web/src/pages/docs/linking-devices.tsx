@@ -15,22 +15,31 @@ export default function LinkingDevices() {
     const [deviceView, setDeviceView] = useState<"map" | "list" | "settings">(
         "map",
     );
-    const [receiver, setReceiver] = useState<"web" | "extension">("web");
+    const [sender, setSender] = useState<"android" | "web">("android");
+    const [receiver, setReceiver] = useState<
+        "android" | "new" | "web" | "extension"
+    >("android");
     useEffect(() => {
         if (router.isReady) {
+            const requested = router.query.receiver;
             setReceiver(
-                router.query.receiver === "extension" ? "extension" : "web",
+                requested === "extension" ||
+                    requested === "web" ||
+                    requested === "new"
+                    ? requested
+                    : "android",
             );
         }
     }, [router.isReady, router.query.receiver]);
     return (
         <DocArticle
             title="Linking devices"
-            description="Connect another browser or the Chromium Extension to your vault, then sync your passwords between them."
+            description="Connect your phone, another browser or the Chromium Extension to your vault, then sync your passwords between them."
             toc={[
                 { href: "#prepare", label: "Before you start" },
                 { href: "#invite", label: "Create an invitation" },
                 { href: "#receive", label: "Accept the invitation" },
+                { href: "#account", label: "If both devices have an account" },
                 { href: "#sync", label: "Sync your changes" },
                 { href: "#manage", label: "Manage devices and links" },
                 { href: "#help", label: "If you get stuck" },
@@ -47,9 +56,9 @@ export default function LinkingDevices() {
             <DocSection id="prepare" title="Before you start">
                 <p>
                     Open and unlock the vault you want to synchronize. On the
-                    other device, open the web app or install the Chromium
-                    Extension. Both devices need to be online. Keep both apps
-                    open until linking finishes.
+                    other device, install the Android app, open the web app or
+                    install the Chromium Extension. Both devices need to be
+                    online. Keep both apps open until linking finishes.
                 </p>
                 <p>
                     To link devices and synchronize your vault, you need either
@@ -61,6 +70,14 @@ export default function LinkingDevices() {
                     and configure them under <strong>Vault signaling</strong>{" "}
                     before linking.
                 </p>
+                <DocCallout title="One account for all your devices">
+                    <p>
+                        If you use Online Services, create the account on one
+                        device only. Link every other device to that one with an
+                        invitation. You don&apos;t sign up again on them, and
+                        they share the first device&apos;s subscription.
+                    </p>
+                </DocCallout>
                 <DocCallout title="Linking and syncing are separate steps">
                     <p>
                         Linking transfers your vault and connects the two
@@ -70,30 +87,106 @@ export default function LinkingDevices() {
                 </DocCallout>
             </DocSection>
             <DocSection id="invite" title="Create an invitation">
-                <DocSteps
-                    items={[
-                        <p key="open">
-                            In your existing web vault, open the plus menu
-                            beside <strong>Linked Devices</strong>.
-                        </p>,
-                        <p key="create">
-                            Choose <strong>Create invitation</strong> and follow
-                            the prompts.
-                        </p>,
-                        <p key="method">
-                            Display the QR code for the other device to scan, or
-                            save an invitation file to open there. Keep the
-                            verification words and invitation screen available.
-                        </p>,
-                    ]}
-                />
-                <DocScreenshot
-                    src="/images/docs/invitation-menu.png"
-                    width={1046}
-                    height={730}
-                    alt="Linked Devices menu showing Create invitation and Use invitation"
-                    caption="Create the invitation in the vault you want to copy."
-                />
+                <p>
+                    Create the invitation on the device where you created your
+                    Online Services account. Linked devices start without root
+                    access and can&apos;t create Online Services invitations
+                    until you choose <strong>Allow root access</strong> in their
+                    device details on a root device.
+                </p>
+                <div
+                    className={d.platformSelector}
+                    role="group"
+                    aria-label="Sending app"
+                >
+                    <button
+                        type="button"
+                        aria-pressed={sender === "android"}
+                        aria-controls="sending-instructions"
+                        onClick={() => setSender("android")}
+                    >
+                        Android app
+                    </button>
+                    <button
+                        type="button"
+                        aria-pressed={sender === "web"}
+                        aria-controls="sending-instructions"
+                        onClick={() => setSender("web")}
+                    >
+                        Web app
+                    </button>
+                </div>
+                <div id="sending-instructions">
+                    {sender === "android" ? (
+                        <>
+                            <DocSteps
+                                items={[
+                                    <p key="open">
+                                        Open the <strong>Devices</strong> tab
+                                        and tap <strong>+</strong>, then{" "}
+                                        <strong>Create invitation</strong>.
+                                    </p>,
+                                    <p key="name">
+                                        Enter a name for the receiving device
+                                        and tap{" "}
+                                        <strong>Create invitation</strong>.
+                                    </p>,
+                                    <p key="method">
+                                        Let the other device scan the QR code,
+                                        or tap <strong>Share file</strong> to
+                                        send it an invitation file. Keep this
+                                        screen open. It shows the verification
+                                        words the other device asks for.
+                                    </p>,
+                                ]}
+                            />
+                            <DocScreenshot
+                                src="/images/docs/android-link-add-menu.png"
+                                width={720}
+                                height={1500}
+                                alt="Android Devices tab with the Add menu showing Create invitation, Use invitation and Connect an agent"
+                                caption="On Android, tap + on the Devices tab and choose Create invitation."
+                            />
+                            <DocScreenshot
+                                src="/images/docs/android-invitation.png"
+                                width={720}
+                                height={1500}
+                                alt="Android Share invitation screen with a QR code, verification words, Share file and Copy invitation"
+                                caption="The invitation screen shows the QR code and the verification words."
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <DocSteps
+                                items={[
+                                    <p key="open">
+                                        In your existing web vault, open the
+                                        plus menu beside{" "}
+                                        <strong>Linked Devices</strong>.
+                                    </p>,
+                                    <p key="create">
+                                        Choose{" "}
+                                        <strong>Create invitation</strong> and
+                                        follow the prompts.
+                                    </p>,
+                                    <p key="method">
+                                        Display the QR code for the other device
+                                        to scan, or save an invitation file to
+                                        open there. Keep the verification words
+                                        and invitation screen available.
+                                    </p>,
+                                ]}
+                            />
+                            <DocScreenshot
+                                src="/images/docs/invitation-menu.png"
+                                width={1046}
+                                height={730}
+                                alt="Linked Devices menu showing Create invitation and Use invitation"
+                                caption="Create the invitation in the vault you want to copy."
+                            />
+                        </>
+                    )}
+                </div>
             </DocSection>
             <DocSection
                 id="receive"
@@ -106,11 +199,27 @@ export default function LinkingDevices() {
                 >
                     <button
                         type="button"
+                        aria-pressed={receiver === "android"}
+                        aria-controls="receiving-instructions"
+                        onClick={() => setReceiver("android")}
+                    >
+                        Android app
+                    </button>
+                    <button
+                        type="button"
+                        aria-pressed={receiver === "new"}
+                        aria-controls="receiving-instructions"
+                        onClick={() => setReceiver("new")}
+                    >
+                        New browser
+                    </button>
+                    <button
+                        type="button"
                         aria-pressed={receiver === "web"}
                         aria-controls="receiving-instructions"
                         onClick={() => setReceiver("web")}
                     >
-                        Web app
+                        Existing web vault
                     </button>
                     <button
                         type="button"
@@ -122,110 +231,267 @@ export default function LinkingDevices() {
                     </button>
                 </div>
                 <div id="receiving-instructions">
-                    <DocScreenshot
-                        key={receiver}
-                        src={
-                            receiver === "web"
-                                ? "/images/docs/invitation-menu.png"
-                                : "/images/docs/link-extension.png"
-                        }
-                        width={receiver === "web" ? 1046 : 2880}
-                        height={receiver === "web" ? 730 : 1800}
-                        alt={
-                            receiver === "web"
-                                ? "Web app Linked Devices menu showing Use invitation"
-                                : "Chromium Extension receiving screen with Scan QR, Import file and Verification words"
-                        }
-                        caption={
-                            receiver === "web"
-                                ? "In the receiving web vault, open the plus menu beside Linked Devices and choose Use invitation."
-                                : "The extension can receive an invitation through a QR code or a file."
-                        }
-                    />
-                    {receiver === "web" ? (
+                    {receiver === "android" ? (
                         <>
+                            <h3>On a new install</h3>
+                            <DocSteps
+                                items={[
+                                    <p key="open">
+                                        Install and open the Android app. On the
+                                        first screen, tap{" "}
+                                        <strong>Use invitation</strong> at the
+                                        bottom instead of creating a vault.
+                                    </p>,
+                                    <p key="package">
+                                        Tap <strong>Tap to scan</strong> to scan
+                                        the QR code, or{" "}
+                                        <strong>Choose link file</strong> to
+                                        open the invitation file.
+                                    </p>,
+                                    <p key="words">
+                                        Enter the verification words shown on
+                                        the sending device and tap{" "}
+                                        <strong>
+                                            Connect to sending device
+                                        </strong>
+                                        .
+                                    </p>,
+                                    <p key="save">
+                                        Name the vault, choose a master password
+                                        for this phone and tap{" "}
+                                        <strong>Continue</strong>. Write down
+                                        the recovery code, then tap{" "}
+                                        <strong>Save and open vault</strong>.
+                                    </p>,
+                                ]}
+                            />
+                            <DocScreenshot
+                                src="/images/docs/android-use-invitation-tab.png"
+                                width={720}
+                                height={1500}
+                                alt="Android first screen on the Use invitation tab with Tap to scan, Choose link file and Paste link data"
+                                caption="On a new install, open Use invitation instead of creating a vault."
+                            />
+                            <DocScreenshot
+                                src="/images/docs/android-link-new-vault.png"
+                                width={720}
+                                height={1500}
+                                alt="Android Protect this copy screen with vault name, master password and confirm password fields"
+                                caption="After the transfer, choose this phone's master password."
+                            />
+                            <h3>Into a vault you already use</h3>
+                            <DocSteps
+                                items={[
+                                    <p key="open">
+                                        Unlock the vault, open the{" "}
+                                        <strong>Devices</strong> tab and tap{" "}
+                                        <strong>+</strong>, then{" "}
+                                        <strong>Use invitation</strong>.
+                                    </p>,
+                                    <p key="package">
+                                        Scan the QR code, or tap{" "}
+                                        <strong>Open file</strong> or{" "}
+                                        <strong>Paste</strong> to load the
+                                        invitation.
+                                    </p>,
+                                    <p key="words">
+                                        Enter the verification words and tap{" "}
+                                        <strong>Connect &amp; merge</strong>.
+                                        The phone adds the other device&apos;s
+                                        items and overwrites nothing in this
+                                        vault.
+                                    </p>,
+                                ]}
+                            />
+                            <DocScreenshot
+                                src="/images/docs/android-link-merged.png"
+                                width={720}
+                                height={1500}
+                                alt="Android Vault merged screen listing credentials added, already in this vault and linked devices added"
+                                caption="When linking finishes, the phone shows what it added."
+                            />
+                        </>
+                    ) : receiver === "new" ? (
+                        <>
+                            <DocScreenshot
+                                src="/images/docs/link-new-browser-tab.png"
+                                width={900}
+                                height={1015}
+                                alt="Web app vault screen with the Use invitation tab open and a Use invitation button"
+                                caption="In a browser without a vault, open the Use invitation tab."
+                            />
                             <DocSteps
                                 items={[
                                     <p key="open">
                                         Open{" "}
-                                        <Link href="/app">the web app</Link> on
-                                        the receiving device and unlock the
-                                        vault you want to receive into. If this
-                                        browser has no vault yet,{" "}
-                                        <Link href="/docs/getting-started#create">
-                                            create a vault
-                                        </Link>{" "}
-                                        first.
-                                    </p>,
-                                    <p key="invite">
-                                        Open the plus menu beside{" "}
-                                        <strong>Linked Devices</strong> and
-                                        choose <strong>Use invitation</strong>.
-                                        You can also choose{" "}
-                                        <strong>Manage</strong>, then{" "}
-                                        <strong>Link</strong> and{" "}
-                                        <strong>Receive invitation</strong>.
+                                        <Link href="/app">the web app</Link> in
+                                        the new browser and choose the{" "}
+                                        <strong>Use invitation</strong> tab. You
+                                        don&apos;t need to create a vault first.
                                     </p>,
                                     <p key="package">
-                                        Choose <strong>Scan QR</strong> or{" "}
+                                        Choose <strong>Use invitation</strong>,
+                                        then <strong>Scan QR</strong> or{" "}
                                         <strong>Import file</strong> to load the
-                                        invitation from the sending device, then
-                                        choose <strong>Next</strong>.
+                                        invitation from the sending device.
+                                        Choose <strong>Next</strong>.
                                     </p>,
                                     <p key="words">
                                         Enter the verification words shown by
                                         the sending vault, then choose{" "}
                                         <strong>Receive vault data</strong>.
+                                        Keep the sending vault open until{" "}
+                                        <strong>Vault received</strong> appears.
                                     </p>,
-                                    <p key="finish">
-                                        Keep both vaults and the receiving
-                                        dialog open until linking completes.
-                                        Close the dialog and check that the
-                                        received credentials are present.
-                                        Continue using your receiving
-                                        vault&apos;s existing password to unlock
-                                        it.
+                                    <p key="save">
+                                        Name the vault, choose a master password
+                                        for this browser and choose{" "}
+                                        <strong>Save vault</strong>. Write down
+                                        the recovery code shown next. The
+                                        password can differ from the one on the
+                                        sending device.
                                     </p>,
                                 ]}
                             />
-                            <p>
-                                Your existing items stay in the receiving vault.
-                                Linking adds missing data from the sending
-                                vault.
-                            </p>
+                            <DocScreenshot
+                                src="/images/docs/link-new-browser-save.png"
+                                width={900}
+                                height={1060}
+                                alt="Vault received notice above the vault name and master password fields"
+                                caption="After the transfer, choose this browser's master password and save the vault."
+                            />
                         </>
                     ) : (
-                        <DocSteps
-                            items={[
-                                <p key="open">
-                                    Open the Chromium Extension and choose{" "}
-                                    <strong>Use invitation</strong> on its
-                                    opening screen. The receiving screen opens
-                                    in a new tab.
-                                </p>,
-                                <p key="import">
-                                    Scan the QR code or open the invitation
-                                    file. Enter the verification words from the
-                                    sending vault.
-                                </p>,
-                                <p key="transfer">
-                                    Choose{" "}
-                                    <strong>Connect with this vault</strong>.
-                                    Wait for the vault transfer and keep the
-                                    sending vault open throughout.
-                                </p>,
-                                <p key="save">
-                                    Create and confirm a passphrase and choose{" "}
-                                    <strong>Save vault</strong>. Use that
-                                    passphrase to unlock this local copy.
-                                </p>,
-                                <p key="check">
-                                    Open the receiving vault and check that your
-                                    credentials are present before closing the
-                                    sending vault.
-                                </p>,
-                            ]}
-                        />
+                        <>
+                            <DocScreenshot
+                                key={receiver}
+                                src={
+                                    receiver === "web"
+                                        ? "/images/docs/invitation-menu.png"
+                                        : "/images/docs/link-extension.png"
+                                }
+                                width={receiver === "web" ? 1046 : 2880}
+                                height={receiver === "web" ? 730 : 1800}
+                                alt={
+                                    receiver === "web"
+                                        ? "Web app Linked Devices menu showing Use invitation"
+                                        : "Chromium Extension receiving screen with Scan QR, Import file and Verification words"
+                                }
+                                caption={
+                                    receiver === "web"
+                                        ? "In the receiving web vault, open the plus menu beside Linked Devices and choose Use invitation."
+                                        : "The extension can receive an invitation through a QR code or a file."
+                                }
+                            />
+                            {receiver === "web" ? (
+                                <>
+                                    <DocSteps
+                                        items={[
+                                            <p key="open">
+                                                Open{" "}
+                                                <Link href="/app">
+                                                    the web app
+                                                </Link>{" "}
+                                                on the receiving device and
+                                                unlock the vault you want to
+                                                receive into. If this browser
+                                                has no vault yet, follow the{" "}
+                                                <strong>New browser</strong>{" "}
+                                                steps instead.
+                                            </p>,
+                                            <p key="invite">
+                                                Open the plus menu beside{" "}
+                                                <strong>Linked Devices</strong>{" "}
+                                                and choose{" "}
+                                                <strong>Use invitation</strong>.
+                                                You can also choose{" "}
+                                                <strong>Manage</strong>, then{" "}
+                                                <strong>Link</strong> and{" "}
+                                                <strong>
+                                                    Receive invitation
+                                                </strong>
+                                                .
+                                            </p>,
+                                            <p key="package">
+                                                Choose <strong>Scan QR</strong>{" "}
+                                                or <strong>Import file</strong>{" "}
+                                                to load the invitation from the
+                                                sending device, then choose{" "}
+                                                <strong>Next</strong>.
+                                            </p>,
+                                            <p key="words">
+                                                Enter the verification words
+                                                shown by the sending vault, then
+                                                choose{" "}
+                                                <strong>
+                                                    Receive vault data
+                                                </strong>
+                                                .
+                                            </p>,
+                                            <p key="finish">
+                                                Keep both vaults and the
+                                                receiving dialog open until
+                                                linking completes. Close the
+                                                dialog and check that the
+                                                received credentials are
+                                                present. Continue using your
+                                                receiving vault&apos;s existing
+                                                password to unlock it.
+                                            </p>,
+                                        ]}
+                                    />
+                                    <p>
+                                        Your existing items stay in the
+                                        receiving vault. Linking adds missing
+                                        data from the sending vault. If this
+                                        vault has its own Online Services
+                                        account, see{" "}
+                                        <Link href="#account">
+                                            If both devices have an account
+                                        </Link>
+                                        .
+                                    </p>
+                                </>
+                            ) : (
+                                <DocSteps
+                                    items={[
+                                        <p key="open">
+                                            Open the Chromium Extension and
+                                            choose{" "}
+                                            <strong>Use invitation</strong> on
+                                            its opening screen. The receiving
+                                            screen opens in a new tab.
+                                        </p>,
+                                        <p key="import">
+                                            Scan the QR code or open the
+                                            invitation file. Enter the
+                                            verification words from the sending
+                                            vault.
+                                        </p>,
+                                        <p key="transfer">
+                                            Choose{" "}
+                                            <strong>
+                                                Connect with this vault
+                                            </strong>
+                                            . Wait for the vault transfer and
+                                            keep the sending vault open
+                                            throughout.
+                                        </p>,
+                                        <p key="save">
+                                            Create and confirm a passphrase and
+                                            choose <strong>Save vault</strong>.
+                                            Use that passphrase to unlock this
+                                            local copy.
+                                        </p>,
+                                        <p key="check">
+                                            Open the receiving vault and check
+                                            that your credentials are present
+                                            before closing the sending vault.
+                                        </p>,
+                                    ]}
+                                />
+                            )}
+                        </>
                     )}
                 </div>
                 <p>
@@ -233,6 +499,68 @@ export default function LinkingDevices() {
                     device you intend to link. Delete any copied invitation file
                     once you finish.
                 </p>
+            </DocSection>
+            <DocSection id="account" title="If both devices have an account">
+                <p>
+                    Linking moves the receiving vault to the sending
+                    device&apos;s Online Services account. If the receiving
+                    vault already has an account of its own, the web app and the
+                    Android app ask what to do with it before linking.
+                </p>
+                <p>
+                    To avoid this, don&apos;t sign up on the second device. Its
+                    Account tab on Android, and the account dialog in the web
+                    app, point to <strong>Use invitation</strong> instead.
+                </p>
+                <DocScreenshot
+                    src="/images/docs/android-account-use-invitation.png"
+                    width={720}
+                    height={1500}
+                    alt="Android Account tab with Get Online Services, Recover account, and an Already set up on another device section with Use invitation"
+                    caption="On a second device, use the invitation instead of Get Online Services."
+                />
+                <DocScreenshot
+                    src="/images/docs/android-link-account-conflict.png"
+                    width={720}
+                    height={1500}
+                    alt="Android sheet titled This device has its own account with Cancel, Keep it and link, and Delete it and link"
+                    caption="On Android, the choice appears while the invitation opens."
+                />
+                <DocScreenshot
+                    src="/images/docs/link-account-conflict.png"
+                    width={1024}
+                    height={548}
+                    alt="This device has its own account dialog with Cancel, Keep it and link, and Delete it and link"
+                    caption="In the web app, the same choice appears as a dialog."
+                />
+                <ul>
+                    <li>
+                        <strong>Keep it and link</strong> links the vault and
+                        leaves the old account as it is, with any subscription
+                        on it. You can still reach it with its Recovery Kit.
+                    </li>
+                    <li>
+                        <strong>Delete it and link</strong> deletes the old
+                        account first, then links. Deleting cancels a
+                        subscription bought on the web. Only the old
+                        account&apos;s root device shows this choice.
+                    </li>
+                    <li>
+                        <strong>Cancel</strong> stops linking and changes
+                        nothing.
+                    </li>
+                </ul>
+                <DocCallout
+                    title="Google Play subscriptions keep running"
+                    tone="warning"
+                >
+                    <p>
+                        Deleting an account doesn&apos;t cancel a subscription
+                        bought through Google Play. Cancel it in the Play Store
+                        under <strong>Payments &amp; subscriptions</strong>,
+                        then <strong>Subscriptions</strong>.
+                    </p>
+                </DocCallout>
             </DocSection>
             <DocSection id="sync" title="Sync your changes">
                 <p>

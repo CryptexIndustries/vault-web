@@ -34,6 +34,7 @@ import {
     deriveSessionKey,
     base64UrlDecode,
 } from "./utils/crypto-utils";
+import { rotateKeyPair } from "./background/message-key-rotation";
 import {
     createEncryptedResponseEnvelope,
     decryptEnvelope,
@@ -1869,44 +1870,6 @@ async function retrieveActivePublicKey(): Promise<
     } catch (error) {
         console.error("[SW] Failed to retrieve active public key:", error);
         return { ok: false, error: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" };
-    }
-}
-
-/**
- * Rotates the active ECDH key pair, marking the old one as decommissioned.
- */
-async function rotateKeyPair(): Promise<void> {
-    try {
-        const currentActiveKey = await Storage.db.keyPairs
-            .where("status")
-            .equals("active")
-            .first();
-        if (currentActiveKey) {
-            // Mark current active key as decommissioned
-            await Storage.db.keyPairs.update(currentActiveKey.keyId, {
-                status: "decommission",
-            });
-        }
-
-        // Generate new active key pair
-        const newKeyPair = await generateECDHKeyPair();
-        await Storage.db.keyPairs.add({
-            keyId: newKeyPair.keyId,
-            createdAt: newKeyPair.createdAt,
-            status: "active",
-            privateKey: newKeyPair.privateKey,
-            publicKeyJwk: newKeyPair.publicKeyJwk,
-        });
-
-        console.debug(
-            `[SW] Rotated ECDH key pair. New key ID: ${newKeyPair.keyId}`,
-        );
-
-        // TODO: Broadcast KEY_ROTATED to all connected clients (popup)
-        // For now, clients will discover rotation on next request via STALE_KEY error
-    } catch (error) {
-        console.error("[SW] Failed to rotate key pair:", error);
-        throw error;
     }
 }
 

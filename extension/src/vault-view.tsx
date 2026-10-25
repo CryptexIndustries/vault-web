@@ -67,7 +67,6 @@ import {
     UpdateDirectoryRequest,
 } from "./types/sw-messaging";
 import {
-    createEncryptedEnvelope,
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
@@ -141,7 +140,10 @@ import { PopupVaultSecurityDialog } from "./components/popup-vault-security-dial
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
 import { uiLog } from "./utils/ext-logging";
-import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
+import {
+    createPopupEnvelope,
+    sendEncryptedEnvelopeToSW,
+} from "./utils/sw-envelope-client";
 import { credentialMatchesSearch } from "./utils/credential-search";
 
 type VaultViewProps = {
@@ -781,12 +783,30 @@ const VaultView: React.FC<VaultViewProps> = ({
         return response.payload.context;
     }, []);
 
+    // The tab listeners read the current tab id from here, so storing a
+    // context does not re-run the effect and fetch it again.
+    const currentSiteTabIdRef = useRef<number | undefined>(undefined);
+    useEffect(() => {
+        currentSiteTabIdRef.current = currentSiteContext?.tabId;
+    }, [currentSiteContext?.tabId]);
+
     useEffect(() => {
         let cancelled = false;
+        // Only the newest lookup may set the context, so a slow answer for
+        // a previous tab or page can't overwrite a newer one.
+        let latestRequest = 0;
+        // Tab.active is per window; only this page's window matters.
+        let currentWindowId: number | undefined;
+        void chrome.windows.getCurrent().then((window) => {
+            currentWindowId = window.id;
+        });
 
         const refreshContext = async () => {
+            const request = ++latestRequest;
             const context = await requestActivePageOrigin();
-            if (!cancelled) setCurrentSiteContext(context);
+            if (!cancelled && request === latestRequest) {
+                setCurrentSiteContext(context);
+            }
         };
 
         const handleTabActivated = () => {
@@ -799,10 +819,17 @@ const VaultView: React.FC<VaultViewProps> = ({
             changeInfo: { status?: string; url?: string },
             tab: chrome.tabs.Tab,
         ) => {
+            // The active tab counts too: after activation the context is
+            // still null while its lookup is pending.
+            const isActiveTabHere =
+                tab.active &&
+                (currentWindowId === undefined ||
+                    tab.windowId === currentWindowId);
             if (
                 changeInfo.status === "loading" &&
-                tabId === currentSiteContext?.tabId
+                (tabId === currentSiteTabIdRef.current || isActiveTabHere)
             ) {
+                latestRequest++;
                 setCurrentSiteContext(null);
                 return;
             }
@@ -820,7 +847,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             chrome.tabs.onActivated.removeListener(handleTabActivated);
             chrome.tabs.onUpdated.removeListener(handleTabUpdated);
         };
-    }, [currentSiteContext?.tabId, requestActivePageOrigin]);
+    }, [requestActivePageOrigin]);
 
     const copyToClipboard = async (text?: string): Promise<boolean> => {
         if (!text) {
@@ -983,12 +1010,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.CreateCredential,
             { form: formData },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1103,12 +1128,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     ) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.UpdateCredential,
             { id, form: formData },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1225,12 +1248,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _deleteCredential = async (id: string) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.DeleteCredential,
             { id },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1268,12 +1289,10 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const refreshDirectories = useCallback(async () => {
         if (!serverPublicKey) return;
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.GetDirectories,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
         const response: EncryptedEnvelope | PlaintextEnvelope =
             await chrome.runtime.sendMessage(envelope);
@@ -1290,12 +1309,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _refreshCredentials = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.GetCredentials,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1348,10 +1365,12 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         setIsRefreshing(true);
-        const res = await _refreshCredentials();
+        const [res] = await Promise.all([
+            _refreshCredentials(),
+            refreshDirectories(),
+        ]);
         if (res.isOk()) {
             setCredentials(res.value);
-            await refreshDirectories();
             setIsRefreshing(false);
             return ok();
         }
@@ -1527,12 +1546,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _getSyncConfig = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.SyncGetConfiguration,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1587,12 +1604,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         async (request: SyncSetLastSyncRequest) => {
             if (!serverPublicKey) return;
 
-            const envelope = await createEncryptedEnvelope(
+            const envelope = await createPopupEnvelope(
                 MessageType.SyncSetLastSync,
                 request,
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup",
+                serverPublicKey,
             );
 
             const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1709,12 +1724,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
         const envelope: EncryptedEnvelope | PlaintextEnvelope =
-            await createEncryptedEnvelope(
+            await createPopupEnvelope(
                 MessageType.GetCredential,
                 { id: id },
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup",
+                serverPublicKey,
             );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =

@@ -11,6 +11,7 @@ import {
     updateShareLinkRecord,
 } from "@cryptex-industries/vault-core/vault-utils/share-records";
 import * as Storage from "@/app_lib/vault-utils/storage";
+import { rotateKeyPair } from "./background/message-key-rotation";
 
 const status = document.querySelector<HTMLOutputElement>("#status")!;
 
@@ -107,5 +108,34 @@ seedButton.addEventListener("click", () => {
         })
         .finally(() => {
             seedButton.disabled = false;
+        });
+});
+
+// Rotates the worker's envelope key the same way the 30-day rotation does,
+// so tests can exercise the STALE_KEY recovery of pages that hold the old key.
+const rotateKeyButton =
+    document.querySelector<HTMLButtonElement>("#rotate-key")!;
+
+rotateKeyButton.addEventListener("click", () => {
+    rotateKeyButton.disabled = true;
+    status.value = "Rotating…";
+
+    void (async () => {
+        if (import.meta.env.MODE !== "development") {
+            throw new Error("E2E bootstrap is development-only");
+        }
+
+        await rotateKeyPair();
+        const active = await Storage.db.keyPairs
+            .where("status")
+            .equals("active")
+            .first();
+        status.value = `Active key ${active?.keyId ?? "missing"}`;
+    })()
+        .catch((error: unknown) => {
+            status.value = `Error: ${error instanceof Error ? error.message : String(error)}`;
+        })
+        .finally(() => {
+            rotateKeyButton.disabled = false;
         });
 });

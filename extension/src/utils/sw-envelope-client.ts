@@ -102,6 +102,26 @@ export async function getServerPublicKey(
     return inflightPublicKeyFetch;
 }
 
+/**
+ * Encrypts a popup request with the shared cached key. A STALE_KEY refresh
+ * updates that cache before the caller retries, while a key captured from
+ * React state only catches up on the next render.
+ */
+export function createPopupEnvelope(
+    messageType: MessageType,
+    payload: object | null,
+    fallbackKey: ServerPublicKey,
+): Promise<EncryptedEnvelope> {
+    const key = serverPublicKey ?? fallbackKey;
+    return createEncryptedEnvelope(
+        messageType,
+        payload,
+        key.publicKeyJwk,
+        key.keyId,
+        "popup",
+    );
+}
+
 export type SwEnvelopeResult<T> =
     | { ok: true; payload: T }
     | { ok: false; code?: string; error: string };

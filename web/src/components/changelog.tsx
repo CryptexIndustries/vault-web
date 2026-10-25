@@ -54,6 +54,16 @@ export const CHANGELOG_DATA: ChangelogRelease[] = [
                 description:
                     'If the receiving vault has its own Online Services account, you now choose whether to keep or delete it before linking. Linking into such a vault used to fail with "Unauthorized".',
             },
+            {
+                type: "changed",
+                description:
+                    "The Chromium Extension stays responsive with large vaults, and unlocking takes about half as long.",
+            },
+            {
+                type: "fix",
+                description:
+                    "The Chromium Extension's popup no longer fails after the extension renews its internal key, and offers Try again when it can't reach its background service.",
+            },
         ],
     },
     {

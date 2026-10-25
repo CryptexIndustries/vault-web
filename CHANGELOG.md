@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bumped the web app and Chromium Extension versions to `1.8.0`.
 - The Android app's first screen calls its Link Vault tab Use invitation, the same name as in the web app and the Devices tab.
 - When the receiving vault has its own Online Services account, the web app and the Android app explain that linking moves the vault to the sending device's account. You can keep the old account or delete it before linking. Deleting is offered on that account's root device and cancels a subscription bought on the web. A Google Play subscription has to be cancelled in the Play Store.
 - The Chromium Extension's popup stays responsive with large vaults. It draws only the credentials in view, so searching and editing no longer stall with hundreds of items, and it opens about twice as fast with 500 credentials.

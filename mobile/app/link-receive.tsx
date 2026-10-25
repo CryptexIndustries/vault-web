@@ -45,6 +45,7 @@ import {
     setOnlineServicesSessionIdentityTransition,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
+import { deleteOnlineServicesAccount } from "@/app_lib/online-services-account";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { LINK_FILE_EXTENSION } from "@cryptex-industries/vault-core/consts";
 import { base64ToUint8 } from "@cryptex-industries/vault-core/encoding";
@@ -53,11 +54,14 @@ import { ensureSecretTempFilesReady } from "@/utils/secret-temp-files";
 import {
     clearOnlineServicesSession,
     isVaultUnlockedAtom,
+    onlineServicesDataAtom,
+    onlineServicesStore,
     setOnlineServicesData,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
 } from "@/utils/atoms";
 import { setVaultDEKInSessionForMetadata } from "@/utils/vault-session";
+import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     createLinkedVaultEnvelope,
     type LinkedVaultEnvelopeResult,
@@ -158,6 +162,8 @@ type MergeSummary = {
     credentialsSkipped: number;
     devicesAdded: number;
 };
+
+type OsOverwriteChoice = "cancel" | "keep" | "delete";
 
 type PendingLinkedSave = {
     metadata: VaultMetadata;
@@ -345,6 +351,7 @@ function LinkReceiveContent({
     const [osOverwriteOpen, setOsOverwriteOpen] = useState(false);
     const [pendingOsOverwrite, setPendingOsOverwrite] =
         useState<OnlineServices | null>(null);
+    const [osOverwriteCanDelete, setOsOverwriteCanDelete] = useState(false);
     const [linkProgress, setLinkProgress] = useState(INITIAL_PROGRESS);
     const [linkActivity, setLinkActivity] = useState<LinkActivityEntry[]>([]);
     const [linkDeadline, setLinkDeadline] = useState<number | null>(null);
@@ -359,7 +366,9 @@ function LinkReceiveContent({
     const onlineServicesRef = useRef<OnlineServices | null>(null);
     const completedRef = useRef(false);
     const failedRef = useRef(false);
-    const osOverwriteResolverRef = useRef<((ok: boolean) => void) | null>(null);
+    const osOverwriteResolverRef = useRef<
+        ((choice: OsOverwriteChoice) => void) | null
+    >(null);
     const pendingLinkedSaveRef = useRef<PendingLinkedSave | null>(null);
     const sealInFlightRef = useRef(false);
     const saveInFlightRef = useRef(false);
@@ -453,7 +462,7 @@ function LinkReceiveContent({
             receivedVaultRef.current = null;
             pendingLinkedSaveRef.current = null;
             if (osOverwriteResolverRef.current) {
-                osOverwriteResolverRef.current(false);
+                osOverwriteResolverRef.current("cancel");
                 osOverwriteResolverRef.current = null;
             }
         };
@@ -678,12 +687,24 @@ function LinkReceiveContent({
         );
     };
 
-    const confirmOsOverwrite = (incoming: OnlineServices) =>
-        new Promise<boolean>((resolve) => {
+    const confirmOsOverwrite = (incoming: OnlineServices, canDelete: boolean) =>
+        new Promise<OsOverwriteChoice>((resolve) => {
             osOverwriteResolverRef.current = resolve;
             setPendingOsOverwrite(incoming);
+            setOsOverwriteCanDelete(canDelete);
             setOsOverwriteOpen(true);
         });
+
+    const chooseOsOverwrite = (choice: OsOverwriteChoice) => {
+        osOverwriteResolverRef.current?.(choice);
+        osOverwriteResolverRef.current = null;
+        setOsOverwriteOpen(false);
+    };
+
+    const osOverwriteSameAccount =
+        pendingOsOverwrite != null &&
+        Vault.isOnlineServicesBound(unlockedVault) &&
+        pendingOsOverwrite.UserID === unlockedVault.OnlineServices.UserID;
 
     const sealLinkedVault = async () => {
         if (sealInFlightRef.current) return;
@@ -1025,14 +1046,55 @@ function LinkReceiveContent({
                         unlockedVault.OnlineServices.DeviceId !==
                             incomingOs.DeviceId)
                 ) {
-                    const ok = await confirmOsOverwrite(incomingOs);
+                    const otherAccount =
+                        unlockedVault.OnlineServices.UserID !==
+                        incomingOs.UserID;
+                    const choice = await confirmOsOverwrite(
+                        incomingOs,
+                        otherAccount &&
+                            (onlineServicesStore.get(onlineServicesDataAtom)
+                                ?.remoteData?.root ??
+                                unlockedVault.OnlineServices.IsRootDevice),
+                    );
                     if (attempt !== linkAttemptRef.current) return;
-                    if (!ok) {
+                    if (choice === "cancel") {
                         finishSessionTransition(attempt);
                         setStage("input");
                         setStatusMessage("");
                         setError("Linking cancelled.");
                         return;
+                    }
+                    if (choice === "delete") {
+                        setStatusMessage("Deleting this device's account…");
+                        // Refresh is paused during the link, and the session may
+                        // have expired while the prompt was open.
+                        await establishOnlineServicesSession({
+                            deviceId: unlockedVault.OnlineServices.DeviceId,
+                            privateKeyJWK:
+                                unlockedVault.OnlineServices.PrivateKeyJWK,
+                        });
+                        if (attempt !== linkAttemptRef.current) return;
+                        await deleteOnlineServicesAccount(
+                            unlockedVault.OnlineServices.PrivateKeyJWK,
+                        );
+                        if (attempt !== linkAttemptRef.current) return;
+                        const unbound = await persistVaultMutation(
+                            "vault.account",
+                            (currentVault) => {
+                                const next = Object.assign(
+                                    new Vault(),
+                                    currentVault,
+                                );
+                                Vault.unbindOnlineServices(next);
+                                return { vault: next, result: undefined };
+                            },
+                        );
+                        if (unbound.isErr()) {
+                            throw new Error(
+                                "The account was deleted, but this vault could not be updated. Try linking again.",
+                            );
+                        }
+                        appendLinkActivity("Deleted this device's account.");
                     }
                 }
 
@@ -2191,48 +2253,64 @@ function LinkReceiveContent({
                     placement="bottom"
                     open={osOverwriteOpen}
                     onOpenChange={(open) => {
-                        if (!open && osOverwriteResolverRef.current) {
-                            osOverwriteResolverRef.current(false);
-                            osOverwriteResolverRef.current = null;
-                        }
-                        setOsOverwriteOpen(open);
+                        if (!open) chooseOsOverwrite("cancel");
                     }}
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Overwrite Online Services?</DialogTitle>
+                            <DialogTitle>
+                                {osOverwriteSameAccount
+                                    ? "Overwrite Online Services?"
+                                    : "This device has its own account"}
+                            </DialogTitle>
                             <DialogDescription>
-                                {pendingOsOverwrite &&
-                                Vault.isOnlineServicesBound(unlockedVault) &&
-                                pendingOsOverwrite.UserID ===
-                                    unlockedVault.OnlineServices.UserID
+                                {osOverwriteSameAccount
                                     ? "This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again."
-                                    : `This link contains Online Services credentials for a different user${pendingOsOverwrite ? ` (${pendingOsOverwrite.UserID})` : ""}. Continuing replaces the Online Services identity saved in this vault, and existing Online Services device links may need to be linked again.`}
+                                    : `The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. ${
+                                          osOverwriteCanDelete
+                                              ? "Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone."
+                                              : "Only that account's root device can delete it."
+                                      }`}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
                             <Button
                                 className="h-[54px] min-h-[54px]"
                                 variant="ghost"
-                                onPress={() => {
-                                    osOverwriteResolverRef.current?.(false);
-                                    osOverwriteResolverRef.current = null;
-                                    setOsOverwriteOpen(false);
-                                }}
+                                onPress={() => chooseOsOverwrite("cancel")}
                             >
                                 Cancel
                             </Button>
-                            <Button
-                                className="h-[54px] min-h-[54px]"
-                                variant="destructive"
-                                onPress={() => {
-                                    osOverwriteResolverRef.current?.(true);
-                                    osOverwriteResolverRef.current = null;
-                                    setOsOverwriteOpen(false);
-                                }}
-                            >
-                                Overwrite
-                            </Button>
+                            {osOverwriteCanDelete ? (
+                                <>
+                                    <Button
+                                        className="h-[54px] min-h-[54px]"
+                                        variant="outline"
+                                        onPress={() => chooseOsOverwrite("keep")}
+                                    >
+                                        Keep it and link
+                                    </Button>
+                                    <Button
+                                        className="h-[54px] min-h-[54px]"
+                                        variant="destructive"
+                                        onPress={() =>
+                                            chooseOsOverwrite("delete")
+                                        }
+                                    >
+                                        Delete it and link
+                                    </Button>
+                                </>
+                            ) : (
+                                <Button
+                                    className="h-[54px] min-h-[54px]"
+                                    variant="destructive"
+                                    onPress={() => chooseOsOverwrite("keep")}
+                                >
+                                    {osOverwriteSameAccount
+                                        ? "Overwrite"
+                                        : "Link anyway"}
+                                </Button>
+                            )}
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

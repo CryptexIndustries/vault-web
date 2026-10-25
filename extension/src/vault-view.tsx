@@ -186,13 +186,12 @@ const VaultView: React.FC<VaultViewProps> = ({
         useState<VaultCredential | null>(null);
 
     // Modal states
-    const credentialModalVisible = useState(false);
-    const credentialModalOpen = credentialModalVisible[0];
+    const [credentialModalOpen, setCredentialModalOpen] = useState(false);
     // Live mirror of the form modal's open state so async draft work can
     // check it without capturing a stale render-time value.
-    const formModalOpenRef = useRef(credentialModalVisible[0]);
+    const formModalOpenRef = useRef(credentialModalOpen);
     useEffect(() => {
-        formModalOpenRef.current = credentialModalVisible[0];
+        formModalOpenRef.current = credentialModalOpen;
     });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
     const [showBackupCenter, setShowBackupCenter] = useState(false);
@@ -908,12 +907,12 @@ const VaultView: React.FC<VaultViewProps> = ({
             );
             setShowFormPassword(false);
             setRevealedCustomFieldIds({});
-            credentialModalVisible[1](true);
+            setCredentialModalOpen(true);
             reset(draft.form);
 
             setRestoredDraft(draft);
         },
-        [reset, credentialModalVisible],
+        [reset],
     );
 
     // Credential CRUD operations
@@ -930,7 +929,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             // Refresh credentials list
             refreshCredentials();
-            credentialModalVisible[1](false);
+            setCredentialModalOpen(false);
             setCredentialFormMode(null);
             reset();
             // The stash was consumed by the save (also covers the STALE_KEY
@@ -1046,7 +1045,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 }
             }
 
-            credentialModalVisible[1](false);
+            setCredentialModalOpen(false);
             setCredentialFormMode(null);
             setEditingCredential(null);
             reset();
@@ -1757,7 +1756,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setEditingCredential(null);
         setShowFormPassword(false);
         setRevealedCustomFieldIds({});
-        credentialModalVisible[1](true);
+        setCredentialModalOpen(true);
         reset({
             ID: null,
             Type: itemType,
@@ -1784,7 +1783,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setEditingCredential(credential);
         setShowFormPassword(false);
         setRevealedCustomFieldIds({});
-        credentialModalVisible[1](true);
+        setCredentialModalOpen(true);
 
         // Populate form with existing data
         reset({
@@ -1818,7 +1817,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setCredentialFormMode(null);
         setEditingCredential(null);
         setShowFormPassword(false);
-        credentialModalVisible[1](false);
+        setCredentialModalOpen(false);
         reset();
         const hadRestoredDraft = restoredDraft !== null;
         setRestoredDraft(null);
@@ -3164,7 +3163,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             {/* Credential Form Dialog */}
             <Dialog
-                open={credentialModalVisible[0]}
+                open={credentialModalOpen}
                 onOpenChange={(open) => {
                     if (!open) requestCloseCredentialForm();
                 }}

@@ -5,7 +5,10 @@ const values = new Map<unknown, unknown>();
 const metadataAtom = { name: "metadata" };
 const vaultAtom = { name: "vault" };
 const mockClearDEK = jest.fn();
-const mockSave = jest.fn(async (): Promise<Result<void, "VAULT_SAVE_FAILED">> => err("VAULT_SAVE_FAILED"));
+const mockSave = jest.fn(
+    async (): Promise<Result<void, "VAULT_SAVE_FAILED">> =>
+        err("VAULT_SAVE_FAILED"),
+);
 const mockClipboardClear = jest.fn(async () => undefined);
 const mockLogout = jest.fn(async () => undefined);
 const mockStopBackup = jest.fn();
@@ -24,9 +27,15 @@ jest.mock("@/utils/atoms", () => ({
 jest.mock("@cryptex-industries/vault-core/vault-utils/vault", () => ({
     Vault: class Vault {},
 }));
-jest.mock("@cryptex-industries/vault-core/vault-utils/vault-write-coordinator", () => ({
-    vaultWriteCoordinator: { run: async (_kind: string, action: () => Promise<unknown>) => action() },
-}));
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator",
+    () => ({
+        vaultWriteCoordinator: {
+            run: async (_kind: string, action: () => Promise<unknown>) =>
+                action(),
+        },
+    }),
+);
 jest.mock("@/utils/vault-session", () => ({
     clearVaultDEKFromSession: mockClearDEK,
     saveVaultWithSessionDEK: mockSave,
@@ -55,12 +64,10 @@ jest.mock("@/utils/logging", () => ({
     vaultLogger: { clearAll: jest.fn() },
 }));
 
-const {
-    lockUnlockedVault,
-    lockVaultWithoutSaving,
-    vaultLockStateAtom,
-} = require("@/utils/vault-lock") as typeof import("@/utils/vault-lock");
-const { registerActiveSyncController } = require("@/utils/active-sync-controllers") as typeof import("@/utils/active-sync-controllers");
+const { lockUnlockedVault, lockVaultWithoutSaving, vaultLockStateAtom } =
+    require("@/utils/vault-lock") as typeof import("@/utils/vault-lock");
+const { registerActiveSyncController } =
+    require("@/utils/active-sync-controllers") as typeof import("@/utils/active-sync-controllers");
 
 describe("lock after a save failure", () => {
     beforeEach(() => {
@@ -92,14 +99,18 @@ describe("lock after a save failure", () => {
         const teardown = jest.fn(() => {
             expect(mockClearDEK).toHaveBeenCalledTimes(1);
             expect(values.get(metadataAtom)).toBeNull();
-            expect(values.get(vaultAtom)).not.toEqual({ Credentials: [{ Password: "unsaved" }] });
+            expect(values.get(vaultAtom)).not.toEqual({
+                Credentials: [{ Password: "unsaved" }],
+            });
         });
         const forced = await lockVaultWithoutSaving({ teardown } as never);
         expect(forced.isOk()).toBe(true);
         expect(mockSave).toHaveBeenCalledTimes(1);
         expect(mockClearDEK).toHaveBeenCalledTimes(1);
         expect(values.get(metadataAtom)).toBeNull();
-        expect(values.get(vaultAtom)).not.toEqual({ Credentials: [{ Password: "unsaved" }] });
+        expect(values.get(vaultAtom)).not.toEqual({
+            Credentials: [{ Password: "unsaved" }],
+        });
         expect(teardown).toHaveBeenCalledTimes(1);
         expect(mockClearProvider).toHaveBeenCalledTimes(1);
         expect(mockStopBackup).toHaveBeenCalledTimes(1);
@@ -136,7 +147,8 @@ describe("lock after a save failure", () => {
         const result = await lockUnlockedVault({
             unlockedVaultMetadata: { ID: "vault" } as never,
             setUnlockedVault: async () => undefined,
-            setUnlockedVaultMetadata: (metadata) => values.set(metadataAtom, metadata),
+            setUnlockedVaultMetadata: (metadata) =>
+                values.set(metadataAtom, metadata),
         });
 
         expect(result.isOk()).toBe(true);

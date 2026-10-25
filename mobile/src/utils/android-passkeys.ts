@@ -307,7 +307,8 @@ export async function createAndroidPasskey(
         PrivateKey: JSON.stringify(privateJwk),
         Algorithm: supported.alg,
         SignCount: 0,
-        Discoverable: json.authenticatorSelection?.residentKey !== "discouraged",
+        Discoverable:
+            json.authenticatorSelection?.residentKey !== "discouraged",
     };
     return {
         passkey,

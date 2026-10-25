@@ -3,15 +3,15 @@ name: Android passkey locked-vault assertion
 ---
 - launchApp
 - runFlow:
-    when:
-      visible: Unlock vault
-    commands:
-      - tapOn: Master password
-      - eraseText: 100
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: unlock-vault
+      when:
+          visible: Unlock vault
+      commands:
+          - tapOn: Master password
+          - eraseText: 100
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: unlock-vault
 - tapOn: Vault
 # Launching an already-running app does not guarantee a locked vault.
 - tapOn: Lock vault
@@ -27,7 +27,7 @@ name: Android passkey locked-vault assertion
 - inputText: CorrectHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: Fixture User A
 - tapOn: Fixture User A
 - assertVisible: Authenticated account A

@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement, type ReactNode } from "react";
@@ -78,7 +85,11 @@ type WorkerGlobal = typeof globalThis & { runSSHKeyWorkerTask?: unknown };
 const worker = globalThis as WorkerGlobal;
 const fixture = (name: string) =>
     readFileSync(
-        resolve(__dirname, "../../packages/vault-core/src/tests/fixtures/ssh", name),
+        resolve(
+            __dirname,
+            "../../packages/vault-core/src/tests/fixtures/ssh",
+            name,
+        ),
         "utf8",
     );
 const credential = Object.assign(new VaultCredential(), {
@@ -147,7 +158,9 @@ describe("SSH key details", () => {
     it("keeps the private key row while it loads, and offers a retry when loading fails", async () => {
         mockWorker.hold = true;
         await render();
-        expect(texts()).toEqual(expect.arrayContaining(["Private key", "Loading…"]));
+        expect(texts()).toEqual(
+            expect.arrayContaining(["Private key", "Loading…"]),
+        );
         expect(labelled("Copy Private key")).toBeUndefined();
         await release();
         expect(texts()).not.toContain("Loading…");

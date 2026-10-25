@@ -56,7 +56,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
             moduleName.startsWith("@revenuecat/") ||
             (moduleName === "./google-play-billing" &&
                 context.originModulePath ===
-                    path.join(projectRoot, "src/app_lib/online-services-billing.ts")))
+                    path.join(
+                        projectRoot,
+                        "src/app_lib/online-services-billing.ts",
+                    )))
     ) {
         return { type: "empty" };
     }

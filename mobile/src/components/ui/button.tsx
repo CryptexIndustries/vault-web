@@ -18,7 +18,8 @@ const buttonVariants = cva(
             variant: {
                 default: "bg-primary active:bg-primary/90",
                 secondary: "bg-secondary active:bg-secondary/80",
-                outline: "border border-input bg-background active:bg-accent/20",
+                outline:
+                    "border border-input bg-background active:bg-accent/20",
                 ghost: "active:bg-accent/20",
                 destructive:
                     "border border-[#895466] bg-[#30212c] active:bg-[#492b38]",
@@ -76,7 +77,10 @@ function Button({
     ...props
 }: ButtonProps) {
     const isDisabled = disabled || loading;
-    const textClasses = cn(buttonTextVariants({ variant, size }), textClassName);
+    const textClasses = cn(
+        buttonTextVariants({ variant, size }),
+        textClassName,
+    );
 
     const content =
         typeof children === "string" || typeof children === "number" ? (
@@ -93,7 +97,9 @@ function Button({
                     isDisabled && "opacity-50",
                     className,
                 )}
-                style={{ minHeight: size === "sm" ? 36 : layout.minTouchTarget }}
+                style={{
+                    minHeight: size === "sm" ? 36 : layout.minTouchTarget,
+                }}
                 accessibilityRole="button"
                 disabled={isDisabled}
                 {...props}

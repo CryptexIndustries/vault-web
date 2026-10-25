@@ -6,6 +6,7 @@ export function completedLocalDescription<T extends { sdp: string }>(
 ): T | undefined {
     if (state !== "complete") return;
     for (const description of [current, retained]) {
-        if (description && /(?:^|\r?\n)a=candidate:/.test(description.sdp)) return description;
+        if (description && /(?:^|\r?\n)a=candidate:/.test(description.sdp))
+            return description;
     }
 }

@@ -8,17 +8,17 @@ name: SSH agent approval setup
 - runFlow: setup-vault.yaml
 - tapOn: Add item
 - tapOn:
-    id: add-item-ssh-key
+      id: add-item-ssh-key
 - extendedWaitUntil:
-    visible:
-      id: ssh-key-generated
-    timeout: 30000
+      visible:
+          id: ssh-key-generated
+      timeout: 30000
 - tapOn: SSH key name
 - inputText: Agent key
 - hideKeyboard
 - tapOn:
-    id: ssh-key-submit
+      id: ssh-key-submit
 - extendedWaitUntil:
-    visible: Item details
-    timeout: 30000
+      visible: Item details
+      timeout: 30000
 - tapOn: Back

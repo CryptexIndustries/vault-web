@@ -18,7 +18,11 @@ import {
 import { verifyRelease } from "../scripts/verify-release.mjs";
 import { prepareSource } from "./prepare-source.mjs";
 import { buildSkiaLibraries, skiaTargets } from "./skia-source.mjs";
-import { artifactName, getProfile, selectedArchitectures } from "../scripts/release-config.mjs";
+import {
+    artifactName,
+    getProfile,
+    selectedArchitectures,
+} from "../scripts/release-config.mjs";
 
 // F-Droid scans between these phases. Never prebuild again after that scan.
 const mobile = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -26,7 +30,9 @@ const checkout = dirname(mobile);
 const android = join(mobile, "android");
 const work = join(mobile, "dist/fdroid-build");
 const [phase, esbuildSource, lightningcssSource, skiaSource, gnSource] =
-    process.argv.slice(2).map((value, index) => index ? resolve(value) : value);
+    process.argv
+        .slice(2)
+        .map((value, index) => (index ? resolve(value) : value));
 assert.ok(
     ["prebuild", "build"].includes(phase),
     "Use prebuild or build <esbuild source> <Lightning CSS source> <Skia source> <GN source>.",
@@ -37,13 +43,21 @@ assert.equal(
     "Unexpected F-Droid build arguments.",
 );
 if (phase === "build") {
-    assert.ok(process.env.CRYPTEX_GRADLE_COMMAND, "Set CRYPTEX_GRADLE_COMMAND to installed Gradle.");
-    assert.ok(process.env.CRYPTEX_OPENSSL_SOURCE, "Provide the reviewed OpenSSL source library checkout.");
-    process.env.CRYPTEX_OPENSSL_SOURCE = resolve(process.env.CRYPTEX_OPENSSL_SOURCE);
+    assert.ok(
+        process.env.CRYPTEX_GRADLE_COMMAND,
+        "Set CRYPTEX_GRADLE_COMMAND to installed Gradle.",
+    );
+    assert.ok(
+        process.env.CRYPTEX_OPENSSL_SOURCE,
+        "Provide the reviewed OpenSSL source library checkout.",
+    );
+    process.env.CRYPTEX_OPENSSL_SOURCE = resolve(
+        process.env.CRYPTEX_OPENSSL_SOURCE,
+    );
     // F-Droid's wrapper selects Gradle from this project's wrapper properties.
     process.chdir(android);
 }
-const arch = process.env.CRYPTEX_BUILD_ARCH || 'all';
+const arch = process.env.CRYPTEX_BUILD_ARCH || "all";
 const abis = selectedArchitectures(arch);
 // Preprod test builds export CRYPTEX_APP_PROFILE=preprod; F-Droid's own recipe never sets it.
 const profile = getProfile(process.env.CRYPTEX_APP_PROFILE || "production");
@@ -93,7 +107,8 @@ if (phase === "prebuild") {
         "Run prebuild and the F-Droid scanner first.",
     );
     assert.ok(
-        env.CRYPTEX_OPENSSL_SOURCE && existsSync(join(env.CRYPTEX_OPENSSL_SOURCE, "Configure")),
+        env.CRYPTEX_OPENSSL_SOURCE &&
+            existsSync(join(env.CRYPTEX_OPENSSL_SOURCE, "Configure")),
         "Provide the reviewed OpenSSL source library checkout.",
     );
     mkdirSync(work, { recursive: true });
@@ -186,7 +201,9 @@ if (phase === "prebuild") {
         ),
         outputDirectory: join(work, "skia"),
         ndkDirectory: join(env.ANDROID_HOME, "ndk", toolchain.ndk),
-        cpus: Object.keys(skiaTargets).filter(cpu => abis.includes(skiaTargets[cpu])),
+        cpus: Object.keys(skiaTargets).filter((cpu) =>
+            abis.includes(skiaTargets[cpu]),
+        ),
         env,
     });
     const embedded = JSON.parse(
@@ -209,7 +226,7 @@ if (phase === "prebuild") {
             "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8",
             "-PcryptexUnsignedRelease=true",
             "-PreactNativeDevServerIp=127.0.0.1",
-            `-PreactNativeArchitectures=${abis.join(',')}`,
+            `-PreactNativeArchitectures=${abis.join(",")}`,
             `-Pandroid.buildToolsVersion=${toolchain.buildTools}`,
             `-Pandroid.compileSdkVersion=${toolchain.compileSdk}`,
             `-Pandroid.targetSdkVersion=${toolchain.targetSdk}`,
@@ -240,7 +257,17 @@ if (phase === "prebuild") {
         env,
         config,
     });
-    run(process.execPath, [join(mobile, "scripts/verify-native-crypto.mjs"), "--apk", apk, "--arch", arch], mobile);
+    run(
+        process.execPath,
+        [
+            join(mobile, "scripts/verify-native-crypto.mjs"),
+            "--apk",
+            apk,
+            "--arch",
+            arch,
+        ],
+        mobile,
+    );
     writeFileSync(
         `${apk}.json`,
         JSON.stringify(

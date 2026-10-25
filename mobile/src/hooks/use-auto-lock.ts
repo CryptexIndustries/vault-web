@@ -53,7 +53,10 @@ export { isAutoLockDue } from "@/utils/session-timeout";
  *
  * Interaction timestamps stay in memory (throttled). No AsyncStorage on touch.
  */
-export function useAutoLock(enabled = true, returnTo?: string): {
+export function useAutoLock(
+    enabled = true,
+    returnTo?: string,
+): {
     onInteraction: () => void;
     resumeAfterFailedLock: () => void;
 } {
@@ -96,15 +99,30 @@ export function useAutoLock(enabled = true, returnTo?: string): {
             });
             if (result.isOk() && mountedRef.current) {
                 const pendingRequest = androidCredentials.getPendingRequest();
-                router.replace(pendingRequest
-                    ? { pathname: "/(locked)/unlock", params: { returnTo: "/credential-request" } }
-                    : returnTo ? { pathname: "/(locked)/unlock", params: { returnTo } }
-                    : "/(locked)/unlock");
+                router.replace(
+                    pendingRequest
+                        ? {
+                              pathname: "/(locked)/unlock",
+                              params: { returnTo: "/credential-request" },
+                          }
+                        : returnTo
+                          ? {
+                                pathname: "/(locked)/unlock",
+                                params: { returnTo },
+                            }
+                          : "/(locked)/unlock",
+                );
             }
         } finally {
             lockingRef.current = false;
         }
-    }, [clearIdleTimer, enabled, returnTo, setUnlockedVault, setUnlockedVaultMetadata]);
+    }, [
+        clearIdleTimer,
+        enabled,
+        returnTo,
+        setUnlockedVault,
+        setUnlockedVaultMetadata,
+    ]);
 
     const scheduleForegroundIdle = useCallback(() => {
         clearIdleTimer();
@@ -120,11 +138,14 @@ export function useAutoLock(enabled = true, returnTo?: string): {
         if (delayMs == null) return;
         const remainingMs = vaultTimeoutRemainingMs();
 
-        idleTimerRef.current = setTimeout(() => {
-            idleTimerRef.current = null;
-            if (isAutoLockDue()) void runLock();
-            else scheduleForegroundIdle();
-        }, Math.min(delayMs, remainingMs ?? delayMs));
+        idleTimerRef.current = setTimeout(
+            () => {
+                idleTimerRef.current = null;
+                if (isAutoLockDue()) void runLock();
+                else scheduleForegroundIdle();
+            },
+            Math.min(delayMs, remainingMs ?? delayMs),
+        );
     }, [clearIdleTimer, enabled, metadata, runLock]);
 
     const onInteraction = useCallback(() => {
@@ -183,8 +204,7 @@ export function useAutoLock(enabled = true, returnTo?: string): {
         // Unlock normally starts the session when the DEK is installed. The
         // fallback covers an already-unlocked shell restored by navigation.
         if (!isVaultTimeoutSessionActive()) startVaultTimeoutSession();
-        if (AppState.currentState !== "active")
-            noteVaultBackgrounded();
+        if (AppState.currentState !== "active") noteVaultBackgrounded();
         lastInteractionAtRef.current = getVaultLastInteractionAt();
 
         void (async () => {
@@ -198,8 +218,7 @@ export function useAutoLock(enabled = true, returnTo?: string): {
             }
             if (AppState.currentState === "active")
                 androidCredentials.resumeProviderSession(minutes);
-            else
-                androidCredentials.backgroundProviderSession(minutes);
+            else androidCredentials.backgroundProviderSession(minutes);
             if (AppState.currentState === "active") {
                 scheduleForegroundIdle();
             }
@@ -214,8 +233,7 @@ export function useAutoLock(enabled = true, returnTo?: string): {
             }
             if (appStateRef.current === "active")
                 androidCredentials.refreshProviderSession(minutes);
-            else
-                androidCredentials.backgroundProviderSession(minutes);
+            else androidCredentials.backgroundProviderSession(minutes);
             if (appStateRef.current === "active") {
                 scheduleForegroundIdle();
             }
@@ -243,7 +261,9 @@ export function useAutoLock(enabled = true, returnTo?: string): {
             if (prev === "active") {
                 clearIdleTimer();
                 noteVaultBackgrounded();
-                androidCredentials.backgroundProviderSession(minutesRef.current);
+                androidCredentials.backgroundProviderSession(
+                    minutesRef.current,
+                );
             }
         };
 

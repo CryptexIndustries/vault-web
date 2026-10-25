@@ -317,7 +317,9 @@ export function VaultHomeScreen({
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Search your vault"
-                onPress={() => router.push("/(app)/(tabs)/vault/search" as never)}
+                onPress={() =>
+                    router.push("/(app)/(tabs)/vault/search" as never)
+                }
                 style={{
                     height: 54,
                     flexDirection: "row",

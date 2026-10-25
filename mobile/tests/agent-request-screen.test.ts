@@ -154,7 +154,9 @@ describe("SSH approval screen", () => {
     it("says which of the waiting requests it shows", () => {
         mockPending.set("r2", request("r2", 2));
         render();
-        expect(byTestId("agent-request-position")[0]!.props.children).toBe("1 of 2");
+        expect(byTestId("agent-request-position")[0]!.props.children).toBe(
+            "1 of 2",
+        );
     });
 
     it("protects the screen from overlays while it shows", () => {

@@ -36,7 +36,8 @@ function IconButton({
                 variant === "outline" && "border border-border bg-background",
                 variant === "secondary" && "bg-secondary",
                 variant === "ghost" && "active:bg-accent/20",
-                variant === "destructive" && buttonVariants({ variant: "destructive", size: "icon" }),
+                variant === "destructive" &&
+                    buttonVariants({ variant: "destructive", size: "icon" }),
                 disabled && "opacity-50",
                 className,
             )}
@@ -50,7 +51,11 @@ function IconButton({
                 as={icon}
                 size={size}
                 color={variant === "destructive" ? undefined : color}
-                className={variant === "destructive" ? buttonTextVariants({ variant: "destructive" }) : undefined}
+                className={
+                    variant === "destructive"
+                        ? buttonTextVariants({ variant: "destructive" })
+                        : undefined
+                }
                 accessibilityElementsHidden
             />
         </Pressable>

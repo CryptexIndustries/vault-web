@@ -104,16 +104,25 @@ describe("credential search", () => {
         expect(searchFieldSuggestions("")).toEqual(["name", "tag", "note"]);
         expect(searchFieldSuggestions("N")).toEqual(["name", "note"]);
         expect(searchFieldSuggestions("tag:work na")).toEqual(["name"]);
-        expect(searchFieldSuggestions("tag:work ")).toEqual(["name", "tag", "note"]);
+        expect(searchFieldSuggestions("tag:work ")).toEqual([
+            "name",
+            "tag",
+            "note",
+        ]);
         for (const query of ["tag:", "tag:na", "github", 'note:"na']) {
             expect(searchFieldSuggestions(query)).toEqual([]);
         }
-        expect(completeSearchField("tag:work NA", "name")).toBe("tag:work name:");
+        expect(completeSearchField("tag:work NA", "name")).toBe(
+            "tag:work name:",
+        );
         expect(completeSearchField("tag:work ", "note")).toBe("tag:work note:");
     });
 
     it("keeps results while a field prefix is incomplete, including after another filter", () => {
-        const items = [cred({ ID: "1", Name: "Alpha", Tags: "work" }), cred({ ID: "2", Name: "Beta" })];
+        const items = [
+            cred({ ID: "1", Name: "Alpha", Tags: "work" }),
+            cred({ ID: "2", Name: "Beta" }),
+        ];
         for (const query of ["", "name:", "tag:", "NOTE: "]) {
             expect(filterCredentials(items, query)).toEqual(items);
         }
@@ -135,14 +144,27 @@ describe("credential search", () => {
 
     it("matches web free-text fields and combines quoted alternatives with other filters", () => {
         const items = [
-            cred({ ID: "1", Name: "Alpha Team", Username: "alice", Tags: "work", Notes: "vpn key", URL: "https://only-url.example" }),
+            cred({
+                ID: "1",
+                Name: "Alpha Team",
+                Username: "alice",
+                Tags: "work",
+                Notes: "vpn key",
+                URL: "https://only-url.example",
+            }),
             cred({ ID: "2", Name: "Beta", Tags: "personal", Notes: "vpn key" }),
         ];
-        expect(filterCredentials(items, 'name:"Alpha Team",Beta note:"vpn key"')).toEqual(items);
-        expect(filterCredentials(items, 'name:"Alpha Team",Beta tag:work')).toEqual([items[0]]);
+        expect(
+            filterCredentials(items, 'name:"Alpha Team",Beta note:"vpn key"'),
+        ).toEqual(items);
+        expect(
+            filterCredentials(items, 'name:"Alpha Team",Beta tag:work'),
+        ).toEqual([items[0]]);
         expect(filterCredentials(items, "ALICE")).toEqual([items[0]]);
         expect(filterCredentials(items, "only-url.example")).toEqual([]);
-        expect(filterCredentials(items, "only-url.example", { includeURLs: true })).toEqual([items[0]]);
+        expect(
+            filterCredentials(items, "only-url.example", { includeURLs: true }),
+        ).toEqual([items[0]]);
     });
 
     it("sorts by name and modified timestamps", () => {

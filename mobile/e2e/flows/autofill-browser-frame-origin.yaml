@@ -16,15 +16,15 @@ name: Chrome cross-origin frame isolation
 - assertVisible: Review destination
 - tapOn: Fill once
 - runFlow:
-    when:
-      visible: Chrome
-    commands:
-      - tapOn: Chrome
+      when:
+          visible: Chrome
+      commands:
+          - tapOn: Chrome
 # Chrome 134 may hide the page's accessibility tree after Autofill returns.
 # The fixed fixture button (pinned 1080x2400 AVD) records only fill states in
 # the URL, including the off-screen frame.
 - tapOn:
-    point: 84%,14%
+      point: 84%,14%
 - assertVisible: localhost:43110/frame-check\?case=frame&page=empty&visible=filled&offscreen=empty
 
 # A fresh page request fills the top-level form, not either frame.
@@ -41,10 +41,10 @@ name: Chrome cross-origin frame isolation
 - assertVisible: Review destination
 - tapOn: Fill once
 - runFlow:
-    when:
-      visible: Chrome
-    commands:
-      - tapOn: Chrome
+      when:
+          visible: Chrome
+      commands:
+          - tapOn: Chrome
 - tapOn:
-    point: 84%,14%
+      point: 84%,14%
 - assertVisible: localhost:43110/frame-check\?case=page&page=filled&visible=empty&offscreen=empty

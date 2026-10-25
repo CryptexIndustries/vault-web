@@ -13,7 +13,9 @@ import { unlockedVaultAtom } from "@/utils/atoms";
 export default function SignalingServerEditorScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const vault = useAtomValue(unlockedVaultAtom);
-    const [deletingServerId, setDeletingServerId] = useState<string | null>(null);
+    const [deletingServerId, setDeletingServerId] = useState<string | null>(
+        null,
+    );
     useEffect(() => setDeletingServerId(null), [id]);
     const exists =
         id === "new" ||

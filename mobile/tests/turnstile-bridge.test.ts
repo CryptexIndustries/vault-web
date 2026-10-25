@@ -58,19 +58,35 @@ describe("turnstile bridge helpers", () => {
             (globalThis as { __DEV__?: boolean }).__DEV__ = false;
             mockEnv.APP_URL = "http://localhost:3000";
             delete process.env.EXPO_PUBLIC_CRYPTEX_E2E;
-            const url = "http://localhost:3000/turnstile/mobile?action=auth_register";
+            const url =
+                "http://localhost:3000/turnstile/mobile?action=auth_register";
             expect(assertTurnstileBridgeUrlAllowed(url)).toBe(false);
             process.env.EXPO_PUBLIC_CRYPTEX_E2E = "1";
             expect(assertTurnstileBridgeUrlAllowed(url)).toBe(true);
-            expect(assertTurnstileBridgeUrlAllowed(url.replace(":3000", ":3300"))).toBe(false);
-            expect(assertTurnstileBridgeUrlAllowed(url.replace("/turnstile/mobile", "/other"))).toBe(false);
+            expect(
+                assertTurnstileBridgeUrlAllowed(url.replace(":3000", ":3300")),
+            ).toBe(false);
+            expect(
+                assertTurnstileBridgeUrlAllowed(
+                    url.replace("/turnstile/mobile", "/other"),
+                ),
+            ).toBe(false);
             mockEnv.APP_URL = "http://review.local";
-            expect(assertTurnstileBridgeUrlAllowed("http://review.local/turnstile/mobile?action=auth_register")).toBe(false);
-            expect(isAllowedTurnstileNavigationUrl("http://challenges.cloudflare.com/challenge")).toBe(false);
+            expect(
+                assertTurnstileBridgeUrlAllowed(
+                    "http://review.local/turnstile/mobile?action=auth_register",
+                ),
+            ).toBe(false);
+            expect(
+                isAllowedTurnstileNavigationUrl(
+                    "http://challenges.cloudflare.com/challenge",
+                ),
+            ).toBe(false);
         } finally {
             mockEnv.APP_URL = previousOrigin;
             (globalThis as { __DEV__?: boolean }).__DEV__ = previousDev;
-            if (previousFlag === undefined) delete process.env.EXPO_PUBLIC_CRYPTEX_E2E;
+            if (previousFlag === undefined)
+                delete process.env.EXPO_PUBLIC_CRYPTEX_E2E;
             else process.env.EXPO_PUBLIC_CRYPTEX_E2E = previousFlag;
         }
     });
@@ -85,9 +101,9 @@ describe("turnstile bridge helpers", () => {
                 bridgeUrl,
             ),
         ).toBe(true);
-        expect(
-            isAllowedTurnstileMessageSource(bridgeUrl, bridgeUrl),
-        ).toBe(true);
+        expect(isAllowedTurnstileMessageSource(bridgeUrl, bridgeUrl)).toBe(
+            true,
+        );
         expect(
             isAllowedTurnstileMessageSource(
                 "https://evil.example.com",
@@ -100,9 +116,9 @@ describe("turnstile bridge helpers", () => {
                 bridgeUrl,
             ),
         ).toBe(false);
-        expect(
-            isAllowedTurnstileMessageSource("not a URL", bridgeUrl),
-        ).toBe(false);
+        expect(isAllowedTurnstileMessageSource("not a URL", bridgeUrl)).toBe(
+            false,
+        );
     });
 
     it("creates a hex nonce of expected length", () => {

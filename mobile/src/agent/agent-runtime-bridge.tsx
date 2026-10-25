@@ -47,12 +47,16 @@ export function AgentRuntimeBridge() {
 
     useEffect(() => {
         void agentRuntime.reload().catch((error: unknown) =>
-            vaultLog.warn("Couldn't start the SSH agent approver", { error }),
+            vaultLog.warn("Couldn't start the SSH agent approver", {
+                error,
+            }),
         );
         // Listen first, then take what came in before (cold starts). The
         // headless task may have started listening already; Review taps
         // that came in meanwhile run now.
-        const stopReviews = notificationActions.setReviewHandler(reviewFromNotification);
+        const stopReviews = notificationActions.setReviewHandler(
+            reviewFromNotification,
+        );
         notificationActions.listen();
         let retry: ReturnType<typeof setTimeout> | undefined;
         const appState = AppState.addEventListener("change", (state) => {
@@ -62,7 +66,10 @@ export function AgentRuntimeBridge() {
             if (state === "active") {
                 showWantedApproval();
                 clearTimeout(retry);
-                retry = setTimeout(showWantedApproval, APPROVAL_PUSH_RETRY_MS + 100);
+                retry = setTimeout(
+                    showWantedApproval,
+                    APPROVAL_PUSH_RETRY_MS + 100,
+                );
             }
         });
         return () => {

@@ -5,47 +5,47 @@ appId: ${CRYPTEX_APP_ID}
 # A freshly booted CI emulator can show "Quickstep isn't responding" over the
 # app. Choose Wait so the system dialog doesn't hide the screen.
 - extendedWaitUntil:
-    visible: "Create vault|.*isn.t responding"
-    timeout: 30000
+      visible: "Create vault|.*isn.t responding"
+      timeout: 30000
 - runFlow:
-    when:
-      visible: ".*isn.t responding"
-    commands:
-      - tapOn: Wait
+      when:
+          visible: ".*isn.t responding"
+      commands:
+          - tapOn: Wait
 - assertVisible: Create vault
 # Maestro's hideKeyboard always presses Back. Right after a fresh emulator
 # boot the keyboard can come up late; that Back then sends the app to the
 # background, and the form is empty when it comes back. Fill the form again
 # from the start when that happens.
 - retry:
-    maxRetries: 2
-    commands:
-      - launchApp:
-          stopApp: false
-      - assertVisible: Create vault
-      - tapOn: Vault name
-      - eraseText: 100
-      - inputText: E2E Vault
-      - hideKeyboard
-      - tapOn: Master password
-      - eraseText: 100
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: confirm-master-password
-      - eraseText: 100
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn: Continue
-      - assertVisible: Additional key protection
+      maxRetries: 2
+      commands:
+          - launchApp:
+                stopApp: false
+          - assertVisible: Create vault
+          - tapOn: Vault name
+          - eraseText: 100
+          - inputText: E2E Vault
+          - hideKeyboard
+          - tapOn: Master password
+          - eraseText: 100
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: confirm-master-password
+          - eraseText: 100
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn: Continue
+          - assertVisible: Additional key protection
 - tapOn:
-    id: create-vault
+      id: create-vault
 - runFlow:
-    when:
-      visible: Failed to create vault.*
-    commands:
-      - tapOn:
-          id: create-vault
+      when:
+          visible: Failed to create vault.*
+      commands:
+          - tapOn:
+                id: create-vault
 - assertVisible: Keep your way back in
 - tapOn: I have written down the recovery code
 - tapOn: Save & open vault

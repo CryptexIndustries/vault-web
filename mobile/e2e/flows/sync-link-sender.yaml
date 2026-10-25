@@ -13,20 +13,20 @@ name: Create a real device-link invitation
 - hideKeyboard
 - tapOn: Create invitation
 - scrollUntilVisible:
-    element:
-      text: Copy invitation
-    direction: DOWN
+      element:
+          text: Copy invitation
+      direction: DOWN
 # The live transfer is already waiting; sharing must not stop it.
 - tapOn: Share file
 - runFlow: export-capture.yaml
 # The words sit just above Share file; read them before scrolling further down.
 - scrollUntilVisible:
-    element:
-      text: '[a-z]+( [a-z]+){11}'
-    direction: UP
-- copyTextFrom: '[a-z]+( [a-z]+){11}'
+      element:
+          text: "[a-z]+( [a-z]+){11}"
+      direction: UP
+- copyTextFrom: "[a-z]+( [a-z]+){11}"
 - evalScript: ${console.log('E2E_TRANSFER_PHRASE:' + maestro.copiedText)}
 - scrollUntilVisible:
-    element:
-      text: Waiting for other device.*
-    direction: DOWN
+      element:
+          text: Waiting for other device.*
+      direction: DOWN

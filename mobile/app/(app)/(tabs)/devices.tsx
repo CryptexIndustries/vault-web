@@ -876,8 +876,10 @@ export default function DevicesScreen() {
                                                 right={
                                                     <View
                                                         style={{
-                                                            flexDirection: "row",
-                                                            alignItems: "center",
+                                                            flexDirection:
+                                                                "row",
+                                                            alignItems:
+                                                                "center",
                                                             gap: 6,
                                                         }}
                                                     >
@@ -887,7 +889,9 @@ export default function DevicesScreen() {
                                                                 color: colors.muted,
                                                             }}
                                                         >
-                                                            {String(visibleAgents.length)}
+                                                            {String(
+                                                                visibleAgents.length,
+                                                            )}
                                                         </Text>
                                                         <Pressable
                                                             testID="agent-relay-shortcut"
@@ -902,20 +906,28 @@ export default function DevicesScreen() {
                                                             style={{
                                                                 width: 32,
                                                                 height: 32,
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
                                                             }}
                                                         >
                                                             <Settings
                                                                 size={16}
-                                                                color={colors.muted}
-                                                                strokeWidth={1.8}
+                                                                color={
+                                                                    colors.muted
+                                                                }
+                                                                strokeWidth={
+                                                                    1.8
+                                                                }
                                                             />
                                                         </Pressable>
                                                     </View>
                                                 }
                                             />
-                                            {visibleAgents.some(connectedAgents.approvedHere) ? (
+                                            {visibleAgents.some(
+                                                connectedAgents.approvedHere,
+                                            ) ? (
                                                 <AgentNotificationsNotice
                                                     style={{ marginBottom: 8 }}
                                                 />

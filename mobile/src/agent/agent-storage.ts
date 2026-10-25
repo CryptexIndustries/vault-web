@@ -48,7 +48,11 @@ const secure = {
 };
 
 /** Stored JSON through read(), or the fallback when missing or unreadable. */
-function parseStored<T>(saved: string | null, fallback: T, read: (parsed: unknown) => T): T {
+function parseStored<T>(
+    saved: string | null,
+    fallback: T,
+    read: (parsed: unknown) => T,
+): T {
     if (!saved) return fallback;
     try {
         return read(JSON.parse(saved));
@@ -91,7 +95,11 @@ type StoredRelayPass = {
 };
 
 export async function loadRelayPass(): Promise<StoredRelayPass | null> {
-    return parseStored(await secure.get(RELAY_PASS_KEY), null, (parsed) => parsed as StoredRelayPass);
+    return parseStored(
+        await secure.get(RELAY_PASS_KEY),
+        null,
+        (parsed) => parsed as StoredRelayPass,
+    );
 }
 
 export async function saveRelayPass(pass: StoredRelayPass | null) {
@@ -103,7 +111,9 @@ export async function loadCustomRelays(): Promise<CustomRelay[]> {
     return parseStored(await secure.get(CUSTOM_RELAYS_KEY), [], (parsed) =>
         Array.isArray(parsed)
             ? (parsed as CustomRelay[]).filter(
-                  (relay) => typeof relay.origin === "string" && typeof relay.token === "string",
+                  (relay) =>
+                      typeof relay.origin === "string" &&
+                      typeof relay.token === "string",
               )
             : [],
     );
@@ -111,7 +121,9 @@ export async function loadCustomRelays(): Promise<CustomRelay[]> {
 
 /** Adds or replaces the token for one relay. */
 export async function saveCustomRelay(relay: CustomRelay) {
-    const relays = (await loadCustomRelays()).filter((item) => item.origin !== relay.origin);
+    const relays = (await loadCustomRelays()).filter(
+        (item) => item.origin !== relay.origin,
+    );
     await secure.set(CUSTOM_RELAYS_KEY, [...relays, relay]);
 }
 
@@ -123,8 +135,10 @@ export async function removeCustomRelay(origin: string) {
 }
 
 export async function loadAgentCache(): Promise<CachedAgent[]> {
-    return parseStored(await AsyncStorage.getItem(AGENT_CACHE_KEY), [], (parsed) =>
-        Array.isArray(parsed) ? (parsed as CachedAgent[]) : [],
+    return parseStored(
+        await AsyncStorage.getItem(AGENT_CACHE_KEY),
+        [],
+        (parsed) => (Array.isArray(parsed) ? (parsed as CachedAgent[]) : []),
     );
 }
 
@@ -136,15 +150,18 @@ export async function saveAgentCache(agents: CachedAgent[]) {
 /** The runtime owns the contents (accept, sendKeys, tombstone cleanup). */
 export const localApprovals: LocalApprovalStore = {
     async load(): Promise<LocalAgentApproval[]> {
-        return parseStored(await secure.get(LOCAL_APPROVALS_KEY), [], (parsed) =>
-            Array.isArray(parsed)
-                ? (parsed as LocalAgentApproval[]).filter(
-                      (item) =>
-                          typeof item?.agentId === "string" &&
-                          Array.isArray(item.keys) &&
-                          item.keys.every((key) => typeof key === "string"),
-                  )
-                : [],
+        return parseStored(
+            await secure.get(LOCAL_APPROVALS_KEY),
+            [],
+            (parsed) =>
+                Array.isArray(parsed)
+                    ? (parsed as LocalAgentApproval[]).filter(
+                          (item) =>
+                              typeof item?.agentId === "string" &&
+                              Array.isArray(item.keys) &&
+                              item.keys.every((key) => typeof key === "string"),
+                      )
+                    : [],
         );
     },
     async save(approvals: LocalAgentApproval[]) {

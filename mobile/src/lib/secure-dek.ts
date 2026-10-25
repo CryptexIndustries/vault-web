@@ -237,7 +237,9 @@ export function enableBiometricUnlock(
     );
 }
 
-export async function unlockWithBiometric(vaultDbIndex: number): Promise<
+export async function unlockWithBiometric(
+    vaultDbIndex: number,
+): Promise<
     Result<{ dek: CryptoKey; vaultDbIndex: number }, BiometricUnlockError>
 > {
     const storage = enrollmentStorage(vaultDbIndex);

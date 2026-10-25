@@ -11,7 +11,13 @@ export async function testIceServer(
         const host = server.Host.trim();
         const urls = /^(stun|turn)s?:/i.test(host) ? host : `${type}:${host}`;
         const connection = new RTCPeerConnection({
-            iceServers: [{ urls, username: server.Username, credential: server.Password }],
+            iceServers: [
+                {
+                    urls,
+                    username: server.Username,
+                    credential: server.Password,
+                },
+            ],
             iceTransportPolicy: type === "turn" ? "relay" : "all",
         });
         peer = connection;
@@ -19,20 +25,39 @@ export async function testIceServer(
         const reachable = await new Promise<boolean>((resolve, reject) => {
             timer = setTimeout(() => resolve(false), 15_000);
             connection.onicecandidate = (event: unknown) => {
-                const candidate = (event as { candidate?: { candidate: string } }).candidate;
-                if (candidate?.candidate.includes(` typ ${candidateType} `)) resolve(true);
+                const candidate = (
+                    event as { candidate?: { candidate: string } }
+                ).candidate;
+                if (candidate?.candidate.includes(` typ ${candidateType} `))
+                    resolve(true);
             };
             connection.onicegatheringstatechange = () => {
                 if (connection.iceGatheringState === "complete") resolve(false);
             };
             connection.createDataChannel("server-test");
-            void connection.createOffer().then(offer => connection.setLocalDescription(offer)).catch(reject);
+            void connection
+                .createOffer()
+                .then((offer) => connection.setLocalDescription(offer))
+                .catch(reject);
         });
         return reachable
-            ? { ok: true, message: type === "turn" ? "TURN relay allocation succeeded." : "STUN connection test passed." }
-            : { ok: false, message: "No response from this server. Check its address, credentials, and your connection." };
+            ? {
+                  ok: true,
+                  message:
+                      type === "turn"
+                          ? "TURN relay allocation succeeded."
+                          : "STUN connection test passed.",
+              }
+            : {
+                  ok: false,
+                  message:
+                      "No response from this server. Check its address, credentials, and your connection.",
+              };
     } catch {
-        return { ok: false, message: "Could not test this server. Check its configuration." };
+        return {
+            ok: false,
+            message: "Could not test this server. Check its configuration.",
+        };
     } finally {
         clearTimeout(timer);
         peer?.close();

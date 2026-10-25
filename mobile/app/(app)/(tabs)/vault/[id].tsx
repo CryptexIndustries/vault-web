@@ -34,7 +34,10 @@ import { colors } from "@/theme";
 
 export default function CredentialDetailScreen() {
     const confirm = useUnlockedConfirmation();
-    const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
+    const { id, returnTo } = useLocalSearchParams<{
+        id: string;
+        returnTo?: string;
+    }>();
     const goBack = () => router.back();
     const { isTablet } = useBreakpoint();
     const credentials = useAtomValue(vaultCredentialsAtom);

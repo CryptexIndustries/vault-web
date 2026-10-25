@@ -13,13 +13,15 @@ const {
     getCachedAutoLockMinutes,
     loadAutoLockMinutes,
     resetAutoLockSettingsForTests,
-} = require("@/utils/auto-lock-settings") as typeof import("@/utils/auto-lock-settings");
+} =
+    require("@/utils/auto-lock-settings") as typeof import("@/utils/auto-lock-settings");
 const {
     clearVaultDEKFromSession,
     getVaultDEKFromSession,
     setVaultDEKInSession,
 } = require("@/utils/vault-session") as typeof import("@/utils/vault-session");
-const { noteVaultBackgrounded } = require("@/utils/session-timeout") as typeof import("@/utils/session-timeout");
+const { noteVaultBackgrounded } =
+    require("@/utils/session-timeout") as typeof import("@/utils/session-timeout");
 
 afterEach(() => {
     clearVaultDEKFromSession();

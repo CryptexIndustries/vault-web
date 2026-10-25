@@ -38,7 +38,10 @@ import { ImportWizard } from "@/components/vault-import/import-wizard";
 import { isProtectionPhraseKind } from "@/components/vault-security/additional-key-protection-options";
 import { uint8ToBase64 } from "@cryptex-industries/vault-core/encoding";
 import { readPickedImportFile } from "@/utils/mobile-import-picker";
-import { ensureSecretTempFilesReady, writeSecretTempFile } from "@/utils/secret-temp-files";
+import {
+    ensureSecretTempFilesReady,
+    writeSecretTempFile,
+} from "@/utils/secret-temp-files";
 
 const SESSION_ENDED = "Vault session expired. Unlock and try again.";
 

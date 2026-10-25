@@ -4,9 +4,9 @@ name: Keep a dedicated synchronization fixture unlocked
 - tapOn: More
 - tapOn: Security,.*
 - tapOn: Auto-lock,.*
-- tapOn: 'Off'
+- tapOn: "Off"
 - assertNotVisible: Lock after no interaction while the app is open,.*
 - tapOn: Back
 - tapOn:
-    text: Vault
-    below: Security,.*
+      text: Vault
+      below: Security,.*

@@ -27,9 +27,16 @@ import {
 } from "@cryptex-industries/vault-core/agent/agent-format";
 import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
 import { sshKeyItems } from "@cryptex-industries/vault-core/agent/vault-agents";
-import { AgentRequestKind, type AgentRequestRecord } from "@cryptex-industries/vault-core/proto";
+import {
+    AgentRequestKind,
+    type AgentRequestRecord,
+} from "@cryptex-industries/vault-core/proto";
 
-import { Dialog, DialogDescription, DialogHeader } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogDescription,
+    DialogHeader,
+} from "@/components/ui/dialog";
 import { InlineNotice } from "@/components/inline-notice";
 import {
     UnlockedButton as Button,
@@ -117,7 +124,10 @@ export default function AgentScreen() {
     const [keysOpen, setKeysOpen] = useState(false);
     const [pausing, setPausing] = useState(false);
     const agent = agents.find((item) => item.ID === id);
-    const keys = useMemo(() => agentKeyOptions(sshKeyItems(vault), sshKeyInfo), [vault]);
+    const keys = useMemo(
+        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo),
+        [vault],
+    );
 
     if (!agent) {
         return (
@@ -139,14 +149,17 @@ export default function AgentScreen() {
                 agent,
                 sshKeyItems(vault).filter((item) => draft.includes(item.ID)),
                 {
-                    sendKeys: (agentId, input) => agentRuntime.sendKeys(agentId, input),
+                    sendKeys: (agentId, input) =>
+                        agentRuntime.sendKeys(agentId, input),
                     changeAgent,
                 },
             );
             setEditing(false);
             showSnackbar("Keys updated");
         } catch {
-            showSnackbar("Couldn't update the keys. Check your connection and try again.");
+            showSnackbar(
+                "Couldn't update the keys. Check your connection and try again.",
+            );
         } finally {
             setSaving(false);
         }
@@ -160,7 +173,8 @@ export default function AgentScreen() {
                 hostedRelayUrl: env.RELAY_URL,
                 fetch: (...args) => fetch(...args),
                 markRevoked: revokeAgentInVault,
-                log: (message, detail) => vaultLog.info(`Agent: ${message}`, { detail }),
+                log: (message, detail) =>
+                    vaultLog.info(`Agent: ${message}`, { detail }),
             });
             showSnackbar(
                 relayRevoked
@@ -190,11 +204,16 @@ export default function AgentScreen() {
     const togglePaused = async () => {
         setPausing(true);
         try {
-            await setAgentPaused(agent.ID, !paused, { changeAgent, runtime: agentRuntime });
+            await setAgentPaused(agent.ID, !paused, {
+                changeAgent,
+                runtime: agentRuntime,
+            });
             showSnackbar(paused ? "Agent resumed" : "Agent paused");
         } catch {
             showSnackbar(
-                paused ? "Couldn't resume the agent. Try again." : "Couldn't pause the agent. Try again.",
+                paused
+                    ? "Couldn't resume the agent. Try again."
+                    : "Couldn't pause the agent. Try again.",
             );
         } finally {
             setPausing(false);
@@ -236,7 +255,13 @@ export default function AgentScreen() {
                     title="Keys this agent can use"
                     header={
                         <>
-                            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+                            <Text
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 13,
+                                    lineHeight: 20,
+                                }}
+                            >
                                 {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
                             </Text>
                         </>
@@ -246,7 +271,9 @@ export default function AgentScreen() {
         );
     }
 
-    const history = showAll ? agent.History : agent.History.slice(0, RECENT_COUNT);
+    const history = showAll
+        ? agent.History
+        : agent.History.slice(0, RECENT_COUNT);
     return (
         <UnlockedTaskScreen
             title="Agent"
@@ -262,9 +289,19 @@ export default function AgentScreen() {
                                 setDraft(agent.CredentialIDs);
                                 setEditing(true);
                             }}
-                            style={{ minHeight: 48, paddingHorizontal: 12, justifyContent: "center" }}
+                            style={{
+                                minHeight: 48,
+                                paddingHorizontal: 12,
+                                justifyContent: "center",
+                            }}
                         >
-                            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+                            <Text
+                                style={{
+                                    color: colors.primary,
+                                    fontSize: 14,
+                                    fontWeight: "600",
+                                }}
+                            >
                                 Edit keys
                             </Text>
                         </Pressable>
@@ -274,7 +311,12 @@ export default function AgentScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="More agent actions"
                         onPress={() => setMenuOpen(true)}
-                        style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
                     >
                         <MoreHorizontal size={22} color={colors.foreground} />
                     </Pressable>
@@ -305,7 +347,7 @@ export default function AgentScreen() {
                             <AgentGlyph variant="identity" />
                             <View className="min-w-0 flex-1">
                                 <Text
-                                    className="text-2xl font-medium tracking-[-0.7px] text-foreground"
+                                    className="font-medium text-2xl tracking-[-0.7px] text-foreground"
                                     accessibilityRole="header"
                                 >
                                     {name}
@@ -317,8 +359,13 @@ export default function AgentScreen() {
                                 </Text>
                                 <View className="mt-1.5 flex-row items-center gap-1.5">
                                     <Clock size={13} color={colors.muted} />
-                                    <Text testID="agent-paired" className="text-xs text-muted-foreground">
-                                        {`Paired ${new Date(agent.PairedAtTimestamp).toLocaleDateString(undefined, {
+                                    <Text
+                                        testID="agent-paired"
+                                        className="text-xs text-muted-foreground"
+                                    >
+                                        {`Paired ${new Date(
+                                            agent.PairedAtTimestamp,
+                                        ).toLocaleDateString(undefined, {
                                             month: "short",
                                             day: "numeric",
                                             year: "numeric",
@@ -355,16 +402,26 @@ export default function AgentScreen() {
                                 }}
                             />
                         ) : null}
-                        {here ? <AgentNotificationsNotice style={{ marginBottom: 12 }} /> : null}
+                        {here ? (
+                            <AgentNotificationsNotice
+                                style={{ marginBottom: 12 }}
+                            />
+                        ) : null}
                         <InfoCard
                             label="Approver"
                             value={
                                 here
                                     ? `${sanitizeDisplayText(agent.ApproverName || "This device")} (this device)`
-                                    : sanitizeDisplayText(agent.ApproverName || "Another device")
+                                    : sanitizeDisplayText(
+                                          agent.ApproverName ||
+                                              "Another device",
+                                      )
                             }
                         />
-                        <InfoCard label="Relay" value={relayLabel(agent.RelayOrigin)} />
+                        <InfoCard
+                            label="Relay"
+                            value={relayLabel(agent.RelayOrigin)}
+                        />
                         <Pressable
                             testID="agent-keys-toggle"
                             accessibilityRole="button"
@@ -376,14 +433,31 @@ export default function AgentScreen() {
                             <AgentSectionLabel
                                 title="Keys"
                                 right={
-                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                        <Text style={{ fontSize: 11, color: colors.muted }}>
+                                    <View
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 8,
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                fontSize: 11,
+                                                color: colors.muted,
+                                            }}
+                                        >
                                             {String(agent.CredentialIDs.length)}
                                         </Text>
                                         {keysOpen ? (
-                                            <ChevronDown size={16} color={colors.muted} />
+                                            <ChevronDown
+                                                size={16}
+                                                color={colors.muted}
+                                            />
                                         ) : (
-                                            <ChevronRight size={16} color={colors.muted} />
+                                            <ChevronRight
+                                                size={16}
+                                                color={colors.muted}
+                                            />
                                         )}
                                     </View>
                                 }
@@ -391,17 +465,28 @@ export default function AgentScreen() {
                         </Pressable>
                         {!keysOpen ? null : agent.CredentialIDs.length ? (
                             agent.CredentialIDs.map((credentialId) => {
-                                const key = keys.find((item) => item.id === credentialId);
+                                const key = keys.find(
+                                    (item) => item.id === credentialId,
+                                );
                                 return (
                                     <KeyRow
                                         key={credentialId}
                                         name={key?.name ?? "Deleted item"}
-                                        detail={key?.detail ?? "No longer in the vault"}
+                                        detail={
+                                            key?.detail ??
+                                            "No longer in the vault"
+                                        }
                                     />
                                 );
                             })
                         ) : (
-                            <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                            <Text
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 13,
+                                    paddingVertical: 14,
+                                }}
+                            >
                                 No keys.
                             </Text>
                         )}
@@ -411,10 +496,18 @@ export default function AgentScreen() {
                                 agent.History.length > RECENT_COUNT ? (
                                     <Pressable
                                         accessibilityRole="button"
-                                        onPress={() => setShowAll((value) => !value)}
+                                        onPress={() =>
+                                            setShowAll((value) => !value)
+                                        }
                                         hitSlop={8}
                                     >
-                                        <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                                        <Text
+                                            style={{
+                                                fontSize: 12,
+                                                color: colors.primary,
+                                                fontWeight: "600",
+                                            }}
+                                        >
                                             {showAll ? "Show less" : "See all"}
                                         </Text>
                                     </Pressable>
@@ -424,16 +517,28 @@ export default function AgentScreen() {
                     </View>
                 }
                 ListEmptyComponent={
-                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            paddingVertical: 14,
+                        }}
+                    >
                         No requests yet.
                     </Text>
                 }
             />
 
-            <Dialog open={menuOpen} onOpenChange={setMenuOpen} placement="bottom">
+            <Dialog
+                open={menuOpen}
+                onOpenChange={setMenuOpen}
+                placement="bottom"
+            >
                 <DialogHeader>
                     <DialogTitle>{name}</DialogTitle>
-                    <DialogDescription>Choose an action for this agent.</DialogDescription>
+                    <DialogDescription>
+                        Choose an action for this agent.
+                    </DialogDescription>
                 </DialogHeader>
                 <Button
                     testID={paused ? "agent-menu-resume" : "agent-pause"}

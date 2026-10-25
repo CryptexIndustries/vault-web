@@ -45,7 +45,9 @@ export default function ShareServerScreen() {
                 }
                 serverOrigin = url.origin;
             } catch {
-                setError("Enter a full address, like https://vault.example.com.");
+                setError(
+                    "Enter a full address, like https://vault.example.com.",
+                );
                 return;
             }
         }

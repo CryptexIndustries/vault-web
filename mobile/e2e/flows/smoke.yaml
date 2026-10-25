@@ -10,8 +10,8 @@ name: Android local vault smoke
 # which opens the unsaved-directory discard prompt. Tap its footer directly.
 - assertVisible: Directory name
 - tapOn:
-    text: Create directory
-    below: Directory name
+      text: Create directory
+      below: Directory name
 - assertNotVisible: Directory name
 - assertVisible: E2E Directory.*
 - pressKey: Back
@@ -24,21 +24,21 @@ name: Android local vault smoke
 - tapOn: Credential username
 - inputText: test@example.com
 - tapOn:
-    text: Password, Hidden.*
+      text: Password, Hidden.*
 - inputText: e2e-password
 - hideKeyboard
 - tapOn:
-    id: credential-website-url
+      id: credential-website-url
 - eraseText
 - inputText: https://example.test/login
 - assertVisible: https://example.test/login
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Example Login.*
 - tapOn: Edit item
 - tapOn: Credential name
@@ -46,11 +46,11 @@ name: Android local vault smoke
 - inputText: Edited Login
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Edited Login.*
 - tapOn: Back
 - tapOn: Search your vault
@@ -65,7 +65,7 @@ name: Android local vault smoke
 - inputText: CorrectHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: Edited Login.*
 - stopApp
 - launchApp

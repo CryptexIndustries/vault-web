@@ -125,10 +125,7 @@ function TurnstileChallengeDialog({
     const handleMessage = (event: WebViewMessageEvent) => {
         if (
             !bridgeUrl ||
-            !isAllowedTurnstileMessageSource(
-                event.nativeEvent.url,
-                bridgeUrl,
-            )
+            !isAllowedTurnstileMessageSource(event.nativeEvent.url, bridgeUrl)
         ) {
             return;
         }

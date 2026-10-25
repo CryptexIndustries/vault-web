@@ -881,7 +881,9 @@ describe("mobile devices screen", () => {
         );
     });
     it("lists agents with cleaned names, the notifications notice and relay settings", async () => {
-        mockAgents = [{ ID: "agent-1", Name: "prod\u202egit\u200b", Hostname: "box" }];
+        mockAgents = [
+            { ID: "agent-1", Name: "prod\u202egit\u200b", Hostname: "box" },
+        ];
         try {
             await mount();
             await press("device-view-list");
@@ -901,7 +903,9 @@ describe("mobile devices screen", () => {
             expect(
                 footer!.root.findAllByType("AgentNotificationsNotice" as never),
             ).toHaveLength(1);
-            await act(async () => inFooter("agent-relay-shortcut").props.onPress());
+            await act(async () =>
+                inFooter("agent-relay-shortcut").props.onPress(),
+            );
             expect(router.push).toHaveBeenCalledWith(
                 "/(app)/devices/connectivity/agent-relay",
             );
@@ -933,7 +937,9 @@ describe("mobile devices screen", () => {
                 .findAllByType("MenuRow" as never)[2]!
                 .props.onPress(),
         );
-        expect(router.push).toHaveBeenCalledWith("/(app)/devices/connect-agent");
+        expect(router.push).toHaveBeenCalledWith(
+            "/(app)/devices/connect-agent",
+        );
     });
     it("refreshes a bound account once during the ten second cooldown", async () => {
         jest.useFakeTimers();

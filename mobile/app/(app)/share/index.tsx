@@ -122,7 +122,9 @@ export default function ShareScreen() {
     );
     const [text, setText] = useState("");
     const [label, setLabel] = useState("");
-    const [expiry, setExpiry] = useState(String(SHARE_EXPIRY_OPTIONS[1].seconds));
+    const [expiry, setExpiry] = useState(
+        String(SHARE_EXPIRY_OPTIONS[1].seconds),
+    );
     const [expirySegments, setExpirySegments] = useState(() =>
         toSegments(SHARE_EXPIRY_OPTIONS.map((option) => ({ ...option }))),
     );
@@ -155,7 +157,9 @@ export default function ShareScreen() {
                     const options = shareExpiryOptions(info.maxTtl);
                     setExpirySegments(toSegments(options));
                     setExpiry((value) =>
-                        options.some((option) => String(option.seconds) === value)
+                        options.some(
+                            (option) => String(option.seconds) === value,
+                        )
                             ? value
                             : String(defaultShareExpiry(options)),
                     );
@@ -263,10 +267,7 @@ export default function ShareScreen() {
                         >
                             Send link
                         </Button>
-                        <Button
-                            variant="outline"
-                            onPress={() => router.back()}
-                        >
+                        <Button variant="outline" onPress={() => router.back()}>
                             Done
                         </Button>
                     </View>
@@ -364,9 +365,7 @@ export default function ShareScreen() {
                         />
                         <Button
                             variant="outline"
-                            onPress={() =>
-                                router.push("/(app)/share/server")
-                            }
+                            onPress={() => router.push("/(app)/share/server")}
                         >
                             Use a self-hosted server
                         </Button>
@@ -383,9 +382,7 @@ export default function ShareScreen() {
                         />
                         <Button
                             variant="outline"
-                            onPress={() =>
-                                router.push("/(app)/share/server")
-                            }
+                            onPress={() => router.push("/(app)/share/server")}
                         >
                             Share server settings
                         </Button>
@@ -467,7 +464,8 @@ export default function ShareScreen() {
                                                       ]
                                                     : current.customFieldIds.filter(
                                                           (entry) =>
-                                                              entry !== field.ID,
+                                                              entry !==
+                                                              field.ID,
                                                       ),
                                             }))
                                         }

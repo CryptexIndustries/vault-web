@@ -2,10 +2,7 @@ import { afterEach, beforeEach, expect, it, jest } from "@jest/globals";
 import { createElement, StrictMode, useEffect } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { AccessibilityInfo, Platform } from "react-native";
-import {
-    Snackbar,
-    useSnackbar,
-} from "@/components/snackbar";
+import { Snackbar, useSnackbar } from "@/components/snackbar";
 
 jest.mock("react-native", () => ({
     View: "View",
@@ -89,9 +86,9 @@ it("shows one message and keeps an actionable recovery until it is used or dismi
         }),
     );
     await advance(60000);
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     expect(
         AccessibilityInfo.getRecommendedTimeoutMillis,
     ).not.toHaveBeenCalled();
@@ -119,9 +116,9 @@ it("clears the prior timer when replacing feedback", async () => {
     );
     await advance(60000);
     expect(current.feedback?.message).toBe("Second");
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
 });
 it("has accessible dismissal and live feedback without grouping away recovery controls", async () => {
     await render();

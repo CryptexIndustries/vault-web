@@ -7,7 +7,11 @@ import { useAtomValue } from "jotai";
 import { Fingerprint, Plus } from "lucide-react-native";
 import { ulid } from "ulidx";
 import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
-import { CredentialURLMatchMode, CustomFieldType, ItemType } from "@cryptex-industries/vault-core/proto";
+import {
+    CredentialURLMatchMode,
+    CustomFieldType,
+    ItemType,
+} from "@cryptex-industries/vault-core/proto";
 import {
     createCredential,
     calculateTOTP,
@@ -17,7 +21,10 @@ import {
     type VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 
-import { assertAndroidPasskey, createAndroidPasskey } from "@/utils/android-passkeys";
+import {
+    assertAndroidPasskey,
+    createAndroidPasskey,
+} from "@/utils/android-passkeys";
 import {
     appendAutofillAssociation,
     autofillAssociationWarning,
@@ -33,15 +40,26 @@ import {
     requiresAutofillReview,
     type AutofillTarget,
 } from "@/utils/android-autofill";
-import { androidCredentials, type PendingAndroidCredentialRequest } from "@/utils/android-credentials";
+import {
+    androidCredentials,
+    type PendingAndroidCredentialRequest,
+} from "@/utils/android-credentials";
 import { buildAndroidProviderCredentials } from "@/utils/android-provider-credentials";
-import { isVaultUnlockedAtom, vaultCredentialsAtom, vaultStore } from "@/utils/atoms";
+import {
+    isVaultUnlockedAtom,
+    vaultCredentialsAtom,
+    vaultStore,
+} from "@/utils/atoms";
 import { getCachedAutoLockMinutes } from "@/utils/auto-lock-settings";
 import { loadAutoCopyTotp } from "@/utils/autofill-settings";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { passkeyLog } from "@/utils/logging";
 import { persistVaultMutation } from "@/utils/vault-mutations";
-import { captureVaultSession, isVaultSessionCurrent, type VaultSessionToken } from "@/utils/vault-session";
+import {
+    captureVaultSession,
+    isVaultSessionCurrent,
+    type VaultSessionToken,
+} from "@/utils/vault-session";
 import { startSecretRelease, type SecretRelease } from "@/utils/secret-release";
 import type { VaultMutationError } from "@/utils/vault-mutations";
 import { isAutoLockDue, useAutoLock } from "@/hooks/use-auto-lock";
@@ -55,18 +73,29 @@ import {
     RequestDestination,
     SaveFailureSheet,
 } from "@/components/autofill/request-ui";
-import { UnlockedButton, UnlockedText } from "@/components/unlocked/unlocked-ui";
+import {
+    UnlockedButton,
+    UnlockedText,
+} from "@/components/unlocked/unlocked-ui";
 import { InlineNotice } from "@/components/inline-notice";
 import { colors } from "@/theme";
 
-const REQUEST_EXPIRED = "This credential request expired. Return to the app or browser and try again.";
-type RequestView = "picker" | "decision" | "associate" | "editor" | "save-choice";
+const REQUEST_EXPIRED =
+    "This credential request expired. Return to the app or browser and try again.";
+type RequestView =
+    | "picker"
+    | "decision"
+    | "associate"
+    | "editor"
+    | "save-choice";
 type EditorPurpose = "add" | "captured";
 let lastAutoCompletedPasskeyRequestId: string | null = null;
 
 function decodeClientDataHash(value: string) {
     try {
-        const decoded = Uint8Array.from(globalThis.atob(value), (character) => character.charCodeAt(0));
+        const decoded = Uint8Array.from(globalThis.atob(value), (character) =>
+            character.charCodeAt(0),
+        );
         if (decoded.length !== 32) throw new Error();
         return decoded;
     } catch {
@@ -76,12 +105,16 @@ function decodeClientDataHash(value: string) {
 
 function passkeyFailureCode(stage: string, error: unknown) {
     const message = error instanceof Error ? error.message : error;
-    return typeof message === "string" && /^[A-Z][A-Z0-9_]{2,80}$/u.test(message)
+    return typeof message === "string" &&
+        /^[A-Z][A-Z0-9_]{2,80}$/u.test(message)
         ? message
         : `PASSKEY_${stage.toUpperCase()}_FAILED`;
 }
 
-async function verifyPasskeyUser(operation: "Create" | "Use", relyingParty: string) {
+async function verifyPasskeyUser(
+    operation: "Create" | "Use",
+    relyingParty: string,
+) {
     const result = await LocalAuthentication.authenticateAsync({
         promptMessage: `${operation} passkey`,
         promptSubtitle: relyingParty,
@@ -102,12 +135,17 @@ export default function CredentialRequestScreen() {
     const unlocked = useAtomValue(isVaultUnlockedAtom);
     const credentials = useAtomValue(vaultCredentialsAtom);
     const { onInteraction } = useAutoLock(isFocused);
-    const [request, setRequest] = useState<PendingAndroidCredentialRequest | null>(null);
+    const [request, setRequest] =
+        useState<PendingAndroidCredentialRequest | null>(null);
     const [requestLoaded, setRequestLoaded] = useState(false);
-    const [providerWebOrigin, setProviderWebOrigin] = useState<string | null | undefined>();
+    const [providerWebOrigin, setProviderWebOrigin] = useState<
+        string | null | undefined
+    >();
     const [view, setView] = useState<RequestView>("picker");
     const [editorPurpose, setEditorPurpose] = useState<EditorPurpose>("add");
-    const [editorCredentialId, setEditorCredentialId] = useState<string | null>();
+    const [editorCredentialId, setEditorCredentialId] = useState<
+        string | null
+    >();
     const [selected, setSelected] = useState<VaultCredential | null>(null);
     const [query, setQuery] = useState("");
     const [expanded, setExpanded] = useState(false);
@@ -115,7 +153,9 @@ export default function CredentialRequestScreen() {
     const [requestError, setRequestError] = useState("");
     const [associationError, setAssociationError] = useState("");
     const [saveFailureOpen, setSaveFailureOpen] = useState(false);
-    const [saveFailureCode, setSaveFailureCode] = useState<VaultMutationError>("VAULT_MUTATION_FAILED");
+    const [saveFailureCode, setSaveFailureCode] = useState<VaultMutationError>(
+        "VAULT_MUTATION_FAILED",
+    );
     const retrySaveRef = useRef<(() => void) | null>(null);
     const requestIdRef = useRef<string | null>(null);
     // The unlocked session (with its lock count) this request may be answered in.
@@ -130,16 +170,26 @@ export default function CredentialRequestScreen() {
         if (pending?.id === requestIdRef.current) return;
         requestIdRef.current = pending?.id ?? null;
         requestSessionRef.current = pending ? captureVaultSession() : null;
-        requestHadUnlockedSessionRef.current = pending ? vaultStore.get(isVaultUnlockedAtom) : false;
+        requestHadUnlockedSessionRef.current = pending
+            ? vaultStore.get(isVaultUnlockedAtom)
+            : false;
         setRequest(pending);
         setRequestLoaded(true);
         setProviderWebOrigin(undefined);
         setView(
-            pending && (isAutofillSaveRequest(pending) || pending.kind === "provider-password-create")
+            pending &&
+                (isAutofillSaveRequest(pending) ||
+                    pending.kind === "provider-password-create")
                 ? "editor"
                 : "picker",
         );
-        setEditorPurpose(pending && (isAutofillSaveRequest(pending) || pending.kind === "provider-password-create") ? "captured" : "add");
+        setEditorPurpose(
+            pending &&
+                (isAutofillSaveRequest(pending) ||
+                    pending.kind === "provider-password-create")
+                ? "captured"
+                : "add",
+        );
         setEditorCredentialId(undefined);
         setSelected(null);
         setQuery("");
@@ -153,7 +203,8 @@ export default function CredentialRequestScreen() {
 
     useFocusEffect(loadPendingRequest);
     useEffect(() => {
-        const subscription = androidCredentials.addCredentialRequestListener(loadPendingRequest);
+        const subscription =
+            androidCredentials.addCredentialRequestListener(loadPendingRequest);
         return () => subscription.remove();
     }, [loadPendingRequest]);
 
@@ -187,9 +238,12 @@ export default function CredentialRequestScreen() {
             !vaultStore.get(isVaultUnlockedAtom) ||
             !requestSessionRef.current ||
             !isVaultSessionCurrent(requestSessionRef.current)
-        ) return REQUEST_EXPIRED;
+        )
+            return REQUEST_EXPIRED;
         const current = androidCredentials.getPendingRequest();
-        return current?.id === request.id && current.kind === request.kind ? null : REQUEST_EXPIRED;
+        return current?.id === request.id && current.kind === request.kind
+            ? null
+            : REQUEST_EXPIRED;
     }, [request]);
     useEffect(() => {
         const operations = operationsRef.current;
@@ -229,7 +283,8 @@ export default function CredentialRequestScreen() {
             buildAndroidProviderCredentials(credentials),
             getCachedAutoLockMinutes(),
         );
-        if (!androidCredentials.completeProviderUnlock(request.id)) setRequestError(REQUEST_EXPIRED);
+        if (!androidCredentials.completeProviderUnlock(request.id))
+            setRequestError(REQUEST_EXPIRED);
         else returnToVault();
     }, [credentials, request, requestGuard, unlocked]);
 
@@ -237,7 +292,8 @@ export default function CredentialRequestScreen() {
         if (request?.kind !== "provider-password-get") return;
         const expectedId = request.id;
         void androidCredentials.resolvePendingWebOrigin().then((origin) => {
-            if (androidCredentials.getPendingRequest()?.id === expectedId) setProviderWebOrigin(origin);
+            if (androidCredentials.getPendingRequest()?.id === expectedId)
+                setProviderWebOrigin(origin);
         });
     }, [request]);
 
@@ -245,7 +301,9 @@ export default function CredentialRequestScreen() {
         if (!providerWebOrigin) return null;
         try {
             const parsed = new URL(providerWebOrigin);
-            return ["https:", "http:"].includes(parsed.protocol) ? parsed.origin : null;
+            return ["https:", "http:"].includes(parsed.protocol)
+                ? parsed.origin
+                : null;
         } catch {
             return null;
         }
@@ -253,23 +311,36 @@ export default function CredentialRequestScreen() {
 
     const target = useMemo<AutofillTarget | null>(() => {
         if (!request) return null;
-        if (isAutofillGetRequest(request) || isAutofillSaveRequest(request)) return buildAutofillTarget(request);
-        if (!["provider-password-get", "provider-password-create"].includes(request.kind)) return null;
+        if (isAutofillGetRequest(request) || isAutofillSaveRequest(request))
+            return buildAutofillTarget(request);
+        if (
+            !["provider-password-get", "provider-password-create"].includes(
+                request.kind,
+            )
+        )
+            return null;
         if (providerTargetUrl) {
             const parsed = new URL(providerTargetUrl);
             return {
                 pageUrl: parsed.origin,
                 appUri: null,
                 displayName: parsed.hostname,
-                warningType: parsed.protocol === "https:" ? null : "untrusted-web-context",
+                warningType:
+                    parsed.protocol === "https:"
+                        ? null
+                        : "untrusted-web-context",
             };
         }
-        return buildAutofillTarget({ ...request, warningType: "unverified-app" });
+        return buildAutofillTarget({
+            ...request,
+            warningType: "unverified-app",
+        });
     }, [providerTargetUrl, request]);
 
-    const accessibilityOriginWarning = request?.kind === "accessibility-get" && target?.pageUrl
-        ? "An embedded or hidden frame may receive this login even when the address bar shows another site. Only fill if you trust this page and its embedded content."
-        : null;
+    const accessibilityOriginWarning =
+        request?.kind === "accessibility-get" && target?.pageUrl
+            ? "An embedded or hidden frame may receive this login even when the address bar shows another site. Only fill if you trust this page and its embedded content."
+            : null;
 
     const eligibleCredentials = useMemo(
         () => credentials.filter(isAutofillCandidate),
@@ -278,22 +349,35 @@ export default function CredentialRequestScreen() {
     const matches = useMemo(() => {
         if (!target) return [];
         const candidates = request?.credentialId
-            ? eligibleCredentials.filter((credential) => credential.ID === request.credentialId)
+            ? eligibleCredentials.filter(
+                  (credential) => credential.ID === request.credentialId,
+              )
             : eligibleCredentials;
         if (target.pageUrl && request?.kind === "provider-password-get") {
             return candidates.filter((credential) =>
-                credentialMatchesPageUrl(credential, target.pageUrl!, { ignorePort: true }),
+                credentialMatchesPageUrl(credential, target.pageUrl!, {
+                    ignorePort: true,
+                }),
             );
         }
         return matchingAutofillCredentials(candidates, target);
     }, [eligibleCredentials, request?.credentialId, request?.kind, target]);
     const rows = useMemo(
-        () => buildAutofillCredentialRows(eligibleCredentials, matches, query, expanded),
+        () =>
+            buildAutofillCredentialRows(
+                eligibleCredentials,
+                matches,
+                query,
+                expanded,
+            ),
         [eligibleCredentials, expanded, matches, query],
     );
 
     const completeLogin = useCallback(
-        async (credential: VaultCredential, operation: SecretRelease = startOperation()) => {
+        async (
+            credential: VaultCredential,
+            operation: SecretRelease = startOperation(),
+        ) => {
             if (!request || operationGuard(operation)) {
                 setRequestError(REQUEST_EXPIRED);
                 setView("picker");
@@ -302,7 +386,8 @@ export default function CredentialRequestScreen() {
             onInteraction();
             let totp = "";
             try {
-                if (credential.TOTP?.Secret) totp = calculateTOTP(credential.TOTP).code;
+                if (credential.TOTP?.Secret)
+                    totp = calculateTOTP(credential.TOTP).code;
             } catch {
                 totp = "";
             }
@@ -312,30 +397,35 @@ export default function CredentialRequestScreen() {
                 setView("picker");
                 return false;
             }
-            const completed = request.kind === "provider-password-get"
-                ? androidCredentials.completeProviderPassword(request.id, credential.Username, credential.Password)
-                : request.kind === "accessibility-get"
-                  ? androidCredentials.completeAccessibilityAutofill(
-                        request.id,
-                        credential.Username,
-                        autofillEmail(credential),
-                        credential.Password,
-                        totp,
-                    )
-                  : androidCredentials.completeAutofill(
-                        request.id,
-                        credential.Username,
-                        autofillEmail(credential),
-                        credential.Password,
-                    );
+            const completed =
+                request.kind === "provider-password-get"
+                    ? androidCredentials.completeProviderPassword(
+                          request.id,
+                          credential.Username,
+                          credential.Password,
+                      )
+                    : request.kind === "accessibility-get"
+                      ? androidCredentials.completeAccessibilityAutofill(
+                            request.id,
+                            credential.Username,
+                            autofillEmail(credential),
+                            credential.Password,
+                            totp,
+                        )
+                      : androidCredentials.completeAutofill(
+                            request.id,
+                            credential.Username,
+                            autofillEmail(credential),
+                            credential.Password,
+                        );
             // Nothing awaited since the check above; copySecretToClipboard itself
             // drops the copy if a lock starts during the native write.
-            if (completed && copyTotp && operation.current()) await copySecretToClipboard(totp);
+            if (completed && copyTotp && operation.current())
+                await copySecretToClipboard(totp);
             if (!completed) {
                 setRequestError(REQUEST_EXPIRED);
                 setView("picker");
-            }
-            else returnToVault();
+            } else returnToVault();
             return completed;
         },
         [onInteraction, operationGuard, request, startOperation],
@@ -345,7 +435,10 @@ export default function CredentialRequestScreen() {
         setSelected(credential);
         setAssociationError("");
         const matched = matches.some((item) => item.ID === credential.ID);
-        if (!target || !requiresAutofillReview(target, request?.kind, matched)) {
+        if (
+            !target ||
+            !requiresAutofillReview(target, request?.kind, matched)
+        ) {
             void completeLogin(credential);
         } else {
             setView("decision");
@@ -354,7 +447,13 @@ export default function CredentialRequestScreen() {
 
     const persistAssociationAndFill = async () => {
         const association = target?.pageUrl ?? target?.appUri;
-        if (!selected || !target || !association || !canAssociateAutofillTarget(target)) return;
+        if (
+            !selected ||
+            !target ||
+            !association ||
+            !canAssociateAutofillTarget(target)
+        )
+            return;
         const operation = startOperation();
         const gate = operationGuard(operation);
         if (gate) {
@@ -364,32 +463,45 @@ export default function CredentialRequestScreen() {
         setBusy(true);
         setAssociationError("");
         let serializedGate: string | null = null;
-        const result = await persistVaultMutation("credential.upsert", async (current) => {
-            serializedGate = operationGuard(operation);
-            if (serializedGate) throw new Error("REQUEST_INVALID");
-            const currentCredential = current.Credentials.find(
-                (credential) => credential.ID === selected.ID && !credential.Deleted,
-            );
-            if (!currentCredential) throw new Error("CREDENTIAL_MISSING");
-            const saved = await updateCredentialFromForm(currentCredential, {
-                ...currentCredential,
-                AdditionalURLs: appendAutofillAssociation(currentCredential, association),
-            });
-            const next = Object.assign(new Vault(), current);
-            next.Credentials = current.Credentials.map((credential) =>
-                credential.ID === saved.ID ? saved : credential,
-            );
-            return { vault: next, result: saved };
-        });
+        const result = await persistVaultMutation(
+            "credential.upsert",
+            async (current) => {
+                serializedGate = operationGuard(operation);
+                if (serializedGate) throw new Error("REQUEST_INVALID");
+                const currentCredential = current.Credentials.find(
+                    (credential) =>
+                        credential.ID === selected.ID && !credential.Deleted,
+                );
+                if (!currentCredential) throw new Error("CREDENTIAL_MISSING");
+                const saved = await updateCredentialFromForm(
+                    currentCredential,
+                    {
+                        ...currentCredential,
+                        AdditionalURLs: appendAutofillAssociation(
+                            currentCredential,
+                            association,
+                        ),
+                    },
+                );
+                const next = Object.assign(new Vault(), current);
+                next.Credentials = current.Credentials.map((credential) =>
+                    credential.ID === saved.ID ? saved : credential,
+                );
+                return { vault: next, result: saved };
+            },
+        );
         setBusy(false);
         if (result.isErr()) {
             setAssociationError(
-                serializedGate ?? "The association could not be saved. The login was not filled. Go back to fill once.",
+                serializedGate ??
+                    "The association could not be saved. The login was not filled. Go back to fill once.",
             );
             return;
         }
         if (operationGuard(operation)) {
-            setAssociationError("The association was saved, but the request expired before Cryptex Vault could fill the login.");
+            setAssociationError(
+                "The association was saved, but the request expired before Cryptex Vault could fill the login.",
+            );
             return;
         }
         await completeLogin(result.value, operation);
@@ -421,8 +533,11 @@ export default function CredentialRequestScreen() {
             (credential) =>
                 !credential.Deleted &&
                 credential.Passkey &&
-                (!request?.credentialId || credential.Passkey.CredentialID === request.credentialId) &&
-                (!passkeyRequest?.rpId || credential.Passkey.RPID.toLowerCase() === passkeyRequest.rpId.toLowerCase()) &&
+                (!request?.credentialId ||
+                    credential.Passkey.CredentialID === request.credentialId) &&
+                (!passkeyRequest?.rpId ||
+                    credential.Passkey.RPID.toLowerCase() ===
+                        passkeyRequest.rpId.toLowerCase()) &&
                 (!allowed.size || allowed.has(credential.Passkey.CredentialID)),
         );
     }, [credentials, passkeyRequest, request?.credentialId]);
@@ -430,35 +545,59 @@ export default function CredentialRequestScreen() {
     const completePasskeyGet = useCallback(
         async (credentialId: string) => {
             const operation = startOperation();
-            if (!request?.requestJson || !passkeyRequest?.rpId || operationGuard(operation)) {
-                setRequestError(request?.requestJson ? REQUEST_EXPIRED : "This passkey request is malformed.");
+            if (
+                !request?.requestJson ||
+                !passkeyRequest?.rpId ||
+                operationGuard(operation)
+            ) {
+                setRequestError(
+                    request?.requestJson
+                        ? REQUEST_EXPIRED
+                        : "This passkey request is malformed.",
+                );
                 return;
             }
             const credential = credentials.find(
-                (item) => !item.Deleted && item.Passkey?.CredentialID === credentialId,
+                (item) =>
+                    !item.Deleted &&
+                    item.Passkey?.CredentialID === credentialId,
             );
             if (!credential?.Passkey) return;
             setBusy(true);
             let stage = "resolve_origin";
             try {
-                const resolution = await androidCredentials.resolvePendingPasskeyOrigin(passkeyRequest.rpId);
-                if (!resolution.origin) throw new Error(resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED");
+                const resolution =
+                    await androidCredentials.resolvePendingPasskeyOrigin(
+                        passkeyRequest.rpId,
+                    );
+                if (!resolution.origin)
+                    throw new Error(
+                        resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED",
+                    );
                 stage = "user_verification";
                 await verifyPasskeyUser("Use", passkeyRequest.rpId);
-                if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
+                if (operationGuard(operation))
+                    throw new Error("PASSKEY_REQUEST_EXPIRED");
                 onInteraction();
                 stage = "generate_assertion";
                 const response = await assertAndroidPasskey(
                     request.requestJson,
                     resolution.origin,
                     credential.Passkey,
-                    request.clientDataHash && !resolution.origin.startsWith("android:")
+                    request.clientDataHash &&
+                        !resolution.origin.startsWith("android:")
                         ? decodeClientDataHash(request.clientDataHash)
                         : undefined,
                 );
                 stage = "complete_android_request";
-                if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
-                if (!androidCredentials.completeProviderPasskeyGet(request.id, response)) {
+                if (operationGuard(operation))
+                    throw new Error("PASSKEY_REQUEST_EXPIRED");
+                if (
+                    !androidCredentials.completeProviderPasskeyGet(
+                        request.id,
+                        response,
+                    )
+                ) {
                     throw new Error("PASSKEY_REQUEST_EXPIRED");
                 }
                 passkeyLog.info("Passkey assertion completed");
@@ -467,9 +606,13 @@ export default function CredentialRequestScreen() {
                 passkeyLog.error("Passkey assertion failed", {
                     stage,
                     code: passkeyFailureCode(stage, error),
-                    errorType: error instanceof Error ? error.name : typeof error,
+                    errorType:
+                        error instanceof Error ? error.name : typeof error,
                 });
-                if (error instanceof Error && error.message === "PASSKEY_USER_VERIFICATION_CANCELLED") {
+                if (
+                    error instanceof Error &&
+                    error.message === "PASSKEY_USER_VERIFICATION_CANCELLED"
+                ) {
                     androidCredentials.dismissRequest(request.id);
                     returnToVault();
                     return;
@@ -478,7 +621,14 @@ export default function CredentialRequestScreen() {
                 setBusy(false);
             }
         },
-        [credentials, onInteraction, operationGuard, passkeyRequest?.rpId, request, startOperation],
+        [
+            credentials,
+            onInteraction,
+            operationGuard,
+            passkeyRequest?.rpId,
+            request,
+            startOperation,
+        ],
     );
 
     useEffect(() => {
@@ -498,13 +648,29 @@ export default function CredentialRequestScreen() {
         const rpId = passkeyRequest?.rp?.id;
         const operation = startOperation();
         if (!request?.requestJson || !rpId || operationGuard(operation)) {
-            setRequestError(request?.requestJson ? REQUEST_EXPIRED : "This passkey request is malformed.");
+            setRequestError(
+                request?.requestJson
+                    ? REQUEST_EXPIRED
+                    : "This passkey request is malformed.",
+            );
             return;
         }
         const existingIds = credentials
-            .filter((credential) => !credential.Deleted && credential.Passkey?.RPID.toLowerCase() === rpId.toLowerCase())
+            .filter(
+                (credential) =>
+                    !credential.Deleted &&
+                    credential.Passkey?.RPID.toLowerCase() ===
+                        rpId.toLowerCase(),
+            )
             .map((credential) => credential.Passkey!.CredentialID);
-        if (passkeyRequest.excludeCredentials?.some((descriptor) => descriptor.type === "public-key" && !!descriptor.id && existingIds.includes(descriptor.id))) {
+        if (
+            passkeyRequest.excludeCredentials?.some(
+                (descriptor) =>
+                    descriptor.type === "public-key" &&
+                    !!descriptor.id &&
+                    existingIds.includes(descriptor.id),
+            )
+        ) {
             if (!androidCredentials.rejectExcludedPasskeyCreate(request.id)) {
                 setRequestError("A passkey for this account already exists.");
             }
@@ -513,52 +679,72 @@ export default function CredentialRequestScreen() {
         setBusy(true);
         let stage = "resolve_origin";
         try {
-            const resolution = await androidCredentials.resolvePendingPasskeyOrigin(rpId);
-            if (!resolution.origin) throw new Error(resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED");
+            const resolution =
+                await androidCredentials.resolvePendingPasskeyOrigin(rpId);
+            if (!resolution.origin)
+                throw new Error(
+                    resolution.errorCode ?? "PASSKEY_ORIGIN_REJECTED",
+                );
             stage = "user_verification";
             await verifyPasskeyUser("Create", passkeyRequest.rp?.name ?? rpId);
-            if (operationGuard(operation)) throw new Error("PASSKEY_REQUEST_EXPIRED");
+            if (operationGuard(operation))
+                throw new Error("PASSKEY_REQUEST_EXPIRED");
             onInteraction();
             stage = "generate_credential";
             const registration = await createAndroidPasskey(
                 request.requestJson,
                 resolution.origin,
-                request.clientDataHash && !resolution.origin.startsWith("android:")
+                request.clientDataHash &&
+                    !resolution.origin.startsWith("android:")
                     ? decodeClientDataHash(request.clientDataHash)
                     : undefined,
                 existingIds,
             );
             stage = "persist_vault";
             let serializedGate: string | null = null;
-            const result = await persistVaultMutation("credential.upsert", async (current) => {
-                serializedGate = operationGuard(operation);
-                if (serializedGate) throw new Error("REQUEST_INVALID");
-                const saved = await createCredential({
-                    ID: null,
-                    Type: ItemType.Passkey,
-                    DirectoryID: "",
-                    Name: passkeyRequest.rp?.name ?? registration.passkey.RPID,
-                    Username: registration.passkey.UserName,
-                    Password: "",
-                    TOTP: null,
-                    Tags: "",
-                    URL: `https://${registration.passkey.RPID}`,
-                    URLMatchMode: CredentialURLMatchMode.ExactHost,
-                    AdditionalURLs: [],
-                    Passkey: registration.passkey,
-                    Notes: "",
-                    CustomFields: [],
-                });
-                const next = Object.assign(new Vault(), current);
-                next.Credentials = [...current.Credentials, saved];
-                return { vault: next, result: saved };
-            });
-            if (result.isErr()) throw new Error(serializedGate ?? "PASSKEY_SAVE_FAILED");
+            const result = await persistVaultMutation(
+                "credential.upsert",
+                async (current) => {
+                    serializedGate = operationGuard(operation);
+                    if (serializedGate) throw new Error("REQUEST_INVALID");
+                    const saved = await createCredential({
+                        ID: null,
+                        Type: ItemType.Passkey,
+                        DirectoryID: "",
+                        Name:
+                            passkeyRequest.rp?.name ??
+                            registration.passkey.RPID,
+                        Username: registration.passkey.UserName,
+                        Password: "",
+                        TOTP: null,
+                        Tags: "",
+                        URL: `https://${registration.passkey.RPID}`,
+                        URLMatchMode: CredentialURLMatchMode.ExactHost,
+                        AdditionalURLs: [],
+                        Passkey: registration.passkey,
+                        Notes: "",
+                        CustomFields: [],
+                    });
+                    const next = Object.assign(new Vault(), current);
+                    next.Credentials = [...current.Credentials, saved];
+                    return { vault: next, result: saved };
+                },
+            );
+            if (result.isErr())
+                throw new Error(serializedGate ?? "PASSKEY_SAVE_FAILED");
             stage = "complete_android_request";
-            if (operationGuard(operation) || !androidCredentials.completeProviderPasskeyCreate(request.id, registration.responseJson)) {
+            if (
+                operationGuard(operation) ||
+                !androidCredentials.completeProviderPasskeyCreate(
+                    request.id,
+                    registration.responseJson,
+                )
+            ) {
                 await persistVaultMutation("credential.upsert", (current) => {
                     const next = Object.assign(new Vault(), current);
-                    next.Credentials = current.Credentials.filter((credential) => credential.ID !== result.value.ID);
+                    next.Credentials = current.Credentials.filter(
+                        (credential) => credential.ID !== result.value.ID,
+                    );
                     return { vault: next, result: undefined };
                 });
                 throw new Error("PASSKEY_REQUEST_EXPIRED");
@@ -571,7 +757,10 @@ export default function CredentialRequestScreen() {
                 code: passkeyFailureCode(stage, error),
                 errorType: error instanceof Error ? error.name : typeof error,
             });
-            if (error instanceof Error && error.message === "PASSKEY_USER_VERIFICATION_CANCELLED") {
+            if (
+                error instanceof Error &&
+                error.message === "PASSKEY_USER_VERIFICATION_CANCELLED"
+            ) {
                 androidCredentials.dismissRequest(request.id);
                 returnToVault();
                 return;
@@ -582,18 +771,29 @@ export default function CredentialRequestScreen() {
     };
 
     const saveCandidates = useMemo(() => {
-        if (!request || !isAutofillSaveRequest(request) || !request.username) return [];
-        return matches.filter((credential) => credential.Username === request.username);
+        if (!request || !isAutofillSaveRequest(request) || !request.username)
+            return [];
+        return matches.filter(
+            (credential) => credential.Username === request.username,
+        );
     }, [matches, request]);
-    const effectiveEditorCredentialId = editorPurpose === "captured"
-        ? editorCredentialId === null
-            ? undefined
-            : editorCredentialId ?? (saveCandidates.length === 1 ? saveCandidates[0]!.ID : undefined)
-        : undefined;
-    const editorInitialValues = useMemo<Partial<CredentialFormSchemaType>>(() => {
+    const effectiveEditorCredentialId =
+        editorPurpose === "captured"
+            ? editorCredentialId === null
+                ? undefined
+                : (editorCredentialId ??
+                  (saveCandidates.length === 1
+                      ? saveCandidates[0]!.ID
+                      : undefined))
+            : undefined;
+    const editorInitialValues = useMemo<
+        Partial<CredentialFormSchemaType>
+    >(() => {
         if (!request) return {};
         const existing = effectiveEditorCredentialId
-            ? credentials.find((credential) => credential.ID === effectiveEditorCredentialId)
+            ? credentials.find(
+                  (credential) => credential.ID === effectiveEditorCredentialId,
+              )
             : undefined;
         const values: Partial<CredentialFormSchemaType> = {};
         if (!existing) {
@@ -605,21 +805,33 @@ export default function CredentialRequestScreen() {
         if (request.password != null) values.Password = request.password;
         if (request.email != null) {
             const currentFields = existing?.CustomFields ?? [];
-            const emailField = currentFields.find((field) => field.Name.trim().toLowerCase() === "email");
+            const emailField = currentFields.find(
+                (field) => field.Name.trim().toLowerCase() === "email",
+            );
             values.CustomFields = [
-                ...currentFields.filter((field) => field.Name.trim().toLowerCase() !== "email"),
+                ...currentFields.filter(
+                    (field) => field.Name.trim().toLowerCase() !== "email",
+                ),
                 ...(request.email.trim()
-                    ? [{
-                          ID: emailField?.ID ?? ulid(),
-                          Name: emailField?.Name ?? "Email",
-                          Type: emailField?.Type ?? CustomFieldType.Text,
-                          Value: request.email.trim(),
-                      }]
+                    ? [
+                          {
+                              ID: emailField?.ID ?? ulid(),
+                              Name: emailField?.Name ?? "Email",
+                              Type: emailField?.Type ?? CustomFieldType.Text,
+                              Value: request.email.trim(),
+                          },
+                      ]
                     : []),
             ];
         }
         return values;
-    }, [credentials, effectiveEditorCredentialId, request, target?.appUri, target?.pageUrl]);
+    }, [
+        credentials,
+        effectiveEditorCredentialId,
+        request,
+        target?.appUri,
+        target?.pageUrl,
+    ]);
 
     const handleEditorSaved = () => {
         if (!request) return;
@@ -630,14 +842,19 @@ export default function CredentialRequestScreen() {
             return;
         }
         if (requestGuard()) {
-            setRequestError("The login was saved, but the Android request expired before Cryptex Vault could return.");
+            setRequestError(
+                "The login was saved, but the Android request expired before Cryptex Vault could return.",
+            );
             return;
         }
         if (request.kind === "provider-password-create") {
-            if (!androidCredentials.completeProviderPasswordCreate(request.id)) {
-                setRequestError("The login was saved, but Android could not finish the credential request.");
-            }
-            else returnToVault();
+            if (
+                !androidCredentials.completeProviderPasswordCreate(request.id)
+            ) {
+                setRequestError(
+                    "The login was saved, but Android could not finish the credential request.",
+                );
+            } else returnToVault();
         } else {
             androidCredentials.dismissRequest(request.id);
             returnToVault();
@@ -655,18 +872,47 @@ export default function CredentialRequestScreen() {
         ) {
             setView("save-choice");
         }
-    }, [editorCredentialId, editorPurpose, request, saveCandidates.length, view]);
+    }, [
+        editorCredentialId,
+        editorPurpose,
+        request,
+        saveCandidates.length,
+        view,
+    ]);
 
     if (!unlocked) {
-        return <Redirect href={{ pathname: "/(locked)/manager", params: { returnTo: "/credential-request" } }} />;
+        return (
+            <Redirect
+                href={{
+                    pathname: "/(locked)/manager",
+                    params: { returnTo: "/credential-request" },
+                }}
+            />
+        );
     }
     if (!request) {
-        return <RequestMessage title="Request expired" message={REQUEST_EXPIRED} onCancel={cancelRequest} />;
+        return (
+            <RequestMessage
+                title="Request expired"
+                message={REQUEST_EXPIRED}
+                onCancel={cancelRequest}
+            />
+        );
     }
     if (request.kind === "provider-unlock") {
-        return requestError
-            ? <RequestMessage title="Unlock provider" message={requestError} onCancel={cancelRequest} />
-            : <RequestProgress title="Unlock provider" label="Returning to Android…" onCancel={cancelRequest} />;
+        return requestError ? (
+            <RequestMessage
+                title="Unlock provider"
+                message={requestError}
+                onCancel={cancelRequest}
+            />
+        ) : (
+            <RequestProgress
+                title="Unlock provider"
+                label="Returning to Android…"
+                onCancel={cancelRequest}
+            />
+        );
     }
     if (request.kind === "provider-passkey-create") {
         const rpId = passkeyRequest?.rp?.id ?? "Unknown relying party";
@@ -676,27 +922,63 @@ export default function CredentialRequestScreen() {
                 title="Create passkey"
                 onBack={cancelRequest}
                 backLabel="Cancel passkey creation"
-                footer={<View style={{ gap: 10 }}>
-                    <UnlockedButton loading={busy} onPress={() => void completePasskeyCreate()}>Create and save</UnlockedButton>
-                    <UnlockedButton variant="ghost" disabled={busy} onPress={cancelRequest}>Cancel</UnlockedButton>
-                </View>}
+                footer={
+                    <View style={{ gap: 10 }}>
+                        <UnlockedButton
+                            loading={busy}
+                            onPress={() => void completePasskeyCreate()}
+                        >
+                            Create and save
+                        </UnlockedButton>
+                        <UnlockedButton
+                            variant="ghost"
+                            disabled={busy}
+                            onPress={cancelRequest}
+                        >
+                            Cancel
+                        </UnlockedButton>
+                    </View>
+                }
             >
                 <View style={{ gap: 22 }}>
                     <RequestDestination
                         label={rpId}
                         kind="passkey"
-                        detail={rpDisplayName && rpDisplayName !== rpId ? rpDisplayName : "Relying party ID"}
+                        detail={
+                            rpDisplayName && rpDisplayName !== rpId
+                                ? rpDisplayName
+                                : "Relying party ID"
+                        }
                     />
                     <View style={{ gap: 5 }}>
-                        <UnlockedText style={{ color: colors.muted, fontSize: 10, letterSpacing: 1 }}>ACCOUNT</UnlockedText>
-                        <UnlockedText style={{ fontSize: 17, fontWeight: "600" }}>
-                            {passkeyRequest?.user?.displayName ?? passkeyRequest?.user?.name ?? "Unknown account"}
+                        <UnlockedText
+                            style={{
+                                color: colors.muted,
+                                fontSize: 10,
+                                letterSpacing: 1,
+                            }}
+                        >
+                            ACCOUNT
                         </UnlockedText>
-                        {passkeyRequest?.user?.displayName && passkeyRequest.user.name ? (
-                            <UnlockedText style={{ color: colors.muted, fontSize: 13 }}>{passkeyRequest.user.name}</UnlockedText>
+                        <UnlockedText
+                            style={{ fontSize: 17, fontWeight: "600" }}
+                        >
+                            {passkeyRequest?.user?.displayName ??
+                                passkeyRequest?.user?.name ??
+                                "Unknown account"}
+                        </UnlockedText>
+                        {passkeyRequest?.user?.displayName &&
+                        passkeyRequest.user.name ? (
+                            <UnlockedText
+                                style={{ color: colors.muted, fontSize: 13 }}
+                            >
+                                {passkeyRequest.user.name}
+                            </UnlockedText>
                         ) : null}
                     </View>
-                    {requestError ? <InlineNotice tone="error" message={requestError} /> : null}
+                    {requestError ? (
+                        <InlineNotice tone="error" message={requestError} />
+                    ) : null}
                 </View>
             </AutofillRequestShell>
         );
@@ -707,59 +989,153 @@ export default function CredentialRequestScreen() {
                 title="Use passkey"
                 onBack={cancelRequest}
                 backLabel="Cancel passkey request"
-                footer={<UnlockedButton variant="ghost" disabled={busy} onPress={cancelRequest}>Cancel</UnlockedButton>}
+                footer={
+                    <UnlockedButton
+                        variant="ghost"
+                        disabled={busy}
+                        onPress={cancelRequest}
+                    >
+                        Cancel
+                    </UnlockedButton>
+                }
             >
                 <View style={{ gap: 18 }}>
-                    <RequestDestination label={passkeyRequest?.rpId ?? "Unknown relying party"} kind="passkey" />
+                    <RequestDestination
+                        label={passkeyRequest?.rpId ?? "Unknown relying party"}
+                        kind="passkey"
+                    />
                     {busy && request.credentialId ? (
-                        <View style={{ alignItems: "center", gap: 12, paddingVertical: 20 }}>
-                            <ActivityIndicator color={colors.primary} />
-                            <UnlockedText>Waiting for Android verification…</UnlockedText>
-                        </View>
-                    ) : passkeyMatches.length ? passkeyMatches.map((credential) => (
-                        <Pressable
-                            key={credential.ID}
-                            accessibilityRole="button"
-                            disabled={busy}
-                            onPress={() => void completePasskeyGet(credential.Passkey!.CredentialID)}
-                            style={{ minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderRadius: 6, backgroundColor: colors.secondary, borderLeftWidth: 2, borderLeftColor: colors.primary }}
+                        <View
+                            style={{
+                                alignItems: "center",
+                                gap: 12,
+                                paddingVertical: 20,
+                            }}
                         >
-                            <Fingerprint size={22} color={colors.primary} />
-                            <View style={{ flex: 1 }}>
-                                <UnlockedText style={{ fontWeight: "600" }}>{credential.Name}</UnlockedText>
-                                <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>
-                                    {credential.Passkey?.UserDisplayName || credential.Passkey?.UserName}
+                            <ActivityIndicator color={colors.primary} />
+                            <UnlockedText>
+                                Waiting for Android verification…
+                            </UnlockedText>
+                        </View>
+                    ) : passkeyMatches.length ? (
+                        passkeyMatches.map((credential) => (
+                            <Pressable
+                                key={credential.ID}
+                                accessibilityRole="button"
+                                disabled={busy}
+                                onPress={() =>
+                                    void completePasskeyGet(
+                                        credential.Passkey!.CredentialID,
+                                    )
+                                }
+                                style={{
+                                    minHeight: 76,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 12,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 6,
+                                    backgroundColor: colors.secondary,
+                                    borderLeftWidth: 2,
+                                    borderLeftColor: colors.primary,
+                                }}
+                            >
+                                <Fingerprint size={22} color={colors.primary} />
+                                <View style={{ flex: 1 }}>
+                                    <UnlockedText style={{ fontWeight: "600" }}>
+                                        {credential.Name}
+                                    </UnlockedText>
+                                    <UnlockedText
+                                        style={{
+                                            color: colors.muted,
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        {credential.Passkey?.UserDisplayName ||
+                                            credential.Passkey?.UserName}
+                                    </UnlockedText>
+                                </View>
+                                <UnlockedText
+                                    style={{
+                                        color: colors.primary,
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    Continue
                                 </UnlockedText>
-                            </View>
-                            <UnlockedText style={{ color: colors.primary, fontSize: 12 }}>Continue</UnlockedText>
-                        </Pressable>
-                    )) : <InlineNotice tone="info" message="No passkeys match this request." />}
-                    {requestError ? <InlineNotice tone="error" message={requestError} /> : null}
+                            </Pressable>
+                        ))
+                    ) : (
+                        <InlineNotice
+                            tone="info"
+                            message="No passkeys match this request."
+                        />
+                    )}
+                    {requestError ? (
+                        <InlineNotice tone="error" message={requestError} />
+                    ) : null}
                 </View>
             </AutofillRequestShell>
         );
     }
     if (view === "save-choice") {
         return (
-            <AutofillRequestShell title="Choose login to update" onBack={cancelRequest}>
-                <UnlockedText style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
-                    More than one saved login has this username. Choose one to update, or save a new login.
+            <AutofillRequestShell
+                title="Choose login to update"
+                onBack={cancelRequest}
+            >
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 13,
+                        lineHeight: 19,
+                    }}
+                >
+                    More than one saved login has this username. Choose one to
+                    update, or save a new login.
                 </UnlockedText>
                 <View style={{ marginTop: 16 }}>
                     {saveCandidates.map((credential) => (
                         <Pressable
                             key={credential.ID}
                             accessibilityRole="button"
-                            onPress={() => { setEditorCredentialId(credential.ID); setView("editor"); }}
-                            style={{ minHeight: 64, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}
+                            onPress={() => {
+                                setEditorCredentialId(credential.ID);
+                                setView("editor");
+                            }}
+                            style={{
+                                minHeight: 64,
+                                justifyContent: "center",
+                                borderBottomWidth: 1,
+                                borderBottomColor: colors.border,
+                            }}
                         >
-                            <UnlockedText style={{ fontWeight: "600" }}>{credential.Name}</UnlockedText>
-                            <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>{credential.URL || "No saved website"}</UnlockedText>
+                            <UnlockedText style={{ fontWeight: "600" }}>
+                                {credential.Name}
+                            </UnlockedText>
+                            <UnlockedText
+                                style={{ color: colors.muted, fontSize: 12 }}
+                            >
+                                {credential.URL || "No saved website"}
+                            </UnlockedText>
                         </Pressable>
                     ))}
-                    <UnlockedButton variant="secondary" className="mt-4" onPress={() => { setEditorCredentialId(null); setView("editor"); }}>
+                    <UnlockedButton
+                        variant="secondary"
+                        className="mt-4"
+                        onPress={() => {
+                            setEditorCredentialId(null);
+                            setView("editor");
+                        }}
+                    >
                         <Plus size={16} color={colors.primary} />
-                        <UnlockedText style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>
+                        <UnlockedText
+                            style={{
+                                color: colors.foreground,
+                                fontSize: 14,
+                                fontWeight: "600",
+                            }}
+                        >
                             Save new login
                         </UnlockedText>
                     </UnlockedButton>
@@ -775,17 +1151,27 @@ export default function CredentialRequestScreen() {
                     credentialId={effectiveEditorCredentialId}
                     initialValues={editorInitialValues}
                     beforeSave={requestGuard}
-                    notice={request.kind === "accessibility-save" && request.password == null ? {
-                        tone: "info",
-                        message: "Android hid this password from accessibility. Enter it inside Cryptex Vault to save this login.",
-                    } : undefined}
+                    notice={
+                        request.kind === "accessibility-save" &&
+                        request.password == null
+                            ? {
+                                  tone: "info",
+                                  message:
+                                      "Android hid this password from accessibility. Enter it inside Cryptex Vault to save this login.",
+                              }
+                            : undefined
+                    }
                     requirePassword={
                         request.kind === "accessibility-save" &&
                         request.password == null &&
                         !effectiveEditorCredentialId
                     }
                     onSaved={handleEditorSaved}
-                    onCancel={() => editorPurpose === "add" ? setView("picker") : cancelRequest()}
+                    onCancel={() =>
+                        editorPurpose === "add"
+                            ? setView("picker")
+                            : cancelRequest()
+                    }
                     onSaveError={(_message, code, retry) => {
                         retrySaveRef.current = retry;
                         setSaveFailureCode(code);
@@ -796,23 +1182,45 @@ export default function CredentialRequestScreen() {
                     open={saveFailureOpen}
                     code={saveFailureCode}
                     onClose={() => setSaveFailureOpen(false)}
-                    onRetry={() => { setSaveFailureOpen(false); retrySaveRef.current?.(); }}
+                    onRetry={() => {
+                        setSaveFailureOpen(false);
+                        retrySaveRef.current?.();
+                    }}
                 />
             </UnlockedConfirmationProvider>
         );
     }
     if (view === "decision" && target) {
-        const selectedIsMatch = !!selected && matches.some((credential) => credential.ID === selected.ID);
+        const selectedIsMatch =
+            !!selected &&
+            matches.some((credential) => credential.ID === selected.ID);
         return (
             <FillDecisionScreen
                 credential={selected}
                 target={target}
-                warning={[autofillAssociationWarning(target) ?? (selected ? `${selected.Name} is not saved for ${target.displayName}. Check the destination before filling.` : null), accessibilityOriginWarning].filter(Boolean).join(" ") || null}
-                canAssociate={!!selected && !selectedIsMatch && canAssociateAutofillTarget(target)}
+                warning={
+                    [
+                        autofillAssociationWarning(target) ??
+                            (selected
+                                ? `${selected.Name} is not saved for ${target.displayName}. Check the destination before filling.`
+                                : null),
+                        accessibilityOriginWarning,
+                    ]
+                        .filter(Boolean)
+                        .join(" ") || null
+                }
+                canAssociate={
+                    !!selected &&
+                    !selectedIsMatch &&
+                    canAssociateAutofillTarget(target)
+                }
                 busy={busy}
                 onClose={() => setView("picker")}
                 onFillOnce={() => selected && void completeLogin(selected)}
-                onAssociate={() => { setAssociationError(""); setView("associate"); }}
+                onAssociate={() => {
+                    setAssociationError("");
+                    setView("associate");
+                }}
             />
         );
     }
@@ -828,16 +1236,35 @@ export default function CredentialRequestScreen() {
             />
         );
     }
-    if (request.kind === "provider-password-get" && providerWebOrigin === undefined) {
-        return <RequestProgress title="Verify destination" label="Verifying request…" onCancel={cancelRequest} />;
+    if (
+        request.kind === "provider-password-get" &&
+        providerWebOrigin === undefined
+    ) {
+        return (
+            <RequestProgress
+                title="Verify destination"
+                label="Verifying request…"
+                onCancel={cancelRequest}
+            />
+        );
     }
     if (!target) {
-        return <RequestMessage title="Destination unavailable" message="Cryptex Vault could not confirm which app or website requested this login." onCancel={cancelRequest} />;
+        return (
+            <RequestMessage
+                title="Destination unavailable"
+                message="Cryptex Vault could not confirm which app or website requested this login."
+                onCancel={cancelRequest}
+            />
+        );
     }
     return (
         <AutofillPicker
             target={target}
-            warning={[autofillAssociationWarning(target), accessibilityOriginWarning].filter(Boolean).join(" ") || null}
+            warning={
+                [autofillAssociationWarning(target), accessibilityOriginWarning]
+                    .filter(Boolean)
+                    .join(" ") || null
+            }
             rows={rows}
             matchCount={matches.length}
             eligibleCount={eligibleCredentials.length}
@@ -848,16 +1275,30 @@ export default function CredentialRequestScreen() {
             onQueryChange={setQuery}
             onToggleExpanded={() => setExpanded((value) => !value)}
             onChoose={beginFill}
-            onAdd={() => { setEditorPurpose("add"); setEditorCredentialId(undefined); setView("editor"); }}
+            onAdd={() => {
+                setEditorPurpose("add");
+                setEditorCredentialId(undefined);
+                setView("editor");
+            }}
             onCancel={cancelRequest}
         />
     );
 }
 
-function RequestProgress({ title, label, onCancel }: { title: string; label: string; onCancel: () => void }) {
+function RequestProgress({
+    title,
+    label,
+    onCancel,
+}: {
+    title: string;
+    label: string;
+    onCancel: () => void;
+}) {
     return (
         <AutofillRequestShell title={title} onBack={onCancel}>
-            <View style={{ alignItems: "center", gap: 12, paddingVertical: 28 }}>
+            <View
+                style={{ alignItems: "center", gap: 12, paddingVertical: 28 }}
+            >
                 <ActivityIndicator color={colors.primary} />
                 <UnlockedText>{label}</UnlockedText>
             </View>
@@ -865,11 +1306,21 @@ function RequestProgress({ title, label, onCancel }: { title: string; label: str
     );
 }
 
-function RequestMessage({ title, message, onCancel }: { title: string; message: string; onCancel: () => void }) {
+function RequestMessage({
+    title,
+    message,
+    onCancel,
+}: {
+    title: string;
+    message: string;
+    onCancel: () => void;
+}) {
     return (
         <AutofillRequestShell title={title} onBack={onCancel}>
             <InlineNotice tone="error" message={message} />
-            <UnlockedButton className="mt-4" onPress={onCancel}>Return to app</UnlockedButton>
+            <UnlockedButton className="mt-4" onPress={onCancel}>
+                Return to app
+            </UnlockedButton>
         </AutofillRequestShell>
     );
 }

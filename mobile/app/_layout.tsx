@@ -31,7 +31,10 @@ import {
 import { trpcReact, reactQueryClientConfig } from "@/utils/trpc";
 import { androidCredentials } from "@/utils/android-credentials";
 import { buildAndroidProviderCredentials } from "@/utils/android-provider-credentials";
-import { getCachedAutoLockMinutes, loadAutoLockMinutes } from "@/utils/auto-lock-settings";
+import {
+    getCachedAutoLockMinutes,
+    loadAutoLockMinutes,
+} from "@/utils/auto-lock-settings";
 import { colors } from "@/theme";
 import { ensureSecretTempFilesReady } from "@/utils/secret-temp-files";
 import { bindOnlineServicesQueryCache } from "@/utils/online-services-query-cache";

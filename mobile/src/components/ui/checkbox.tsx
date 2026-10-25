@@ -55,7 +55,10 @@ function Checkbox({
                     />
                 ) : null}
             </View>
-            <Text style={labelStyle} className="flex-1 text-sm leading-5 text-foreground">
+            <Text
+                style={labelStyle}
+                className="flex-1 text-sm leading-5 text-foreground"
+            >
                 {label}
             </Text>
         </Pressable>

@@ -17,7 +17,9 @@ function teardownController(controller: SyncConnectionController) {
 }
 
 /** Track the unlocked shell's controller even when another route covers it. */
-export function registerActiveSyncController(controller: SyncConnectionController) {
+export function registerActiveSyncController(
+    controller: SyncConnectionController,
+) {
     tornDownControllers.delete(controller);
     activeControllers.add(controller);
     return () => {

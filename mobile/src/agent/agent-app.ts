@@ -16,7 +16,11 @@ import { env } from "@/env";
 import { trpc } from "@/utils/trpc";
 import { vaultLog } from "@/utils/logging";
 import { hasOnlineServicesSession } from "@/app_lib/share-links";
-import { isVaultUnlockedAtom, unlockedVaultAtom, vaultStore } from "@/utils/atoms";
+import {
+    isVaultUnlockedAtom,
+    unlockedVaultAtom,
+    vaultStore,
+} from "@/utils/atoms";
 import { agentService } from "./agent-service";
 import {
     loadAgentCache,
@@ -55,14 +59,22 @@ async function getRelayPass(relay: RelayTarget): Promise<string | null> {
     const identity = await loadApproverIdentity();
     const key = relayKeyOf(identity);
     const stored = await loadRelayPass();
-    const usable = stored && stored.key === key && stored.expiresAt > Date.now() ? stored : null;
-    if (usable && usable.expiresAt - Date.now() > PASS_RENEW_MS) return usable.pass;
+    const usable =
+        stored && stored.key === key && stored.expiresAt > Date.now()
+            ? stored
+            : null;
+    if (usable && usable.expiresAt - Date.now() > PASS_RENEW_MS)
+        return usable.pass;
     if (!vaultStore.get(isVaultUnlockedAtom) || !hasOnlineServicesSession())
         return usable?.pass ?? null;
     passRequest ??= (async () => {
         try {
             const fresh = await trpc.v1.relay.pass.mutate({ key });
-            await saveRelayPass({ pass: fresh.pass, expiresAt: fresh.expiresAt, key });
+            await saveRelayPass({
+                pass: fresh.pass,
+                expiresAt: fresh.expiresAt,
+                key,
+            });
             return fresh.pass;
         } catch (error) {
             vaultLog.warn("Couldn't renew the relay pass", { error });
@@ -140,7 +152,10 @@ export function syncAgentCache(): Promise<void> {
         let stored = JSON.stringify(await loadAgentCache());
         for (;;) {
             if (!vaultStore.get(isVaultUnlockedAtom)) return;
-            const next = agentCacheFromVault(vaultStore.get(unlockedVaultAtom), identity);
+            const next = agentCacheFromVault(
+                vaultStore.get(unlockedVaultAtom),
+                identity,
+            );
             const text = JSON.stringify(next);
             if (text === stored) break;
             reloadOwed = true;
@@ -206,7 +221,10 @@ function openApproval(requestId: string) {
 export function showWantedApproval() {
     const wanted = wantedApproval;
     if (!wanted) return;
-    if (agentRuntime.isShowing(wanted.id) || !agentRuntime.getRequest(wanted.id)) {
+    if (
+        agentRuntime.isShowing(wanted.id) ||
+        !agentRuntime.getRequest(wanted.id)
+    ) {
         wantedApproval = null;
         return;
     }

@@ -123,7 +123,9 @@ describe("clipboard secret clear", () => {
         expect(__getClipboardForTests()).toBe("");
 
         stopVaultTimeoutSession();
-        await expect(copySecretToClipboard("new generator result")).resolves.toBe(true);
+        await expect(
+            copySecretToClipboard("new generator result"),
+        ).resolves.toBe(true);
     });
 
     it("clears a native write that finishes after the deadline", async () => {
@@ -133,17 +135,21 @@ describe("clipboard secret clear", () => {
         noteVaultBackgrounded();
         androidCredentials.available = true;
         let finishWrite!: () => void;
-        jest.mocked(androidCredentials.setSensitiveClipboardString).mockImplementationOnce(
-            async (value) => {
-                await new Promise<void>((resolve) => { finishWrite = resolve; });
-                __setClipboardForTests(value);
-            },
-        );
+        jest.mocked(
+            androidCredentials.setSensitiveClipboardString,
+        ).mockImplementationOnce(async (value) => {
+            await new Promise<void>((resolve) => {
+                finishWrite = resolve;
+            });
+            __setClipboardForTests(value);
+        });
         const copy = copySecretToClipboard("late secret");
         jest.setSystemTime(1_060_000);
         finishWrite();
         await expect(copy).resolves.toBe(false);
-        expect(androidCredentials.clearSensitiveClipboardIfOwned).toHaveBeenCalled();
+        expect(
+            androidCredentials.clearSensitiveClipboardIfOwned,
+        ).toHaveBeenCalled();
         expect(__getClipboardForTests()).toBe("");
         expect(getPendingClipboardSecretForTests()).toBeNull();
     });
@@ -154,18 +160,22 @@ describe("clipboard secret clear", () => {
         startVaultTimeoutSession();
         androidCredentials.available = true;
         let finishWrite!: () => void;
-        jest.mocked(androidCredentials.setSensitiveClipboardString).mockImplementationOnce(
-            async (value) => {
-                await new Promise<void>((resolve) => { finishWrite = resolve; });
-                __setClipboardForTests(value);
-            },
-        );
+        jest.mocked(
+            androidCredentials.setSensitiveClipboardString,
+        ).mockImplementationOnce(async (value) => {
+            await new Promise<void>((resolve) => {
+                finishWrite = resolve;
+            });
+            __setClipboardForTests(value);
+        });
         const copy = copySecretToClipboard("private key");
         markVaultLockStarted();
         await clearPendingSecretFromClipboard();
         finishWrite();
         await expect(copy).resolves.toBe(false);
-        expect(androidCredentials.clearSensitiveClipboardIfOwned).toHaveBeenCalled();
+        expect(
+            androidCredentials.clearSensitiveClipboardIfOwned,
+        ).toHaveBeenCalled();
         expect(__getClipboardForTests()).toBe("");
         expect(getPendingClipboardSecretForTests()).toBeNull();
     });

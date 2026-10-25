@@ -11,7 +11,7 @@ name: Android autofill URI matching
 - assertVisible: login.exact.example.com
 - assertVisible: exact-rule@example.test
 - tapOn:
-    text: exact-rule@example.test
+      text: exact-rule@example.test
 - assertVisible: Review destination
 - tapOn: Fill once
 - assertVisible: Web login fixture
@@ -36,7 +36,7 @@ name: Android autofill URI matching
 - tapOn: Open ${CRYPTEX_APP_NAME}
 - assertVisible: domain-rule@example.test
 - tapOn:
-    text: domain-rule@example.test
+      text: domain-rule@example.test
 - assertVisible: Review destination
 - tapOn: Fill once
 - assertVisible: Web login fixture
@@ -50,7 +50,7 @@ name: Android autofill URI matching
 - tapOn: Open ${CRYPTEX_APP_NAME}
 - assertVisible: wildcard-rule@example.test
 - tapOn:
-    text: wildcard-rule@example.test
+      text: wildcard-rule@example.test
 - assertVisible: Review destination
 - tapOn: Fill once
 - assertVisible: Web login fixture

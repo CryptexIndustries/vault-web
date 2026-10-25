@@ -7,18 +7,18 @@ name: Edit the credential on the receiving device
 - eraseText: 100
 - inputText: returned@example.test
 - tapOn:
-    text: Password, Hidden.*
+      text: Password, Hidden.*
 - eraseText: 100
 - inputText: receiver-updated-password-43
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: returned@example.test
 - runFlow:
-    file: sync-device-now.yaml
-    env:
-      PEER_NAME: Root Device
+      file: sync-device-now.yaml
+      env:
+          PEER_NAME: Root Device

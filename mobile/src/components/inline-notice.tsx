@@ -1,6 +1,11 @@
 import * as React from "react";
 import { Pressable, View, type ViewProps } from "react-native";
-import { AlertCircle, CheckCircle2, Info, LoaderCircle } from "lucide-react-native";
+import {
+    AlertCircle,
+    CheckCircle2,
+    Info,
+    LoaderCircle,
+} from "lucide-react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -93,7 +98,9 @@ function InlineNotice({
                 accessibilityElementsHidden
             />
             <View className="flex-1">
-                <Text className={cn("text-sm leading-5", style.text)}>{message}</Text>
+                <Text className={cn("text-sm leading-5", style.text)}>
+                    {message}
+                </Text>
                 {action ? (
                     <Pressable
                         testID={action.testID}
@@ -102,7 +109,7 @@ function InlineNotice({
                         hitSlop={8}
                         className="mt-2 self-start"
                     >
-                        <Text className="text-sm font-semibold text-primary">
+                        <Text className="font-semibold text-sm text-primary">
                             {action.label}
                         </Text>
                     </Pressable>

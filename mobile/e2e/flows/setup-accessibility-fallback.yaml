@@ -5,53 +5,53 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn: Autofill
 - assertVisible: Autofill
 - runFlow:
-    when:
-      visible: Cryptex Vault is selected
-    commands:
-      - tapOn: Password autofill
-      - assertVisible: Preferred service( for passwords, passkeys & autofill)?
-      - tapOn: None
-      - runFlow:
-          when:
-            visible: Turn off
-          commands:
-            - tapOn: Turn off
-      - back
+      when:
+          visible: Cryptex Vault is selected
+      commands:
+          - tapOn: Password autofill
+          - assertVisible: Preferred service( for passwords, passkeys & autofill)?
+          - tapOn: None
+          - runFlow:
+                when:
+                    visible: Turn off
+                commands:
+                    - tapOn: Turn off
+          - back
 - scrollUntilVisible:
-    element:
-      text: Accessibility fallback
-    direction: DOWN
+      element:
+          text: Accessibility fallback
+      direction: DOWN
 - tapOn: Accessibility fallback
 - assertVisible: Android gives accessibility services broad access to on-screen controls.*
 - runFlow:
-    when:
-      visible: Agree and continue
-    commands:
-      - tapOn: Agree and continue
-      - runFlow:
-          when:
-            visible: Downloaded apps
-          commands:
-            - tapOn: Downloaded apps
-      - tapOn: ${CRYPTEX_APP_NAME} autofill fallback
-      - runFlow:
-          when:
-            visible: Use ${CRYPTEX_APP_NAME} autofill fallback
-          commands:
-            - tapOn: Use ${CRYPTEX_APP_NAME} autofill fallback
-      - runFlow:
-          when:
-            visible: Allow
-          commands:
-            - tapOn: Allow
-      - back
-      - back
+      when:
+          visible: Agree and continue
+      commands:
+          - tapOn: Agree and continue
+          - runFlow:
+                when:
+                    visible: Downloaded apps
+                commands:
+                    - tapOn: Downloaded apps
+          - tapOn: ${CRYPTEX_APP_NAME} autofill fallback
+          - runFlow:
+                when:
+                    visible: Use ${CRYPTEX_APP_NAME} autofill fallback
+                commands:
+                    - tapOn: Use ${CRYPTEX_APP_NAME} autofill fallback
+          - runFlow:
+                when:
+                    visible: Allow
+                commands:
+                    - tapOn: Allow
+          - back
+          - back
 - openLink: ${CRYPTEX_APP_SCHEME}://
 - tapOn: More
 - tapOn: Autofill
 - scrollUntilVisible:
-    element:
-      text: Accessibility fallback
-    direction: DOWN
+      element:
+          text: Accessibility fallback
+      direction: DOWN
 - tapOn: Accessibility fallback
 - assertVisible: Review accessibility access

@@ -871,7 +871,9 @@ export function UnlockTab({
                         Biometrics available. Enable in Settings after unlock.
                     </Text>
                 ) : null}
-                <VaultEntryAssurance>Only you hold the keys</VaultEntryAssurance>
+                <VaultEntryAssurance>
+                    Only you hold the keys
+                </VaultEntryAssurance>
             </View>
 
             <Dialog

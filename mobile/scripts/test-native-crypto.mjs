@@ -5,13 +5,21 @@ import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
 import profileRegistry from "../config/profiles.cjs";
 
-const profile = profileRegistry.getProfile(process.env.CRYPTEX_APP_PROFILE || "production");
+const profile = profileRegistry.getProfile(
+    process.env.CRYPTEX_APP_PROFILE || "production",
+);
 
 const android = fileURLToPath(new URL("../android/", import.meta.url));
 const serial = process.env.ANDROID_SERIAL || process.env.MAESTRO_DEVICE;
-if (!serial || !serial.trim() || serial.trim() !== serial ||
-    serial === process.env.CRYPTEX_E2E_PROTECTED_DEVICE) {
-    throw new Error("Select an explicit unprotected device with ANDROID_SERIAL or MAESTRO_DEVICE.");
+if (
+    !serial ||
+    !serial.trim() ||
+    serial.trim() !== serial ||
+    serial === process.env.CRYPTEX_E2E_PROTECTED_DEVICE
+) {
+    throw new Error(
+        "Select an explicit unprotected device with ANDROID_SERIAL or MAESTRO_DEVICE.",
+    );
 }
 const device = ["-s", serial];
 const adb = (...args) =>
@@ -38,12 +46,7 @@ const build = spawnSync(
     },
 );
 assert.equal(build.status, 0, "Native crypto test APK build failed");
-adb(
-    "install",
-    "-r",
-    "-t",
-    `${android}/app/build/outputs/apk/e2e/app-e2e.apk`,
-);
+adb("install", "-r", "-t", `${android}/app/build/outputs/apk/e2e/app-e2e.apk`);
 const app = "com.cryptex.vault.cryptotest";
 let executionFailure;
 let cleanupFailure;
@@ -51,7 +54,13 @@ try {
     adb("shell", "am", "force-stop", app);
     // Logcat timestamps prevent a previous successful run from satisfying this run.
     const since = adb("shell", "date '+%m-%d %H:%M:%S.000'").trim();
-    adb("shell", "am", "start", "-n", `${app}/${profile.applicationId}.MainActivity`);
+    adb(
+        "shell",
+        "am",
+        "start",
+        "-n",
+        `${app}/${profile.applicationId}.MainActivity`,
+    );
     let result;
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
@@ -84,10 +93,18 @@ try {
         await setTimeout(1000);
     }
     assert.ok(result, "Native crypto tests did not finish within 120 seconds");
-    assert.deepEqual(result.webrtc, {
-        rounds: 2, applicationOnly: true, immediateHellos: 2, textMessages: 18,
-        binaryBytes: 4 * (128 * 1024 + 17 + 9), largeMessageBytes: 128 * 1024 + 17,
-    }, "Native bidirectional WebRTC/reconnect regression did not finish");
+    assert.deepEqual(
+        result.webrtc,
+        {
+            rounds: 2,
+            applicationOnly: true,
+            immediateHellos: 2,
+            textMessages: 18,
+            binaryBytes: 4 * (128 * 1024 + 17 + 9),
+            largeMessageBytes: 128 * 1024 + 17,
+        },
+        "Native bidirectional WebRTC/reconnect regression did not finish",
+    );
     for (const coordinate of [result.publicJwk.x, result.publicJwk.y]) {
         assert.match(
             coordinate,
@@ -120,13 +137,18 @@ try {
     } catch (error) {
         cleanupFailure = error;
         if (executionFailure) {
-            console.error("Isolated crypto test package cleanup also failed:", error.message);
+            console.error(
+                "Isolated crypto test package cleanup also failed:",
+                error.message,
+            );
         }
     }
 }
 if (executionFailure) throw executionFailure;
 if (cleanupFailure) {
-    throw new Error("Isolated crypto test package cleanup failed", { cause: cleanupFailure });
+    throw new Error("Isolated crypto test package cleanup failed", {
+        cause: cleanupFailure,
+    });
 }
 console.log(
     "Native crypto compatibility, vault/recovery/link, key restrictions, failure handling, Node signatures and bidirectional WebRTC text/binary/large-message/reconnect tests passed.",

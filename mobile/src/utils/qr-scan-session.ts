@@ -20,7 +20,8 @@ export function createQrScanSession(
     return {
         cancel,
         scan(data: string) {
-            if (cancelled || (state && state.chunks.size === state.total)) return;
+            if (cancelled || (state && state.chunks.size === state.total))
+                return;
             const text = data.trim();
             if (!text) return;
             handleChunkedQRCodeUpdate({

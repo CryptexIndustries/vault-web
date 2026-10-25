@@ -109,7 +109,10 @@ function encodeCbor(value: CborValue): Uint8Array {
     }
 
     const entries = [...value.entries()]
-        .map(([key, item]) => ({ key: encodeCbor(key), value: encodeCbor(item) }))
+        .map(([key, item]) => ({
+            key: encodeCbor(key),
+            value: encodeCbor(item),
+        }))
         .sort((left, right) => compareCborKeys(left.key, right.key));
     return concatBytes(
         encodeCborHead(5, entries.length),

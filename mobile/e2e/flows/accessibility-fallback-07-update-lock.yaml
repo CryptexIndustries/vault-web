@@ -4,11 +4,11 @@ name: Accessibility fallback - update review and locked request
 - assertVisible: Edit item
 - assertVisible: Android hid this password from accessibility.*
 - tapOn:
-    point: "50%,47%"
+      point: "50%,47%"
 - eraseText
 - inputText: fallback-password-two
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Accessibility registration fixture
 - openLink: ${CRYPTEX_APP_SCHEME}://
 - tapOn: Lock vault

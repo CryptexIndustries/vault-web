@@ -7,29 +7,29 @@ name: Receive and protect a real linked vault
 - assertVisible: Vault name
 - tapOn: Use invitation
 - runFlow:
-    when:
-      notVisible: Make the connection.
-    commands:
-      - tapOn: Use invitation
+      when:
+          notVisible: Make the connection.
+      commands:
+          - tapOn: Use invitation
 - assertVisible: Make the connection.
 - assertVisible: Scan QR code
 - tapOn: Choose link file
 - runFlow:
-    file: pick-exported-file.yaml
-    env:
-      EXPORTED_FILE: e2e-invitation.cryxlink
+      file: pick-exported-file.yaml
+      env:
+          EXPORTED_FILE: e2e-invitation.cryxlink
 - assertVisible: Invitation ready.*
 - tapOn: Verification words
 - inputText: ${TRANSFER_PHRASE}
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      text: Connect to sending device
-    direction: DOWN
+      element:
+          text: Connect to sending device
+      direction: DOWN
 - tapOn: Connect to sending device
 - extendedWaitUntil:
-    visible: Linked vault name
-    timeout: 120000
+      visible: Linked vault name
+      timeout: 120000
 - tapOn: Linked vault name
 - eraseText: 100
 - inputText: E2E Receiver Vault
@@ -40,18 +40,18 @@ name: Receive and protect a real linked vault
 - inputText: ReceiverHorseBatteryStaple42
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      text: Continue
-    direction: DOWN
+      element:
+          text: Continue
+      direction: DOWN
 - tapOn: Continue
 - extendedWaitUntil:
-    visible: Keep your way back in
-    timeout: 120000
+      visible: Keep your way back in
+      timeout: 120000
 - tapOn: I have written down the recovery code
 - scrollUntilVisible:
-    element:
-      text: Save and open vault
-    direction: DOWN
+      element:
+          text: Save and open vault
+      direction: DOWN
 - tapOn: Save and open vault
 - assertVisible: E2E Transfer Login.*
 - tapOn: E2E Transfer Login.*
@@ -66,5 +66,5 @@ name: Receive and protect a real linked vault
 - inputText: ReceiverHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: E2E Transfer Login.*

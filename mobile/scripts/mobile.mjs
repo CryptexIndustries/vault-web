@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    renameSync,
+    rmSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,7 +73,9 @@ CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 
 export function requireAndroid(project = android) {
     if (!existsSync(join(project, gradle))) {
-        throw new Error("Android project is missing. Run pnpm mobile:build -- --dev or --e2e first.");
+        throw new Error(
+            "Android project is missing. Run pnpm mobile:build -- --dev or --e2e first.",
+        );
     }
 }
 
@@ -73,32 +83,63 @@ export function requireNativeIdentity(profile, project = android) {
     const file = join(project, "app/build.gradle");
     if (!existsSync(file)) return;
     const source = readFileSync(file, "utf8");
-    const values = ["applicationId", "namespace"].map(name => source.match(new RegExp(`\\b${name}\\s*(?:=\\s*)?["']([^"']+)["']`))?.[1]);
-    if (values.some(value => value !== profile.applicationId)) throw new Error(
-        `Existing Android project identity (${values.join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --e2e --profile ${profile.name} --regenerate-native to back up the existing tree outside the checkout before generating fresh native sources. --no-clean cannot safely migrate application identity.`);
+    const values = ["applicationId", "namespace"].map(
+        (name) =>
+            source.match(
+                new RegExp(`\\b${name}\\s*(?:=\\s*)?["']([^"']+)["']`),
+            )?.[1],
+    );
+    if (values.some((value) => value !== profile.applicationId))
+        throw new Error(
+            `Existing Android project identity (${values.join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --e2e --profile ${profile.name} --regenerate-native to back up the existing tree outside the checkout before generating fresh native sources. --no-clean cannot safely migrate application identity.`,
+        );
 }
 
-export function regenerateNativeProject(profile, project = android, backupRoot = join(homedir(), ".cache/cryptex-development/native-backups")) {
+export function regenerateNativeProject(
+    profile,
+    project = android,
+    backupRoot = join(homedir(), ".cache/cryptex-development/native-backups"),
+) {
     if (!existsSync(project)) return;
     mkdirSync(backupRoot, { recursive: true, mode: 0o700 });
     const backup = mkdtempSync(join(backupRoot, `${profile.name}-`));
     renameSync(project, join(backup, "android"));
-    console.log(`Existing native project preserved at ${join(backup, "android")}.`);
+    console.log(
+        `Existing native project preserved at ${join(backup, "android")}.`,
+    );
     return join(backup, "android");
 }
 
 // React Native caches autolinking until package.json or react-native.config.js
 // changes. CRYPTEX_DISTRIBUTION changes the linked modules without touching either.
 export function clearAutolinkingCache(project = android) {
-    rmSync(join(project, "build/generated/autolinking"), { recursive: true, force: true });
+    rmSync(join(project, "build/generated/autolinking"), {
+        recursive: true,
+        force: true,
+    });
 }
 
-export function runMobile(argv, { run = spawnSync, env = process.env, checkAndroid = requireAndroid, checkNativeIdentity = requireNativeIdentity, regenerateNative = regenerateNativeProject, clearAutolinking = clearAutolinkingCache } = {}) {
+export function runMobile(
+    argv,
+    {
+        run = spawnSync,
+        env = process.env,
+        checkAndroid = requireAndroid,
+        checkNativeIdentity = requireNativeIdentity,
+        regenerateNative = regenerateNativeProject,
+        clearAutolinking = clearAutolinkingCache,
+    } = {},
+) {
     const args = [...argv];
     if (args[0] === "--") args.shift();
     let command = args.shift();
     if (args[0] === "--") args.shift();
-    if (!command || command === "--help" || command === "help" || args[0] === "--help") {
+    if (
+        !command ||
+        command === "--help" ||
+        command === "help" ||
+        args[0] === "--help"
+    ) {
         console.log(help);
         return;
     }
@@ -110,14 +151,25 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         });
         if (result.error) throw result.error;
         if (result.status !== 0) {
-            const error = new Error(`${binary} failed${result.signal ? ` (${result.signal})` : ""}.`);
+            const error = new Error(
+                `${binary} failed${result.signal ? ` (${result.signal})` : ""}.`,
+            );
             error.exitCode = result.status || 1;
             throw error;
         }
     };
-    const exec = (parameters, overrides) => execute(pnpm, ["exec", ...parameters], overrides);
-    const developmentEnvironment = (profile, e2e = false, distribution = "standard") => ({
-        ...Object.fromEntries(Object.keys(env).filter(name => name.startsWith("CRYPTEX_EMBEDDED_UPDATE_")).map(name => [name, undefined])),
+    const exec = (parameters, overrides) =>
+        execute(pnpm, ["exec", ...parameters], overrides);
+    const developmentEnvironment = (
+        profile,
+        e2e = false,
+        distribution = "standard",
+    ) => ({
+        ...Object.fromEntries(
+            Object.keys(env)
+                .filter((name) => name.startsWith("CRYPTEX_EMBEDDED_UPDATE_"))
+                .map((name) => [name, undefined]),
+        ),
         NODE_ENV: e2e ? "production" : "development",
         EXPO_PUBLIC_CRYPTEX_E2E: e2e ? "1" : "0",
         CRYPTEX_APP_PROFILE: profile.name,
@@ -129,13 +181,21 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         CRYPTEX_SOURCE_REVISION: undefined,
     });
     const rejectArguments = () => {
-        if (args.length) throw new Error(`Unexpected arguments: ${args.join(" ")}`);
+        if (args.length)
+            throw new Error(`Unexpected arguments: ${args.join(" ")}`);
     };
     const takeProfile = () => {
         const index = args.indexOf("--profile");
         let name = env.CRYPTEX_APP_PROFILE || "production";
         if (index >= 0) {
-            if (args.lastIndexOf("--profile") !== index || !args[index + 1] || args[index + 1].startsWith("--")) throw new Error("Specify --profile production or preprod once.");
+            if (
+                args.lastIndexOf("--profile") !== index ||
+                !args[index + 1] ||
+                args[index + 1].startsWith("--")
+            )
+                throw new Error(
+                    "Specify --profile production or preprod once.",
+                );
             name = args[index + 1];
             args.splice(index, 2);
         }
@@ -146,19 +206,31 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         const index = args.indexOf("--distribution");
         if (index < 0) return "standard";
         const name = args[index + 1];
-        if (args.lastIndexOf("--distribution") !== index || !["standard", "play"].includes(name)) {
-            throw new Error("Specify --distribution standard or play once for dev and E2E builds.");
+        if (
+            args.lastIndexOf("--distribution") !== index ||
+            !["standard", "play"].includes(name)
+        ) {
+            throw new Error(
+                "Specify --distribution standard or play once for dev and E2E builds.",
+            );
         }
         args.splice(index, 2);
         return name;
     };
 
     if (["install", "logs"].includes(command)) {
-        execute(process.execPath, [join(mobile, "scripts/device.mjs"), command, ...args], {}, env.INIT_CWD || process.cwd());
+        execute(
+            process.execPath,
+            [join(mobile, "scripts/device.mjs"), command, ...args],
+            {},
+            env.INIT_CWD || process.cwd(),
+        );
         return;
     }
     if (command === "doctor") {
-        const options = parseReleaseOptions(args, { cwd: env.INIT_CWD || process.cwd() });
+        const options = parseReleaseOptions(args, {
+            cwd: env.INIT_CWD || process.cwd(),
+        });
         const index = args.indexOf("--config");
         if (index >= 0) args[index + 1] = options.configPath;
         execute(process.execPath, ["scripts/doctor.mjs", ...args]);
@@ -166,22 +238,51 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
     }
     if (command === "signing") {
         if (args.shift() !== "setup") throw new Error("Choose signing setup.");
-        execute(process.execPath, [join(mobile, "scripts/create-signing-identity.mjs"), "--write-public", ...args], {}, env.INIT_CWD || process.cwd());
+        execute(
+            process.execPath,
+            [
+                join(mobile, "scripts/create-signing-identity.mjs"),
+                "--write-public",
+                ...args,
+            ],
+            {},
+            env.INIT_CWD || process.cwd(),
+        );
         return;
     }
     if (command === "ota" || command === "update") {
-        execute(process.execPath, [join(mobile, "scripts/ota.mjs"), ...(command === "update" ? ["publish"] : []), ...args], {}, env.INIT_CWD || process.cwd());
+        execute(
+            process.execPath,
+            [
+                join(mobile, "scripts/ota.mjs"),
+                ...(command === "update" ? ["publish"] : []),
+                ...args,
+            ],
+            {},
+            env.INIT_CWD || process.cwd(),
+        );
         return;
     }
 
     if (command === "dev") {
         const profile = takeProfile();
         const distribution = takeDistribution();
-        exec(["expo", "start", "--dev-client", "--scheme", profile.scheme, ...args], developmentEnvironment(profile, false, distribution));
+        exec(
+            [
+                "expo",
+                "start",
+                "--dev-client",
+                "--scheme",
+                profile.scheme,
+                ...args,
+            ],
+            developmentEnvironment(profile, false, distribution),
+        );
         return;
     }
     if (command === "build-play") {
-        if (args.includes("--distribution")) throw new Error("mobile:build:play selects the Play distribution.");
+        if (args.includes("--distribution"))
+            throw new Error("mobile:build:play selects the Play distribution.");
         args.push("--distribution", "play");
         command = "build";
     }
@@ -193,20 +294,41 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
             const distribution = takeDistribution();
             const regenerate = args.includes("--regenerate-native");
             if (regenerate) args.splice(args.indexOf("--regenerate-native"), 1);
-            if (args.length !== 1) throw new Error("Choose only --dev or --e2e for a test build.");
+            if (args.length !== 1)
+                throw new Error("Choose only --dev or --e2e for a test build.");
             if (regenerate) regenerateNative(profile);
             checkNativeIdentity(profile);
             const buildEnv = developmentEnvironment(profile, e2e, distribution);
             // Expo 57 recreates native projects unless --no-clean is explicit.
-            exec(["expo", "prebuild", "--platform", "android", "--no-install", "--no-clean"], buildEnv);
+            exec(
+                [
+                    "expo",
+                    "prebuild",
+                    "--platform",
+                    "android",
+                    "--no-install",
+                    "--no-clean",
+                ],
+                buildEnv,
+            );
             clearAutolinking();
-            execute(gradle, [`:app:assemble${e2e ? "E2e" : "Debug"}`, "--console=plain"], buildEnv, android);
+            execute(
+                gradle,
+                [`:app:assemble${e2e ? "E2e" : "Debug"}`, "--console=plain"],
+                buildEnv,
+                android,
+            );
         } else {
-            const options = parseReleaseOptions(args, { cwd: env.INIT_CWD || process.cwd(), allowReproduction: true, allowBuild: true });
+            const options = parseReleaseOptions(args, {
+                cwd: env.INIT_CWD || process.cwd(),
+                allowReproduction: true,
+                allowBuild: true,
+            });
             const configIndex = args.indexOf("--config");
             if (configIndex >= 0) args[configIndex + 1] = options.configPath;
             const referenceIndex = args.indexOf("--reproduce-from");
-            if (referenceIndex >= 0) args[referenceIndex + 1] = options.reproduceFrom;
+            if (referenceIndex >= 0)
+                args[referenceIndex + 1] = options.reproduceFrom;
             execute(process.execPath, ["scripts/build-android.mjs", ...args]);
         }
         return;
@@ -214,7 +336,8 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
     if (command === "check") {
         const selection = args.shift();
         const checks = ["lint", "types", "unit", "cli", "export"];
-        if (selection && !checks.includes(selection)) throw new Error(`Unknown check: ${selection}`);
+        if (selection && !checks.includes(selection))
+            throw new Error(`Unknown check: ${selection}`);
         if (selection !== "unit") rejectArguments();
         for (const check of selection ? [selection] : checks) {
             if (check === "lint") exec(["oxlint"]);
@@ -223,21 +346,37 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
                 execute(process.execPath, ["scripts/build-workers.cjs"]);
                 exec(["tsgo", "--noEmit", "--strict"]);
             }
-            if (check === "unit") exec(["jest", "--config", "./jest.config.ts", ...args]);
+            if (check === "unit")
+                exec(["jest", "--config", "./jest.config.ts", ...args]);
             if (check === "cli") {
-                const tests = ["scripts", "fdroid", "e2e/fixtures"].flatMap(directory =>
-                    readdirSync(join(mobile, directory))
-                        .filter(name => name.endsWith(".test.mjs"))
-                        .sort().map(name => `${directory}/${name}`));
+                const tests = ["scripts", "fdroid", "e2e/fixtures"].flatMap(
+                    (directory) =>
+                        readdirSync(join(mobile, directory))
+                            .filter((name) => name.endsWith(".test.mjs"))
+                            .sort()
+                            .map((name) => `${directory}/${name}`),
+                );
                 execute(process.execPath, ["--test", ...tests]);
             }
             if (check === "export") {
-                const output = mkdtempSync(join(tmpdir(), "cryptex-mobile-export-"));
+                const output = mkdtempSync(
+                    join(tmpdir(), "cryptex-mobile-export-"),
+                );
                 try {
-                    exec(["expo", "export", "--platform", "android", "--output-dir", output], {
-                        NODE_ENV: "production",
-                        EXPO_PUBLIC_CRYPTEX_E2E: "0",
-                    });
+                    exec(
+                        [
+                            "expo",
+                            "export",
+                            "--platform",
+                            "android",
+                            "--output-dir",
+                            output,
+                        ],
+                        {
+                            NODE_ENV: "production",
+                            EXPO_PUBLIC_CRYPTEX_E2E: "0",
+                        },
+                    );
                 } finally {
                     rmSync(output, { recursive: true, force: true });
                 }
@@ -245,25 +384,44 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         }
         return;
     }
-    if (command !== "e2e") throw new Error(`Unknown mobile command: ${command}`);
+    if (command !== "e2e")
+        throw new Error(`Unknown mobile command: ${command}`);
     const suite = args.shift();
-    if (!suite) throw new Error("Choose a suite; use pnpm mobile:e2e --help to list them.");
+    if (!suite)
+        throw new Error(
+            "Choose a suite; use pnpm mobile:e2e --help to list them.",
+        );
     const profile = takeProfile();
-    const identityEnv = { CRYPTEX_APP_PROFILE: profile.name, CRYPTEX_APP_ID: profile.applicationId, CRYPTEX_APP_SCHEME: profile.scheme, CRYPTEX_APP_NAME: profile.displayName };
+    const identityEnv = {
+        CRYPTEX_APP_PROFILE: profile.name,
+        CRYPTEX_APP_ID: profile.applicationId,
+        CRYPTEX_APP_SCHEME: profile.scheme,
+        CRYPTEX_APP_NAME: profile.displayName,
+    };
     let serial = env.MAESTRO_DEVICE || env.ANDROID_SERIAL;
     const deviceIndex = args.indexOf("--device");
     if (deviceIndex >= 0) {
         const value = args[deviceIndex + 1];
-        if (!value || value.startsWith("-") || args.indexOf("--device", deviceIndex + 1) >= 0) {
+        if (
+            !value ||
+            value.startsWith("-") ||
+            args.indexOf("--device", deviceIndex + 1) >= 0
+        ) {
             throw new Error("--device requires one Android device serial.");
         }
         serial = value;
         args.splice(deviceIndex, 2);
     }
-    const deviceEnv = { ...developmentEnvironment(profile, true), ...identityEnv, ...(serial ? { MAESTRO_DEVICE: serial, ANDROID_SERIAL: serial } : {}) };
+    const deviceEnv = {
+        ...developmentEnvironment(profile, true),
+        ...identityEnv,
+        ...(serial ? { MAESTRO_DEVICE: serial, ANDROID_SERIAL: serial } : {}),
+    };
     const requireDevice = () => {
         if (!serial || serial.trim() !== serial || !serial.trim()) {
-            throw new Error("Select a device with --device <serial>, MAESTRO_DEVICE, or ANDROID_SERIAL.");
+            throw new Error(
+                "Select a device with --device <serial>, MAESTRO_DEVICE, or ANDROID_SERIAL.",
+            );
         }
         if (env.CRYPTEX_E2E_PROTECTED_DEVICE === serial) {
             throw new Error(`Refusing to touch protected device ${serial}.`);
@@ -271,25 +429,46 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
     };
     if (suite === "sync") {
         rejectArguments();
-        const sender = deviceIndex >= 0 ? serial : env.E2E_SYNC_SENDER || serial;
+        const sender =
+            deviceIndex >= 0 ? serial : env.E2E_SYNC_SENDER || serial;
         const { E2E_SYNC_RECEIVER: receiver, E2E_SYNC_CONFIG: config } = env;
         if (!sender || !receiver || !config || sender === receiver) {
-            throw new Error("Set distinct E2E_SYNC_SENDER and E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.");
+            throw new Error(
+                "Set distinct E2E_SYNC_SENDER and E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.",
+            );
         }
         if ([sender, receiver].includes(env.CRYPTEX_E2E_PROTECTED_DEVICE)) {
-            throw new Error("Refusing to touch the protected device in the sync pair.");
+            throw new Error(
+                "Refusing to touch the protected device in the sync pair.",
+            );
         }
-        execute(process.execPath, ["e2e/run-sync-link.mjs"], { ...developmentEnvironment(profile, true), ...identityEnv, E2E_SYNC_SENDER: sender });
+        execute(process.execPath, ["e2e/run-sync-link.mjs"], {
+            ...developmentEnvironment(profile, true),
+            ...identityEnv,
+            E2E_SYNC_SENDER: sender,
+        });
     } else if (["fixture", "cloud-fixture"].includes(suite)) {
         rejectArguments();
-        execute(process.execPath, [`e2e/fixtures/${suite === "fixture" ? "server" : "online-services"}.mjs`]);
+        execute(process.execPath, [
+            `e2e/fixtures/${suite === "fixture" ? "server" : "online-services"}.mjs`,
+        ]);
     } else if (suite === "target") {
         rejectArguments();
         checkAndroid();
-        execute(join(android, gradle), ["-p", "e2e/fixtures/autofill-target", "assembleDebug", "--console=plain"]);
+        execute(join(android, gradle), [
+            "-p",
+            "e2e/fixtures/autofill-target",
+            "assembleDebug",
+            "--console=plain",
+        ]);
     } else if (["qr", "crypto", "crypto-audit"].includes(suite)) {
         if (suite === "crypto-audit") {
-            if (args.length && (args.length !== 2 || args[0] !== "--apk" || args[1].startsWith("-"))) {
+            if (
+                args.length &&
+                (args.length !== 2 ||
+                    args[0] !== "--apk" ||
+                    args[1].startsWith("-"))
+            ) {
                 throw new Error("crypto-audit accepts only --apk <path>.");
             }
             if (args.length) args[1] = resolve(args[1]);
@@ -297,37 +476,119 @@ export function runMobile(argv, { run = spawnSync, env = process.env, checkAndro
         if (suite === "crypto") requireDevice();
         checkAndroid();
         if (suite === "crypto") checkNativeIdentity(profile);
-        const script = { qr: "test-qr-scanner", crypto: "test-native-crypto", "crypto-audit": "verify-native-crypto" }[suite];
-        execute(process.execPath, [`scripts/${script}.mjs`, ...args], deviceEnv);
+        const script = {
+            qr: "test-qr-scanner",
+            crypto: "test-native-crypto",
+            "crypto-audit": "verify-native-crypto",
+        }[suite];
+        execute(
+            process.execPath,
+            [`scripts/${script}.mjs`, ...args],
+            deviceEnv,
+        );
     } else if (suite === "native") {
         rejectArguments();
         requireDevice();
         checkAndroid();
         checkNativeIdentity(profile);
-        execute(gradle, [":cryptex-android-credentials:testDebugUnitTest", ":cryptex-android-credentials:connectedDebugAndroidTest", "--console=plain"], deviceEnv, android);
-    } else if (["autofill-accessibility", "provider-auto-lock"].includes(suite)) {
+        execute(
+            gradle,
+            [
+                ":cryptex-android-credentials:testDebugUnitTest",
+                ":cryptex-android-credentials:connectedDebugAndroidTest",
+                "--console=plain",
+            ],
+            deviceEnv,
+            android,
+        );
+    } else if (
+        ["autofill-accessibility", "provider-auto-lock"].includes(suite)
+    ) {
         rejectArguments();
         requireDevice();
-        execute("bash", [suite === "autofill-accessibility" ? "e2e/run-accessibility-fallback.sh" : "e2e/run-provider-auto-lock.sh"], deviceEnv);
+        execute(
+            "bash",
+            [
+                suite === "autofill-accessibility"
+                    ? "e2e/run-accessibility-fallback.sh"
+                    : "e2e/run-provider-auto-lock.sh",
+            ],
+            deviceEnv,
+        );
     } else if (suite === "ssh-keys") {
         requireDevice();
         execute("bash", ["e2e/run-ssh-keys.sh", ...args], deviceEnv);
     } else if (suite === "ssh-agent") {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
-        execute(process.execPath, ["e2e/run-ssh-agent.mjs", "--format", "junit", "--output", "e2e/results/ssh-agent.xml", ...args], deviceEnv);
+        execute(
+            process.execPath,
+            [
+                "e2e/run-ssh-agent.mjs",
+                "--format",
+                "junit",
+                "--output",
+                "e2e/results/ssh-agent.xml",
+                ...args,
+            ],
+            deviceEnv,
+        );
     } else if (["cloud", "devices"].includes(suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
-        execute(process.execPath, ["e2e/run-cloud.mjs", "--format", "junit", "--output", `e2e/results/${suite}.xml`, ...args, `e2e/flows/${flows[suite]}`], { ...deviceEnv, CRYPTEX_E2E_DEVICE_SCENARIO: suite === "devices" ? "1" : "0" });
+        execute(
+            process.execPath,
+            [
+                "e2e/run-cloud.mjs",
+                "--format",
+                "junit",
+                "--output",
+                `e2e/results/${suite}.xml`,
+                ...args,
+                `e2e/flows/${flows[suite]}`,
+            ],
+            {
+                ...deviceEnv,
+                CRYPTEX_E2E_DEVICE_SCENARIO: suite === "devices" ? "1" : "0",
+            },
+        );
     } else if (["security", "passkeys"].includes(suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
-        execute("bash", ["e2e/run-biometric-flow.sh", "--format", "junit", "--output", `e2e/results/${suite}.xml`, ...args, `e2e/flows/${flows[suite]}`], deviceEnv);
+        execute(
+            "bash",
+            [
+                "e2e/run-biometric-flow.sh",
+                "--format",
+                "junit",
+                "--output",
+                `e2e/results/${suite}.xml`,
+                ...args,
+                `e2e/flows/${flows[suite]}`,
+            ],
+            deviceEnv,
+        );
     } else if (Object.hasOwn(flows, suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
-        execute("maestro", ["test", "--device", serial, ...Object.entries(identityEnv).filter(([name]) => name !== "CRYPTEX_APP_PROFILE").flatMap(([name, value]) => ["-e", `${name}=${value}`]), "--format", "junit", "--output", `e2e/results/${suite}.xml`, ...args, `e2e/flows/${flows[suite]}`], deviceEnv);
+        execute(
+            "maestro",
+            [
+                "test",
+                "--device",
+                serial,
+                ...Object.entries(identityEnv)
+                    .filter(([name]) => name !== "CRYPTEX_APP_PROFILE")
+                    .flatMap(([name, value]) => ["-e", `${name}=${value}`]),
+                "--format",
+                "junit",
+                "--output",
+                `e2e/results/${suite}.xml`,
+                ...args,
+                `e2e/flows/${flows[suite]}`,
+            ],
+            deviceEnv,
+        );
     } else {
         throw new Error(`Unknown suite: ${suite}`);
     }

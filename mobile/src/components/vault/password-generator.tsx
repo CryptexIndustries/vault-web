@@ -19,7 +19,10 @@ import { IconButton } from "@/components/icon-button";
 import { PasswordStrengthMeter } from "@/components/vault/password-strength-meter";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { colors } from "@/theme";
-import { generatePassword, type GeneratorOptions } from "@/utils/password-generation";
+import {
+    generatePassword,
+    type GeneratorOptions,
+} from "@/utils/password-generation";
 
 const DEFAULT_OPTIONS: GeneratorOptions = {
     type: "random",
@@ -30,7 +33,6 @@ const DEFAULT_OPTIONS: GeneratorOptions = {
     includeSymbols: false,
     wordSeparator: "space",
 };
-
 
 type PasswordGeneratorDialogProps = {
     open: boolean;

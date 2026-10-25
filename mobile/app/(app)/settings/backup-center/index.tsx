@@ -41,9 +41,11 @@ export function BackupCenterScreen({
     const history = trpcReact.v1.backup.list.useInfiniteQuery(
         { cursor: undefined },
         {
-            enabled: status.data?.storageConfigured === true && (
-                status.data.entitled || !!status.data.graceExpiresAt && new Date(status.data.graceExpiresAt) > new Date()
-            ),
+            enabled:
+                status.data?.storageConfigured === true &&
+                (status.data.entitled ||
+                    (!!status.data.graceExpiresAt &&
+                        new Date(status.data.graceExpiresAt) > new Date())),
             getNextPageParam: (page) => page.nextCursor ?? undefined,
         },
     );
@@ -53,7 +55,9 @@ export function BackupCenterScreen({
     const removeAll = trpcReact.v1.backup.deleteAll.useMutation();
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState("");
-    const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+    const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
+        null,
+    );
 
     const refresh = () =>
         Promise.all([
@@ -90,7 +94,11 @@ export function BackupCenterScreen({
             await refresh();
             setMessage("Automatic backups paused. Existing history remains.");
         } catch (error) {
-            setMessage(error instanceof Error ? error.message : "Could not pause automatic backups.");
+            setMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Could not pause automatic backups.",
+            );
         } finally {
             setBusy(false);
         }
@@ -134,7 +142,8 @@ export function BackupCenterScreen({
                 },
             );
             if (shared === "shared") setMessage("Encrypted backup ready.");
-            else if (shared === "unavailable") setMessage("Sharing is unavailable on this device.");
+            else if (shared === "unavailable")
+                setMessage("Sharing is unavailable on this device.");
         } catch (error) {
             setMessage(
                 error instanceof Error ? error.message : "Download failed.",
@@ -151,7 +160,9 @@ export function BackupCenterScreen({
     const historyItems =
         history.data?.pages.flatMap((page) => page.items) ?? [];
 
-    const selectedSnapshot = historyItems.find((snapshot) => snapshot.id === selectedSnapshotId);
+    const selectedSnapshot = historyItems.find(
+        (snapshot) => snapshot.id === selectedSnapshotId,
+    );
 
     const confirmDelete = (snapshotId: string) =>
         confirm({
@@ -201,95 +212,279 @@ export function BackupCenterScreen({
     if (view === "history") {
         return (
             <UnlockedTaskScreen title="Backup history">
-                {historyItems.length ? <>
-                    <View style={{ paddingBottom: 22, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                        <UnlockedText style={{ fontSize: 22, fontWeight: "500", marginTop: 10, marginBottom: 6 }}>
-                            Encrypted snapshots
-                        </UnlockedText>
-                        <UnlockedText style={{ fontSize: 13, lineHeight: 20, color: colors.muted }}>
-                            Download a snapshot to restore it, or remove copies you no longer need.
-                        </UnlockedText>
-                    </View>
-                    {historyItems.map((snapshot) => (
-                        <UnlockedMenuRow
-                            key={snapshot.id}
-                            icon={Archive}
-                            title={new Date(snapshot.createdAt).toLocaleString(undefined, { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            subtitle={`${snapshot.sourceLabel} (${formatBytes(snapshot.byteLength)})`}
-                            onPress={() => { setMessage(""); setSelectedSnapshotId(snapshot.id); }}
-                        />
-                    ))}
-                    <View style={{ marginTop: 24, gap: 10 }}>
-                        {history.hasNextPage ? (
-                            <Button variant="outline" loading={history.isFetchingNextPage} onPress={() => void history.fetchNextPage()}>
-                                Load older backups
-                            </Button>
-                        ) : null}
-                        <Button variant="destructive" disabled={busy || removeAll.isPending} onPress={confirmDeleteAll}>
-                            Delete all backups
-                        </Button>
-                    </View>
-                </> : history.isLoading ? (
-                    <InlineNotice tone="loading" message="Loading saved backups…" />
-                ) : history.isError ? (
-                    <InlineNotice tone="error" message="Saved backups could not be loaded." />
-                ) : <>
-                    <View style={{ paddingVertical: 28 }}>
-                        <Archive size={32} color={colors.muted} strokeWidth={1.7} style={{ marginBottom: 20 }} />
-                        <UnlockedText style={{ fontSize: 22, fontWeight: "500", marginBottom: 10 }}>No managed backups</UnlockedText>
-                        <UnlockedText style={{ fontSize: 13, lineHeight: 20, color: colors.muted }}>Your next managed backup will appear here.</UnlockedText>
-                    </View>
-                    <Button className="mt-6" loading={busy} onPress={() => void backupNow()}>Back up now</Button>
-                </>}
-                <Dialog open={!!selectedSnapshot} onOpenChange={(open) => !open && setSelectedSnapshotId(null)} placement="bottom" scroll dismissible={!busy}>
-                    <DialogHeader><UnlockedDialogTitle>Encrypted snapshot</UnlockedDialogTitle></DialogHeader>
-                    {selectedSnapshot ? <>
-                        <View>
-                        {[
-                            ["Created", new Date(selectedSnapshot.createdAt).toLocaleString()],
-                            ["Source", selectedSnapshot.sourceLabel],
-                            ["Size", formatBytes(selectedSnapshot.byteLength)],
-                        ].map(([label, value]) => (
-                            <View key={label} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                                <UnlockedText style={{ fontSize: 13, color: colors.muted }}>{label}</UnlockedText>
-                                <UnlockedText style={{ fontSize: 13, maxWidth: "65%", textAlign: "right" }}>{value}</UnlockedText>
-                            </View>
+                {historyItems.length ? (
+                    <>
+                        <View
+                            style={{
+                                paddingBottom: 22,
+                                marginBottom: 6,
+                                borderBottomWidth: 1,
+                                borderBottomColor: colors.border,
+                            }}
+                        >
+                            <UnlockedText
+                                style={{
+                                    fontSize: 22,
+                                    fontWeight: "500",
+                                    marginTop: 10,
+                                    marginBottom: 6,
+                                }}
+                            >
+                                Encrypted snapshots
+                            </UnlockedText>
+                            <UnlockedText
+                                style={{
+                                    fontSize: 13,
+                                    lineHeight: 20,
+                                    color: colors.muted,
+                                }}
+                            >
+                                Download a snapshot to restore it, or remove
+                                copies you no longer need.
+                            </UnlockedText>
+                        </View>
+                        {historyItems.map((snapshot) => (
+                            <UnlockedMenuRow
+                                key={snapshot.id}
+                                icon={Archive}
+                                title={new Date(
+                                    snapshot.createdAt,
+                                ).toLocaleString(undefined, {
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })}
+                                subtitle={`${snapshot.sourceLabel} (${formatBytes(snapshot.byteLength)})`}
+                                onPress={() => {
+                                    setMessage("");
+                                    setSelectedSnapshotId(snapshot.id);
+                                }}
+                            />
                         ))}
-                        </View>
                         <View style={{ marginTop: 24, gap: 10 }}>
-                            <Button variant="outline" loading={busy} onPress={() => void download(selectedSnapshot.id)}>Download backup</Button>
-                            <Button variant="destructive" disabled={busy || remove.isPending} onPress={() => {
-                                setSelectedSnapshotId(null);
-                                confirmDelete(selectedSnapshot.id);
-                            }}>Delete backup</Button>
+                            {history.hasNextPage ? (
+                                <Button
+                                    variant="outline"
+                                    loading={history.isFetchingNextPage}
+                                    onPress={() => void history.fetchNextPage()}
+                                >
+                                    Load older backups
+                                </Button>
+                            ) : null}
+                            <Button
+                                variant="destructive"
+                                disabled={busy || removeAll.isPending}
+                                onPress={confirmDeleteAll}
+                            >
+                                Delete all backups
+                            </Button>
                         </View>
-                    </> : null}
-                    {message ? <InlineNotice tone="info" message={message} /> : null}
+                    </>
+                ) : history.isLoading ? (
+                    <InlineNotice
+                        tone="loading"
+                        message="Loading saved backups…"
+                    />
+                ) : history.isError ? (
+                    <InlineNotice
+                        tone="error"
+                        message="Saved backups could not be loaded."
+                    />
+                ) : (
+                    <>
+                        <View style={{ paddingVertical: 28 }}>
+                            <Archive
+                                size={32}
+                                color={colors.muted}
+                                strokeWidth={1.7}
+                                style={{ marginBottom: 20 }}
+                            />
+                            <UnlockedText
+                                style={{
+                                    fontSize: 22,
+                                    fontWeight: "500",
+                                    marginBottom: 10,
+                                }}
+                            >
+                                No managed backups
+                            </UnlockedText>
+                            <UnlockedText
+                                style={{
+                                    fontSize: 13,
+                                    lineHeight: 20,
+                                    color: colors.muted,
+                                }}
+                            >
+                                Your next managed backup will appear here.
+                            </UnlockedText>
+                        </View>
+                        <Button
+                            className="mt-6"
+                            loading={busy}
+                            onPress={() => void backupNow()}
+                        >
+                            Back up now
+                        </Button>
+                    </>
+                )}
+                <Dialog
+                    open={!!selectedSnapshot}
+                    onOpenChange={(open) =>
+                        !open && setSelectedSnapshotId(null)
+                    }
+                    placement="bottom"
+                    scroll
+                    dismissible={!busy}
+                >
+                    <DialogHeader>
+                        <UnlockedDialogTitle>
+                            Encrypted snapshot
+                        </UnlockedDialogTitle>
+                    </DialogHeader>
+                    {selectedSnapshot ? (
+                        <>
+                            <View>
+                                {[
+                                    [
+                                        "Created",
+                                        new Date(
+                                            selectedSnapshot.createdAt,
+                                        ).toLocaleString(),
+                                    ],
+                                    ["Source", selectedSnapshot.sourceLabel],
+                                    [
+                                        "Size",
+                                        formatBytes(
+                                            selectedSnapshot.byteLength,
+                                        ),
+                                    ],
+                                ].map(([label, value]) => (
+                                    <View
+                                        key={label}
+                                        style={{
+                                            flexDirection: "row",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            gap: 20,
+                                            paddingVertical: 16,
+                                            borderBottomWidth: 1,
+                                            borderBottomColor: colors.border,
+                                        }}
+                                    >
+                                        <UnlockedText
+                                            style={{
+                                                fontSize: 13,
+                                                color: colors.muted,
+                                            }}
+                                        >
+                                            {label}
+                                        </UnlockedText>
+                                        <UnlockedText
+                                            style={{
+                                                fontSize: 13,
+                                                maxWidth: "65%",
+                                                textAlign: "right",
+                                            }}
+                                        >
+                                            {value}
+                                        </UnlockedText>
+                                    </View>
+                                ))}
+                            </View>
+                            <View style={{ marginTop: 24, gap: 10 }}>
+                                <Button
+                                    variant="outline"
+                                    loading={busy}
+                                    onPress={() =>
+                                        void download(selectedSnapshot.id)
+                                    }
+                                >
+                                    Download backup
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    disabled={busy || remove.isPending}
+                                    onPress={() => {
+                                        setSelectedSnapshotId(null);
+                                        confirmDelete(selectedSnapshot.id);
+                                    }}
+                                >
+                                    Delete backup
+                                </Button>
+                            </View>
+                        </>
+                    ) : null}
+                    {message ? (
+                        <InlineNotice tone="info" message={message} />
+                    ) : null}
                 </Dialog>
-                {message ? <InlineNotice tone="info" message={message} /> : null}
+                {message ? (
+                    <InlineNotice tone="info" message={message} />
+                ) : null}
             </UnlockedTaskScreen>
         );
     }
 
     return (
         <UnlockedTaskScreen title="Backup Center">
-            <View style={{ paddingBottom: 22, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <UnlockedText style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}>
-                Your backups
-            </UnlockedText>
-            <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                Keep a recent encrypted copy and your recovery code available.
-            </UnlockedText>
+            <View
+                style={{
+                    paddingBottom: 22,
+                    marginBottom: 6,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                }}
+            >
+                <UnlockedText
+                    style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}
+                >
+                    Your backups
+                </UnlockedText>
+                <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
+                    Keep a recent encrypted copy and your recovery code
+                    available.
+                </UnlockedText>
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                <UnlockedText style={{ fontSize: 13, color: colors.muted }}>Latest managed backup</UnlockedText>
-                <UnlockedText style={{ fontSize: 13, maxWidth: "65%", textAlign: "right" }}>{historyItems[0] ? new Date(historyItems[0].createdAt).toLocaleString() : status.isLoading || history.isLoading ? "Checking…" : status.isError || history.isError ? "Unavailable" : "No managed backup yet"}</UnlockedText>
+            <View
+                style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    gap: 20,
+                    paddingVertical: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                }}
+            >
+                <UnlockedText style={{ fontSize: 13, color: colors.muted }}>
+                    Latest managed backup
+                </UnlockedText>
+                <UnlockedText
+                    style={{
+                        fontSize: 13,
+                        maxWidth: "65%",
+                        textAlign: "right",
+                    }}
+                >
+                    {historyItems[0]
+                        ? new Date(historyItems[0].createdAt).toLocaleString()
+                        : status.isLoading || history.isLoading
+                          ? "Checking…"
+                          : status.isError || history.isError
+                            ? "Unavailable"
+                            : "No managed backup yet"}
+                </UnlockedText>
             </View>
             <UnlockedMenuRow
                 icon={Archive}
                 title="Create local backup"
                 subtitle="Export an encrypted .cryx file"
-                onPress={() => router.push({ pathname: "/(app)/settings/import-export", params: { pane: "encrypted" } })}
+                onPress={() =>
+                    router.push({
+                        pathname: "/(app)/settings/import-export",
+                        params: { pane: "encrypted" },
+                    })
+                }
             />
             <UnlockedMenuRow
                 icon={KeyRound}
@@ -324,22 +519,38 @@ export function BackupCenterScreen({
                 />
             ) : (
                 <View className="mb-0">
-                        <UnlockedText style={{ color: colors.muted, fontSize: 11, letterSpacing: 1, marginTop: 26, marginBottom: 6, textTransform: "uppercase" }}>
-                            Managed backups
-                        </UnlockedText>
-                        <View className="min-h-[70px] flex-row items-center justify-between gap-3 border-b border-border">
-                            <View className="flex-1">
-                                <UnlockedText className="text-sm text-foreground">Automatic backups</UnlockedText>
-                                <UnlockedText className="mt-1 text-xs text-muted-foreground">Store encrypted snapshots using Online Services.</UnlockedText>
-                            </View>
-                            <Switch
-                                value={status.data.enabled}
-                                disabled={busy}
-                                onValueChange={(enabled) => void (enabled ? enableBackups() : pauseBackups())}
-                                accessibilityLabel="Automatic managed backups"
-                            />
+                    <UnlockedText
+                        style={{
+                            color: colors.muted,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                            marginTop: 26,
+                            marginBottom: 6,
+                            textTransform: "uppercase",
+                        }}
+                    >
+                        Managed backups
+                    </UnlockedText>
+                    <View className="min-h-[70px] flex-row items-center justify-between gap-3 border-b border-border">
+                        <View className="flex-1">
+                            <UnlockedText className="text-sm text-foreground">
+                                Automatic backups
+                            </UnlockedText>
+                            <UnlockedText className="mt-1 text-xs text-muted-foreground">
+                                Store encrypted snapshots using Online Services.
+                            </UnlockedText>
                         </View>
-
+                        <Switch
+                            value={status.data.enabled}
+                            disabled={busy}
+                            onValueChange={(enabled) =>
+                                void (enabled
+                                    ? enableBackups()
+                                    : pauseBackups())
+                            }
+                            accessibilityLabel="Automatic managed backups"
+                        />
+                    </View>
                 </View>
             )}
 
@@ -355,7 +566,16 @@ export function BackupCenterScreen({
                     }}
                 />
             ) : null}
-            {status.data?.storageConfigured && entitled ? <Button className="mt-6" variant="outline" loading={busy} onPress={() => void backupNow()}>Back up now</Button> : null}
+            {status.data?.storageConfigured && entitled ? (
+                <Button
+                    className="mt-6"
+                    variant="outline"
+                    loading={busy}
+                    onPress={() => void backupNow()}
+                >
+                    Back up now
+                </Button>
+            ) : null}
         </UnlockedTaskScreen>
     );
 }

@@ -6,102 +6,102 @@ name: SSH agent approval
 # Enter on the agent's confirmation and sends two ssh-keygen -Y sign requests.
 ---
 - launchApp:
-    stopApp: false
+      stopApp: false
 - assertVisible: Devices
 
 # Pair: paste the code, give the self-hosted relay its token, pick the key.
 - tapOn: Devices
 - tapOn:
-    id: device-link
+      id: device-link
 - tapOn:
-    id: agent-connect
+      id: agent-connect
 - extendedWaitUntil:
-    visible: Scan the pairing code
-    timeout: 10000
+      visible: Scan the pairing code
+      timeout: 10000
 # The scanner asks for the camera; this flow pastes the code instead.
 - runFlow:
-    when:
-      visible: "Don.t allow"
-    commands:
-      - tapOn: "Don.t allow"
+      when:
+          visible: "Don.t allow"
+      commands:
+          - tapOn: "Don.t allow"
 - tapOn:
-    id: agent-paste
+      id: agent-paste
 - tapOn:
-    id: agent-paste-input
+      id: agent-paste-input
 - inputText: ${PAIRING_CODE}
 - tapOn:
-    id: agent-paste-submit
+      id: agent-paste-submit
 - extendedWaitUntil:
-    visible:
-      id: agent-relay-token
-    timeout: 30000
+      visible:
+          id: agent-relay-token
+      timeout: 30000
 - tapOn:
-    id: agent-relay-token
+      id: agent-relay-token
 - inputText: ${RELAY_TOKEN}
 - tapOn: Continue
 - extendedWaitUntil:
-    visible: Keys this agent can use
-    timeout: 30000
+      visible: Keys this agent can use
+      timeout: 30000
 - assertVisible: Machine, as reported by the machine
 # The only SSH key starts selected.
 - assertVisible: 1 of 1
 - tapOn:
-    id: agent-submit
+      id: agent-submit
 # Connect asks for notifications (Android 13 and later).
 - runFlow:
-    when:
-      visible: "Allow"
-    commands:
-      - tapOn: "Allow"
+      when:
+          visible: "Allow"
+      commands:
+          - tapOn: "Allow"
 # The confirmation code shows until the agent confirms (the runner presses
 # Enter 8 s later). The tap above can take that long to settle, and the first
 # request may already cover it, so either screen counts here.
 - extendedWaitUntil:
-    visible: "Check the code|Sign a file\\?"
-    timeout: 30000
+      visible: "Check the code|Sign a file\\?"
+      timeout: 30000
 
 # Once the agent confirms, the runner sends the first ssh-keygen -Y sign and
 # the approval screen opens by itself (over the pairing screen if the vault
 # save is still running): approve it.
 - extendedWaitUntil:
-    visible: Sign a file?
-    timeout: 120000
+      visible: Sign a file?
+      timeout: 120000
 - assertVisible: Agent key, Ed25519
 - assertNotVisible: Remember
 # Approve turns on a moment after the request appears.
 - extendedWaitUntil:
-    visible:
-      id: agent-approve
-      enabled: true
-    timeout: 5000
+      visible:
+          id: agent-approve
+          enabled: true
+      timeout: 5000
 - tapOn:
-    id: agent-approve
+      id: agent-approve
 # Back on the agent page; the runner waits before the next request.
 - extendedWaitUntil:
-    visible: Recent requests
-    timeout: 30000
+      visible: Recent requests
+      timeout: 30000
 - assertVisible: Approved.*
 
 # Second one: deny.
 - extendedWaitUntil:
-    visible: Sign a file?
-    timeout: 120000
+      visible: Sign a file?
+      timeout: 120000
 - tapOn:
-    id: agent-deny
+      id: agent-deny
 - extendedWaitUntil:
-    visible: Recent requests
-    timeout: 30000
+      visible: Recent requests
+      timeout: 30000
 - assertVisible: Denied.*
 
 # Revoke from the agent page.
 - tapOn:
-    id: agent-menu
+      id: agent-menu
 - tapOn:
-    id: agent-revoke
+      id: agent-revoke
 - extendedWaitUntil:
-    visible: Revoke .*\?
-    timeout: 10000
+      visible: Revoke .*\?
+      timeout: 10000
 - tapOn: Revoke agent
 - extendedWaitUntil:
-    visible: Agent revoked.*
-    timeout: 30000
+      visible: Agent revoked.*
+      timeout: 30000

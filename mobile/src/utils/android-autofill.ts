@@ -69,9 +69,10 @@ export function buildAutofillTarget(
     const scheme = request.webScheme === "http" ? "http" : "https";
     const domain = request.webDomain?.trim().toLowerCase() || null;
     const pageUrl = domain ? `${scheme}://${domain}` : null;
-    const warningType = domain && request.webScheme !== "http" && request.webScheme !== "https"
-        ? "unverified-web-scheme"
-        : request.warningType;
+    const warningType =
+        domain && request.webScheme !== "http" && request.webScheme !== "https"
+            ? "unverified-web-scheme"
+            : request.warningType;
     const packageName = request.packageName?.trim() || null;
     const appUri = packageName
         ? normalizeAndroidAppUri(`androidapp://${packageName}`)
@@ -145,8 +146,11 @@ export function requiresAutofillReview(
     requestKind: PendingAndroidCredentialRequest["kind"] | undefined,
     matched: boolean,
 ): boolean {
-    return !matched || autofillAssociationWarning(target) !== null ||
-        (requestKind === "accessibility-get" && target.pageUrl !== null);
+    return (
+        !matched ||
+        autofillAssociationWarning(target) !== null ||
+        (requestKind === "accessibility-get" && target.pageUrl !== null)
+    );
 }
 
 export type AutofillCredentialRow = {
@@ -175,7 +179,10 @@ export function buildAutofillCredentialRows(
             ...(credential.AdditionalURLs ?? []).map((rule) => rule.URL),
         ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
     };
-    const compareCredentials = (left: VaultCredential, right: VaultCredential) => {
+    const compareCredentials = (
+        left: VaultCredential,
+        right: VaultCredential,
+    ) => {
         const byName = left.Name.localeCompare(right.Name, undefined, {
             sensitivity: "base",
         });

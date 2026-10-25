@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, it, jest } from "@jest/globals";
 const mockClearProviderCredentials = jest.fn();
 jest.mock("@/utils/android-credentials", () => ({
-    androidCredentials: { clearProviderCredentials: mockClearProviderCredentials },
+    androidCredentials: {
+        clearProviderCredentials: mockClearProviderCredentials,
+    },
 }));
 import {
     getVaultDEKFromSession,
@@ -111,7 +113,9 @@ it("allows only the lock save to use the retained key after timeout", async () =
     const metadata = { save } as never;
     expect((await saveVaultWithSessionDEK(metadata, null)).isErr()).toBe(true);
     expect(save).not.toHaveBeenCalled();
-    expect((await saveVaultWithSessionDEK(metadata, null, true)).isOk()).toBe(true);
+    expect((await saveVaultWithSessionDEK(metadata, null, true)).isOk()).toBe(
+        true,
+    );
     expect(save).toHaveBeenCalledTimes(1);
 });
 

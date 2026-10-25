@@ -19,10 +19,18 @@ afterEach(() => {
 });
 
 it("cancels active receive work in either mode, but not an idle picker", () => {
-    expect(shouldCancelReceiveLinkOnBackground("background", true, false)).toBe(true);
-    expect(shouldCancelReceiveLinkOnBackground("inactive", false, true)).toBe(true);
-    expect(shouldCancelReceiveLinkOnBackground("background", false, false)).toBe(false);
-    expect(shouldCancelReceiveLinkOnBackground("active", false, true)).toBe(false);
+    expect(shouldCancelReceiveLinkOnBackground("background", true, false)).toBe(
+        true,
+    );
+    expect(shouldCancelReceiveLinkOnBackground("inactive", false, true)).toBe(
+        true,
+    );
+    expect(
+        shouldCancelReceiveLinkOnBackground("background", false, false),
+    ).toBe(false);
+    expect(shouldCancelReceiveLinkOnBackground("active", false, true)).toBe(
+        false,
+    );
 });
 
 it("does not impose a vault timeout on a locked first-vault receive", () => {

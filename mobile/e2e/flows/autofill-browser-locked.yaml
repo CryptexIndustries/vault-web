@@ -17,7 +17,7 @@ name: Chrome autofill after explicit vault lock
 - inputText: CorrectHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: Choose a login
 - assertVisible: Android could not confirm.*browser page and login field.*
 - tapOn: Fixture Login, fixture@example.test.*
@@ -26,5 +26,5 @@ name: Chrome autofill after explicit vault lock
 # Chrome 134 may omit filled page text from accessibility after Autofill.
 # The pinned fixture button submits both fields for exact server verification.
 - tapOn:
-    point: 60%,28%
+      point: 60%,28%
 - assertVisible: localhost:43110/login/otp\?accepted=1&empty=0

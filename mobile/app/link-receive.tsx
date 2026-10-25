@@ -251,11 +251,7 @@ function progressKeyForStep(
 const DEFAULT_MEM_LIMIT = 128;
 const DEFAULT_OPS_LIMIT = 3;
 
-function LinkReceiveContent({
-    embedded = false,
-}: {
-    embedded?: boolean;
-}) {
+function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
     const navigation = useNavigation();
     const unlocked = useAtomValue(isVaultUnlockedAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
@@ -470,11 +466,14 @@ function LinkReceiveContent({
 
     useEffect(() => {
         const subscription = AppState.addEventListener("change", (state) => {
-            if (!shouldCancelReceiveLinkOnBackground(
-                state,
-                validatingInvitation,
-                controllerRef.current !== null,
-            )) return;
+            if (
+                !shouldCancelReceiveLinkOnBackground(
+                    state,
+                    validatingInvitation,
+                    controllerRef.current !== null,
+                )
+            )
+                return;
             linkAttemptRef.current += 1;
             controllerRef.current?.abortWaitingForDevice();
             controllerRef.current = null;
@@ -484,7 +483,9 @@ function LinkReceiveContent({
             failedRef.current = true;
             setValidatingInvitation(false);
             setStage("failed");
-            setError("Live transfer stopped while the app was in the background. Start again.");
+            setError(
+                "Live transfer stopped while the app was in the background. Start again.",
+            );
         });
         return () => subscription.remove();
         // The controller ref contains the current transfer; state only tracks validation.
@@ -1007,7 +1008,9 @@ function LinkReceiveContent({
             if (attempt !== linkAttemptRef.current) return;
             if (decrypted.isErr()) {
                 wrongWords = true;
-                throw new Error("Wrong verification words or corrupt invitation.");
+                throw new Error(
+                    "Wrong verification words or corrupt invitation.",
+                );
             }
             invitationOpened = true;
             setValidatingInvitation(false);
@@ -1415,7 +1418,9 @@ function LinkReceiveContent({
                 <DialogFooter>
                     <Button
                         className="h-[54px] min-h-[54px]"
-                        variant={confirmRequest?.confirmLabel ? "ghost" : "secondary"}
+                        variant={
+                            confirmRequest?.confirmLabel ? "ghost" : "secondary"
+                        }
                         onPress={() => setConfirmRequest(null)}
                     >
                         {confirmRequest?.cancelLabel}
@@ -1466,16 +1471,20 @@ function LinkReceiveContent({
                     {!invitation ? (
                         <View className="gap-4">
                             <InvitationHeader title="Scan the invitation">
-                                On your other device, choose Create invitation and
-                                point this camera at its QR code. Items received
-                                are merged with this vault; existing items are kept.
+                                On your other device, choose Create invitation
+                                and point this camera at its QR code. Items
+                                received are merged with this vault; existing
+                                items are kept.
                             </InvitationHeader>
                             <View className="aspect-square w-full overflow-hidden rounded-md border border-border bg-[#111520]">
                                 {cameraActive ? (
                                     <CameraView
                                         key={scanEpoch}
                                         ref={cameraRef}
-                                        style={{ width: "100%", height: "100%" }}
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                        }}
                                         facing="back"
                                         barcodeScannerSettings={{
                                             barcodeTypes: ["qr"],
@@ -1504,7 +1513,10 @@ function LinkReceiveContent({
                                 />
                             ) : null}
                             {cameraError ? (
-                                <InlineNotice tone="error" message={cameraError} />
+                                <InlineNotice
+                                    tone="error"
+                                    message={cameraError}
+                                />
                             ) : null}
                             {qrChunkProgress ? (
                                 <InlineNotice
@@ -1565,7 +1577,9 @@ function LinkReceiveContent({
                                     accessibilityLabel="Pasted invitation"
                                     style={{ height: 140, paddingVertical: 12 }}
                                 />
-                                <VaultEntryFieldError message={fieldErrors.paste} />
+                                <VaultEntryFieldError
+                                    message={fieldErrors.paste}
+                                />
                                 <UnlockedButton onPress={usePastedInvitation}>
                                     Review invitation
                                 </UnlockedButton>
@@ -1612,7 +1626,9 @@ function LinkReceiveContent({
                                 accessibilityLabel="Verification words"
                                 style={{ height: 112, paddingVertical: 12 }}
                             />
-                            <VaultEntryFieldError message={fieldErrors.mnemonic} />
+                            <VaultEntryFieldError
+                                message={fieldErrors.mnemonic}
+                            />
                             <UnlockedButton
                                 loading={validatingInvitation}
                                 onPress={beginReceive}
@@ -1663,7 +1679,9 @@ function LinkReceiveContent({
                 }
                 maxWidth="content"
                 contentContainerClassName={
-                    unlocked ? "px-[20px] pb-[28px] pt-[24px]" : "px-5 pb-8 pt-0"
+                    unlocked
+                        ? "px-[20px] pb-[28px] pt-[24px]"
+                        : "px-5 pb-8 pt-0"
                 }
                 edges={embedded ? ["top", "left", "right"] : undefined}
                 style={vars({ "--primary-foreground": "224.21 28.36% 13.14%" })}
@@ -1693,8 +1711,8 @@ function LinkReceiveContent({
                             />
                         ) : (
                             <Text className="mb-[18px] text-xs leading-[18px] text-muted-foreground">
-                                On your other device, open Cryptex Vault and start
-                                linking. Then scan its invitation here.
+                                On your other device, open Cryptex Vault and
+                                start linking. Then scan its invitation here.
                             </Text>
                         )}
 
@@ -1703,7 +1721,9 @@ function LinkReceiveContent({
                                 <View
                                     style={{
                                         width: "100%",
-                                        maxWidth: cameraActive ? undefined : 240,
+                                        maxWidth: cameraActive
+                                            ? undefined
+                                            : 240,
                                         alignSelf: "center",
                                     }}
                                 >
@@ -1723,7 +1743,9 @@ function LinkReceiveContent({
                                                 barcodeScannerSettings={{
                                                     barcodeTypes: ["qr"],
                                                 }}
-                                                onBarcodeScanned={onBarcodeScanned}
+                                                onBarcodeScanned={
+                                                    onBarcodeScanned
+                                                }
                                                 onMountError={() =>
                                                     setCameraError(
                                                         "Could not start the camera. Try again or choose another linking method.",
@@ -1869,8 +1891,9 @@ function LinkReceiveContent({
                                         message={fieldErrors.mnemonic}
                                     />
                                     <Text className="mt-1 text-xs text-muted-foreground">
-                                        This phrase authorizes the live transfer. It
-                                        is separate from vault recovery details.
+                                        This phrase authorizes the live
+                                        transfer. It is separate from vault
+                                        recovery details.
                                     </Text>
                                 </View>
                             </View>
@@ -1986,7 +2009,9 @@ function LinkReceiveContent({
                                 accessibilityLabel="Linked vault name"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
-                            <VaultEntryFieldError message={fieldErrors.vaultName} />
+                            <VaultEntryFieldError
+                                message={fieldErrors.vaultName}
+                            />
                         </View>
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
@@ -2010,8 +2035,13 @@ function LinkReceiveContent({
                                 accessibilityLabel="Master password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
-                            <VaultEntryFieldError message={fieldErrors.password} />
-                            <PasswordStrengthMeter password={password} compact />
+                            <VaultEntryFieldError
+                                message={fieldErrors.password}
+                            />
+                            <PasswordStrengthMeter
+                                password={password}
+                                compact
+                            />
                         </View>
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
@@ -2033,7 +2063,9 @@ function LinkReceiveContent({
                                 accessibilityLabel="Confirm master password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
-                            <VaultEntryFieldError message={fieldErrors.confirm} />
+                            <VaultEntryFieldError
+                                message={fieldErrors.confirm}
+                            />
                         </View>
                         <AdditionalKeyProtectionOptions
                             value={additionalKeyProtectionChoice}
@@ -2138,7 +2170,8 @@ function LinkReceiveContent({
                         <DialogHeader>
                             <DialogTitle>Keep your way back in</DialogTitle>
                             <DialogDescription>
-                                Store these offline before opening the linked vault.
+                                Store these offline before opening the linked
+                                vault.
                             </DialogDescription>
                         </DialogHeader>
                         <VaultEntrySteps
@@ -2170,11 +2203,16 @@ function LinkReceiveContent({
                                 defaultRevealed
                                 ackLabel="I have written down the protection phrase"
                                 acknowledged={additionalKeyProtectionAck}
-                                onAcknowledgedChange={setAdditionalKeyProtectionAck}
+                                onAcknowledgedChange={
+                                    setAdditionalKeyProtectionAck
+                                }
                             />
                         ) : null}
                         {saveWarning ? (
-                            <InlineNotice tone="warning" message={saveWarning} />
+                            <InlineNotice
+                                tone="warning"
+                                message={saveWarning}
+                            />
                         ) : null}
                         {error ? (
                             <View ref={generalErrorRef} collapsable={false}>
@@ -2208,11 +2246,15 @@ function LinkReceiveContent({
                         rows={[
                             {
                                 label: "Credentials added",
-                                value: String(mergeSummary?.credentialsAdded ?? 0),
+                                value: String(
+                                    mergeSummary?.credentialsAdded ?? 0,
+                                ),
                             },
                             {
                                 label: "Already in this vault",
-                                value: String(mergeSummary?.credentialsSkipped ?? 0),
+                                value: String(
+                                    mergeSummary?.credentialsSkipped ?? 0,
+                                ),
                             },
                             {
                                 label: "Linked devices added",
@@ -2220,7 +2262,9 @@ function LinkReceiveContent({
                             },
                         ]}
                         actionLabel="Back to Devices"
-                        onAction={() => router.dismissTo("/(app)/(tabs)/devices")}
+                        onAction={() =>
+                            router.dismissTo("/(app)/(tabs)/devices")
+                        }
                     />
                 ) : null}
 
@@ -2232,8 +2276,9 @@ function LinkReceiveContent({
                         />
                         {mergeSummary ? (
                             <Text className="text-sm text-muted-foreground">
-                                Added {mergeSummary.credentialsAdded} credentials,
-                                skipped {mergeSummary.credentialsSkipped}, linked{" "}
+                                Added {mergeSummary.credentialsAdded}{" "}
+                                credentials, skipped{" "}
+                                {mergeSummary.credentialsSkipped}, linked{" "}
                                 {mergeSummary.devicesAdded} devices.
                             </Text>
                         ) : null}
@@ -2286,7 +2331,9 @@ function LinkReceiveContent({
                                     <Button
                                         className="h-[54px] min-h-[54px]"
                                         variant="outline"
-                                        onPress={() => chooseOsOverwrite("keep")}
+                                        onPress={() =>
+                                            chooseOsOverwrite("keep")
+                                        }
                                     >
                                         Keep it and link
                                     </Button>
@@ -2325,7 +2372,11 @@ function LinkReceiveContent({
     );
 }
 
-export function LinkReceiveScreen({ embedded = false }: { embedded?: boolean }) {
+export function LinkReceiveScreen({
+    embedded = false,
+}: {
+    embedded?: boolean;
+}) {
     const isFocused = useIsFocused();
     useVaultScreenPrivacy(true, "cryptex-link-receive");
     const unlocked = useAtomValue(isVaultUnlockedAtom);

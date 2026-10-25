@@ -42,11 +42,19 @@ export function AccountAuth({
         return (
             <View>
                 <View className="mb-1 border-b border-border pb-[22px]">
-                    <Text style={{ marginTop: 10, fontSize: 22, fontWeight: "500", letterSpacing: -0.5 }}>
+                    <Text
+                        style={{
+                            marginTop: 10,
+                            fontSize: 22,
+                            fontWeight: "500",
+                            letterSpacing: -0.5,
+                        }}
+                    >
                         Add Online Services
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Create an account for this vault. No email address is required.
+                        Create an account for this vault. No email address is
+                        required.
                     </Text>
                 </View>
                 <View
@@ -88,12 +96,20 @@ export function AccountAuth({
     return (
         <View>
             <View className="mb-1 border-b border-border pb-[22px]">
-                <Text style={{ marginTop: 10, fontSize: 22, fontWeight: "500", letterSpacing: -0.5 }}>
+                <Text
+                    style={{
+                        marginTop: 10,
+                        fontSize: 22,
+                        fontWeight: "500",
+                        letterSpacing: -0.5,
+                    }}
+                >
                     Restore account access
                 </Text>
                 <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                    Use the User ID and 24-word phrase from your account Recovery Kit.
-                    Recovering removes every other device from the account.
+                    Use the User ID and 24-word phrase from your account
+                    Recovery Kit. Recovering removes every other device from the
+                    account.
                 </Text>
             </View>
             <View

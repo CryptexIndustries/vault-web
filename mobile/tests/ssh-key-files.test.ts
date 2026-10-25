@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
 
 import { shareSSHKeyFile } from "@/utils/ssh-key-files";
 import { markVaultLockStarted } from "@/utils/vault-lock-epoch";
@@ -41,7 +48,10 @@ jest.mock("@/utils/android-credentials", () => ({
 }));
 
 const PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n";
-const options = { mimeType: "application/octet-stream", dialogTitle: "Save private key" };
+const options = {
+    mimeType: "application/octet-stream",
+    dialogTitle: "Save private key",
+};
 
 function held() {
     let release!: () => void;
@@ -73,7 +83,10 @@ describe("sharing a private key file", () => {
             }),
         ).resolves.toBe("shared");
         expect(mockShared).toEqual([
-            { path: expect.stringContaining("/id_ed25519"), contents: PRIVATE_KEY },
+            {
+                path: expect.stringContaining("/id_ed25519"),
+                contents: PRIVATE_KEY,
+            },
         ]);
         expect(mockFiles.size).toBe(0);
     });

@@ -137,14 +137,17 @@ export function SecurityReportScreen({
 }) {
     const params = useLocalSearchParams<{ filter?: string | string[] }>();
     const findings = view === "findings";
-    const { analysis, progress, running, error, refresh } =
-        useSecurityReport();
+    const { analysis, progress, running, error, refresh } = useSecurityReport();
     const [filter, setFilter] = useState<FindingFilter>(() =>
         readFilter(params.filter),
     );
     const [sort, setSort] = useState<FindingSort>(() => {
         const filter = readFilter(params.filter);
-        return filter === "reused" ? "reuse" : filter === "old" ? "age" : "risk";
+        return filter === "reused"
+            ? "reuse"
+            : filter === "old"
+              ? "age"
+              : "risk";
     });
     const [search, setSearch] = useState("");
 
@@ -576,7 +579,9 @@ export function SecurityReportScreen({
                                                 }}
                                             >
                                                 credential
-                                                {rows.length === 1 ? "" : "s"}{" "}
+                                                {rows.length === 1
+                                                    ? ""
+                                                    : "s"}{" "}
                                                 to review
                                             </Text>
                                             <Text

@@ -65,6 +65,7 @@ import {
     LinkingProcessStatus,
     LinkingProcessStep,
 } from "@cryptex-industries/vault-core/vault-utils/linking";
+import type { SyncKeyPair } from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
 import {
     generateKeyPair,
     privateKeyJwkToString,
@@ -2350,6 +2351,8 @@ export function SendLinkRequestDialog({
 export type ReceiveLinkRequestDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** Receive into a new vault instead of merging into the unlocked one. */
+    onVaultReceived?: (vault: Vault) => void;
 };
 
 type ReceiveLinkMethod = "qr" | "file";
@@ -2443,6 +2446,42 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
         onlineServices.PublicKeyJWK,
         onlineServices.PrivateKeyJWK,
     );
+
+function syncKeyPairOf(linkedDevices: LinkedDevices): SyncKeyPair {
+    return {
+        signingPublicKey: linkedDevices.SyncSigningPublicKey,
+        signingPrivateKey: linkedDevices.SyncSigningPrivateKey,
+        kemPublicKey: linkedDevices.SyncKemPublicKey,
+        kemPrivateKey: linkedDevices.SyncKemPrivateKey,
+    };
+}
+
+async function generateSyncKeyPair() {
+    const linkedDevices = new LinkedDevices();
+    await ensureSyncSigningKeypair(linkedDevices);
+    await ensureSyncKemKeypair(linkedDevices);
+    return syncKeyPairOf(linkedDevices);
+}
+
+/** Builds this device's copy of the sender's vault, keyed to this device. */
+async function buildLinkedVault(
+    data: Uint8Array,
+    onlineServices: OnlineServices | null,
+    senderKeyBundle: VaultUtilTypes.SyncKeyBundle,
+    syncKeys: SyncKeyPair,
+) {
+    const vault = await parseReceivedVault(data);
+    vault.LinkedDevices.SyncSigningPublicKey = syncKeys.signingPublicKey;
+    vault.LinkedDevices.SyncSigningPrivateKey = syncKeys.signingPrivateKey;
+    vault.LinkedDevices.SyncKemPublicKey = syncKeys.kemPublicKey;
+    vault.LinkedDevices.SyncKemPrivateKey = syncKeys.kemPrivateKey;
+    for (const device of vault.LinkedDevices.Devices) {
+        device.RemoteSyncPublicKey = senderKeyBundle.SyncSigningPublicKey;
+        device.RemoteSyncKemPublicKey = senderKeyBundle.SyncKemPublicKey;
+    }
+    if (onlineServices) vault.OnlineServices = onlineServices;
+    return vault;
+}
 
 async function parseReceivedVault(data: Uint8Array) {
     const rawVault = VaultUtilTypes.Vault.decode(data);
@@ -2769,6 +2808,7 @@ function ReceiveLinkActiveLinkingPanel({
 export function ReceiveLinkRequestDialog({
     open,
     onOpenChange,
+    onVaultReceived,
 }: ReceiveLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
@@ -3121,6 +3161,35 @@ export function ReceiveLinkRequestDialog({
         toast.info("Linking aborted.");
     };
 
+    const persistSyncKeys = async () => {
+        const syncKeyResult = await persistVaultMutation(
+            "vault.configuration",
+            async (currentVault) => {
+                const updatedVault = Object.assign(new Vault(), currentVault);
+                updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
+                    currentVault.LinkedDevices,
+                );
+                const generatedSigningKeys = await ensureSyncSigningKeypair(
+                    updatedVault.LinkedDevices,
+                );
+                const generatedKemKeys = await ensureSyncKemKeypair(
+                    updatedVault.LinkedDevices,
+                );
+                return {
+                    vault:
+                        generatedSigningKeys || generatedKemKeys
+                            ? updatedVault
+                            : currentVault,
+                    result: syncKeyPairOf(updatedVault.LinkedDevices),
+                };
+            },
+        );
+        if (syncKeyResult.isErr()) {
+            throw new Error("Failed to persist synchronization keys.");
+        }
+        return syncKeyResult.value;
+    };
+
     const startReceiving = async () => {
         setFormError("");
         setCameraError("");
@@ -3191,6 +3260,7 @@ export function ReceiveLinkRequestDialog({
                 : null;
 
             if (
+                !onVaultReceived &&
                 linkingBlob.OnlineServices &&
                 Vault.isOnlineServicesBound(unlockedVault) &&
                 unlockedVault.OnlineServices.UserID !==
@@ -3258,50 +3328,16 @@ export function ReceiveLinkRequestDialog({
 
             addReceiveLog("Link package unlocked.", "done");
 
-            const syncKeyResult = await persistVaultMutation(
-                "vault.configuration",
-                async (currentVault) => {
-                    const updatedVault = Object.assign(
-                        new Vault(),
-                        currentVault,
-                    );
-                    updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
-                        currentVault.LinkedDevices,
-                    );
-                    const generatedSigningKeys = await ensureSyncSigningKeypair(
-                        updatedVault.LinkedDevices,
-                    );
-                    const generatedKemKeys = await ensureSyncKemKeypair(
-                        updatedVault.LinkedDevices,
-                    );
-                    const syncKeys = {
-                        signingPublicKey:
-                            updatedVault.LinkedDevices.SyncSigningPublicKey,
-                        signingPrivateKey:
-                            updatedVault.LinkedDevices.SyncSigningPrivateKey,
-                        kemPublicKey:
-                            updatedVault.LinkedDevices.SyncKemPublicKey,
-                        kemPrivateKey:
-                            updatedVault.LinkedDevices.SyncKemPrivateKey,
-                    };
-                    return {
-                        vault:
-                            generatedSigningKeys || generatedKemKeys
-                                ? updatedVault
-                                : currentVault,
-                        result: syncKeys,
-                    };
-                },
-            );
-            if (syncKeyResult.isErr()) {
-                throw new Error("Failed to persist synchronization keys.");
-            }
+            const syncKeys = onVaultReceived
+                ? await generateSyncKeyPair()
+                : await persistSyncKeys();
 
             let vaultReceived = false;
+            let linkedVault: Vault | null = null;
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
-                syncKeyResult.value,
+                syncKeys,
                 secret.trim(),
                 async (status) => {
                     updateStep(status);
@@ -3315,11 +3351,20 @@ export function ReceiveLinkRequestDialog({
                         if (!mountedRef.current) return;
                         vaultReceived = true;
                         try {
-                            await mergeReceivedVault(
-                                status.VaultBinaryData,
-                                onlineServicesOverwrite,
-                                senderKeyBundle,
-                            );
+                            if (onVaultReceived) {
+                                linkedVault = await buildLinkedVault(
+                                    status.VaultBinaryData,
+                                    onlineServicesOverwrite,
+                                    senderKeyBundle,
+                                    syncKeys,
+                                );
+                            } else {
+                                await mergeReceivedVault(
+                                    status.VaultBinaryData,
+                                    onlineServicesOverwrite,
+                                    senderKeyBundle,
+                                );
+                            }
                         } catch (error) {
                             if (!failedRef.current) {
                                 failedRef.current = true;
@@ -3352,6 +3397,7 @@ export function ReceiveLinkRequestDialog({
                         }
                         setStage("done");
                         toast.success("Link received.");
+                        if (linkedVault) onVaultReceived?.(linkedVault);
                     }
                 },
             );
@@ -3427,7 +3473,9 @@ export function ReceiveLinkRequestDialog({
                     {stage === "input" ? (
                         <DialogDescription>
                             Import a link package from the sending device.
-                            Existing items stay; only missing data is added.
+                            {onVaultReceived
+                                ? null
+                                : " Existing items stay; only missing data is added."}
                         </DialogDescription>
                     ) : stage === "linking" ? (
                         <DialogDescription>

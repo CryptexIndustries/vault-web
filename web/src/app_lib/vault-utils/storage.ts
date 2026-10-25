@@ -191,6 +191,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         seedCount = 0,
         options?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
+        linkedVault?: Vault,
     ): Promise<{
         metadata: VaultMetadata;
         revealSecrets: VaultRevealSecrets;
@@ -206,7 +207,7 @@ export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
         vaultMetadata.CreatedAt = new Date().toISOString();
         vaultMetadata.LastUsed = undefined;
 
-        const freshVault = new Vault(seedVault, seedCount);
+        const freshVault = linkedVault ?? new Vault(seedVault, seedCount);
         await ensureSyncSigningKeypair(freshVault.LinkedDevices);
         await ensureSyncKemKeypair(freshVault.LinkedDevices);
         const vaultToEncrypt = initialImport

@@ -21,6 +21,27 @@ services:
             retries: 30
             start_period: 5s
 
+    # Self-hosted linking servers, so two browsers can link without Online Services.
+    signaling:
+        image: quay.io/soketi/soketi:1.6-16-alpine@sha256:5e45fe1adbf2d4ef8022d0126a3c7e4371b7b08f35784b76a2dc353954ee885c
+        environment:
+            SOKETI_DEFAULT_APP_ID: e2e-app
+            SOKETI_DEFAULT_APP_KEY: e2e-key
+            SOKETI_DEFAULT_APP_SECRET: e2e-secret
+            SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES: "true"
+
+    turn:
+        image: coturn/coturn:4.6.3@sha256:71c3c990283385567f11794ee692e3a47b66fd9b0bb39e42afbe776e331dd888
+        command:
+            - --listening-port=3478
+            - --realm=cryptex-e2e.local
+            - --lt-cred-mech
+            - --user=e2e:e2e-turn-password
+            - --no-tls
+            - --no-dtls
+            - --no-cli
+            - --log-file=stdout
+
     web-e2e:
         build:
             context: .
@@ -31,6 +52,10 @@ services:
         depends_on:
             web:
                 condition: service_healthy
+            signaling:
+                condition: service_started
+            turn:
+                condition: service_started
         environment:
             CI: "true"
             HOME: /tmp

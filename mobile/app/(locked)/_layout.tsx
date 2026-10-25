@@ -129,8 +129,8 @@ export default function LockedLayout() {
                 <Tabs.Screen
                     name="link"
                     options={{
-                        title: "Link Vault",
-                        tabBarAccessibilityLabel: "Link Vault",
+                        title: "Use invitation",
+                        tabBarAccessibilityLabel: "Use invitation",
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon icon={Link2} focused={focused} />
                         ),

@@ -5,12 +5,12 @@ name: Receive and protect a real linked vault
 - launchApp
 - assertVisible: Create vault
 - assertVisible: Vault name
-- tapOn: Link Vault
+- tapOn: Use invitation
 - runFlow:
     when:
       notVisible: Make the connection.
     commands:
-      - tapOn: Link Vault
+      - tapOn: Use invitation
 - assertVisible: Make the connection.
 - assertVisible: Scan QR code
 - tapOn: Choose link file

@@ -51,6 +51,8 @@ export type VaultUnlockOptions = {
     useRecovery?: boolean;
     recoveryCode?: string;
     additionalKeyProtectionHkdfBase?: VaultHkdfKey | null;
+    /** Opens the DEK as extractable, for callers that must export it. */
+    extractableDek?: boolean;
 };
 
 /** Current credentials needed to re-derive the (extractable) DEK before re-wrapping. */
@@ -235,7 +237,11 @@ export async function openEnvelopeBlob(
 
     let dekRes: Result<CryptoKey, string>;
     if (options.useRecovery && options.recoveryCode) {
-        dekRes = await openRecoverySlot(blob.Envelope, options.recoveryCode);
+        dekRes = await openRecoverySlot(
+            blob.Envelope,
+            options.recoveryCode,
+            options.extractableDek,
+        );
     } else {
         const primarySlot = blob.Envelope.Slots.find(isPrimarySlot);
         if (!primarySlot || !isPrimarySlot(primarySlot))
@@ -249,6 +255,7 @@ export async function openEnvelopeBlob(
             options.masterPassword,
             fallbackVaultId,
             options.additionalKeyProtectionHkdfBase ?? null,
+            options.extractableDek,
         );
     }
 

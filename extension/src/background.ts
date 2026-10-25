@@ -72,6 +72,7 @@ import {
     clearAllVaultKeyMaterial,
     clearSessionDEK,
     getSessionDEK,
+    setSessionDEK,
     setSessionDEKFromVaultMetadata,
 } from "./background/session-dek-store";
 import { registerVaultActionStateIndicator } from "./background/action-icon";
@@ -581,6 +582,9 @@ async function processMessageUncoordinated(
                             typeof payload.protectionPhrase === "string"
                                 ? payload.protectionPhrase
                                 : undefined,
+                        // The session store exports the DEK, so open it
+                        // extractable instead of deriving it a second time.
+                        extractableDek: true,
                     },
                 );
 
@@ -588,23 +592,13 @@ async function processMessageUncoordinated(
                     return { ok: false, error: res.error };
                 }
 
-                const { vault } = res.value;
+                const { vault, dek } = res.value;
 
                 if (metadata.DBIndex == null) {
                     return { ok: false, error: "METADATA_INDEX_NULL" };
                 }
 
-                await setSessionDEKFromVaultMetadata(
-                    metadata.DBIndex,
-                    metadata,
-                    {
-                        masterPassword: payload.form.Secret,
-                        protectionPhrase:
-                            typeof payload.protectionPhrase === "string"
-                                ? payload.protectionPhrase
-                                : undefined,
-                    },
-                );
+                await setSessionDEK(metadata.DBIndex, dek);
                 await setVaultInSessionStorage(
                     metadata,
                     vault,

@@ -1,0 +1,1 @@
+Join your existing account from a second device: before you sign up, the Account tab now points to Use invitation, and the first screen's Link Vault tab is called Use invitation. When the receiving vault has its own Online Services account, the app explains that linking moves the vault to the sending device's account and offers to delete the old account first.

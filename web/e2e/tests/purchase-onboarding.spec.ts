@@ -159,7 +159,7 @@ for (const firstRegistrationFails of [false, true]) {
         });
 
         await page.goto("/pricing");
-        await page.getByRole("button", { name: /Annually/ }).click();
+        await page.getByRole("button", { name: /^Yearly/ }).click();
         await page
             .getByRole("link", { name: "Continue with yearly plan" })
             .click();

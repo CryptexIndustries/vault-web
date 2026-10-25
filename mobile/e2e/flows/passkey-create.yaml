@@ -5,15 +5,15 @@ name: Android passkey creation and persistence
 - assertVisible: Deterministic passkey fixture
 - tapOn: Create account A
 - runFlow:
-    when:
-      visible: Continue
-    commands:
-      - tapOn: Continue
+      when:
+          visible: Continue
+      commands:
+          - tapOn: Continue
 - runFlow:
-    when:
-      visible: Save username and password to ${CRYPTEX_APP_NAME}?
-    commands:
-      - tapOn: No thanks
+      when:
+          visible: Save username and password to ${CRYPTEX_APP_NAME}?
+      commands:
+          - tapOn: No thanks
 - assertVisible: Create passkey
 - assertVisible: Cryptex E2E
 - assertVisible: Fixture User A
@@ -22,10 +22,10 @@ name: Android passkey creation and persistence
 
 - tapOn: Create account B
 - runFlow:
-    when:
-      visible: Continue
-    commands:
-      - tapOn: Continue
+      when:
+          visible: Continue
+      commands:
+          - tapOn: Continue
 - assertVisible: Create passkey
 - assertVisible: Fixture User B
 - tapOn: Create and save
@@ -34,24 +34,24 @@ name: Android passkey creation and persistence
 
 - launchApp
 - runFlow:
-    when:
-      visible: Unlock vault
-    commands:
-      - tapOn: Master password
-      - eraseText: 100
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: unlock-vault
+      when:
+          visible: Unlock vault
+      commands:
+          - tapOn: Master password
+          - eraseText: 100
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: unlock-vault
 - tapOn: Search your vault
 - inputText: Fixture User A
 - hideKeyboard
 - assertVisible: "Cryptex E2E, Passkey: Fixture User A"
 - tapOn: "Cryptex E2E, Passkey: Fixture User A"
 - scrollUntilVisible:
-    element:
-      text: Relying party
-    direction: DOWN
+      element:
+          text: Relying party
+      direction: DOWN
 - assertVisible: Fixture User A
 - assertVisible: Relying party
 - assertVisible: localhost
@@ -63,9 +63,9 @@ name: Android passkey creation and persistence
 - assertVisible: "Cryptex E2E, Passkey: Fixture User B"
 - tapOn: "Cryptex E2E, Passkey: Fixture User B"
 - scrollUntilVisible:
-    element:
-      text: Relying party
-    direction: DOWN
+      element:
+          text: Relying party
+      direction: DOWN
 - assertVisible: Fixture User B
 - assertVisible: Relying party
 - assertVisible: localhost

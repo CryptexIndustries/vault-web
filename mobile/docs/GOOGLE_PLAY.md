@@ -8,13 +8,13 @@ Create a RevenueCat project and register the profile's package in Play Console a
 
 Play builds read the same committed public JSON as standard and F-Droid builds: `mobile/release-config.json` for production or `mobile/prerelease-config.json` for preproduction. These fields configure Play billing:
 
-| Setting | Value |
-| --- | --- |
-| `EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY` | Public RevenueCat Android SDK key beginning with `goog_` |
-| `EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID` | Monthly Play subscription product ID |
-| `EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID` | Monthly base-plan ID |
-| `EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_PRODUCT_ID` | Yearly Play subscription product ID |
-| `EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_BASE_PLAN_ID` | Yearly base-plan ID |
+| Setting                                        | Value                                                    |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY`        | Public RevenueCat Android SDK key beginning with `goog_` |
+| `EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID`   | Monthly Play subscription product ID                     |
+| `EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID` | Monthly base-plan ID                                     |
+| `EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_PRODUCT_ID`    | Yearly Play subscription product ID                      |
+| `EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_BASE_PLAN_ID`  | Yearly base-plan ID                                      |
 
 Keep RevenueCat secret keys and Google service-account credentials outside client JSON and `EXPO_PUBLIC_*` variables.
 

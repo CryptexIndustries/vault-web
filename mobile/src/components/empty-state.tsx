@@ -45,7 +45,7 @@ function EmptyState({
                     />
                 </View>
             ) : null}
-            <Text className="text-center text-base font-semibold text-foreground">
+            <Text className="text-center font-semibold text-base text-foreground">
                 {title}
             </Text>
             {description ? (

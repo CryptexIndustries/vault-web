@@ -85,7 +85,10 @@ export function isAutoLockDue(now = Date.now()): boolean {
     if (thresholdMs == null) return false;
     const since = backgroundedAt ?? lastInteractionAt;
     const monotonicSince = backgroundedMonotonic ?? lastInteractionMonotonic;
-    return now - since >= thresholdMs || monotonicNow() - monotonicSince >= thresholdMs;
+    return (
+        now - since >= thresholdMs ||
+        monotonicNow() - monotonicSince >= thresholdMs
+    );
 }
 
 export function vaultTimeoutRemainingMs(now = Date.now()): number | null {

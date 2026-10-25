@@ -285,6 +285,7 @@ const AppIndex: React.FC = () => {
             FormSchemas.EncryptionFormGroupSchemaType,
         additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
+        linkedVault?: Vault.Vault,
     ): Promise<
         | false
         | {
@@ -312,6 +313,7 @@ const AppIndex: React.FC = () => {
                     0,
                     additionalKeyProtectionOptions,
                     initialImport,
+                    linkedVault,
                 );
 
                 await created.metadata.save(null, created.dek);

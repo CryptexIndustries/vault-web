@@ -1,7 +1,9 @@
 /** Pure auto-lock timing/state helpers (no React / storage). */
 
 export const DEFAULT_AUTO_LOCK_MINUTES = 5;
-export const AUTO_LOCK_MINUTE_OPTIONS = [0, 1, 5, 15, 30, 60, 240, 480] as const;
+export const AUTO_LOCK_MINUTE_OPTIONS = [
+    0, 1, 5, 15, 30, 60, 240, 480,
+] as const;
 const INTERACTION_THROTTLE_MS = 1_000;
 
 export function parseAutoLockMinutes(raw: string | null | undefined): number {

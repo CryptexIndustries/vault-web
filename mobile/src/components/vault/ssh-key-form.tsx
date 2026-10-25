@@ -11,7 +11,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
-import { Check, ChevronDown, ChevronRight, FileKey, FileUp, X } from "lucide-react-native";
+import {
+    Check,
+    ChevronDown,
+    ChevronRight,
+    FileKey,
+    FileUp,
+    X,
+} from "lucide-react-native";
 
 import {
     CredentialURLMatchMode,
@@ -378,9 +385,7 @@ export function SSHKeyForm({
             delayMs?: number;
         }) => {
             const same = (other: CheckInput | null) =>
-                !!other &&
-                other.text === text &&
-                other.publicKey === publicKey;
+                !!other && other.text === text && other.publicKey === publicKey;
             if (!keyPassphrase && same(pending.current)) return;
             cancelCheck();
             if (!text.trim()) {

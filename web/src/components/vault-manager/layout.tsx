@@ -1,5 +1,15 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
     Card,
     CardContent,
     CardDescription,
@@ -11,7 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useLiveQuery } from "dexie-react-hooks";
 import { AlertCircle, CheckCircle, LoaderCircle, Shield } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 
 import {
     EncryptionFormGroupSchemaType,
@@ -30,6 +41,7 @@ import type {
 } from "@cryptex-industries/vault-core/vault-utils/vault-unlock-types";
 import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import RestoreTab from "./restore";
+import LinkVaultTab from "./link";
 import UnlockTab from "./unlock";
 import { ChangelogDialog } from "../changelog";
 import * as Vault from "@cryptex-industries/vault-core/vault-utils/vault";
@@ -59,6 +71,7 @@ const VaultManager: React.FC<{
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
+        linkedVault?: Vault.Vault,
     ) => Promise<
         | false
         | {
@@ -82,7 +95,13 @@ const VaultManager: React.FC<{
     finalizeVaultUnlockCallback,
     tryRestoreVaultCallback,
 }) => {
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState("loading");
+    const [unsavedLinkedVault, setUnsavedLinkedVault] = useState(false);
+    const [pendingLeave, setPendingLeave] = useState<
+        { tab: string } | { history: true } | null
+    >(null);
+    const leavingRef = useRef(false);
     const [operationStatus, setOperationStatus] = useState<OperationStatus>({
         status: "idle",
     });
@@ -97,8 +116,48 @@ const VaultManager: React.FC<{
     };
 
     const handleTabChange = (value: string) => {
+        if (unsavedLinkedVault && value !== "link") {
+            setPendingLeave({ tab: value });
+            return;
+        }
         setActiveTab(value);
         resetForm();
+    };
+
+    // A received vault lives only in this tab until it's saved.
+    useEffect(() => {
+        if (!unsavedLinkedVault) return;
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+
+        // Back and Forward stay inside the app, so beforeunload never sees them.
+        const appState: unknown = window.history.state;
+        const appPath = router.asPath;
+        router.beforePopState(() => {
+            if (leavingRef.current) return true;
+            window.history.pushState(appState, "", appPath);
+            setPendingLeave({ history: true });
+            return false;
+        });
+
+        return () => {
+            window.removeEventListener("beforeunload", onBeforeUnload);
+            router.beforePopState(() => true);
+        };
+    }, [unsavedLinkedVault, router]);
+
+    const leaveWithoutSaving = () => {
+        setPendingLeave(null);
+        if (pendingLeave && "tab" in pendingLeave) {
+            setActiveTab(pendingLeave.tab);
+            resetForm();
+        } else {
+            leavingRef.current = true;
+            window.history.back();
+        }
     };
 
     const _encryptedVaults = useLiveQuery(() => Storage.db.vaults.toArray());
@@ -157,11 +216,13 @@ const VaultManager: React.FC<{
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
         initialImport?: ImportResult,
+        linkedVault?: Vault.Vault,
     ) => {
         const success = await tryCreateVaultCallback(
             formData,
             additionalKeyProtectionOptions,
             initialImport,
+            linkedVault,
         );
 
         if (typeof success === "object" && success.ok) {
@@ -241,7 +302,7 @@ const VaultManager: React.FC<{
                     onValueChange={handleTabChange}
                     className="w-full max-w-sm sm:w-96"
                 >
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="flex w-full [&>button]:flex-auto">
                         {isLoading ? (
                             <TabsTrigger
                                 value="loading"
@@ -262,7 +323,9 @@ const VaultManager: React.FC<{
                                 <TabsTrigger value="restore">
                                     Restore
                                 </TabsTrigger>
-                                {/* <TabsTrigger value="link">Link</TabsTrigger> */}
+                                <TabsTrigger value="link">
+                                    Use invitation
+                                </TabsTrigger>
                             </>
                         )}
                     </TabsList>
@@ -301,6 +364,7 @@ const VaultManager: React.FC<{
                             suggestedName={
                                 purchasePlan ? "Main vault" : undefined
                             }
+                            onUseInvitation={() => handleTabChange("link")}
                         />
                     </TabsContent>
 
@@ -309,19 +373,43 @@ const VaultManager: React.FC<{
                         <RestoreTab executeCallback={restoreVaultCallback} />
                     </TabsContent>
 
-                    {/* Link Vault Tab */}
-                    {/* <TabsContent value="link">
-                        <LinkTab
-                            onLinkingSuccess={() => {
-                                setOperationStatus({
-                                    status: "success",
-                                    message: "Vault linked successfully",
-                                });
-                                setActiveTab("unlock");
-                            }}
+                    <TabsContent value="link">
+                        <LinkVaultTab
+                            executeCallback={createVaultCallback}
+                            onUnsavedChange={setUnsavedLinkedVault}
                         />
-                    </TabsContent> */}
+                    </TabsContent>
                 </Tabs>
+
+                <AlertDialog
+                    open={pendingLeave !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setPendingLeave(null);
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                Leave without saving this vault?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                The vault from your other device isn&apos;t
+                                saved in this browser yet. If you leave now,
+                                it&apos;s discarded, and linking this browser
+                                needs a new invitation.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Stay</AlertDialogCancel>
+                            <Button
+                                variant="destructive"
+                                onClick={leaveWithoutSaving}
+                            >
+                                Leave without saving
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
                 {/* Operation Status */}
                 {operationStatus.status !== "idle" && (

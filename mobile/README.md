@@ -22,13 +22,13 @@ export ANDROID_SERIAL=emulator-5554 # Replace with the device serial from adb de
 
 Development settings live in `mobile/.env` or `mobile/.env.local`:
 
-| Variable | Purpose |
-| --- | --- |
-| `EXPO_PUBLIC_CLOUD_ENABLED` | Set to `false` for local-only development |
-| `EXPO_PUBLIC_APP_URL` | Web app and Turnstile host |
-| `EXPO_PUBLIC_ONLINE_SERVICES_API_URL` | tRPC API base URL |
-| `EXPO_PUBLIC_TURNSTILE_SITE_KEY` | Captcha for account registration and recovery |
-| `EXPO_PUBLIC_PUSHER_*` | Signaling configuration |
+| Variable                              | Purpose                                       |
+| ------------------------------------- | --------------------------------------------- |
+| `EXPO_PUBLIC_CLOUD_ENABLED`           | Set to `false` for local-only development     |
+| `EXPO_PUBLIC_APP_URL`                 | Web app and Turnstile host                    |
+| `EXPO_PUBLIC_ONLINE_SERVICES_API_URL` | tRPC API base URL                             |
+| `EXPO_PUBLIC_TURNSTILE_SITE_KEY`      | Captcha for account registration and recovery |
+| `EXPO_PUBLIC_PUSHER_*`                | Signaling configuration                       |
 
 ## Development
 
@@ -53,10 +53,10 @@ then `pnpm --dir mobile ios`. The release build helper targets Android.
 
 ## Build and install an APK
 
-| Profile | Application ID | Public configuration | Signed APK |
-| --- | --- | --- | --- |
-| `production` | `com.cryptexindustries.vault` | `mobile/release-config.json` | `mobile/dist/cryptex-vault.apk` |
-| `preprod` | `com.cryptexindustries.vault.preprod` | `mobile/prerelease-config.json` | `mobile/dist/cryptex-vault-preprod.apk` |
+| Profile      | Application ID                        | Public configuration            | Signed APK                              |
+| ------------ | ------------------------------------- | ------------------------------- | --------------------------------------- |
+| `production` | `com.cryptexindustries.vault`         | `mobile/release-config.json`    | `mobile/dist/cryptex-vault.apk`         |
+| `preprod`    | `com.cryptexindustries.vault.preprod` | `mobile/prerelease-config.json` | `mobile/dist/cryptex-vault-preprod.apk` |
 
 The profiles can coexist on one device. Release builds use the selected public
 JSON and ignore local dotenv files. `--config <path>` replaces the entire JSON;

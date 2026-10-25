@@ -119,18 +119,15 @@ export default function LockedLayout() {
                         title: "Restore",
                         tabBarAccessibilityLabel: "Restore backup",
                         tabBarIcon: ({ focused }) => (
-                            <LockedNavIcon
-                                icon={RotateCcw}
-                                focused={focused}
-                            />
+                            <LockedNavIcon icon={RotateCcw} focused={focused} />
                         ),
                     }}
                 />
                 <Tabs.Screen
                     name="link"
                     options={{
-                        title: "Link Vault",
-                        tabBarAccessibilityLabel: "Link Vault",
+                        title: "Use invitation",
+                        tabBarAccessibilityLabel: "Use invitation",
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon icon={Link2} focused={focused} />
                         ),
@@ -146,9 +143,7 @@ export default function LockedLayout() {
                     pointerEvents="none"
                     className="absolute left-[18px] right-[18px] rounded-[14px] bg-foreground px-[18px] py-3.5 shadow-lg"
                     style={{
-                        bottom: isRail
-                            ? Math.max(insets.bottom, 12)
-                            : 100,
+                        bottom: isRail ? Math.max(insets.bottom, 12) : 100,
                         elevation: 8,
                     }}
                 >

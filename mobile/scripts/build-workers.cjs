@@ -50,7 +50,9 @@ async function buildWorker({ name, plugins }) {
             (output) => output.imports.length,
         )
     ) {
-        throw new Error(`The ${name} worker must not depend on external modules`);
+        throw new Error(
+            `The ${name} worker must not depend on external modules`,
+        );
     }
     const output = path.resolve(
         __dirname,

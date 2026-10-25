@@ -3,8 +3,7 @@ import { Platform } from "react-native";
 import * as ScreenCapture from "expo-screen-capture";
 
 const DEFAULT_PRIVACY_KEY = "cryptex-vault-unlocked";
-const screenCaptureAllowedForE2E =
-    process.env.EXPO_PUBLIC_CRYPTEX_E2E === "1";
+const screenCaptureAllowedForE2E = process.env.EXPO_PUBLIC_CRYPTEX_E2E === "1";
 
 /**
  * iOS route privacy. Android sets FLAG_SECURE in native activity creation;

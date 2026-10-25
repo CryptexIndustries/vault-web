@@ -5,10 +5,10 @@ name: Accessibility fallback - save review and update capture
 - assertVisible: fallback-user
 - assertVisible: Android hid this password from accessibility.*
 - tapOn:
-    point: "50%,47%"
+      point: "50%,47%"
 - inputText: fallback-password-one
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Accessibility registration fixture
 - tapOn: Accessibility new password
 - eraseText

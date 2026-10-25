@@ -12,19 +12,15 @@ export function openCredentialUrl(rawUrl?: string | null): void {
         return;
     }
 
-    Alert.alert(
-        "Open external site",
-        `You are about to visit "${urlString}"`,
-        [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Open URL",
-                onPress: () => {
-                    void Linking.openURL(urlString).catch(() => {
-                        Alert.alert("Error", "Could not open this URL.");
-                    });
-                },
+    Alert.alert("Open external site", `You are about to visit "${urlString}"`, [
+        { text: "Cancel", style: "cancel" },
+        {
+            text: "Open URL",
+            onPress: () => {
+                void Linking.openURL(urlString).catch(() => {
+                    Alert.alert("Error", "Could not open this URL.");
+                });
             },
-        ],
-    );
+        },
+    ]);
 }

@@ -16,8 +16,8 @@ name: Chrome autofill after background auto-lock
 # Chrome can paint the elapsed state while hiding the page from accessibility
 # after many prior Autofill callbacks. The timer also marks the browser URL.
 - extendedWaitUntil:
-    visible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+&elapsed=1
-    timeout: 90000
+      visible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+&elapsed=1
+      timeout: 90000
 - openLink: http://localhost:43110/fresh-login?case=background-auto-lock
 - runFlow: autofill-browser-dismiss-tips.yaml
 - assertVisible: Login fields empty
@@ -29,14 +29,14 @@ name: Chrome autofill after background auto-lock
 - inputText: CorrectHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: Choose a login
 - assertVisible: Android could not confirm.*browser page and login field.*
 - tapOn: Fixture Login, fixture@example.test.*
 - assertVisible: Review destination
 - tapOn: Fill once
 - tapOn:
-    point: 60%,28%
+      point: 60%,28%
 - assertVisible: localhost:43110/login/otp\?accepted=1&empty=0
 
 # Restore the suite's starting auto-lock setting.

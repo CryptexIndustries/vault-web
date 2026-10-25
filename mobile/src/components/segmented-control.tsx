@@ -58,9 +58,7 @@ function SegmentedControl<T extends string>({
                         className={cn(
                             "min-h-[44px] flex-1 items-center justify-center px-2",
                             appearance !== "underline" && "rounded-md",
-                            selected &&
-                                appearance === "filled" &&
-                                "bg-primary",
+                            selected && appearance === "filled" && "bg-primary",
                             selected &&
                                 appearance === "underline" &&
                                 "border-b-2 border-primary",

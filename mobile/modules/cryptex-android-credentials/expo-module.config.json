@@ -1,6 +1,8 @@
 {
-  "platforms": ["android"],
-  "android": {
-    "modules": ["com.cryptex.vault.credentials.CryptexAndroidCredentialsModule"]
-  }
+    "platforms": ["android"],
+    "android": {
+        "modules": [
+            "com.cryptex.vault.credentials.CryptexAndroidCredentialsModule"
+        ]
+    }
 }

@@ -5,7 +5,10 @@ import {
     withAgentRecord,
     withNewAgentRecord,
 } from "@cryptex-industries/vault-core/agent/vault-agents";
-import type { AgentRequestRecord, ConnectedAgent } from "@cryptex-industries/vault-core/proto";
+import type {
+    AgentRequestRecord,
+    ConnectedAgent,
+} from "@cryptex-industries/vault-core/proto";
 import {
     appendConnectedAgentHistory,
     markConnectedAgentDeleted,
@@ -14,7 +17,11 @@ import {
 } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 import type { VaultWriteKind } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 
-import { isVaultUnlockedAtom, unlockedVaultAtom, vaultStore } from "@/utils/atoms";
+import {
+    isVaultUnlockedAtom,
+    unlockedVaultAtom,
+    vaultStore,
+} from "@/utils/atoms";
 import { isAutoLockDue } from "@/utils/session-timeout";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { vaultLockStateAtom } from "@/utils/vault-lock";
@@ -40,10 +47,16 @@ export function changeAgent(agentId: string, changes: ConnectedAgentChanges) {
 }
 
 export function revokeAgentInVault(agentId: string) {
-    return updateAgentInVault("agent.revoke", agentId, markConnectedAgentDeleted);
+    return updateAgentInVault(
+        "agent.revoke",
+        agentId,
+        markConnectedAgentDeleted,
+    );
 }
 
-export async function addAgentToVault(record: ConnectedAgent): Promise<boolean> {
+export async function addAgentToVault(
+    record: ConnectedAgent,
+): Promise<boolean> {
     const result = await persistVaultMutation("agent.pair", (current) => ({
         vault: withNewAgentRecord(current, record),
         result: undefined,
@@ -66,7 +79,10 @@ export function canSign() {
 }
 
 /** One vault write for the entries (the runtime flushes what it queued while locked). */
-async function appendHistoryEntries(agentId: string, entries: AgentRequestRecord[]) {
+async function appendHistoryEntries(
+    agentId: string,
+    entries: AgentRequestRecord[],
+) {
     if (!canSign()) return false;
     if (!liveAgent(vaultStore.get(unlockedVaultAtom), agentId)) return true;
     return updateAgentInVault("agent.history", agentId, (record) =>
@@ -78,7 +94,11 @@ export const mobileVaultAccess: VaultAccess = {
     canSign,
     grantedKey(agentId, publicKey) {
         if (!canSign()) return "locked";
-        return findGrantedKey(vaultStore.get(unlockedVaultAtom), agentId, publicKey);
+        return findGrantedKey(
+            vaultStore.get(unlockedVaultAtom),
+            agentId,
+            publicKey,
+        );
     },
     // The live record, so a stale agent cache can't undo a pause.
     isPaused(agentId) {

@@ -88,7 +88,6 @@ function decodeCbor(bytes: Uint8Array): unknown {
     return decode();
 }
 
-
 describe("android passkey registration", () => {
     it("creates a discoverable ES256 passkey with a verifiable response", async () => {
         const { passkey, responseJson } = await createAndroidPasskey(
@@ -321,10 +320,8 @@ describe("android passkey assertion", () => {
             out.set(trimmed, 32 - trimmed.length);
             return out;
         };
-        const raw: ArrayBuffer = new Uint8Array([
-            ...pad32(r),
-            ...pad32(s),
-        ]).buffer;
+        const raw: ArrayBuffer = new Uint8Array([...pad32(r), ...pad32(s)])
+            .buffer;
         const verified = await crypto.subtle.verify(
             { name: "ECDSA", hash: "SHA-256" },
             publicKey,
@@ -340,7 +337,10 @@ describe("android passkey assertion", () => {
         );
         await expect(
             assertAndroidPasskey(
-                JSON.stringify({ challenge: "Y2hhbGxlbmdl", rpId: "other.com" }),
+                JSON.stringify({
+                    challenge: "Y2hhbGxlbmdl",
+                    rpId: "other.com",
+                }),
                 "http://localhost:43110",
                 passkey,
             ),
@@ -435,11 +435,11 @@ describe("android passkey passkey storage", () => {
             ["sign"],
         );
         expect(privateKey.type).toBe("private");
-        const exportedPublic = await crypto.subtle.exportKey(
-            "jwk",
-            privateKey,
-        );
-        const publicJwk = JSON.parse(stored.PublicKey) as { x: string; y: string };
+        const exportedPublic = await crypto.subtle.exportKey("jwk", privateKey);
+        const publicJwk = JSON.parse(stored.PublicKey) as {
+            x: string;
+            y: string;
+        };
         expect((exportedPublic as { x: string }).x).toBe(publicJwk.x);
         expect((exportedPublic as { y: string }).y).toBe(publicJwk.y);
     });

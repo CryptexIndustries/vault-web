@@ -24,10 +24,9 @@ jest.mock(
     "@cryptex-industries/vault-core/vault-utils/post-quantum-kem",
     () => ({ ensureSyncKemKeypair: jest.fn(async () => false) }),
 );
-jest.mock(
-    "@cryptex-industries/vault-core/vault-utils/sync-signing",
-    () => ({ ensureSyncSigningKeypair: jest.fn(async () => false) }),
-);
+jest.mock("@cryptex-industries/vault-core/vault-utils/sync-signing", () => ({
+    ensureSyncSigningKeypair: jest.fn(async () => false),
+}));
 
 function makeCredential(id: string, name: string): VaultCredential {
     return Object.assign(new VaultCredential(), {
@@ -52,11 +51,7 @@ function emptyVault(): Vault {
     return vault;
 }
 
-function device(partial: {
-    ID: string;
-    SyncID: string;
-    Name: string;
-}) {
+function device(partial: { ID: string; SyncID: string; Name: string }) {
     return {
         ID: partial.ID,
         SyncID: partial.SyncID,
@@ -91,7 +86,9 @@ describe("mergeReceivedVaultContents", () => {
             Object.assign(new Directory(), { ID: "d2", Name: "New" }),
         ];
         received.LinkedDevices = LinkedDevices.fromGeneric({
-            Devices: [device({ ID: "dev-new", SyncID: "sync-new", Name: "Peer" })],
+            Devices: [
+                device({ ID: "dev-new", SyncID: "sync-new", Name: "Peer" }),
+            ],
             STUNServers: [],
             TURNServers: [],
             SignalingServers: [],
@@ -115,7 +112,9 @@ describe("mergeReceivedVaultContents", () => {
             devicesAdded: 1,
         });
         expect(vault.Credentials.map((c) => c.ID).sort()).toEqual(["c1", "c2"]);
-        expect(vault.Credentials.find((c) => c.ID === "c1")?.Name).toBe("Local");
+        expect(vault.Credentials.find((c) => c.ID === "c1")?.Name).toBe(
+            "Local",
+        );
         expect(vault.Directories.map((d) => d.ID).sort()).toEqual(["d1", "d2"]);
         expect(vault.LinkedDevices.Devices).toHaveLength(1);
         expect(vault.LinkedDevices.Devices[0]?.RemoteSyncPublicKey).toBe(
@@ -129,7 +128,9 @@ describe("mergeReceivedVaultContents", () => {
     it("skips devices that already share ID or SyncID", () => {
         const current = emptyVault();
         current.LinkedDevices = LinkedDevices.fromGeneric({
-            Devices: [device({ ID: "dev-1", SyncID: "sync-1", Name: "Existing" })],
+            Devices: [
+                device({ ID: "dev-1", SyncID: "sync-1", Name: "Existing" }),
+            ],
             STUNServers: [],
             TURNServers: [],
             SignalingServers: [],

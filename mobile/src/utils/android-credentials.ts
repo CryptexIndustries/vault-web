@@ -19,7 +19,12 @@ export type PendingAndroidCredentialRequest = {
     applicationLabel?: string | null;
     webDomain?: string | null;
     webScheme?: string | null;
-    warningType?: "unverified-app" | "untrusted-web-context" | "unverified-web-scheme" | "unverified-field-origin" | null;
+    warningType?:
+        | "unverified-app"
+        | "untrusted-web-context"
+        | "unverified-web-scheme"
+        | "unverified-field-origin"
+        | null;
     requestJson?: string | null;
     clientDataHash?: string | null;
     username?: string | null;
@@ -101,8 +106,14 @@ type AndroidCredentialsModule = {
         password: string,
     ): boolean;
     completeProviderUnlock(requestId: string): boolean;
-    completeProviderPasskeyGet(requestId: string, responseJson: string): boolean;
-    completeProviderPasskeyCreate(requestId: string, responseJson: string): boolean;
+    completeProviderPasskeyGet(
+        requestId: string,
+        responseJson: string,
+    ): boolean;
+    completeProviderPasskeyCreate(
+        requestId: string,
+        responseJson: string,
+    ): boolean;
     completeProviderPasswordCreate(requestId: string): boolean;
     rejectExcludedPasskeyCreate(requestId: string): boolean;
     dismissRequest(requestId: string | null): void;
@@ -144,7 +155,8 @@ export const androidCredentials = {
         credentials: AndroidProviderCredential[],
         timeoutMinutes: number,
     ) => {
-        if (!isAutoLockDue()) native?.setProviderCredentials(credentials, timeoutMinutes);
+        if (!isAutoLockDue())
+            native?.setProviderCredentials(credentials, timeoutMinutes);
     },
     clearProviderCredentials: () => native?.clearProviderCredentials(),
     /** Lock started: no fill or passkey answer from here on, until a fresh unlock. */
@@ -162,7 +174,8 @@ export const androidCredentials = {
             );
         return native.setSensitiveClipboardString(text);
     },
-    clearSensitiveClipboardIfOwned: () => native?.clearSensitiveClipboardIfOwned(),
+    clearSensitiveClipboardIfOwned: () =>
+        native?.clearSensitiveClipboardIfOwned(),
     expireSensitiveClipboard: () => native?.expireSensitiveClipboard(),
     resolvePendingPasskeyOrigin: (rpId: string) =>
         native?.resolvePendingPasskeyOrigin(rpId) ??
@@ -198,7 +211,9 @@ export const androidCredentials = {
         requestId: string,
         username: string,
         password: string,
-    ) => native?.completeProviderPassword(requestId, username, password) ?? false,
+    ) =>
+        native?.completeProviderPassword(requestId, username, password) ??
+        false,
     completeProviderUnlock: (requestId: string) =>
         native?.completeProviderUnlock(requestId) ?? false,
     completeProviderPasskeyGet: (requestId: string, responseJson: string) =>
@@ -209,5 +224,6 @@ export const androidCredentials = {
         native?.completeProviderPasswordCreate(requestId) ?? false,
     rejectExcludedPasskeyCreate: (requestId: string) =>
         native?.rejectExcludedPasskeyCreate(requestId) ?? false,
-    dismissRequest: (requestId?: string) => native?.dismissRequest(requestId ?? null),
+    dismissRequest: (requestId?: string) =>
+        native?.dismissRequest(requestId ?? null),
 };

@@ -4,15 +4,25 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { createChunkedQRCodeFrames, DEFAULT_CHUNKED_QR_CYCLE_MS } from "../../packages/shared-ui/src/lib/chunked-qr.ts";
+import {
+    createChunkedQRCodeFrames,
+    DEFAULT_CHUNKED_QR_CYCLE_MS,
+} from "../../packages/shared-ui/src/lib/chunked-qr.ts";
 
 const require = createRequire(import.meta.url);
-const encoderRequire = createRequire(require.resolve("react-native-qrcode-svg/package.json"));
+const encoderRequire = createRequire(
+    require.resolve("react-native-qrcode-svg/package.json"),
+);
 const QRCode = encoderRequire("qrcode");
-const output = resolve(dirname(fileURLToPath(import.meta.url)), "../android/build/qr-scanner-fixtures.bin");
-const payload = Buffer.concat(Array.from({ length: 96 }, (_, i) =>
-    createHash("sha256").update(`cryptex-qr-test-${i}`).digest(),
-)).toString("base64");
+const output = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../android/build/qr-scanner-fixtures.bin",
+);
+const payload = Buffer.concat(
+    Array.from({ length: 96 }, (_, i) =>
+        createHash("sha256").update(`cryptex-qr-test-${i}`).digest(),
+    ),
+).toString("base64");
 const frames = await createChunkedQRCodeFrames(payload);
 const texts = [
     "otpauth://totp/Cryptex:test?secret=JBSWY3DPEHPK3PXP&issuer=Cryptex",
@@ -20,7 +30,11 @@ const texts = [
     "QR Unicode: čćžšđ 日本語 🔐",
     ...frames,
 ];
-const int = value => { const buffer = Buffer.alloc(4); buffer.writeInt32BE(value); return buffer; };
+const int = (value) => {
+    const buffer = Buffer.alloc(4);
+    buffer.writeInt32BE(value);
+    return buffer;
+};
 const parts = [int(DEFAULT_CHUNKED_QR_CYCLE_MS), int(texts.length)];
 for (const text of texts) {
     const encoded = Buffer.from(text);
@@ -32,13 +46,19 @@ for (const text of texts) {
     const pixels = Buffer.alloc(size * size, 255);
     for (let y = 0; y < renderedSize; y++) {
         for (let x = 0; x < renderedSize; x++) {
-            const row = Math.floor(y * modules.size / renderedSize);
-            const col = Math.floor(x * modules.size / renderedSize);
-            pixels[(y + 16) * size + x + 16] = modules.data[row * modules.size + col] ? 0 : 255;
+            const row = Math.floor((y * modules.size) / renderedSize);
+            const col = Math.floor((x * modules.size) / renderedSize);
+            pixels[(y + 16) * size + x + 16] = modules.data[
+                row * modules.size + col
+            ]
+                ? 0
+                : 255;
         }
     }
     parts.push(int(encoded.length), encoded, int(size), pixels);
 }
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, Buffer.concat(parts));
-console.log(`Generated ${texts.length} fixtures, including ${frames.length} production-sized link chunks at ${DEFAULT_CHUNKED_QR_CYCLE_MS} ms.\n${output}`);
+console.log(
+    `Generated ${texts.length} fixtures, including ${frames.length} production-sized link chunks at ${DEFAULT_CHUNKED_QR_CYCLE_MS} ms.\n${output}`,
+);

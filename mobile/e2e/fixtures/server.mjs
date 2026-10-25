@@ -229,7 +229,9 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/passkey-verifier.mjs") {
         response.setHeader("content-type", "text/javascript; charset=utf-8");
         response.setHeader("cache-control", "no-store");
-        response.end(readFileSync(new URL("./passkey-verifier.mjs", import.meta.url)));
+        response.end(
+            readFileSync(new URL("./passkey-verifier.mjs", import.meta.url)),
+        );
         return;
     }
     const freshPage = {
@@ -293,7 +295,12 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/frame-check") {
         response.setHeader("cache-control", "no-store");
         response.setHeader("content-type", "text/html; charset=utf-8");
-        response.end(page("Frame state checked", "<p>Fixture state recorded in the URL</p>"));
+        response.end(
+            page(
+                "Frame state checked",
+                "<p>Fixture state recorded in the URL</p>",
+            ),
+        );
         return;
     }
     if (url.pathname === "/login/otp") {
@@ -308,7 +315,10 @@ const server = createServer(async (request, response) => {
                          <button>Verify</button>
                        </form>`,
                   )
-                : page("Sign-in rejected", "<p>Credentials were not filled correctly</p>"),
+                : page(
+                      "Sign-in rejected",
+                      "<p>Credentials were not filled correctly</p>",
+                  ),
         );
         return;
     }
@@ -323,12 +333,18 @@ const server = createServer(async (request, response) => {
                 form.get("password") === "browser-new-password" &&
                 form.get("password-confirmation") === "browser-new-password";
             response.statusCode = 303;
-            response.setHeader("location", `/register?accepted=${accepted ? "1" : "0"}`);
+            response.setHeader(
+                "location",
+                `/register?accepted=${accepted ? "1" : "0"}`,
+            );
             response.end();
         } else {
             response.end(
                 url.searchParams.get("accepted") === "1"
-                    ? page("Registration complete", "<p>Created browser-new@example.test</p>")
+                    ? page(
+                          "Registration complete",
+                          "<p>Created browser-new@example.test</p>",
+                      )
                     : registrationPage,
             );
         }
@@ -353,7 +369,10 @@ const server = createServer(async (request, response) => {
         const form = await readForm(request);
         const code = form.get("otp") ?? "";
         response.statusCode = 303;
-        response.setHeader("location", `/otp?accepted=${fixtureTotpAccepted(code) ? "1" : "0"}`);
+        response.setHeader(
+            "location",
+            `/otp?accepted=${fixtureTotpAccepted(code) ? "1" : "0"}`,
+        );
         response.end();
         return;
     }

@@ -38,7 +38,8 @@ export const captureVaultSession = (): VaultSessionToken => ({
 
 /** False once a lock has started or the session changed, even if it was unlocked again. */
 export const isVaultSessionCurrent = (token: VaultSessionToken): boolean =>
-    token.lockEpoch === getVaultLockEpoch() && isSameActiveVaultSession(token.generation);
+    token.lockEpoch === getVaultLockEpoch() &&
+    isSameActiveVaultSession(token.generation);
 
 const isSessionVaultDEK = (dek: unknown): dek is CryptoKey =>
     typeof dek === "object" &&
@@ -101,7 +102,11 @@ export const saveVaultWithSessionDEK = async (
     // Lock may need to persist pending edits after the timeout has passed.
     // All ordinary reads and writes go through getVaultDEKFromSession().
     const checked = forLock ? null : getVaultDEKFromSession();
-    const dek = forLock ? activeVaultDEK : checked?.isOk() ? checked.value : null;
+    const dek = forLock
+        ? activeVaultDEK
+        : checked?.isOk()
+          ? checked.value
+          : null;
     if (dek == null) return err("VAULT_DEK_NOT_FOUND");
 
     try {

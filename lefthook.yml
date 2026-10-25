@@ -1,8 +1,8 @@
 pre-commit:
   commands:
     oxfmt:
-      glob: "{web,extension,packages}/**.{js,jsx,ts,tsx,json,jsonc,md,mdx,html,css,cjs,mjs,toml}"
-      run: ./node_modules/.bin/pnpm exec oxfmt --write {staged_files}
+      glob: "{web,extension,packages,mobile}/**.{js,jsx,ts,tsx,json,jsonc,md,mdx,html,css,cjs,mjs,toml}"
+      run: ./node_modules/.bin/pnpm exec oxfmt --write --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     verify-lockfile:
       glob: "{package.json,pnpm-lock.yaml,pnpm-workspace.yaml,**/package.json}"

@@ -44,11 +44,12 @@ import {
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { useUnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
+import { InfoCard, KeyPickerList } from "@/components/agents/agent-rows";
 import {
-    InfoCard,
-    KeyPickerList,
-} from "@/components/agents/agent-rows";
-import { agentRuntime, approverDeviceName, syncAgentCache } from "@/agent/agent-app";
+    agentRuntime,
+    approverDeviceName,
+    syncAgentCache,
+} from "@/agent/agent-app";
 import {
     loadApproverIdentity,
     loadCustomRelays,
@@ -112,7 +113,9 @@ export default function ConnectAgentScreen() {
      * cancelling from there), "sync-failed" if the agent is saved but this
      * phone couldn't start serving it.
      */
-    const [phase, setPhase] = useState<"waiting" | "saving" | "sync-failed">("waiting");
+    const [phase, setPhase] = useState<"waiting" | "saving" | "sync-failed">(
+        "waiting",
+    );
     const [savedId, setSavedId] = useState<string | null>(null);
     /** The paired agent's page, opened once this screen has focus again. */
     const [pairedId, setPairedId] = useState<string | null>(null);
@@ -135,7 +138,12 @@ export default function ConnectAgentScreen() {
     }, []);
 
     useEffect(() => {
-        if (stage === "scan" && permission && !permission.granted && permission.canAskAgain)
+        if (
+            stage === "scan" &&
+            permission &&
+            !permission.granted &&
+            permission.canAskAgain
+        )
             void requestPermission();
     }, [permission, requestPermission, stage]);
 
@@ -150,7 +158,10 @@ export default function ConnectAgentScreen() {
         });
     }, [isFocused, pairedId]);
 
-    const keys = useMemo(() => agentKeyOptions(sshKeyItems(vault), sshKeyInfo), [vault]);
+    const keys = useMemo(
+        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo),
+        [vault],
+    );
 
     const submitCode = useCallback(
         async (text: string) => {
@@ -160,7 +171,10 @@ export default function ConnectAgentScreen() {
                 const claimed = await agentRuntime.claim(text);
                 setClaim(claimed);
                 setName(
-                    sanitizeDisplayText(claimed.offer.hostname || "agent", NAME_LENGTH),
+                    sanitizeDisplayText(
+                        claimed.offer.hostname || "agent",
+                        NAME_LENGTH,
+                    ),
                 );
                 setSelected(keys.length === 1 ? [keys[0]!.id] : []);
                 setRelayNeeded(null);
@@ -172,7 +186,8 @@ export default function ConnectAgentScreen() {
                 const tokenRelay =
                     error instanceof UnknownRelayError
                         ? error.relayUrl
-                        : error instanceof RelayRefusedError && error.relay.kind === "custom"
+                        : error instanceof RelayRefusedError &&
+                            error.relay.kind === "custom"
                           ? error.relay.url
                           : null;
                 if (tokenRelay) {
@@ -180,7 +195,9 @@ export default function ConnectAgentScreen() {
                     // Never prefill: a token belongs to the relay it was saved for.
                     setRelayToken("");
                     setSavedRelays(
-                        (await loadCustomRelays().catch(() => [])).map((relay) => relay.origin),
+                        (await loadCustomRelays().catch(() => [])).map(
+                            (relay) => relay.origin,
+                        ),
                     );
                     setRelayRefused(!(error instanceof UnknownRelayError));
                     setRelayNeeded(tokenRelay);
@@ -229,7 +246,9 @@ export default function ConnectAgentScreen() {
     const connect = async () => {
         if (!claim || busy) return;
         const agentName = sanitizeDisplayText(name.trim(), NAME_LENGTH);
-        const chosen = sshKeyItems(vault).filter((item) => selected.includes(item.ID));
+        const chosen = sshKeyItems(vault).filter((item) =>
+            selected.includes(item.ID),
+        );
         const current = ++attempt.current;
         // Checked after every wait: Back on the offer, Cancel or leaving ends
         // this attempt, and nothing of it may be saved afterwards.
@@ -247,7 +266,9 @@ export default function ConnectAgentScreen() {
             });
             if (!live()) {
                 // The relay registration came after the user backed out.
-                await agentRuntime.unregister(claim.agentId).catch(() => undefined);
+                await agentRuntime
+                    .unregister(claim.agentId)
+                    .catch(() => undefined);
                 return;
             }
             setConfirmation(result.confirmationCode);
@@ -270,7 +291,8 @@ export default function ConnectAgentScreen() {
             const saved = await saving.current.finally(() => {
                 saving.current = null;
             });
-            if (!saved) throw new Error("Couldn't save the agent in your vault.");
+            if (!saved)
+                throw new Error("Couldn't save the agent in your vault.");
             setSavedId(record.ID);
             await finishPairing(record.ID);
         } catch (error) {
@@ -332,7 +354,11 @@ export default function ConnectAgentScreen() {
                     >
                         Try again
                     </Button>
-                    <Button variant="outline" disabled={busy} onPress={() => router.back()}>
+                    <Button
+                        variant="outline"
+                        disabled={busy}
+                        onPress={() => router.back()}
+                    >
                         Close
                     </Button>
                 </View>
@@ -383,7 +409,11 @@ export default function ConnectAgentScreen() {
                     ) : (
                         <InlineNotice
                             tone="loading"
-                            message={phase === "saving" ? "Saving the agent in your vault…" : "Waiting for the agent…"}
+                            message={
+                                phase === "saving"
+                                    ? "Saving the agent in your vault…"
+                                    : "Waiting for the agent…"
+                            }
                         />
                     )}
                 </View>
@@ -393,7 +423,9 @@ export default function ConnectAgentScreen() {
 
     if (stage === "offer" && claim) {
         const offer = claim.offer;
-        const relayHost = relayLabel(claim.relay.kind === "hosted" ? "" : claim.relay.url);
+        const relayHost = relayLabel(
+            claim.relay.kind === "hosted" ? "" : claim.relay.url,
+        );
         return (
             <UnlockedTaskScreen
                 title="Connect an agent"
@@ -468,7 +500,8 @@ export default function ConnectAgentScreen() {
         );
     }
 
-    const cameraActive = !!permission?.granted && isFocused && !relayNeeded && !pasteOpen;
+    const cameraActive =
+        !!permission?.granted && isFocused && !relayNeeded && !pasteOpen;
     return (
         <UnlockedTaskScreen title="Connect an agent">
             <View className="w-full max-w-[480px] gap-4 self-center">
@@ -514,12 +547,19 @@ export default function ConnectAgentScreen() {
                 {relayNeeded ? (
                     <View className="gap-3">
                         <InlineNotice
-                            testID={relayRefused ? "agent-relay-refused" : "agent-unknown-relay"}
+                            testID={
+                                relayRefused
+                                    ? "agent-relay-refused"
+                                    : "agent-unknown-relay"
+                            }
                             tone="warning"
                             message={
                                 relayRefused
                                     ? refusedRelayMessage(relayNeeded)
-                                    : unknownRelayMessage(relayNeeded, savedRelays)
+                                    : unknownRelayMessage(
+                                          relayNeeded,
+                                          savedRelays,
+                                      )
                             }
                         />
                         <Label>Access token</Label>
@@ -554,9 +594,18 @@ export default function ConnectAgentScreen() {
                         Paste code
                     </Button>
                 )}
-                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                <Text
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                    }}
+                >
                     On the Linux machine, run{" "}
-                    <Text className="font-mono" style={{ color: colors.foreground, fontSize: 12 }}>
+                    <Text
+                        className="font-mono"
+                        style={{ color: colors.foreground, fontSize: 12 }}
+                    >
                         cryptex-agent pair
                     </Text>
                     .

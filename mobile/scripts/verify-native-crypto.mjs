@@ -8,21 +8,44 @@ import { fileURLToPath } from "node:url";
 import profileRegistry from "../config/profiles.cjs";
 import androidVersion from "../config/android-version.cjs";
 
-for (const name of ["CRYPTEX_KEYSTORE", "CRYPTEX_KEYSTORE_PASSWORD", "CRYPTEX_KEY_ALIAS", "CRYPTEX_KEY_PASSWORD"]) delete process.env[name];
+for (const name of [
+    "CRYPTEX_KEYSTORE",
+    "CRYPTEX_KEYSTORE_PASSWORD",
+    "CRYPTEX_KEY_ALIAS",
+    "CRYPTEX_KEY_PASSWORD",
+])
+    delete process.env[name];
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const args = process.argv.slice(2);
-assert.ok(!args.length || ([2, 4].includes(args.length) && args[0] === "--apk" && !args[1].startsWith("-") &&
-    (args.length === 2 || (args[2] === "--arch" && args[3]))),
-    "Usage: verify-native-crypto.mjs [--apk <path> [--arch <abi>|all]]");
+assert.ok(
+    !args.length ||
+        ([2, 4].includes(args.length) &&
+            args[0] === "--apk" &&
+            !args[1].startsWith("-") &&
+            (args.length === 2 || (args[2] === "--arch" && args[3]))),
+    "Usage: verify-native-crypto.mjs [--apk <path> [--arch <abi>|all]]",
+);
 const abis = androidVersion.selectedArchitectures(args[3]);
-const profile = profileRegistry.getProfile(process.env.CRYPTEX_APP_PROFILE || "production");
-const apk = args.length ? resolve(args[1]) : join(mobile, "dist", `${profile.artifactBase}.apk`);
+const profile = profileRegistry.getProfile(
+    process.env.CRYPTEX_APP_PROFILE || "production",
+);
+const apk = args.length
+    ? resolve(args[1])
+    : join(mobile, "dist", `${profile.artifactBase}.apk`);
 const gradle = process.env.CRYPTEX_GRADLE_COMMAND || "./gradlew";
 if (process.env.CRYPTEX_GRADLE_COMMAND) {
-    const toolchain = JSON.parse(readFileSync(join(mobile, "fdroid/toolchain.json"), "utf8"));
-    assert.match(execFileSync(gradle, ["--version"], { cwd: join(mobile, "android"), encoding: "utf8" }),
-        new RegExp(`^Gradle ${toolchain.gradle.replaceAll(".", "\\.")}$`, "m"), "Use the pinned Gradle version");
+    const toolchain = JSON.parse(
+        readFileSync(join(mobile, "fdroid/toolchain.json"), "utf8"),
+    );
+    assert.match(
+        execFileSync(gradle, ["--version"], {
+            cwd: join(mobile, "android"),
+            encoding: "utf8",
+        }),
+        new RegExp(`^Gradle ${toolchain.gradle.replaceAll(".", "\\.")}$`, "m"),
+        "Use the pinned Gradle version",
+    );
 }
 for (const [name, version] of Object.entries({
     "react-native-quick-crypto": "1.1.7",
@@ -69,30 +92,47 @@ const entries = execFileSync("unzip", ["-Z1", apk], { encoding: "utf8" })
 // Direct Maven Central android-150.7871.01.aar, reviewed 2026-09-30.
 // NDK 27.1 llvm-strip --strip-unneeded leaves these provider ELFs unchanged.
 const webrtcHashes = {
-    "arm64-v8a": "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca",
-    "armeabi-v7a": "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559",
+    "arm64-v8a":
+        "7b299113fcd743de7dc5559686b21fc2681b2c8598347d8dc0743d2e004995ca",
+    "armeabi-v7a":
+        "762f3d5e1c4c69c3f02f2383540f40e1142cb631e9d99e86bdb1602f4c277559",
     x86: "80e7b1b7e07bb5a53841a8cacabf942a6f3eb8ee9759a1731741dd912f367f19",
     x86_64: "0717afcc43da0c1aabd904f9ef0653efc8f3d37b5750f39a123697e7910b623a",
 };
 assert.deepEqual(
-    entries.filter((entry) => /^lib\/[^/]+\/libjingle_peerconnection_so\.so$/.test(entry)).sort(),
+    entries
+        .filter((entry) =>
+            /^lib\/[^/]+\/libjingle_peerconnection_so\.so$/.test(entry),
+        )
+        .sort(),
     abis.map((abi) => `lib/${abi}/libjingle_peerconnection_so.so`).sort(),
     "Publication APK must contain the reviewed WebRTC provider for each selected ABI",
 );
 for (const abi of abis) {
     const expected = webrtcHashes[abi];
     const entry = `lib/${abi}/libjingle_peerconnection_so.so`;
-    const binary = execFileSync("unzip", ["-p", apk, entry], { maxBuffer: 32 * 1024 * 1024 });
-    assert.equal(createHash("sha256").update(binary).digest("hex"), expected,
-        `${entry}: expected WebRTC 150.7871.01 from the reviewed Maven artifact`);
+    const binary = execFileSync("unzip", ["-p", apk, entry], {
+        maxBuffer: 32 * 1024 * 1024,
+    });
+    assert.equal(
+        createHash("sha256").update(binary).digest("hex"),
+        expected,
+        `${entry}: expected WebRTC 150.7871.01 from the reviewed Maven artifact`,
+    );
     console.log(`${entry}: reviewed WebRTC 150.7871.01`);
 }
-const notices = execFileSync("unzip", ["-p", apk, "assets/licenses/webrtc-150.7871.01.txt"], {
-    maxBuffer: 2 * 1024 * 1024,
-});
-assert.equal(createHash("sha256").update(notices).digest("hex"),
+const notices = execFileSync(
+    "unzip",
+    ["-p", apk, "assets/licenses/webrtc-150.7871.01.txt"],
+    {
+        maxBuffer: 2 * 1024 * 1024,
+    },
+);
+assert.equal(
+    createHash("sha256").update(notices).digest("hex"),
     "d1f9382c6878ac024155fd6d44a5977329108bb8b0a01cea40e4a2f1d7de252e",
-    "Publication APK must include the reviewed upstream WebRTC redistribution notices");
+    "Publication APK must include the reviewed upstream WebRTC redistribution notices",
+);
 assert.ok(
     !entries.some((p) => /^lib\/[^/]+\/[^/]*sodium[^/]*\.so$/i.test(p)),
     "Unexpected native libsodium in APK",

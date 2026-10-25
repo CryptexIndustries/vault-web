@@ -11,6 +11,8 @@ export type VaultUnlockParams = {
     useRecovery?: boolean;
     recoveryCode?: string;
     protectionPhrase?: string;
+    /** Opens the DEK as extractable, for callers that must export it. */
+    extractableDek?: boolean;
 };
 
 /** Shown once after create or migration. */
@@ -39,7 +41,7 @@ export type VaultUnlockFlowResult<
 
 export type VaultDecryptSuccess = {
     vault: Vault;
-    /** Envelope vaults use a non-extractable CryptoKey. */
+    /** Non-extractable unless `extractableDek` was requested. */
     dek: CryptoKey;
     revealSecrets?: VaultRevealSecrets;
 };

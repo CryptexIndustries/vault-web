@@ -18,30 +18,30 @@ name: Live Android registration save regression
 - hideKeyboard
 - tapOn: Register
 - runFlow:
-    when:
-      visible: Save
-    commands:
-      - tapOn: Save
+      when:
+          visible: Save
+      commands:
+          - tapOn: Save
 - runFlow:
-    when:
-      visible: Master password
-    commands:
-      - tapOn: Master password
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: unlock-vault
+      when:
+          visible: Master password
+      commands:
+          - tapOn: Master password
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: unlock-vault
 - assertVisible: (Add|Edit) item
 - assertVisible: userrname
 - assertVisible: autofill.me
 - scrollUntilVisible:
-    element:
-      text: hdbjd@jfjr.com
-    direction: DOWN
+      element:
+          text: hdbjd@jfjr.com
+      direction: DOWN
 - assertVisible: hdbjd@jfjr.com
 - takeScreenshot: live-registration-review
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertNotVisible: (Add|Edit) item
 - openLink: ${CRYPTEX_APP_SCHEME}://
 - runFlow: autofill-browser-unlock-if-needed.yaml
@@ -50,12 +50,12 @@ name: Live Android registration save regression
 - inputText: userrname
 - hideKeyboard
 - tapOn:
-    text: autofill.me, userrname
+      text: autofill.me, userrname
 - assertVisible: Item details
 - assertVisible: userrname
 - assertVisible: autofill.me
 - scrollUntilVisible:
-    element:
-      text: hdbjd@jfjr.com
-    direction: DOWN
+      element:
+          text: hdbjd@jfjr.com
+      direction: DOWN
 - assertVisible: hdbjd@jfjr.com

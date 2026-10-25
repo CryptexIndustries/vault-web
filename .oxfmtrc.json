@@ -11,6 +11,8 @@
     "**/out/**",
     "**/coverage/**",
     "**/.next/**",
-    "**/.next-e2e/**"
+    "**/.next-e2e/**",
+    "mobile/fdroid/metadata/**",
+    "mobile/modules/cryptex-android-credentials/android/src/main/res/raw/passkey_privileged_callers.json"
   ]
 }

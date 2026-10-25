@@ -115,7 +115,7 @@ export function CredentialDetailPanel({
         <View className={embedded ? "flex-1" : undefined}>
             <View className="mb-4 pb-2">
                 <View className="mb-3 flex-row items-center gap-3.5">
-                    <View className="border-border bg-secondary h-12 w-12 items-center justify-center rounded-xl border">
+                    <View className="h-12 w-12 items-center justify-center rounded-xl border border-border bg-secondary">
                         {sshKey ? (
                             <FileKey
                                 size={22}
@@ -123,7 +123,7 @@ export function CredentialDetailPanel({
                                 strokeWidth={1.8}
                             />
                         ) : (
-                            <Text className="text-primary text-lg font-semibold">
+                            <Text className="font-semibold text-lg text-primary">
                                 {(credential.Name || "?")
                                     .slice(0, 2)
                                     .toUpperCase()}
@@ -180,7 +180,7 @@ export function CredentialDetailPanel({
                             onPress={() => onEdit(credential)}
                         >
                             <Pencil size={16} color={colors.foreground} />
-                            <Text className="text-primary-foreground text-sm font-medium">
+                            <Text className="font-medium text-sm text-primary-foreground">
                                 {sshKey ? "Edit details" : "Edit"}
                             </Text>
                         </Button>
@@ -208,7 +208,7 @@ export function CredentialDetailPanel({
                                 }
                             >
                                 <Copy size={14} color={colors.foreground} />
-                                <Text className="text-secondary-foreground text-xs font-medium">
+                                <Text className="font-medium text-xs text-secondary-foreground">
                                     Public key
                                 </Text>
                             </Button>

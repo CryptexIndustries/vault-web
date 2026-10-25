@@ -22,9 +22,12 @@ module.exports = (config) => {
             );
             await fs.mkdir(directory, { recursive: true });
             await fs.copyFile(
-                path.join(__dirname, process.env.CRYPTEX_BUILD_PROFILE === "production"
-                    ? "network_security_config_release.xml"
-                    : "network_security_config.xml"),
+                path.join(
+                    __dirname,
+                    process.env.CRYPTEX_BUILD_PROFILE === "production"
+                        ? "network_security_config_release.xml"
+                        : "network_security_config.xml",
+                ),
                 path.join(directory, "network_security_config.xml"),
             );
             return mod;

@@ -292,9 +292,9 @@ it("keeps confirmation pending with Check status until the backend confirms memb
             .find((node) => node.props.children === "Check status")!.props
             .disabled,
     ).toBe(false);
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        0,
+    );
 });
 
 it.each<["resume" | "cancel", typeof free]>([
@@ -347,9 +347,9 @@ it("offers one actionable snackbar after a membership refresh failure", async ()
     refresh.mockRejectedValueOnce(new Error("Offline"));
     mockParams = { billingOutcome: "resume", billingReturn: "billing-return" };
     await render();
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     expect(
         renderer!.root
             .findAllByType("Text" as never)
@@ -368,9 +368,9 @@ it("clears a previous screen error when the account sheet changes view", async (
     await act(async () =>
         overview.props.onMessage("Could not open billing portal."),
     );
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     await act(async () =>
         renderer!.root
             .findAllByType("MenuRow" as never)
@@ -378,15 +378,15 @@ it("clears a previous screen error when the account sheet changes view", async (
             .props.onPress(),
     );
     expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        0,
+    );
     await act(async () =>
         renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
     );
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        0,
+    );
 });
 
 it.each(["background", "inactive"] as const)(
@@ -869,9 +869,9 @@ it("shows a safe retry when reconnection succeeds but membership refresh fails",
             .find((node) => node.props.mode === "overview")!
             .props.onOpenMembership(),
     );
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     expect(
         renderer!.root
             .findAllByType("Text" as never)
@@ -900,15 +900,15 @@ it("keeps one active snackbar host and clears it on logout", async () => {
             .find((node) => node.props.mode === "membership")!
             .props.onMessage("Could not open billing portal."),
     );
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        1,
+    );
     await act(async () =>
         onlineServicesStore.set(onlineServicesDataAtom, null),
     );
-    expect(
-        renderer!.root.findAllByProps({ testID: "snackbar" }),
-    ).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+        0,
+    );
 });
 
 it("keeps pending purchases through sheet reopening and blocks another checkout", async () => {

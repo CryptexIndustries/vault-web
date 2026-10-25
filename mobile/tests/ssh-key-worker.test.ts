@@ -87,16 +87,17 @@ it("imports, exports and reports errors like the shared task in an isolated back
     const { results, threadId } = await runInIsolatedWorker(tasks);
     expect(threadId).toBeGreaterThan(0);
     expect(results).toEqual(tasks.map(runSSHKeyTask));
-    expect(results.map((result) => (result.ok ? result.kind : result.code)))
-        .toEqual([
-            "import",
-            "import",
-            "passphrase-required",
-            "wrong-passphrase",
-            "public-key-only",
-            "export",
-            "export",
-        ]);
+    expect(
+        results.map((result) => (result.ok ? result.kind : result.code)),
+    ).toEqual([
+        "import",
+        "import",
+        "passphrase-required",
+        "wrong-passphrase",
+        "public-key-only",
+        "export",
+        "export",
+    ]);
 
     // The encrypted export opens again with its new passphrase.
     const exported = results[5]!;

@@ -14,7 +14,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
     Copy,
     ChevronDown,
-    Edit,
     ExternalLink,
     Eye,
     EyeOff,
@@ -45,6 +44,7 @@ import {
 import React, {
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -67,7 +67,6 @@ import {
     UpdateDirectoryRequest,
 } from "./types/sw-messaging";
 import {
-    createEncryptedEnvelope,
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
@@ -76,7 +75,6 @@ import {
 import { SyncConnectionController } from "@cryptex-industries/vault-core/synchronization";
 import { createVaultOperations } from "./vault-operations";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
     DialogContent,
@@ -125,6 +123,10 @@ import {
     DirectoryPicker,
 } from "@/components/vault-dashboard/directory-dialogs";
 import { CredentialListIcon } from "./components/credential-list-icon";
+import {
+    type CredentialListActions,
+    PopupCredentialList,
+} from "./components/popup-credential-list";
 import { SSHKeyEditor } from "./components/ssh-key-editor";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { PopupBackupDialog } from "./components/popup-backup-dialog";
@@ -138,7 +140,10 @@ import { PopupVaultSecurityDialog } from "./components/popup-vault-security-dial
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
 import { uiLog } from "./utils/ext-logging";
-import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
+import {
+    createPopupEnvelope,
+    sendEncryptedEnvelopeToSW,
+} from "./utils/sw-envelope-client";
 import { credentialMatchesSearch } from "./utils/credential-search";
 
 type VaultViewProps = {
@@ -157,6 +162,284 @@ let GlobalSyncConnectionController: SyncConnectionController | null = null;
 
 /** Delay after the last dirty form change before the draft is stashed. */
 const DRAFT_DEBOUNCE_MS = 500;
+
+const TagBox: React.FC<{
+    value: string | undefined;
+    onChange: (tags: string) => void;
+}> = ({ value, onChange }) => {
+    const tagSeparator = CredentialConstants.TAG_SEPARATOR;
+
+    const [inputValue, setInputValue] = useState("");
+    const [inputFocused, setInputFocused] = useState(false);
+
+    const tagInputRef = useRef<HTMLInputElement>(null);
+
+    const tagArrayValue = value
+        ? value.split(tagSeparator).filter((tag) => tag.trim())
+        : [];
+
+    const addTag = (tag: string) => {
+        if (!tag?.length) return;
+
+        tag = tag.replaceAll(tagSeparator, "").trim();
+
+        const tags = tagArrayValue;
+
+        if (tags.includes(tag)) return;
+        else tags.push(tag);
+
+        onChange(tags.join(tagSeparator));
+        setInputValue("");
+    };
+
+    const removeTag = (tag: string) => {
+        const newTags = tagArrayValue.filter((t) => t !== tag);
+        onChange(newTags.join(tagSeparator));
+
+        if (inputFocused) {
+            const input = tagInputRef.current as HTMLInputElement;
+            input.focus();
+        }
+
+        if (!inputFocused) {
+            const input = tagInputRef.current as HTMLInputElement;
+            input.blur();
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            addTag(inputValue);
+        }
+        if (e.key === "Backspace" && inputValue.length === 0) {
+            const value = tagArrayValue;
+            const valueToBeRemoved = value[value.length - 1];
+            if (valueToBeRemoved) removeTag(valueToBeRemoved);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value);
+    };
+
+    const handleInputFocus = () => setInputFocused(true);
+    const handleInputBlur = () => setInputFocused(false);
+
+    return (
+        <div className="flex flex-row flex-wrap items-center">
+            {tagArrayValue.map((tag) => (
+                <div
+                    key={tag}
+                    className="m-1 flex flex-row items-center rounded-full bg-muted px-2 py-1"
+                >
+                    <span className="text-xs text-muted-foreground">{tag}</span>
+                    <X
+                        className="ml-1 h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
+                        aria-hidden="true"
+                        onClick={() => removeTag(tag)}
+                    />
+                </div>
+            ))}
+            <div className="m-1 flex flex-row items-center rounded-full bg-muted/50 px-2 py-1">
+                <input
+                    ref={tagInputRef}
+                    className="bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+                    type="text"
+                    value={inputValue}
+                    onKeyDown={handleKeyDown}
+                    onChange={handleInputChange}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
+                    placeholder="Add tag"
+                />
+                <PlusCircle
+                    className="ml-1 h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
+                    aria-hidden="true"
+                    onClick={() => addTag(inputValue)}
+                />
+            </div>
+        </div>
+    );
+};
+
+type SignalingDisplayStatus =
+    | "connected"
+    | "connecting"
+    | "completed"
+    | "disconnected"
+    | "failed"
+    | "error";
+type WebRTCDisplayStatus = "connected" | "connecting" | "failed" | "idle";
+type ConnectionTone = "green" | "yellow" | "red";
+
+const getSignalingDisplayStatus = (
+    rawStatus: SynchronizationUtils.SignalingStatus,
+    webrtc: WebRTCDisplayStatus,
+): SignalingDisplayStatus => {
+    let status: SignalingDisplayStatus = "disconnected";
+
+    if (rawStatus === SynchronizationUtils.SignalingStatus.Connected) {
+        status = "connected";
+    } else if (rawStatus === SynchronizationUtils.SignalingStatus.Connecting) {
+        status = "connecting";
+    } else if (rawStatus === SynchronizationUtils.SignalingStatus.Unavailable) {
+        status = "error";
+    } else if (rawStatus === SynchronizationUtils.SignalingStatus.Failed) {
+        status = "failed";
+    } else if (
+        rawStatus === SynchronizationUtils.SignalingStatus.Disconnected
+    ) {
+        status = "disconnected";
+    }
+
+    if (
+        status === "disconnected" &&
+        (webrtc === "connected" || webrtc === "connecting")
+    ) {
+        return "completed";
+    }
+
+    return status;
+};
+
+const getWebRTCDisplayStatus = (
+    rawStatus: SynchronizationUtils.WebRTCStatus,
+): WebRTCDisplayStatus => {
+    if (rawStatus === SynchronizationUtils.WebRTCStatus.Connected) {
+        return "connected";
+    }
+    if (rawStatus === SynchronizationUtils.WebRTCStatus.Connecting) {
+        return "connecting";
+    }
+    if (rawStatus === SynchronizationUtils.WebRTCStatus.Failed) {
+        return "failed";
+    }
+    return "idle";
+};
+
+const getStatusTone = (status: string): ConnectionTone => {
+    if (status === "connected" || status === "completed") {
+        return "green";
+    }
+    if (status === "connecting") {
+        return "yellow";
+    }
+    return "red";
+};
+
+const getOverallConnectionState = (
+    signaling: SignalingDisplayStatus,
+    webrtc: WebRTCDisplayStatus,
+): { label: string; tone: ConnectionTone } => {
+    if (signaling === "error") {
+        return { label: "Error", tone: "red" };
+    }
+    if (signaling === "connecting" || webrtc === "connecting") {
+        return { label: "Connecting", tone: "yellow" };
+    }
+    if (webrtc === "failed" || signaling === "failed") {
+        return { label: "Connection issue", tone: "red" };
+    }
+    if (webrtc === "connected") {
+        return { label: "Connected", tone: "green" };
+    }
+    if (
+        (signaling === "connected" || signaling === "completed") &&
+        webrtc === "idle"
+    ) {
+        return { label: "Ready to connect", tone: "yellow" };
+    }
+    if (signaling === "disconnected" && webrtc === "idle") {
+        return { label: "Disconnected", tone: "red" };
+    }
+    return { label: "Disconnected", tone: "red" };
+};
+
+const formatStatusLabel = (status: string) =>
+    status.charAt(0).toUpperCase() + status.slice(1);
+
+const ConnectionStatusIndicator: React.FC<{
+    signaling: SynchronizationUtils.SignalingStatus;
+    webrtc: SynchronizationUtils.WebRTCStatus;
+}> = ({ signaling, webrtc }) => {
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const webrtcDisplay = getWebRTCDisplayStatus(webrtc);
+    const signalingDisplay = getSignalingDisplayStatus(
+        signaling,
+        webrtcDisplay,
+    );
+    const overall = getOverallConnectionState(signalingDisplay, webrtcDisplay);
+    const toneClasses: Record<ConnectionTone, string> = {
+        green: "border-green-500/40 bg-green-500/10 text-green-600",
+        yellow: "border-yellow-500/40 bg-yellow-500/10 text-yellow-600",
+        red: "border-red-500/40 bg-red-500/10 text-red-600",
+    };
+    const textToneClasses: Record<ConnectionTone, string> = {
+        green: "text-green-600",
+        yellow: "text-yellow-600",
+        red: "text-red-600",
+    };
+    const dotClasses: Record<ConnectionTone, string> = {
+        green: "bg-green-500",
+        yellow: "bg-yellow-500",
+        red: "bg-red-500",
+    };
+
+    return (
+        <DropdownMenu
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            modal={false}
+        >
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 py-0 hover:bg-muted/50"
+                    onMouseEnter={() => setDetailsOpen(true)}
+                >
+                    <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClasses[overall.tone]}`}
+                    >
+                        <span
+                            className={`h-1.5 w-1.5 rounded-full ${dotClasses[overall.tone]}`}
+                        />
+                        {overall.label}
+                    </span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="end"
+                className="w-52 p-3"
+                onMouseEnter={() => setDetailsOpen(true)}
+                onMouseLeave={() => setDetailsOpen(false)}
+            >
+                <div className="space-y-2">
+                    <div className="text-xs font-semibold text-foreground">
+                        Connection details
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Signaling</span>
+                        <span
+                            className={`font-medium ${textToneClasses[getStatusTone(signalingDisplay)]}`}
+                        >
+                            {formatStatusLabel(signalingDisplay)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">WebRTC</span>
+                        <span
+                            className={`font-medium ${textToneClasses[getStatusTone(webrtcDisplay)]}`}
+                        >
+                            {formatStatusLabel(webrtcDisplay)}
+                        </span>
+                    </div>
+                </div>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+};
 
 const VaultView: React.FC<VaultViewProps> = ({
     lockVaultFn,
@@ -186,13 +469,12 @@ const VaultView: React.FC<VaultViewProps> = ({
         useState<VaultCredential | null>(null);
 
     // Modal states
-    const credentialModalVisible = useState(false);
-    const credentialModalOpen = credentialModalVisible[0];
+    const [credentialModalOpen, setCredentialModalOpen] = useState(false);
     // Live mirror of the form modal's open state so async draft work can
     // check it without capturing a stale render-time value.
-    const formModalOpenRef = useRef(credentialModalVisible[0]);
+    const formModalOpenRef = useRef(credentialModalOpen);
     useEffect(() => {
-        formModalOpenRef.current = credentialModalVisible[0];
+        formModalOpenRef.current = credentialModalOpen;
     });
     const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
     const [showBackupCenter, setShowBackupCenter] = useState(false);
@@ -315,13 +597,15 @@ const VaultView: React.FC<VaultViewProps> = ({
     // Debounced capture of the in-flight form into the SW draft stash:
     // every form change restarts the timer, so the value lands in session
     // storage 500 ms after the last change while the form is open/dirty.
-    const watchedFormValues = watch();
-
+    // The watch callback subscribes without re-rendering this component.
     useEffect(() => {
-        if (draftSaveTimerRef.current) {
-            clearTimeout(draftSaveTimerRef.current);
-            draftSaveTimerRef.current = null;
-        }
+        const clearDraftSaveTimer = () => {
+            if (draftSaveTimerRef.current) {
+                clearTimeout(draftSaveTimerRef.current);
+                draftSaveTimerRef.current = null;
+            }
+        };
+        clearDraftSaveTimer();
 
         if (
             !credentialModalOpen ||
@@ -334,40 +618,43 @@ const VaultView: React.FC<VaultViewProps> = ({
             return;
         }
 
-        draftSaveTimerRef.current = setTimeout(() => {
-            void (async () => {
-                const payload: SaveCredentialDraftRequest = {
-                    mode: credentialFormMode,
-                    form: getValues(),
-                };
-                if (credentialFormMode === "edit" && editingCredential) {
-                    payload.credentialId = editingCredential.ID;
-                }
-                const res = await sendEncryptedEnvelopeToSW<
-                    { ok: true } | { ok: false; error: string }
-                >(MessageType.SaveCredentialDraft, payload);
-                if (!res.ok) {
-                    uiLog.debug("Failed to stash credential draft", {
-                        error: res.error,
-                    });
-                    return;
-                }
-                if (!res.payload.ok) {
-                    uiLog.debug("Failed to stash credential draft", {
-                        error: res.payload.error,
-                    });
-                }
-            })();
-        }, DRAFT_DEBOUNCE_MS);
+        const scheduleDraftSave = () => {
+            clearDraftSaveTimer();
+            draftSaveTimerRef.current = setTimeout(() => {
+                void (async () => {
+                    const payload: SaveCredentialDraftRequest = {
+                        mode: credentialFormMode,
+                        form: getValues(),
+                    };
+                    if (credentialFormMode === "edit" && editingCredential) {
+                        payload.credentialId = editingCredential.ID;
+                    }
+                    const res = await sendEncryptedEnvelopeToSW<
+                        { ok: true } | { ok: false; error: string }
+                    >(MessageType.SaveCredentialDraft, payload);
+                    if (!res.ok) {
+                        uiLog.debug("Failed to stash credential draft", {
+                            error: res.error,
+                        });
+                        return;
+                    }
+                    if (!res.payload.ok) {
+                        uiLog.debug("Failed to stash credential draft", {
+                            error: res.payload.error,
+                        });
+                    }
+                })();
+            }, DRAFT_DEBOUNCE_MS);
+        };
+        scheduleDraftSave();
+        const subscription = watch(scheduleDraftSave);
 
         return () => {
-            if (draftSaveTimerRef.current) {
-                clearTimeout(draftSaveTimerRef.current);
-                draftSaveTimerRef.current = null;
-            }
+            subscription.unsubscribe();
+            clearDraftSaveTimer();
         };
     }, [
-        watchedFormValues,
+        watch,
         isDirty,
         isSubmitting,
         isCreating,
@@ -380,46 +667,57 @@ const VaultView: React.FC<VaultViewProps> = ({
     const currentSiteUrl = currentSiteContext?.url ?? null;
     const currentSiteHost = currentSiteContext?.host ?? null;
 
-    const filteredCredentials = credentials.filter(
-        (cred) =>
-            (selectedDirectoryID === "all" ||
-                cred.directoryId === selectedDirectoryID) &&
-            (!showSSHKeysOnly ||
-                cred.type === VaultUtilTypes.ItemType.SSHKey) &&
-            credentialMatchesSearch(cred, searchQuery),
+    const filteredCredentials = useMemo(
+        () =>
+            credentials.filter(
+                (cred) =>
+                    (selectedDirectoryID === "all" ||
+                        cred.directoryId === selectedDirectoryID) &&
+                    (!showSSHKeysOnly ||
+                        cred.type === VaultUtilTypes.ItemType.SSHKey) &&
+                    credentialMatchesSearch(cred, searchQuery),
+            ),
+        [credentials, selectedDirectoryID, showSSHKeysOnly, searchQuery],
     );
 
     // SSH keys are never offered for a site.
-    const currentSiteCredentials = currentSiteUrl
-        ? credentials.filter(
-              (credential) =>
-                  credential.type !== VaultUtilTypes.ItemType.SSHKey &&
-                  credentialMatchesPageUrl(
-                      {
-                          URL: credential.url,
-                          URLMatchMode: credential.urlMatchMode,
-                          AdditionalURLs: credential.additionalUrls,
-                      },
-                      currentSiteUrl,
-                  ),
-          )
-        : [];
-
-    const sortedDirectories = Vault.sortDirectories(
-        directories.filter((directory) => !directory.Deleted),
+    const currentSiteCredentials = useMemo(
+        () =>
+            currentSiteUrl
+                ? credentials.filter(
+                      (credential) =>
+                          credential.type !== VaultUtilTypes.ItemType.SSHKey &&
+                          credentialMatchesPageUrl(
+                              {
+                                  URL: credential.url,
+                                  URLMatchMode: credential.urlMatchMode,
+                                  AdditionalURLs: credential.additionalUrls,
+                              },
+                              currentSiteUrl,
+                          ),
+                  )
+                : [],
+        [credentials, currentSiteUrl],
     );
-    const credentialCounts = credentials.reduce<Record<string, number>>(
-        (counts, credential) => {
+
+    const sortedDirectories = useMemo(
+        () =>
+            Vault.sortDirectories(
+                directories.filter((directory) => !directory.Deleted),
+            ),
+        [directories],
+    );
+    const { credentialCounts, sshKeyCount } = useMemo(() => {
+        const counts: Record<string, number> = { all: 0, root: 0 };
+        let sshKeys = 0;
+        for (const credential of credentials) {
             counts.all = (counts.all ?? 0) + 1;
             const key = credential.directoryId || "root";
             counts[key] = (counts[key] ?? 0) + 1;
-            return counts;
-        },
-        { all: 0, root: 0 },
-    );
-    const sshKeyCount = credentials.filter(
-        (credential) => credential.type === VaultUtilTypes.ItemType.SSHKey,
-    ).length;
+            if (credential.type === VaultUtilTypes.ItemType.SSHKey) sshKeys++;
+        }
+        return { credentialCounts: counts, sshKeyCount: sshKeys };
+    }, [credentials]);
     const selectedDirectory = directories.find(
         (directory) => directory.ID === selectedDirectoryID,
     );
@@ -485,12 +783,30 @@ const VaultView: React.FC<VaultViewProps> = ({
         return response.payload.context;
     }, []);
 
+    // The tab listeners read the current tab id from here, so storing a
+    // context does not re-run the effect and fetch it again.
+    const currentSiteTabIdRef = useRef<number | undefined>(undefined);
+    useEffect(() => {
+        currentSiteTabIdRef.current = currentSiteContext?.tabId;
+    }, [currentSiteContext?.tabId]);
+
     useEffect(() => {
         let cancelled = false;
+        // Only the newest lookup may set the context, so a slow answer for
+        // a previous tab or page can't overwrite a newer one.
+        let latestRequest = 0;
+        // Tab.active is per window; only this page's window matters.
+        let currentWindowId: number | undefined;
+        void chrome.windows.getCurrent().then((window) => {
+            currentWindowId = window.id;
+        });
 
         const refreshContext = async () => {
+            const request = ++latestRequest;
             const context = await requestActivePageOrigin();
-            if (!cancelled) setCurrentSiteContext(context);
+            if (!cancelled && request === latestRequest) {
+                setCurrentSiteContext(context);
+            }
         };
 
         const handleTabActivated = () => {
@@ -503,10 +819,17 @@ const VaultView: React.FC<VaultViewProps> = ({
             changeInfo: { status?: string; url?: string },
             tab: chrome.tabs.Tab,
         ) => {
+            // The active tab counts too: after activation the context is
+            // still null while its lookup is pending.
+            const isActiveTabHere =
+                tab.active &&
+                (currentWindowId === undefined ||
+                    tab.windowId === currentWindowId);
             if (
                 changeInfo.status === "loading" &&
-                tabId === currentSiteContext?.tabId
+                (tabId === currentSiteTabIdRef.current || isActiveTabHere)
             ) {
+                latestRequest++;
                 setCurrentSiteContext(null);
                 return;
             }
@@ -524,7 +847,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             chrome.tabs.onActivated.removeListener(handleTabActivated);
             chrome.tabs.onUpdated.removeListener(handleTabUpdated);
         };
-    }, [currentSiteContext?.tabId, requestActivePageOrigin]);
+    }, [requestActivePageOrigin]);
 
     const copyToClipboard = async (text?: string): Promise<boolean> => {
         if (!text) {
@@ -551,298 +874,6 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (diffInMinutes < 1440)
             return `${Math.floor(diffInMinutes / 60)}h ago`;
         return `${Math.floor(diffInMinutes / 1440)}d ago`;
-    };
-
-    // TagBox Component
-    const TagBox: React.FC<{
-        value: string | undefined;
-        onChange: (tags: string) => void;
-    }> = ({ value, onChange }) => {
-        const tagSeparator = CredentialConstants.TAG_SEPARATOR;
-
-        const [inputValue, setInputValue] = useState("");
-        const [inputFocused, setInputFocused] = useState(false);
-
-        const tagInputRef = useRef<HTMLInputElement>(null);
-
-        const tagArrayValue = value
-            ? value.split(tagSeparator).filter((tag) => tag.trim())
-            : [];
-
-        const addTag = (tag: string) => {
-            if (!tag?.length) return;
-
-            tag = tag.replaceAll(tagSeparator, "").trim();
-
-            const tags = tagArrayValue;
-
-            if (tags.includes(tag)) return;
-            else tags.push(tag);
-
-            onChange(tags.join(tagSeparator));
-            setInputValue("");
-        };
-
-        const removeTag = (tag: string) => {
-            const newTags = tagArrayValue.filter((t) => t !== tag);
-            onChange(newTags.join(tagSeparator));
-
-            if (inputFocused) {
-                const input = tagInputRef.current as HTMLInputElement;
-                input.focus();
-            }
-
-            if (!inputFocused) {
-                const input = tagInputRef.current as HTMLInputElement;
-                input.blur();
-            }
-        };
-
-        const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                addTag(inputValue);
-            }
-            if (e.key === "Backspace" && inputValue.length === 0) {
-                const value = tagArrayValue;
-                const valueToBeRemoved = value[value.length - 1];
-                if (valueToBeRemoved) removeTag(valueToBeRemoved);
-            }
-        };
-
-        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            setInputValue(e.target.value);
-        };
-
-        const handleInputFocus = () => setInputFocused(true);
-        const handleInputBlur = () => setInputFocused(false);
-
-        return (
-            <div className="flex flex-row flex-wrap items-center">
-                {tagArrayValue.map((tag) => (
-                    <div
-                        key={tag}
-                        className="m-1 flex flex-row items-center rounded-full bg-muted px-2 py-1"
-                    >
-                        <span className="text-xs text-muted-foreground">
-                            {tag}
-                        </span>
-                        <X
-                            className="ml-1 h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
-                            aria-hidden="true"
-                            onClick={() => removeTag(tag)}
-                        />
-                    </div>
-                ))}
-                <div className="m-1 flex flex-row items-center rounded-full bg-muted/50 px-2 py-1">
-                    <input
-                        ref={tagInputRef}
-                        className="bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-                        type="text"
-                        value={inputValue}
-                        onKeyDown={handleKeyDown}
-                        onChange={handleInputChange}
-                        onFocus={handleInputFocus}
-                        onBlur={handleInputBlur}
-                        placeholder="Add tag"
-                    />
-                    <PlusCircle
-                        className="ml-1 h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground"
-                        aria-hidden="true"
-                        onClick={() => addTag(inputValue)}
-                    />
-                </div>
-            </div>
-        );
-    };
-
-    type SignalingDisplayStatus =
-        | "connected"
-        | "connecting"
-        | "completed"
-        | "disconnected"
-        | "failed"
-        | "error";
-    type WebRTCDisplayStatus = "connected" | "connecting" | "failed" | "idle";
-    type ConnectionTone = "green" | "yellow" | "red";
-
-    const getSignalingDisplayStatus = (
-        rawStatus: SynchronizationUtils.SignalingStatus,
-        webrtc: WebRTCDisplayStatus,
-    ): SignalingDisplayStatus => {
-        let status: SignalingDisplayStatus = "disconnected";
-
-        if (rawStatus === SynchronizationUtils.SignalingStatus.Connected) {
-            status = "connected";
-        } else if (
-            rawStatus === SynchronizationUtils.SignalingStatus.Connecting
-        ) {
-            status = "connecting";
-        } else if (
-            rawStatus === SynchronizationUtils.SignalingStatus.Unavailable
-        ) {
-            status = "error";
-        } else if (rawStatus === SynchronizationUtils.SignalingStatus.Failed) {
-            status = "failed";
-        } else if (
-            rawStatus === SynchronizationUtils.SignalingStatus.Disconnected
-        ) {
-            status = "disconnected";
-        }
-
-        if (
-            status === "disconnected" &&
-            (webrtc === "connected" || webrtc === "connecting")
-        ) {
-            return "completed";
-        }
-
-        return status;
-    };
-
-    const getWebRTCDisplayStatus = (
-        rawStatus: SynchronizationUtils.WebRTCStatus,
-    ): WebRTCDisplayStatus => {
-        if (rawStatus === SynchronizationUtils.WebRTCStatus.Connected) {
-            return "connected";
-        }
-        if (rawStatus === SynchronizationUtils.WebRTCStatus.Connecting) {
-            return "connecting";
-        }
-        if (rawStatus === SynchronizationUtils.WebRTCStatus.Failed) {
-            return "failed";
-        }
-        return "idle";
-    };
-
-    const getStatusTone = (status: string): ConnectionTone => {
-        if (status === "connected" || status === "completed") {
-            return "green";
-        }
-        if (status === "connecting") {
-            return "yellow";
-        }
-        return "red";
-    };
-
-    const getOverallConnectionState = (
-        signaling: SignalingDisplayStatus,
-        webrtc: WebRTCDisplayStatus,
-    ): { label: string; tone: ConnectionTone } => {
-        if (signaling === "error") {
-            return { label: "Error", tone: "red" };
-        }
-        if (signaling === "connecting" || webrtc === "connecting") {
-            return { label: "Connecting", tone: "yellow" };
-        }
-        if (webrtc === "failed" || signaling === "failed") {
-            return { label: "Connection issue", tone: "red" };
-        }
-        if (webrtc === "connected") {
-            return { label: "Connected", tone: "green" };
-        }
-        if (
-            (signaling === "connected" || signaling === "completed") &&
-            webrtc === "idle"
-        ) {
-            return { label: "Ready to connect", tone: "yellow" };
-        }
-        if (signaling === "disconnected" && webrtc === "idle") {
-            return { label: "Disconnected", tone: "red" };
-        }
-        return { label: "Disconnected", tone: "red" };
-    };
-
-    const formatStatusLabel = (status: string) =>
-        status.charAt(0).toUpperCase() + status.slice(1);
-
-    const ConnectionStatusIndicator: React.FC<{
-        signaling: SynchronizationUtils.SignalingStatus;
-        webrtc: SynchronizationUtils.WebRTCStatus;
-    }> = ({ signaling, webrtc }) => {
-        const [detailsOpen, setDetailsOpen] = useState(false);
-        const webrtcDisplay = getWebRTCDisplayStatus(webrtc);
-        const signalingDisplay = getSignalingDisplayStatus(
-            signaling,
-            webrtcDisplay,
-        );
-        const overall = getOverallConnectionState(
-            signalingDisplay,
-            webrtcDisplay,
-        );
-        const toneClasses: Record<ConnectionTone, string> = {
-            green: "border-green-500/40 bg-green-500/10 text-green-600",
-            yellow: "border-yellow-500/40 bg-yellow-500/10 text-yellow-600",
-            red: "border-red-500/40 bg-red-500/10 text-red-600",
-        };
-        const textToneClasses: Record<ConnectionTone, string> = {
-            green: "text-green-600",
-            yellow: "text-yellow-600",
-            red: "text-red-600",
-        };
-        const dotClasses: Record<ConnectionTone, string> = {
-            green: "bg-green-500",
-            yellow: "bg-yellow-500",
-            red: "bg-red-500",
-        };
-
-        return (
-            <DropdownMenu
-                open={detailsOpen}
-                onOpenChange={setDetailsOpen}
-                modal={false}
-            >
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 py-0 hover:bg-muted/50"
-                        onMouseEnter={() => setDetailsOpen(true)}
-                    >
-                        <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClasses[overall.tone]}`}
-                        >
-                            <span
-                                className={`h-1.5 w-1.5 rounded-full ${dotClasses[overall.tone]}`}
-                            />
-                            {overall.label}
-                        </span>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                    align="end"
-                    className="w-52 p-3"
-                    onMouseEnter={() => setDetailsOpen(true)}
-                    onMouseLeave={() => setDetailsOpen(false)}
-                >
-                    <div className="space-y-2">
-                        <div className="text-xs font-semibold text-foreground">
-                            Connection details
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">
-                                Signaling
-                            </span>
-                            <span
-                                className={`font-medium ${textToneClasses[getStatusTone(signalingDisplay)]}`}
-                            >
-                                {formatStatusLabel(signalingDisplay)}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">
-                                WebRTC
-                            </span>
-                            <span
-                                className={`font-medium ${textToneClasses[getStatusTone(webrtcDisplay)]}`}
-                            >
-                                {formatStatusLabel(webrtcDisplay)}
-                            </span>
-                        </div>
-                    </div>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        );
     };
 
     // SW-stashed credential form draft: the SW owns the stash in session
@@ -908,12 +939,12 @@ const VaultView: React.FC<VaultViewProps> = ({
             );
             setShowFormPassword(false);
             setRevealedCustomFieldIds({});
-            credentialModalVisible[1](true);
+            setCredentialModalOpen(true);
             reset(draft.form);
 
             setRestoredDraft(draft);
         },
-        [reset, credentialModalVisible],
+        [reset],
     );
 
     // Credential CRUD operations
@@ -930,7 +961,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             // Refresh credentials list
             refreshCredentials();
-            credentialModalVisible[1](false);
+            setCredentialModalOpen(false);
             setCredentialFormMode(null);
             reset();
             // The stash was consumed by the save (also covers the STALE_KEY
@@ -979,12 +1010,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.CreateCredential,
             { form: formData },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1046,7 +1075,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 }
             }
 
-            credentialModalVisible[1](false);
+            setCredentialModalOpen(false);
             setCredentialFormMode(null);
             setEditingCredential(null);
             reset();
@@ -1099,12 +1128,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     ) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.UpdateCredential,
             { id, form: formData },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1221,12 +1248,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _deleteCredential = async (id: string) => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.DeleteCredential,
             { id },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1264,12 +1289,10 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const refreshDirectories = useCallback(async () => {
         if (!serverPublicKey) return;
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.GetDirectories,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
         const response: EncryptedEnvelope | PlaintextEnvelope =
             await chrome.runtime.sendMessage(envelope);
@@ -1286,12 +1309,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _refreshCredentials = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.GetCredentials,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1344,10 +1365,12 @@ const VaultView: React.FC<VaultViewProps> = ({
         }
 
         setIsRefreshing(true);
-        const res = await _refreshCredentials();
+        const [res] = await Promise.all([
+            _refreshCredentials(),
+            refreshDirectories(),
+        ]);
         if (res.isOk()) {
             setCredentials(res.value);
-            await refreshDirectories();
             setIsRefreshing(false);
             return ok();
         }
@@ -1523,12 +1546,10 @@ const VaultView: React.FC<VaultViewProps> = ({
     const _getSyncConfig = useCallback(async () => {
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.SyncGetConfiguration,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1583,12 +1604,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         async (request: SyncSetLastSyncRequest) => {
             if (!serverPublicKey) return;
 
-            const envelope = await createEncryptedEnvelope(
+            const envelope = await createPopupEnvelope(
                 MessageType.SyncSetLastSync,
                 request,
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup",
+                serverPublicKey,
             );
 
             const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1705,12 +1724,10 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (!serverPublicKey) return err("NO_PUBLIC_KEY_AVAILABLE");
 
         const envelope: EncryptedEnvelope | PlaintextEnvelope =
-            await createEncryptedEnvelope(
+            await createPopupEnvelope(
                 MessageType.GetCredential,
                 { id: id },
-                serverPublicKey.publicKeyJwk,
-                serverPublicKey.keyId,
-                "popup",
+                serverPublicKey,
             );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -1757,7 +1774,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setEditingCredential(null);
         setShowFormPassword(false);
         setRevealedCustomFieldIds({});
-        credentialModalVisible[1](true);
+        setCredentialModalOpen(true);
         reset({
             ID: null,
             Type: itemType,
@@ -1784,7 +1801,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setEditingCredential(credential);
         setShowFormPassword(false);
         setRevealedCustomFieldIds({});
-        credentialModalVisible[1](true);
+        setCredentialModalOpen(true);
 
         // Populate form with existing data
         reset({
@@ -1818,7 +1835,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         setCredentialFormMode(null);
         setEditingCredential(null);
         setShowFormPassword(false);
-        credentialModalVisible[1](false);
+        setCredentialModalOpen(false);
         reset();
         const hadRestoredDraft = restoredDraft !== null;
         setRestoredDraft(null);
@@ -2234,6 +2251,39 @@ const VaultView: React.FC<VaultViewProps> = ({
     const handleDeleteSelected = (cred: VaultCredential) => {
         requestDeleteCredential(cred.ID, cred.Name);
     };
+
+    // The list rows are memoized, so they get stable wrappers around the
+    // latest handlers instead of the per-render closures.
+    const credentialListHandlersRef = useRef<CredentialListActions | null>(
+        null,
+    );
+    useLayoutEffect(() => {
+        credentialListHandlersRef.current = {
+            select: (id) => {
+                if (isRefreshing) return;
+                void selectCredential(id);
+            },
+            edit: (id) => void requestEditCredential(id),
+            remove: requestDeleteCredential,
+            copySSHPublicKey: (id) => void handleCopySSHPublicKey(id),
+            copyUsername: (username) => void copyToClipboard(username),
+        };
+    });
+    const credentialListActions = useMemo<CredentialListActions>(
+        () => ({
+            select: (id) => credentialListHandlersRef.current?.select(id),
+            edit: (id) => credentialListHandlersRef.current?.edit(id),
+            remove: (id, name) =>
+                credentialListHandlersRef.current?.remove(id, name),
+            copySSHPublicKey: (id) =>
+                credentialListHandlersRef.current?.copySSHPublicKey(id),
+            copyUsername: (username) =>
+                credentialListHandlersRef.current?.copyUsername(username),
+        }),
+        [],
+    );
+    const [listScrollParent, setListScrollParent] =
+        useState<HTMLDivElement | null>(null);
 
     const nameField = (
         <div className="space-y-1.5">
@@ -2708,7 +2758,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                         </DropdownMenu>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div
+                        ref={setListScrollParent}
+                        className="min-h-0 flex-1 overflow-y-auto"
+                    >
                         {currentSiteHost &&
                         currentSiteCredentials.length > 0 ? (
                             <section className="border-b border-primary/20 bg-primary/[0.04] p-2">
@@ -2907,215 +2960,15 @@ const VaultView: React.FC<VaultViewProps> = ({
                                         : "Try a different search term"}
                                 </p>
                             </div>
-                        ) : (
-                            <div className="space-y-2 p-2">
-                                {filteredCredentials.map((credential) => {
-                                    const isSelected =
-                                        selectedCredential?.ID ===
-                                        credential.id;
-                                    return (
-                                        <div
-                                            key={credential.id}
-                                            role="button"
-                                            tabIndex={0}
-                                            className={`group cursor-pointer rounded-lg border bg-card transition-all duration-150 ${
-                                                isSelected
-                                                    ? "border-primary bg-primary/5"
-                                                    : "border-border hover:border-primary/50"
-                                            }`}
-                                            onClick={async () => {
-                                                if (isRefreshing) return;
-                                                await selectCredential(
-                                                    credential.id,
-                                                );
-                                            }}
-                                            onKeyDown={async (
-                                                e: React.KeyboardEvent,
-                                            ) => {
-                                                if (
-                                                    e.key === "Enter" ||
-                                                    e.key === " "
-                                                ) {
-                                                    e.preventDefault();
-                                                    if (isRefreshing) return;
-                                                    await selectCredential(
-                                                        credential.id,
-                                                    );
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex items-center justify-between gap-2 p-3">
-                                                <div className="flex min-w-0 flex-1 items-center gap-3">
-                                                    <CredentialListIcon
-                                                        type={credential.type}
-                                                        hasPasskey={Boolean(
-                                                            credential.passkey,
-                                                        )}
-                                                    />
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="mb-1 flex min-w-0 items-center gap-1.5">
-                                                            <span className="block min-w-0 truncate text-sm font-medium leading-tight text-foreground">
-                                                                {
-                                                                    credential.name
-                                                                }
-                                                            </span>
-                                                            {credential.hasTOTP ? (
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className="h-5 shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-[10px] text-primary"
-                                                                >
-                                                                    <Key className="mr-1 h-3 w-3" />
-                                                                    2FA
-                                                                </Badge>
-                                                            ) : null}
-                                                            {credential.passkey ? (
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className="h-5 shrink-0 border-primary/20 bg-primary/10 px-1.5 py-0 text-[10px] text-primary"
-                                                                >
-                                                                    <Fingerprint className="mr-1 h-3 w-3" />
-                                                                    Passkey
-                                                                </Badge>
-                                                            ) : null}
-                                                        </div>
-                                                        {credential.type ===
-                                                        VaultUtilTypes.ItemType
-                                                            .SSHKey ? (
-                                                            <div className="flex min-w-0 items-center gap-2 text-xs leading-tight text-muted-foreground">
-                                                                <span className="shrink-0">
-                                                                    {credential
-                                                                        .sshKey
-                                                                        ?.label ||
-                                                                        "SSH key"}
-                                                                </span>
-                                                                {credential
-                                                                    .sshKey
-                                                                    ?.comment ? (
-                                                                    <span className="min-w-0 truncate text-muted-foreground/70">
-                                                                        {
-                                                                            credential
-                                                                                .sshKey
-                                                                                .comment
-                                                                        }
-                                                                    </span>
-                                                                ) : null}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="truncate text-xs leading-tight text-muted-foreground">
-                                                                {credential.type ===
-                                                                VaultUtilTypes
-                                                                    .ItemType
-                                                                    .Passkey
-                                                                    ? credential
-                                                                          .passkey
-                                                                          ?.UserDisplayName ||
-                                                                      credential
-                                                                          .passkey
-                                                                          ?.UserName ||
-                                                                      "Passkey"
-                                                                    : credential.username}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger
-                                                        asChild
-                                                        onClick={(
-                                                            e: React.MouseEvent,
-                                                        ) =>
-                                                            e.stopPropagation()
-                                                        }
-                                                    >
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-9 w-9 shrink-0"
-                                                            aria-label={`Actions for ${credential.name}`}
-                                                        >
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent
-                                                        align="end"
-                                                        className="w-40"
-                                                    >
-                                                        <DropdownMenuItem
-                                                            onClick={async (
-                                                                e: React.MouseEvent,
-                                                            ) => {
-                                                                e.stopPropagation();
-                                                                await requestEditCredential(
-                                                                    credential.id,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Edit className="mr-2 h-4 w-4" />
-                                                            Edit
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            onClick={(
-                                                                e: React.MouseEvent,
-                                                            ) => {
-                                                                e.stopPropagation();
-                                                                requestDeleteCredential(
-                                                                    credential.id,
-                                                                    credential.name,
-                                                                );
-                                                            }}
-                                                            className="text-destructive"
-                                                            disabled={
-                                                                isDeleting
-                                                            }
-                                                        >
-                                                            {isDeleting ? (
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                            ) : (
-                                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                            )}
-                                                            {isDeleting
-                                                                ? "Deleting..."
-                                                                : "Delete"}
-                                                        </DropdownMenuItem>
-                                                        {credential.type ===
-                                                        VaultUtilTypes.ItemType
-                                                            .SSHKey ? (
-                                                            <DropdownMenuItem
-                                                                onClick={(
-                                                                    e: React.MouseEvent,
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    void handleCopySSHPublicKey(
-                                                                        credential.id,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Copy className="mr-2 h-4 w-4" />
-                                                                Copy public key
-                                                            </DropdownMenuItem>
-                                                        ) : (
-                                                            <DropdownMenuItem
-                                                                onClick={async (
-                                                                    e: React.MouseEvent,
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    copyToClipboard(
-                                                                        credential.username,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Copy className="mr-2 h-4 w-4" />
-                                                                Copy username
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                        ) : listScrollParent ? (
+                            <PopupCredentialList
+                                credentials={filteredCredentials}
+                                selectedId={selectedCredential?.ID}
+                                isDeleting={isDeleting}
+                                actions={credentialListActions}
+                                scrollParent={listScrollParent}
+                            />
+                        ) : null}
                     </div>
                 </aside>
 
@@ -3164,7 +3017,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             {/* Credential Form Dialog */}
             <Dialog
-                open={credentialModalVisible[0]}
+                open={credentialModalOpen}
                 onOpenChange={(open) => {
                     if (!open) requestCloseCredentialForm();
                 }}

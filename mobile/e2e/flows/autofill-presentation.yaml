@@ -3,14 +3,14 @@ name: Android autofill presentation modes
 ---
 - openLink: ${CRYPTEX_APP_SCHEME}://
 - runFlow:
-    when:
-      visible: Master password
-    commands:
-      - tapOn: Master password
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: unlock-vault
+      when:
+          visible: Master password
+      commands:
+          - tapOn: Master password
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: unlock-vault
 - tapOn: More
 - tapOn: Autofill
 - tapOn: Suggestion display

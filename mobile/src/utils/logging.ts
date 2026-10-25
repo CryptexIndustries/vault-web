@@ -10,7 +10,8 @@ export type MobileLogEntry = {
 };
 
 const MAX_LOGS = 500;
-const SECRET_KEY = /password|secret|token|private|cipher|payload|phrase|dek|key/i;
+const SECRET_KEY =
+    /password|secret|token|private|cipher|payload|phrase|dek|key/i;
 let sequence = 0;
 let entries: MobileLogEntry[] = [];
 
@@ -19,19 +20,29 @@ function redact(value: unknown, depth = 0): unknown {
     if (value instanceof Error) {
         return { name: value.name, message: value.message };
     }
-    if (Array.isArray(value)) return value.map((item) => redact(item, depth + 1));
+    if (Array.isArray(value))
+        return value.map((item) => redact(item, depth + 1));
     if (value && typeof value === "object") {
         return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, item]) => [
-                key,
-                SECRET_KEY.test(key) ? "[redacted]" : redact(item, depth + 1),
-            ]),
+            Object.entries(value as Record<string, unknown>).map(
+                ([key, item]) => [
+                    key,
+                    SECRET_KEY.test(key)
+                        ? "[redacted]"
+                        : redact(item, depth + 1),
+                ],
+            ),
         );
     }
     return value;
 }
 
-function add(group: string, level: MobileLogLevel, message: string, details?: unknown) {
+function add(
+    group: string,
+    level: MobileLogLevel,
+    message: string,
+    details?: unknown,
+) {
     entries.push({
         id: sequence++,
         timestamp: new Date().toISOString(),
@@ -43,7 +54,8 @@ function add(group: string, level: MobileLogLevel, message: string, details?: un
     if (entries.length > MAX_LOGS) entries = entries.slice(-MAX_LOGS);
 
     if (__DEV__) {
-        const args = details === undefined ? [message] : [message, redact(details)];
+        const args =
+            details === undefined ? [message] : [message, redact(details)];
         if (level === "ERROR") console.error(`[${group}]`, ...args);
         else if (level === "WARN") console.warn(`[${group}]`, ...args);
         else if (level === "INFO") console.info(`[${group}]`, ...args);
@@ -53,10 +65,14 @@ function add(group: string, level: MobileLogLevel, message: string, details?: un
 
 function makeLogger(group: string) {
     return {
-        debug: (message: string, details?: unknown) => add(group, "DEBUG", message, details),
-        info: (message: string, details?: unknown) => add(group, "INFO", message, details),
-        warn: (message: string, details?: unknown) => add(group, "WARN", message, details),
-        error: (message: string, details?: unknown) => add(group, "ERROR", message, details),
+        debug: (message: string, details?: unknown) =>
+            add(group, "DEBUG", message, details),
+        info: (message: string, details?: unknown) =>
+            add(group, "INFO", message, details),
+        warn: (message: string, details?: unknown) =>
+            add(group, "WARN", message, details),
+        error: (message: string, details?: unknown) =>
+            add(group, "ERROR", message, details),
         clearAll: () => {
             entries = [];
             sequence = 0;

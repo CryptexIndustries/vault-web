@@ -58,7 +58,10 @@ function stopSecretReleases() {
     try {
         androidCredentials.revokeProviderSession();
     } catch (error) {
-        vaultLog.error("Failed to revoke the Android credential provider session", { error });
+        vaultLog.error(
+            "Failed to revoke the Android credential provider session",
+            { error },
+        );
     }
 }
 
@@ -114,7 +117,10 @@ export async function lockUnlockedVault({
                 try {
                     androidCredentials.clearProviderCredentials();
                 } catch (error) {
-                    vaultLog.error("Failed to clear Android provider metadata", { error });
+                    vaultLog.error(
+                        "Failed to clear Android provider metadata",
+                        { error },
+                    );
                 }
                 setUnlockedVaultMetadata(null);
                 vaultStore.set(unlockedVaultAtom, new Vault());
@@ -124,7 +130,9 @@ export async function lockUnlockedVault({
                 vaultLogger.clearAll();
                 stopManagedBackup();
                 void purgeSecretTempFiles().catch((error) => {
-                    vaultLog.error("Failed to purge secret temporary files", { error });
+                    vaultLog.error("Failed to purge secret temporary files", {
+                        error,
+                    });
                 });
                 return ok(undefined);
             },
@@ -141,9 +149,7 @@ export async function lockUnlockedVault({
 /** Discard changes still in memory after a failed save and revoke the session. */
 export async function lockVaultWithoutSaving(
     syncConnectionController?: SyncConnectionController,
-): Promise<
-    Result<void, VaultLockError>
-> {
+): Promise<Result<void, VaultLockError>> {
     if (vaultStore.get(vaultLockStateAtom) !== "failed")
         return err("VAULT_LOCK_FAILED");
 
@@ -161,10 +167,14 @@ export async function lockVaultWithoutSaving(
             try {
                 await action();
             } catch (error) {
-                vaultLog.error("Failed to finish vault lock cleanup", { error });
+                vaultLog.error("Failed to finish vault lock cleanup", {
+                    error,
+                });
             }
         };
-        await cleanup(() => teardownActiveSyncControllers(syncConnectionController));
+        await cleanup(() =>
+            teardownActiveSyncControllers(syncConnectionController),
+        );
         await cleanup(() => androidCredentials.clearProviderCredentials());
         await cleanup(() => stopManagedBackup());
         await cleanup(() => logoutOnlineServicesSession());

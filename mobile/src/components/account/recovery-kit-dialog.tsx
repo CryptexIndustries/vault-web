@@ -80,7 +80,10 @@ export function RecoveryKitDialog({
                 () =>
                     writeSecretTempFile(
                         "html",
-                        buildRecoveryKitPrintHtml(kit.userId, kit.recoveryPhrase),
+                        buildRecoveryKitPrintHtml(
+                            kit.userId,
+                            kit.recoveryPhrase,
+                        ),
                         FileSystem.EncodingType.UTF8,
                     ),
                 {
@@ -105,7 +108,10 @@ export function RecoveryKitDialog({
             });
         } catch {
             if (release.current())
-                setStatus({ tone: "error", text: "Could not share Recovery Kit." });
+                setStatus({
+                    tone: "error",
+                    text: "Could not share Recovery Kit.",
+                });
         }
     };
 

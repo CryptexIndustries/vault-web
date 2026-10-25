@@ -11,15 +11,14 @@ import {
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
+    deleteOnlineServicesAccount,
     finalizeCheckoutCompletion,
     refreshCheckoutTrpcCaches,
 } from "@/app_lib/online-services";
 import {
     generateKeyPair,
-    parseJwkFromString,
     privateKeyJwkToString,
     publicKeyJwkToString,
-    signChallenge,
 } from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
 import {
     OnlineServices,
@@ -167,8 +166,6 @@ export function AccountDialog({
 
     const registerMut = trpcReact.v1.auth.register.useMutation();
     const recoverMut = trpcReact.v1.auth.recover.useMutation();
-    const deleteUserMut = trpcReact.v1.user.delete.useMutation();
-    const deleteChallengeMut = trpcReact.v1.user.deleteChallenge.useMutation();
     const genRecoveryMut =
         trpcReact.v1.user.generateRecoveryToken.useMutation();
     const rotateRecoveryMut =
@@ -564,17 +561,9 @@ export function AccountDialog({
 
         setDeleteAccountPending(true);
         try {
-            const challenge = await deleteChallengeMut.mutateAsync();
-            const challengeBytes = Uint8Array.fromBase64(challenge.challenge);
-            const signature = await signChallenge(
-                parseJwkFromString(vault.OnlineServices.PrivateKeyJWK),
-                challengeBytes,
+            await deleteOnlineServicesAccount(
+                vault.OnlineServices.PrivateKeyJWK,
             );
-
-            await deleteUserMut.mutateAsync({
-                challengeId: challenge.challengeId,
-                signature,
-            });
 
             if (
                 await persistAccountMutation((currentVault) => {
@@ -684,8 +673,7 @@ export function AccountDialog({
     const busy =
         registerMut.isPending ||
         recoverMut.isPending ||
-        deleteUserMut.isPending ||
-        deleteChallengeMut.isPending ||
+        deleteAccountPending ||
         removeLocalBindingPending;
 
     const tierName = subscription?.nonFree ? "Online Services" : "Free";
@@ -921,6 +909,14 @@ export function AccountDialog({
                                         }
                                         registerChallengeKey={
                                             registerChallengeKey
+                                        }
+                                        onUseInvitation={
+                                            purchasePlan
+                                                ? undefined
+                                                : () => {
+                                                      onOpenChange(false);
+                                                      deviceControls.onReceiveInvitation();
+                                                  }
                                         }
                                         onRetryRegistration={() => {
                                             setRegistrationRetryRequired(false);

@@ -65,7 +65,9 @@ it("sends every export fresh secure random bytes", async () => {
     }));
     expect(first!.exportRandom).toHaveLength(20);
     expect(first!.exportRandom.equals(second!.exportRandom)).toBe(false);
-    expect(createWorkletRuntime).toHaveBeenCalledWith({ name: "vault-ssh-key" });
+    expect(createWorkletRuntime).toHaveBeenCalledWith({
+        name: "vault-ssh-key",
+    });
 });
 
 it("resolves to an internal error when the worker program fails", async () => {
@@ -89,8 +91,12 @@ it("resolves to an internal error when the work can't be scheduled", async () =>
 it("drops superseded and cancelled results and skips work nobody waits for", async () => {
     const runner = createSSHKeyTaskRunner();
     const seen: string[] = [];
-    void runner.run({ kind: "import", text: "first" }).then(() => seen.push("first"));
-    void runner.run({ kind: "import", text: "second" }).then(() => seen.push("second"));
+    void runner
+        .run({ kind: "import", text: "first" })
+        .then(() => seen.push("first"));
+    void runner
+        .run({ kind: "import", text: "second" })
+        .then(() => seen.push("second"));
     const [first, second] = scheduled();
     first!();
     second!();
@@ -98,12 +104,16 @@ it("drops superseded and cancelled results and skips work nobody waits for", asy
     expect(seen).toEqual(["second"]);
     // The superseded task was still queued, so it never ran.
     expect(
-        jest.mocked(worker.runSSHKeyWorkerTask!).mock.calls.map(([task]) =>
-            task.kind === "import" ? task.text : "",
-        ),
+        jest
+            .mocked(worker.runSSHKeyWorkerTask!)
+            .mock.calls.map(([task]) =>
+                task.kind === "import" ? task.text : "",
+            ),
     ).toEqual(["second"]);
 
-    void runner.run({ kind: "import", text: "third" }).then(() => seen.push("third"));
+    void runner
+        .run({ kind: "import", text: "third" })
+        .then(() => seen.push("third"));
     runner.cancel();
     scheduled()[2]!();
     await flush();

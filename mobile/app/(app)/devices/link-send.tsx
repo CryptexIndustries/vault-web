@@ -160,7 +160,13 @@ const SEND_PROGRESS: Array<{ key: string; title: string; detail: string }> = [
         detail: "Recording the new device in this vault.",
     },
 ];
-const STEP = { waiting: 0, connection: 1, authentication: 2, transfer: 3, save: 4 };
+const STEP = {
+    waiting: 0,
+    connection: 1,
+    authentication: 2,
+    transfer: 3,
+    save: 4,
+};
 
 const KEEP_AWAKE_TAG = "link-send";
 type LinkFlow = "prepare" | "connection" | "transfer";
@@ -499,7 +505,10 @@ export default function LinkSendScreen() {
             ...current,
             {
                 id,
-                elapsedSeconds: Math.max(0, Math.floor((now - startedAt) / 1000)),
+                elapsedSeconds: Math.max(
+                    0,
+                    Math.floor((now - startedAt) / 1000),
+                ),
                 message,
                 type,
             },
@@ -717,7 +726,10 @@ export default function LinkSendScreen() {
                     ),
                 });
 
-            if (!isSameActiveVaultSession(sessionGeneration) || AppState.currentState !== "active") {
+            if (
+                !isSameActiveVaultSession(sessionGeneration) ||
+                AppState.currentState !== "active"
+            ) {
                 throw new Error("Vault session expired. Unlock and try again.");
             }
 
@@ -735,7 +747,9 @@ export default function LinkSendScreen() {
         } catch (e) {
             await rollbackPeerDevice(registeredPeerDeviceId);
             const message =
-                e instanceof Error ? e.message : "Failed to create link package.";
+                e instanceof Error
+                    ? e.message
+                    : "Failed to create link package.";
             // A retry from the transfer screen reports in its step list.
             if (flow === "transfer") showTransferFailure(message);
             else notify(message);
@@ -751,7 +765,10 @@ export default function LinkSendScreen() {
         current: LinkInvitation | null = invitation,
     ) => {
         const sessionGeneration = getVaultSessionGeneration();
-        if (!isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
+        if (
+            !isSameActiveVaultSession(sessionGeneration) ||
+            !appActiveForTransfer()
+        ) {
             notify("Vault session expired. Unlock and try again.");
             return;
         }
@@ -803,8 +820,14 @@ export default function LinkSendScreen() {
         try {
             if (usesOnlineServices) {
                 await ensureFreshOnlineServicesSession();
-                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
-                    throw new Error("Vault session expired. Unlock and try again.");
+                if (
+                    !transferActiveRef.current ||
+                    !isSameActiveVaultSession(sessionGeneration) ||
+                    !appActiveForTransfer()
+                ) {
+                    throw new Error(
+                        "Vault session expired. Unlock and try again.",
+                    );
                 }
                 if (!hasOnlineServicesSession()) {
                     throw new Error(
@@ -819,13 +842,19 @@ export default function LinkSendScreen() {
                 turnServers,
                 turnServers.length === 0 ? { syncId } : undefined,
             );
-            if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) {
+            if (
+                !transferActiveRef.current ||
+                !isSameActiveVaultSession(sessionGeneration) ||
+                !appActiveForTransfer()
+            ) {
                 webRTConnection.close();
                 throw new Error("Vault session expired. Unlock and try again.");
             }
             const webRTCDataChannel =
                 webRTConnection.createDataChannel("linking");
-            let iceCandidateDiscovery: ReturnType<typeof createIceCandidateDiscovery> | undefined;
+            let iceCandidateDiscovery:
+                | ReturnType<typeof createIceCandidateDiscovery>
+                | undefined;
 
             const signalingServerConnection =
                 Synchronization.initPusherInstance(signalingServer, syncId);
@@ -880,7 +909,8 @@ export default function LinkSendScreen() {
                     !appActiveForTransfer() ||
                     webRTConnection.connectionState === "closed" ||
                     webRTConnection.connectionState === "connected"
-                ) return;
+                )
+                    return;
                 void failActiveLinking("Failed to generate ICE candidates.");
             });
 
@@ -963,7 +993,12 @@ export default function LinkSendScreen() {
             };
 
             webRTCDataChannel.onopen = async () => {
-                if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
+                if (
+                    !transferActiveRef.current ||
+                    !isSameActiveVaultSession(sessionGeneration) ||
+                    !appActiveForTransfer()
+                )
+                    return;
                 iceCandidateDiscovery?.cancel();
                 setProgress(
                     "Private channel open. Authenticating the receiving device…",
@@ -1003,7 +1038,12 @@ export default function LinkSendScreen() {
                             senderNonce,
                         ),
                     );
-                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
+                    if (
+                        !transferActiveRef.current ||
+                        !isSameActiveVaultSession(sessionGeneration) ||
+                        !appActiveForTransfer()
+                    )
+                        return;
                     webRTCDataChannel.send(
                         toArrayBuffer(
                             VaultUtilTypes.LinkSenderHello.encode({
@@ -1072,7 +1112,12 @@ export default function LinkSendScreen() {
                         transferContext,
                     );
 
-                    if (!transferActiveRef.current || !isSameActiveVaultSession(sessionGeneration) || !appActiveForTransfer()) return;
+                    if (
+                        !transferActiveRef.current ||
+                        !isSameActiveVaultSession(sessionGeneration) ||
+                        !appActiveForTransfer()
+                    )
+                        return;
 
                     setProgress("Sending encrypted vault transfer…");
                     webRTCDataChannel.send(
@@ -1295,7 +1340,8 @@ export default function LinkSendScreen() {
 
     const sharePackageFile = async () => {
         const release = startPackageRelease();
-        const isCurrent = () => release.current() && AppState.currentState === "active";
+        const isCurrent = () =>
+            release.current() && AppState.currentState === "active";
         if (!isCurrent()) {
             notify("Vault session expired. Unlock and try again.");
             return;
@@ -1325,7 +1371,8 @@ export default function LinkSendScreen() {
                     dialogTitle: "Share Cryptex link package",
                 },
             );
-            if (shared === "unavailable") notify("Sharing is not available on this device.");
+            if (shared === "unavailable")
+                notify("Sharing is not available on this device.");
         } catch {
             notify("Could not share the link package.");
         } finally {
@@ -1354,7 +1401,9 @@ export default function LinkSendScreen() {
             await ensureFreshOnlineServicesSession();
             await syncOnlineServicesRemoteConfiguration();
         } catch {
-            notify("Could not refresh your account. Check your connection and try again.");
+            notify(
+                "Could not refresh your account. Check your connection and try again.",
+            );
         } finally {
             setRefreshingAccess(false);
         }
@@ -1390,7 +1439,10 @@ export default function LinkSendScreen() {
             setStatus("");
             setFailure(null);
             setFlow("prepare");
-            if (announce) notify("Linking cancelled. The invitation can no longer be used.");
+            if (announce)
+                notify(
+                    "Linking cancelled. The invitation can no longer be used.",
+                );
         } finally {
             setBusy(false);
         }
@@ -1486,17 +1538,19 @@ export default function LinkSendScreen() {
                 onlineServicesData.remoteData.root &&
                 !onlineServicesData.remoteData.canLink));
 
-    const progressItems: LinkProgressItem[] = SEND_PROGRESS.map((item, index) => ({
-        ...item,
-        state:
-            transferPhase === "success" || index < sendStep
-                ? "completed"
-                : index > sendStep
-                  ? "pending"
-                  : failure
-                    ? "error"
-                    : "active",
-    }));
+    const progressItems: LinkProgressItem[] = SEND_PROGRESS.map(
+        (item, index) => ({
+            ...item,
+            state:
+                transferPhase === "success" || index < sendStep
+                    ? "completed"
+                    : index > sendStep
+                      ? "pending"
+                      : failure
+                        ? "error"
+                        : "active",
+        }),
+    );
     const showInvitation =
         !!invitation && !failure && sendStep === STEP.waiting;
     const qrValue = qrFrames[activeFrameIndex];
@@ -1751,7 +1805,9 @@ export default function LinkSendScreen() {
                                             accessibilityRole="button"
                                             accessibilityLabel="Show QR code full screen"
                                             disabled={!qrValue}
-                                            onPress={() => setQrFullscreen(true)}
+                                            onPress={() =>
+                                                setQrFullscreen(true)
+                                            }
                                             className="items-center py-2"
                                         >
                                             <View className="h-[224px] w-[224px] items-center justify-center rounded-md bg-white">
@@ -1885,13 +1941,23 @@ export default function LinkSendScreen() {
                     <QRCode value={qrValue} size={fullscreenQrSize} />
                     <View style={{ alignItems: "center", gap: 6 }}>
                         {qrFrames.length > 1 ? (
-                            <UnlockedText style={{ color: "#111520", fontSize: 14 }}>
+                            <UnlockedText
+                                style={{ color: "#111520", fontSize: 14 }}
+                            >
                                 Part {activeFrameIndex + 1} of {qrFrames.length}
                             </UnlockedText>
                         ) : null}
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 6,
+                            }}
+                        >
                             <X size={14} color="#5b6274" />
-                            <UnlockedText style={{ color: "#5b6274", fontSize: 13 }}>
+                            <UnlockedText
+                                style={{ color: "#5b6274", fontSize: 13 }}
+                            >
                                 Tap anywhere to close
                             </UnlockedText>
                         </View>

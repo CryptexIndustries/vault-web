@@ -241,12 +241,14 @@ describe("local vault storage contract", () => {
         const bytes = new Uint8Array([0, 1, 255]);
         expect(await saveVault(undefined, bytes)).toBe(1);
         expect(await saveVault(undefined, new Uint8Array([2]))).toBe(2);
-        expect(mockMmkvData).toEqual(new Map<string, string | number>([
-            ["vaults:nextId", 3],
-            ["vaults:ids", "[1,2]"],
-            ["vault:data:1", "AAH/"],
-            ["vault:data:2", "Ag=="],
-        ]));
+        expect(mockMmkvData).toEqual(
+            new Map<string, string | number>([
+                ["vaults:nextId", 3],
+                ["vaults:ids", "[1,2]"],
+                ["vault:data:1", "AAH/"],
+                ["vault:data:2", "Ag=="],
+            ]),
+        );
         expect(await loadVault(1)).toEqual(bytes);
         expect(await loadVault(99)).toBeUndefined();
     });

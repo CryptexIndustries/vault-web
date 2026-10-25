@@ -3,14 +3,14 @@ name: Create Android autofill URI-rule fixtures
 ---
 - openLink: ${CRYPTEX_APP_SCHEME}://
 - runFlow:
-    when:
-      visible: Enter master password
-    commands:
-      - tapOn: Master password
-      - inputText: CorrectHorseBatteryStaple42
-      - hideKeyboard
-      - tapOn:
-          id: unlock-vault
+      when:
+          visible: Enter master password
+      commands:
+          - tapOn: Master password
+          - inputText: CorrectHorseBatteryStaple42
+          - hideKeyboard
+          - tapOn:
+                id: unlock-vault
 - tapOn: More
 - tapOn: Security
 - tapOn: Auto-lock
@@ -25,20 +25,20 @@ name: Create Android autofill URI-rule fixtures
 - tapOn: Credential username
 - inputText: exact-rule@example.test
 - tapOn:
-    text: Password, Hidden.*
+      text: Password, Hidden.*
 - inputText: rule-password
 - hideKeyboard
 - tapOn:
-    id: credential-website-url
+      id: credential-website-url
 - eraseText
 - inputText: https://login.exact.example.com
 - hideKeyboard
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Item details
 - assertVisible: Exact URI Rule.*
 - back
@@ -51,22 +51,22 @@ name: Create Android autofill URI-rule fixtures
 - tapOn: Credential username
 - inputText: domain-rule@example.test
 - tapOn:
-    text: Password, Hidden.*
+      text: Password, Hidden.*
 - inputText: rule-password
 - hideKeyboard
 - tapOn:
-    id: credential-website-url
+      id: credential-website-url
 - eraseText
 - inputText: https://www.domain.example.net
 - hideKeyboard
 - tapOn: Website matching, This host only
 - tapOn: Related domains
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Item details
 - assertVisible: Domain URI Rule.*
 - back
@@ -79,22 +79,22 @@ name: Create Android autofill URI-rule fixtures
 - tapOn: Credential username
 - inputText: wildcard-rule@example.test
 - tapOn:
-    text: Password, Hidden.*
+      text: Password, Hidden.*
 - inputText: rule-password
 - hideKeyboard
 - tapOn:
-    id: credential-website-url
+      id: credential-website-url
 - eraseText
 - inputText: https://*.wild.example.org
 - hideKeyboard
 - tapOn: Website matching, This host only
 - tapOn: Custom pattern
 - scrollUntilVisible:
-    element:
-      id: credential-submit
-    direction: DOWN
+      element:
+          id: credential-submit
+      direction: DOWN
 - tapOn:
-    id: credential-submit
+      id: credential-submit
 - assertVisible: Item details
 - assertVisible: Wildcard URI Rule.*
 - back

@@ -11,10 +11,7 @@ import { useUnlockedConfirmation } from "@/components/unlocked/confirmation-shee
 import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useAtomValue } from "jotai";
-import {
-    ChevronRight,
-    Folder,
-} from "lucide-react-native";
+import { ChevronRight, Folder } from "lucide-react-native";
 
 import {
     createDirectory,
@@ -29,11 +26,7 @@ import {
 import { unlockedVaultAtom, vaultCredentialsAtom } from "@/utils/atoms";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { Switch } from "@/components/ui/switch";
-import {
-    Dialog,
-    DialogFooter,
-    DialogHeader,
-} from "@/components/ui/dialog";
+import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { colors } from "@/theme";
 
 type EditorMode = "create" | "rename" | null;
@@ -248,20 +241,29 @@ export function DirectoryManagerScreen() {
     return (
         <UnlockedScreen scroll>
             <UnlockedPageTitle title="Directories" />
-            <View style={{ paddingBottom: 22, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <UnlockedText style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}>
-                Your directories
-            </UnlockedText>
-            <UnlockedText
+            <View
                 style={{
-                    color: colors.muted,
-                    fontSize: 13,
-                    lineHeight: 20,
-                    marginTop: 6,
+                    paddingBottom: 22,
+                    marginBottom: 6,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
                 }}
             >
-                Keep related items together.
-            </UnlockedText>
+                <UnlockedText
+                    style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}
+                >
+                    Your directories
+                </UnlockedText>
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 13,
+                        lineHeight: 20,
+                        marginTop: 6,
+                    }}
+                >
+                    Keep related items together.
+                </UnlockedText>
             </View>
             <View>
                 {directories.map((directory) =>
@@ -311,7 +313,7 @@ export function DirectoryManagerScreen() {
                 <DialogHeader>
                     <DialogTitle>
                         {editorMode === "rename"
-                            ? editorDirectory?.Name ?? "Directory"
+                            ? (editorDirectory?.Name ?? "Directory")
                             : "Create directory"}
                     </DialogTitle>
                 </DialogHeader>
@@ -346,12 +348,19 @@ export function DirectoryManagerScreen() {
                             ? "Rename directory"
                             : "Create directory"}
                     </Button>
-                    {editorMode === "rename" ? <Button variant="destructive" onPress={() => {
-                        setDeleteTarget(editorDirectory);
-                        setEditorMode(null);
-                        setDeleteContents(false);
-                        setError("");
-                    }}>Delete directory</Button> : null}
+                    {editorMode === "rename" ? (
+                        <Button
+                            variant="destructive"
+                            onPress={() => {
+                                setDeleteTarget(editorDirectory);
+                                setEditorMode(null);
+                                setDeleteContents(false);
+                                setError("");
+                            }}
+                        >
+                            Delete directory
+                        </Button>
+                    ) : null}
                 </DialogFooter>
             </Dialog>
 
@@ -362,7 +371,13 @@ export function DirectoryManagerScreen() {
             >
                 <DialogHeader>
                     <DialogTitle>Remove directory?</DialogTitle>
-                    <UnlockedText style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+                    <UnlockedText
+                        style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            lineHeight: 20,
+                        }}
+                    >
                         {deleteCount
                             ? `Remove “${deleteTarget?.Name}”? Its ${deleteCount} credential${deleteCount === 1 ? "" : "s"} will move to No directory by default.`
                             : `Remove “${deleteTarget?.Name}”? This directory is empty.`}

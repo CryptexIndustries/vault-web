@@ -16,7 +16,9 @@ const tokens = new Set<string>();
 
 export function issueApprovalToken(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
-    const token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const token = Array.from(bytes, (byte) =>
+        byte.toString(16).padStart(2, "0"),
+    ).join("");
     tokens.add(token);
     // Openings are rare; keep the set from growing without bound.
     if (tokens.size > 32) tokens.delete(tokens.values().next().value!);

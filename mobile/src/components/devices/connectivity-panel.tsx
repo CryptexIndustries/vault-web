@@ -92,39 +92,33 @@ export function ConnectivityPanel({
     const [stunSheetHidden, setStunSheetHidden] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(
         editingServerId === "new"
-            ? newServerRef.current?.ID ?? null
-            : editingServerId ?? null,
+            ? (newServerRef.current?.ID ?? null)
+            : (editingServerId ?? null),
     );
-    const [draftStun, setDraftStun] = useState(() =>
-        [
-            ...stunServers.map((server) =>
-                Object.assign(new STUNServerConfiguration(), server),
-            ),
-            ...(newServerRef.current instanceof STUNServerConfiguration
-                ? [newServerRef.current]
-                : []),
-        ],
-    );
-    const [draftTurn, setDraftTurn] = useState(() =>
-        [
-            ...turnServers.map((server) =>
-                Object.assign(new TURNServerConfiguration(), server),
-            ),
-            ...(newServerRef.current instanceof TURNServerConfiguration
-                ? [newServerRef.current]
-                : []),
-        ],
-    );
-    const [draftSignaling, setDraftSignaling] = useState(() =>
-        [
-            ...signalingServers.map((server) =>
-                Object.assign(new SignalingServerConfiguration(), server),
-            ),
-            ...(newServerRef.current instanceof SignalingServerConfiguration
-                ? [newServerRef.current]
-                : []),
-        ],
-    );
+    const [draftStun, setDraftStun] = useState(() => [
+        ...stunServers.map((server) =>
+            Object.assign(new STUNServerConfiguration(), server),
+        ),
+        ...(newServerRef.current instanceof STUNServerConfiguration
+            ? [newServerRef.current]
+            : []),
+    ]);
+    const [draftTurn, setDraftTurn] = useState(() => [
+        ...turnServers.map((server) =>
+            Object.assign(new TURNServerConfiguration(), server),
+        ),
+        ...(newServerRef.current instanceof TURNServerConfiguration
+            ? [newServerRef.current]
+            : []),
+    ]);
+    const [draftSignaling, setDraftSignaling] = useState(() => [
+        ...signalingServers.map((server) =>
+            Object.assign(new SignalingServerConfiguration(), server),
+        ),
+        ...(newServerRef.current instanceof SignalingServerConfiguration
+            ? [newServerRef.current]
+            : []),
+    ]);
     const [error, setError] = useState("");
     const [status, setStatus] = useState("");
     const [saving, setSaving] = useState(false);
@@ -140,10 +134,14 @@ export function ConnectivityPanel({
     useEffect(() => {
         if (dirty && editing) return;
         setDraftStun(
-            stunServers.map((s) => Object.assign(new STUNServerConfiguration(), s)),
+            stunServers.map((s) =>
+                Object.assign(new STUNServerConfiguration(), s),
+            ),
         );
         setDraftTurn(
-            turnServers.map((s) => Object.assign(new TURNServerConfiguration(), s)),
+            turnServers.map((s) =>
+                Object.assign(new TURNServerConfiguration(), s),
+            ),
         );
         setDraftSignaling(
             signalingServers.map((s) =>
@@ -228,8 +226,14 @@ export function ConnectivityPanel({
             }),
         );
 
-        if ([...cleanStun, ...cleanTurn].some(s => /^(?:stuns?|turns?|https?|wss?):/i.test(s.Host))) {
-            setError("Enter a host and port for STUN or TURN. Secure URL schemes are not supported by this connection configuration.");
+        if (
+            [...cleanStun, ...cleanTurn].some((s) =>
+                /^(?:stuns?|turns?|https?|wss?):/i.test(s.Host),
+            )
+        ) {
+            setError(
+                "Enter a host and port for STUN or TURN. Secure URL schemes are not supported by this connection configuration.",
+            );
             return;
         }
 
@@ -263,7 +267,9 @@ export function ConnectivityPanel({
             hasDuplicateHosts(cleanTurn.map((s) => s.Host)) ||
             hasDuplicateHosts(cleanSignaling.map((s) => s.Host))
         ) {
-            setError("Duplicate host entries are not allowed within a section.");
+            setError(
+                "Duplicate host entries are not allowed within a section.",
+            );
             return;
         }
 
@@ -276,9 +282,12 @@ export function ConnectivityPanel({
                     updated.LinkedDevices = LinkedDevices.fromGeneric(
                         current.LinkedDevices,
                     );
-                    if (tab === "stun") updated.LinkedDevices.STUNServers = cleanStun;
-                    else if (tab === "turn") updated.LinkedDevices.TURNServers = cleanTurn;
-                    else updated.LinkedDevices.SignalingServers = cleanSignaling;
+                    if (tab === "stun")
+                        updated.LinkedDevices.STUNServers = cleanStun;
+                    else if (tab === "turn")
+                        updated.LinkedDevices.TURNServers = cleanTurn;
+                    else
+                        updated.LinkedDevices.SignalingServers = cleanSignaling;
                     return { vault: updated, result: undefined };
                 },
             );
@@ -301,15 +310,18 @@ export function ConnectivityPanel({
     };
 
     const testServer = async () => {
-        const server = activeServers.find(item => item.ID === editingId);
+        const server = activeServers.find((item) => item.ID === editingId);
         if (!server) return;
         setTestingId(server.ID);
         setError("");
         setStatus("");
         try {
-            const result = tab === "signaling"
-                ? await testSignalingServerConnection(server as SignalingServerConfiguration)
-                : await testIceServer(tab, server);
+            const result =
+                tab === "signaling"
+                    ? await testSignalingServerConnection(
+                          server as SignalingServerConfiguration,
+                      )
+                    : await testIceServer(tab, server);
             if (result.ok) setStatus(result.message);
             else setError(result.message);
         } finally {
@@ -346,7 +358,8 @@ export function ConnectivityPanel({
                 />
                 <View className="mt-5 border-l-2 border-muted pl-3">
                     <Text className="text-xs leading-5 text-muted-foreground">
-                        For links without Online Services, configure signaling and at least one STUN or TURN server.
+                        For links without Online Services, configure signaling
+                        and at least one STUN or TURN server.
                     </Text>
                 </View>
             </View>
@@ -363,7 +376,12 @@ export function ConnectivityPanel({
               ? draftTurn
               : draftSignaling;
 
-    const savedServers = tab === "stun" ? stunServers : tab === "turn" ? turnServers : signalingServers;
+    const savedServers =
+        tab === "stun"
+            ? stunServers
+            : tab === "turn"
+              ? turnServers
+              : signalingServers;
 
     const addServer = () => {
         setStunSheetHidden(false);
@@ -380,25 +398,36 @@ export function ConnectivityPanel({
         }
     };
 
-        const label = tab === "stun" ? "STUN" : tab === "turn" ? "TURN" : "Signaling";
-        const Icon = tab === "stun" ? Globe : tab === "turn" ? Server : RadioTower;
+    const label =
+        tab === "stun" ? "STUN" : tab === "turn" ? "TURN" : "Signaling";
+    const Icon = tab === "stun" ? Globe : tab === "turn" ? Server : RadioTower;
     const serverList = (
-            <View className="gap-3">
-                <View className="mb-1 border-b border-border pb-[22px]">
-                    <Text style={{ marginTop: 10, fontSize: 22, fontWeight: "500", letterSpacing: -0.5 }}>{label} servers</Text>
-                    <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        {tab === "stun"
-                            ? "Discover a direct route between devices."
-                            : tab === "turn"
-                              ? "Relay encrypted traffic when a direct route is unavailable."
-                              : "Let devices discover each other and exchange connection information."}
-                    </Text>
+        <View className="gap-3">
+            <View className="mb-1 border-b border-border pb-[22px]">
+                <Text
+                    style={{
+                        marginTop: 10,
+                        fontSize: 22,
+                        fontWeight: "500",
+                        letterSpacing: -0.5,
+                    }}
+                >
+                    {label} servers
+                </Text>
+                <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+                    {tab === "stun"
+                        ? "Discover a direct route between devices."
+                        : tab === "turn"
+                          ? "Relay encrypted traffic when a direct route is unavailable."
+                          : "Let devices discover each other and exchange connection information."}
+                </Text>
+            </View>
+            {savedServers.length === 0 ? (
+                <View className="my-5 border-l-2 border-border pl-[13px]">
+                    <Text className="text-xs leading-[18px] text-muted-foreground">{`No custom ${label.toLowerCase()} servers configured.`}</Text>
                 </View>
-                {savedServers.length === 0 ? (
-                    <View className="my-5 border-l-2 border-border pl-[13px]">
-                        <Text className="text-xs leading-[18px] text-muted-foreground">{`No custom ${label.toLowerCase()} servers configured.`}</Text>
-                    </View>
-                ) : savedServers.map((server) => (
+            ) : (
+                savedServers.map((server) => (
                     <UnlockedMenuRow
                         key={server.ID}
                         icon={Icon}
@@ -410,11 +439,14 @@ export function ConnectivityPanel({
                             onRouteChange(`edit-${tab}`, server.ID);
                         }}
                     />
-                ))}
-                <Button className="mt-6" onPress={addServer}>{`Add ${label} server`}</Button>
-            </View>
-        );
-
+                ))
+            )}
+            <Button
+                className="mt-6"
+                onPress={addServer}
+            >{`Add ${label} server`}</Button>
+        </View>
+    );
 
     if (!route.startsWith("edit-")) return serverList;
 
@@ -430,20 +462,40 @@ export function ConnectivityPanel({
         setError("");
         onDeletePendingChange?.(true);
         try {
-            const result = await persistVaultMutation("vault.configuration", (current) => {
-                const updated = Object.assign(new Vault(), current);
-                updated.LinkedDevices = LinkedDevices.fromGeneric(current.LinkedDevices);
-                if (tab === "stun") updated.LinkedDevices.STUNServers = updated.LinkedDevices.STUNServers.filter(s => s.ID !== editingId);
-                else if (tab === "turn") updated.LinkedDevices.TURNServers = updated.LinkedDevices.TURNServers.filter(s => s.ID !== editingId);
-                else updated.LinkedDevices.SignalingServers = updated.LinkedDevices.SignalingServers.filter(s => s.ID !== editingId);
-                return { vault: updated, result: undefined };
-            });
-            if (result.isErr()) throw new Error("Could not delete server. Please try again.");
+            const result = await persistVaultMutation(
+                "vault.configuration",
+                (current) => {
+                    const updated = Object.assign(new Vault(), current);
+                    updated.LinkedDevices = LinkedDevices.fromGeneric(
+                        current.LinkedDevices,
+                    );
+                    if (tab === "stun")
+                        updated.LinkedDevices.STUNServers =
+                            updated.LinkedDevices.STUNServers.filter(
+                                (s) => s.ID !== editingId,
+                            );
+                    else if (tab === "turn")
+                        updated.LinkedDevices.TURNServers =
+                            updated.LinkedDevices.TURNServers.filter(
+                                (s) => s.ID !== editingId,
+                            );
+                    else
+                        updated.LinkedDevices.SignalingServers =
+                            updated.LinkedDevices.SignalingServers.filter(
+                                (s) => s.ID !== editingId,
+                            );
+                    return { vault: updated, result: undefined };
+                },
+            );
+            if (result.isErr())
+                throw new Error("Could not delete server. Please try again.");
             setDirty(false);
             onSaved?.();
             finishEditor(tab);
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Could not delete server.");
+            setError(
+                e instanceof Error ? e.message : "Could not delete server.",
+            );
             onDeletePendingChange?.(false);
         } finally {
             setSaving(false);
@@ -453,13 +505,27 @@ export function ConnectivityPanel({
     const editor = (
         <View className="gap-3">
             {tab !== "stun" ? (
-            <View className="mb-1 border-b border-border pb-[22px]">
-                <Text style={{ marginTop: 10, fontSize: 22, fontWeight: "500", letterSpacing: -0.5 }}>
-                    {editingExisting ? "Edit" : "Add"} {tab === "turn" ? "TURN" : "Signaling"} server
+                <View className="mb-1 border-b border-border pb-[22px]">
+                    <Text
+                        style={{
+                            marginTop: 10,
+                            fontSize: 22,
+                            fontWeight: "500",
+                            letterSpacing: -0.5,
+                        }}
+                    >
+                        {editingExisting ? "Edit" : "Add"}{" "}
+                        {tab === "turn" ? "TURN" : "Signaling"} server
+                    </Text>
+                    <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+                        Saved inside this vault.
+                    </Text>
+                </View>
+            ) : (
+                <Text className="text-sm text-muted-foreground">
+                    Saved inside this vault.
                 </Text>
-                <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">Saved inside this vault.</Text>
-            </View>
-            ) : <Text className="text-sm text-muted-foreground">Saved inside this vault.</Text>}
+            )}
 
             {tab === "stun" ? (
                 <View className="gap-3">
@@ -468,90 +534,22 @@ export function ConnectivityPanel({
                             No custom STUN servers.
                         </Text>
                     ) : (
-                        draftStun.filter((server) => server.ID === editingId).map((server) => (
-                            <View
-                                key={server.ID}
-                                className="gap-5"
-                            >
-
-                                <View>
-                                    <Label>Name</Label>
-                                    <Input
-                                        value={server.Name}
-                                        accessibilityLabel="Name"
-                                        onChangeText={(value) => {
-                                            markDirty();
-                                            setDraftStun((list) =>
-                                                list.map((item) =>
-                                                    item.ID === server.ID
-                                                        ? Object.assign(
-                                                              new STUNServerConfiguration(),
-                                                              item,
-                                                              { Name: value },
-                                                          )
-                                                        : item,
-                                                ),
-                                            );
-                                        }}
-                                        placeholder="Home STUN"
-                                    />
-                                </View>
-                                <View>
-                                    <Label>Host / URL</Label>
-                                    <Input
-                                        value={server.Host}
-                                        accessibilityLabel="Host / URL"
-                                        onChangeText={(value) => {
-                                            markDirty();
-                                            setDraftStun((list) =>
-                                                list.map((item) =>
-                                                    item.ID === server.ID
-                                                        ? Object.assign(
-                                                              new STUNServerConfiguration(),
-                                                              item,
-                                                              { Host: value },
-                                                          )
-                                                        : item,
-                                                ),
-                                            );
-                                        }}
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        placeholder="stun.example.com:3478"
-                                    />
-                                </View>
-                            </View>
-                        ))
-                    )}
-                </View>
-            ) : null}
-
-            {tab === "turn" ? (
-                <View className="gap-3">
-                    {draftTurn.every((server) => server.ID !== editingId) ? (
-                        <Text className="text-sm text-muted-foreground">
-                            No custom TURN servers.
-                        </Text>
-                    ) : (
-                        draftTurn.filter((server) => server.ID === editingId).map((server) => {
-                            return (
-                                <View
-                                    key={server.ID}
-                                    className="gap-5"
-                                >
-
+                        draftStun
+                            .filter((server) => server.ID === editingId)
+                            .map((server) => (
+                                <View key={server.ID} className="gap-5">
                                     <View>
                                         <Label>Name</Label>
                                         <Input
                                             value={server.Name}
-                                        accessibilityLabel="Name"
+                                            accessibilityLabel="Name"
                                             onChangeText={(value) => {
                                                 markDirty();
-                                                setDraftTurn((list) =>
+                                                setDraftStun((list) =>
                                                     list.map((item) =>
                                                         item.ID === server.ID
                                                             ? Object.assign(
-                                                                  new TURNServerConfiguration(),
+                                                                  new STUNServerConfiguration(),
                                                                   item,
                                                                   {
                                                                       Name: value,
@@ -561,21 +559,21 @@ export function ConnectivityPanel({
                                                     ),
                                                 );
                                             }}
-                                            placeholder="Home TURN"
+                                            placeholder="Home STUN"
                                         />
                                     </View>
                                     <View>
                                         <Label>Host / URL</Label>
                                         <Input
                                             value={server.Host}
-                                        accessibilityLabel="Host / URL"
+                                            accessibilityLabel="Host / URL"
                                             onChangeText={(value) => {
                                                 markDirty();
-                                                setDraftTurn((list) =>
+                                                setDraftStun((list) =>
                                                     list.map((item) =>
                                                         item.ID === server.ID
                                                             ? Object.assign(
-                                                                  new TURNServerConfiguration(),
+                                                                  new STUNServerConfiguration(),
                                                                   item,
                                                                   {
                                                                       Host: value,
@@ -587,119 +585,95 @@ export function ConnectivityPanel({
                                             }}
                                             autoCapitalize="none"
                                             autoCorrect={false}
-                                            placeholder="turn.example.com:3478"
+                                            placeholder="stun.example.com:3478"
                                         />
-                                    </View>
-                                    <View>
-                                        <Label>Username</Label>
-                                        <Input
-                                            value={server.Username}
-                                        accessibilityLabel="Username"
-                                            onChangeText={(value) => {
-                                                markDirty();
-                                                setDraftTurn((list) =>
-                                                    list.map((item) =>
-                                                        item.ID === server.ID
-                                                            ? Object.assign(
-                                                                  new TURNServerConfiguration(),
-                                                                  item,
-                                                                  {
-                                                                      Username:
-                                                                          value,
-                                                                  },
-                                                              )
-                                                            : item,
-                                                    ),
-                                                );
-                                            }}
-                                            autoCapitalize="none"
-                                            autoCorrect={false}
-                                        />
-                                    </View>
-                                    <View>
-                                        <Label>Credential</Label>
-                                        <Input
-                                            value={server.Password}
-                                            onChangeText={(value) => {
-                                                markDirty();
-                                                setDraftTurn((list) =>
-                                                    list.map((item) =>
-                                                        item.ID === server.ID
-                                                            ? Object.assign(
-                                                                  new TURNServerConfiguration(),
-                                                                  item,
-                                                                  {
-                                                                      Password:
-                                                                          value,
-                                                                  },
-                                                              )
-                                                            : item,
-                                                    ),
-                                                );
-                                            }}
-                                            secureTextEntry
-                                            revealButtonHeight={54}
-                                            autoCapitalize="none"
-                                            autoCorrect={false}
-                                            accessibilityLabel="TURN credential"
-                                        />
-
                                     </View>
                                 </View>
-                            );
-                        })
+                            ))
                     )}
                 </View>
             ) : null}
 
-            {tab === "signaling" ? (
+            {tab === "turn" ? (
                 <View className="gap-3">
-                    {draftSignaling.every((server) => server.ID !== editingId) ? (
+                    {draftTurn.every((server) => server.ID !== editingId) ? (
                         <Text className="text-sm text-muted-foreground">
-                            No custom signaling servers.
+                            No custom TURN servers.
                         </Text>
                     ) : (
-                        draftSignaling.filter((server) => server.ID === editingId).map((server) => {
-                            return (
-                                <View
-                                    key={server.ID}
-                                    className="gap-5"
-                                >
-
-                                    {(
-                                        [
-                                            ["Name", "Name", "Home Pusher"],
-                                            ["Host", "Host", "pusher.example.com"],
-                                            ["App ID", "AppID", "app-id"],
-                                            ["Key", "Key", "app-key"],
-                                            ["Secret", "Secret", ""],
-                                            [
-                                                "WS port",
-                                                "ServicePort",
-                                                "6001",
-                                            ],
-                                            [
-                                                "WSS port (0 = disable TLS)",
-                                                "SecureServicePort",
-                                                "0",
-                                            ],
-                                        ] as const
-                                    ).map(([label, field, placeholder]) => (
-                                        <View key={field}>
-                                            <Label>{label}</Label>
+                        draftTurn
+                            .filter((server) => server.ID === editingId)
+                            .map((server) => {
+                                return (
+                                    <View key={server.ID} className="gap-5">
+                                        <View>
+                                            <Label>Name</Label>
                                             <Input
-                                                value={String(server[field])}
+                                                value={server.Name}
+                                                accessibilityLabel="Name"
                                                 onChangeText={(value) => {
                                                     markDirty();
-                                                    setDraftSignaling((list) =>
+                                                    setDraftTurn((list) =>
                                                         list.map((item) =>
                                                             item.ID ===
                                                             server.ID
                                                                 ? Object.assign(
-                                                                      new SignalingServerConfiguration(),
+                                                                      new TURNServerConfiguration(),
                                                                       item,
                                                                       {
-                                                                          [field]:
+                                                                          Name: value,
+                                                                      },
+                                                                  )
+                                                                : item,
+                                                        ),
+                                                    );
+                                                }}
+                                                placeholder="Home TURN"
+                                            />
+                                        </View>
+                                        <View>
+                                            <Label>Host / URL</Label>
+                                            <Input
+                                                value={server.Host}
+                                                accessibilityLabel="Host / URL"
+                                                onChangeText={(value) => {
+                                                    markDirty();
+                                                    setDraftTurn((list) =>
+                                                        list.map((item) =>
+                                                            item.ID ===
+                                                            server.ID
+                                                                ? Object.assign(
+                                                                      new TURNServerConfiguration(),
+                                                                      item,
+                                                                      {
+                                                                          Host: value,
+                                                                      },
+                                                                  )
+                                                                : item,
+                                                        ),
+                                                    );
+                                                }}
+                                                autoCapitalize="none"
+                                                autoCorrect={false}
+                                                placeholder="turn.example.com:3478"
+                                            />
+                                        </View>
+                                        <View>
+                                            <Label>Username</Label>
+                                            <Input
+                                                value={server.Username}
+                                                accessibilityLabel="Username"
+                                                onChangeText={(value) => {
+                                                    markDirty();
+                                                    setDraftTurn((list) =>
+                                                        list.map((item) =>
+                                                            item.ID ===
+                                                            server.ID
+                                                                ? Object.assign(
+                                                                      new TURNServerConfiguration(),
+                                                                      item,
+                                                                      {
+                                                                          Username:
                                                                               value,
                                                                       },
                                                                   )
@@ -709,18 +683,129 @@ export function ConnectivityPanel({
                                                 }}
                                                 autoCapitalize="none"
                                                 autoCorrect={false}
-                                                placeholder={placeholder}
-                                                accessibilityLabel={label}
-                                                secureTextEntry={field === "Secret"}
-                                                revealButtonHeight={54}
-                                                keyboardType={field === "ServicePort" || field === "SecureServicePort" ? "number-pad" : "default"}
                                             />
                                         </View>
-                                    ))}
+                                        <View>
+                                            <Label>Credential</Label>
+                                            <Input
+                                                value={server.Password}
+                                                onChangeText={(value) => {
+                                                    markDirty();
+                                                    setDraftTurn((list) =>
+                                                        list.map((item) =>
+                                                            item.ID ===
+                                                            server.ID
+                                                                ? Object.assign(
+                                                                      new TURNServerConfiguration(),
+                                                                      item,
+                                                                      {
+                                                                          Password:
+                                                                              value,
+                                                                      },
+                                                                  )
+                                                                : item,
+                                                        ),
+                                                    );
+                                                }}
+                                                secureTextEntry
+                                                revealButtonHeight={54}
+                                                autoCapitalize="none"
+                                                autoCorrect={false}
+                                                accessibilityLabel="TURN credential"
+                                            />
+                                        </View>
+                                    </View>
+                                );
+                            })
+                    )}
+                </View>
+            ) : null}
 
-                                </View>
-                            );
-                        })
+            {tab === "signaling" ? (
+                <View className="gap-3">
+                    {draftSignaling.every(
+                        (server) => server.ID !== editingId,
+                    ) ? (
+                        <Text className="text-sm text-muted-foreground">
+                            No custom signaling servers.
+                        </Text>
+                    ) : (
+                        draftSignaling
+                            .filter((server) => server.ID === editingId)
+                            .map((server) => {
+                                return (
+                                    <View key={server.ID} className="gap-5">
+                                        {(
+                                            [
+                                                ["Name", "Name", "Home Pusher"],
+                                                [
+                                                    "Host",
+                                                    "Host",
+                                                    "pusher.example.com",
+                                                ],
+                                                ["App ID", "AppID", "app-id"],
+                                                ["Key", "Key", "app-key"],
+                                                ["Secret", "Secret", ""],
+                                                [
+                                                    "WS port",
+                                                    "ServicePort",
+                                                    "6001",
+                                                ],
+                                                [
+                                                    "WSS port (0 = disable TLS)",
+                                                    "SecureServicePort",
+                                                    "0",
+                                                ],
+                                            ] as const
+                                        ).map(([label, field, placeholder]) => (
+                                            <View key={field}>
+                                                <Label>{label}</Label>
+                                                <Input
+                                                    value={String(
+                                                        server[field],
+                                                    )}
+                                                    onChangeText={(value) => {
+                                                        markDirty();
+                                                        setDraftSignaling(
+                                                            (list) =>
+                                                                list.map(
+                                                                    (item) =>
+                                                                        item.ID ===
+                                                                        server.ID
+                                                                            ? Object.assign(
+                                                                                  new SignalingServerConfiguration(),
+                                                                                  item,
+                                                                                  {
+                                                                                      [field]:
+                                                                                          value,
+                                                                                  },
+                                                                              )
+                                                                            : item,
+                                                                ),
+                                                        );
+                                                    }}
+                                                    autoCapitalize="none"
+                                                    autoCorrect={false}
+                                                    placeholder={placeholder}
+                                                    accessibilityLabel={label}
+                                                    secureTextEntry={
+                                                        field === "Secret"
+                                                    }
+                                                    revealButtonHeight={54}
+                                                    keyboardType={
+                                                        field ===
+                                                            "ServicePort" ||
+                                                        field ===
+                                                            "SecureServicePort"
+                                                            ? "number-pad"
+                                                            : "default"
+                                                    }
+                                                />
+                                            </View>
+                                        ))}
+                                    </View>
+                                );
+                            })
                     )}
                 </View>
             ) : null}
@@ -729,22 +814,35 @@ export function ConnectivityPanel({
             {status ? <InlineNotice tone="success" message={status} /> : null}
 
             {editingExisting ? (
-                <Button variant="outline" loading={testingId !== null} disabled={saving}
-                    onPress={() => void testServer()}>
+                <Button
+                    variant="outline"
+                    loading={testingId !== null}
+                    disabled={saving}
+                    onPress={() => void testServer()}
+                >
                     Test connection
                 </Button>
             ) : null}
             {editingExisting ? (
-                <Button variant="destructive" disabled={saving || testingId !== null}
+                <Button
+                    variant="destructive"
+                    disabled={saving || testingId !== null}
                     onPress={() => {
                         if (tab === "stun") setStunSheetHidden(true);
                         confirm({
-                            title: "Delete server?", description: "Remove this custom server from the vault.",
-                            confirmLabel: "Delete server", cancelLabel: "Keep server",
+                            title: "Delete server?",
+                            description:
+                                "Remove this custom server from the vault.",
+                            confirmLabel: "Delete server",
+                            cancelLabel: "Keep server",
                             onCancel: () => setStunSheetHidden(false),
-                            onConfirm: () => { setStunSheetHidden(false); void deleteServer(); },
+                            onConfirm: () => {
+                                setStunSheetHidden(false);
+                                void deleteServer();
+                            },
                         });
-                    }}>
+                    }}
+                >
                     Delete server
                 </Button>
             ) : null}
@@ -761,7 +859,10 @@ export function ConnectivityPanel({
     if (tab !== "stun") return editor;
     const closeStunEditor = () => {
         if (saving || testingId !== null) return;
-        if (!dirty) { onRouteChange("stun"); return; }
+        if (!dirty) {
+            onRouteChange("stun");
+            return;
+        }
         setStunSheetHidden(true);
         confirm({
             title: "Discard server changes?",
@@ -775,11 +876,22 @@ export function ConnectivityPanel({
     return (
         <>
             {serverList}
-            <Dialog open={!stunSheetHidden} onOpenChange={(open) => !open && closeStunEditor()} placement="bottom" scroll dismissible={!saving && testingId === null}>
-                <DialogHeader><UnlockedDialogTitle>{editingExisting ? "Edit STUN server" : "Add STUN server"}</UnlockedDialogTitle></DialogHeader>
+            <Dialog
+                open={!stunSheetHidden}
+                onOpenChange={(open) => !open && closeStunEditor()}
+                placement="bottom"
+                scroll
+                dismissible={!saving && testingId === null}
+            >
+                <DialogHeader>
+                    <UnlockedDialogTitle>
+                        {editingExisting
+                            ? "Edit STUN server"
+                            : "Add STUN server"}
+                    </UnlockedDialogTitle>
+                </DialogHeader>
                 {editor}
             </Dialog>
         </>
     );
-
 }

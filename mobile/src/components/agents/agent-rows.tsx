@@ -20,7 +20,11 @@ import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
 
 /** The terminal glyph of a connected agent, in the agent tint. */
-export function AgentGlyph({ variant = "list" }: { variant?: "list" | "identity" }) {
+export function AgentGlyph({
+    variant = "list",
+}: {
+    variant?: "list" | "identity";
+}) {
     const identity = variant === "identity";
     return (
         <View
@@ -77,7 +81,9 @@ export function AgentSectionLabel({
                 {title.toUpperCase()}
             </Text>
             {typeof right === "string" ? (
-                <Text style={{ fontSize: 11, color: colors.muted }}>{right}</Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>
+                    {right}
+                </Text>
             ) : (
                 right
             )}
@@ -118,12 +124,19 @@ export function AgentRow({
         >
             <AgentGlyph />
             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-                <Text numberOfLines={1} style={{ fontSize: 13, lineHeight: 16 }}>
+                <Text
+                    numberOfLines={1}
+                    style={{ fontSize: 13, lineHeight: 16 }}
+                >
                     {name}
                 </Text>
                 <Text
                     numberOfLines={1}
-                    style={{ fontSize: 11, lineHeight: 14, color: colors.muted }}
+                    style={{
+                        fontSize: 11,
+                        lineHeight: 14,
+                        color: colors.muted,
+                    }}
                 >
                     {subtitle}
                 </Text>
@@ -158,7 +171,11 @@ function KeyBody({ name, detail }: { name: string; detail: string }) {
                 <Text
                     numberOfLines={1}
                     className="font-mono"
-                    style={{ fontSize: 11.5, color: colors.muted, marginTop: 4 }}
+                    style={{
+                        fontSize: 11.5,
+                        color: colors.muted,
+                        marginTop: 4,
+                    }}
                 >
                     {detail}
                 </Text>
@@ -215,7 +232,11 @@ const KeyPickRow = memo(function KeyPickRow({
                 }}
             >
                 {checked ? (
-                    <Check size={14} color={colors.navigation} strokeWidth={3} />
+                    <Check
+                        size={14}
+                        color={colors.navigation}
+                        strokeWidth={3}
+                    />
                 ) : null}
             </View>
         </Pressable>
@@ -223,7 +244,13 @@ const KeyPickRow = memo(function KeyPickRow({
 });
 
 /** The search box above long key lists. */
-function KeySearch({ query, onQuery }: { query: string; onQuery: (query: string) => void }) {
+function KeySearch({
+    query,
+    onQuery,
+}: {
+    query: string;
+    onQuery: (query: string) => void;
+}) {
     return (
         <View
             style={{
@@ -344,8 +371,19 @@ export function KeyPickerList({
                         style={labelStyle}
                         right={
                             keys.length ? (
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-                                    <Text style={{ fontSize: 11, color: colors.muted }}>
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 16,
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            fontSize: 11,
+                                            color: colors.muted,
+                                        }}
+                                    >
                                         {`${selected.length} of ${keys.length}`}
                                     </Text>
                                     {keys.length > 1 ? (
@@ -354,13 +392,31 @@ export function KeyPickerList({
                                             accessibilityRole="button"
                                             disabled={disabled || !shown.length}
                                             onPress={() =>
-                                                onChange((current) => toggleShownKeys(current, shown))
+                                                onChange((current) =>
+                                                    toggleShownKeys(
+                                                        current,
+                                                        shown,
+                                                    ),
+                                                )
                                             }
                                             hitSlop={8}
-                                            style={{ opacity: disabled || !shown.length ? 0.5 : 1 }}
+                                            style={{
+                                                opacity:
+                                                    disabled || !shown.length
+                                                        ? 0.5
+                                                        : 1,
+                                            }}
                                         >
-                                            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
-                                                {all ? "Clear all" : "Select all"}
+                                            <Text
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: colors.primary,
+                                                    fontWeight: "600",
+                                                }}
+                                            >
+                                                {all
+                                                    ? "Clear all"
+                                                    : "Select all"}
                                             </Text>
                                         </Pressable>
                                     ) : null}
@@ -375,7 +431,13 @@ export function KeyPickerList({
             }
             ListEmptyComponent={
                 keys.length ? (
-                    <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 14 }}>
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            paddingVertical: 14,
+                        }}
+                    >
                         No keys match.
                     </Text>
                 ) : null
@@ -440,7 +502,13 @@ export function InfoCard({
                 {badge}
             </View>
             {note ? (
-                <Text style={{ fontSize: 11.5, color: colors.muted, marginTop: 4 }}>
+                <Text
+                    style={{
+                        fontSize: 11.5,
+                        color: colors.muted,
+                        marginTop: 4,
+                    }}
+                >
                     {note}
                 </Text>
             ) : null}
@@ -500,7 +568,9 @@ export function RadioRow({
                     />
                 ) : null}
             </View>
-            <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 19 }}>{label}</Text>
+            <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 19 }}>
+                {label}
+            </Text>
         </Pressable>
     );
 }

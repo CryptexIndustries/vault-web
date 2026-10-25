@@ -117,19 +117,14 @@ export function SecretReveal({
                     {revealed ? value : "••••••••••••••••"}
                 </UnlockedText>
                 {helper ? (
-                    <UnlockedText
-                        style={{ color: colors.muted, fontSize: 12 }}
-                    >
+                    <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>
                         {helper}
                     </UnlockedText>
                 ) : null}
-                {requireAck &&
-                (revealed || alwaysShowAcknowledgement) ? (
+                {requireAck && (revealed || alwaysShowAcknowledgement) ? (
                     <UnlockedCheckbox
                         checked={acknowledged}
-                        onCheckedChange={(next) =>
-                            onAcknowledgedChange?.(next)
-                        }
+                        onCheckedChange={(next) => onAcknowledgedChange?.(next)}
                         label={ackLabel}
                         labelStyle={{ fontSize: 13, lineHeight: 20 }}
                     />
@@ -144,12 +139,8 @@ export function SecretReveal({
                 "gap-2 rounded-md border border-border bg-secondary/40 p-3"
             }
         >
-            <View
-                className={
-                    "flex-row items-center justify-between gap-2"
-                }
-            >
-                <Text className="flex-1 text-sm font-medium text-foreground">
+            <View className={"flex-row items-center justify-between gap-2"}>
+                <Text className="flex-1 font-medium text-sm text-foreground">
                     {label}
                 </Text>
                 <View className="flex-row gap-1">

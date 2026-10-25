@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+} from "react";
 import {
     ActivityIndicator,
     BackHandler,
@@ -30,9 +37,7 @@ import {
     Vault as VaultIcon,
     type LucideIcon,
 } from "lucide-react-native";
-import {
-    WebRTCStatus,
-} from "@cryptex-industries/vault-core/synchronization-utils";
+import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import {
     SafeAreaView,
     useSafeAreaInsets,
@@ -73,7 +78,10 @@ import {
 import type { TextProps } from "@/components/ui/text";
 import { SSH_KEYS_FILTER } from "@/utils/ssh-keys";
 import { Checkbox, type CheckboxProps } from "@/components/ui/checkbox";
-import { useOptionalSyncRuntime, useSyncRuntime } from "@/components/sync-controller-provider";
+import {
+    useOptionalSyncRuntime,
+    useSyncRuntime,
+} from "@/components/sync-controller-provider";
 import {
     getOnlineServicesApiBaseUrl,
     isCloudServicesEnabled,
@@ -111,7 +119,9 @@ export function UnlockedButton({
             loading={labelled ? false : loading}
             disabled={disabled || labelled}
             accessibilityState={
-                labelled ? { disabled: true, busy: true } : props.accessibilityState
+                labelled
+                    ? { disabled: true, busy: true }
+                    : props.accessibilityState
             }
             className={cn(
                 !size && "h-auto min-h-[54px] px-[18px] py-3",
@@ -139,7 +149,9 @@ export function UnlockedButton({
                     </UnlockedText>
                 </>
             ) : typeof children === "string" || typeof children === "number" ? (
-                <UnlockedText className={labelClassName}>{children}</UnlockedText>
+                <UnlockedText className={labelClassName}>
+                    {children}
+                </UnlockedText>
             ) : (
                 children
             )}
@@ -271,7 +283,18 @@ export function UnlockedMenuRow({
                     </UnlockedText>
                 ) : null}
             </View>
-            {value ? <UnlockedText style={{ fontSize: 12, color: colors.muted, maxWidth: "38%", textAlign: "right" }}>{value}</UnlockedText> : null}
+            {value ? (
+                <UnlockedText
+                    style={{
+                        fontSize: 12,
+                        color: colors.muted,
+                        maxWidth: "38%",
+                        textAlign: "right",
+                    }}
+                >
+                    {value}
+                </UnlockedText>
+            ) : null}
             <ChevronRight size={17} color={colors.muted} />
         </Pressable>
     );
@@ -379,14 +402,21 @@ export function VaultLockScreen({
                         : "Saving failed. Your vault is still unlocked in memory."}
                 </UnlockedText>
                 {forceLockError ? (
-                    <UnlockedText accessibilityRole="alert" style={{ color: colors.destructive }}>
+                    <UnlockedText
+                        accessibilityRole="alert"
+                        style={{ color: colors.destructive }}
+                    >
                         {forceLockError}
                     </UnlockedText>
                 ) : null}
                 {state === "failed" ? (
                     <View style={{ width: "100%", maxWidth: 320, gap: 12 }}>
-                        <UnlockedText style={{ color: colors.muted, textAlign: "center" }}>
-                            You can retry the save, keep editing, or lock without saving. Unsaved changes may be lost if you lock anyway.
+                        <UnlockedText
+                            style={{ color: colors.muted, textAlign: "center" }}
+                        >
+                            You can retry the save, keep editing, or lock
+                            without saving. Unsaved changes may be lost if you
+                            lock anyway.
                         </UnlockedText>
                         <UnlockedButton onPress={() => void lock()}>
                             Retry saving and lock
@@ -400,23 +430,39 @@ export function VaultLockScreen({
                         >
                             Keep editing
                         </UnlockedButton>
-                        <UnlockedButton variant="destructive" onPress={() => setConfirmDiscardOpen(true)}>
+                        <UnlockedButton
+                            variant="destructive"
+                            onPress={() => setConfirmDiscardOpen(true)}
+                        >
                             Lock anyway
                         </UnlockedButton>
                     </View>
                 ) : null}
             </View>
-            <Dialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen} placement="bottom">
+            <Dialog
+                open={confirmDiscardOpen}
+                onOpenChange={setConfirmDiscardOpen}
+                placement="bottom"
+            >
                 <DialogHeader>
-                    <UnlockedDialogTitle>Lock without saving?</UnlockedDialogTitle>
+                    <UnlockedDialogTitle>
+                        Lock without saving?
+                    </UnlockedDialogTitle>
                     <DialogDescription>
-                        Any unsaved changes will be lost. Cryptex Vault will end this session without saving again.
+                        Any unsaved changes will be lost. Cryptex Vault will end
+                        this session without saving again.
                     </DialogDescription>
                 </DialogHeader>
-                <UnlockedButton variant="secondary" onPress={() => setConfirmDiscardOpen(false)}>
+                <UnlockedButton
+                    variant="secondary"
+                    onPress={() => setConfirmDiscardOpen(false)}
+                >
                     Cancel
                 </UnlockedButton>
-                <UnlockedButton variant="destructive" onPress={() => void confirmLockAnyway()}>
+                <UnlockedButton
+                    variant="destructive"
+                    onPress={() => void confirmLockAnyway()}
+                >
                     Lock anyway
                 </UnlockedButton>
             </Dialog>
@@ -634,7 +680,11 @@ function UnlockedBrandHeader() {
                 <DialogHeader>
                     <UnlockedDialogTitle>Online Services</UnlockedDialogTitle>
                     <UnlockedText
-                        style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}
+                        style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            lineHeight: 19,
+                        }}
                     >
                         Your local vault remains available independently of
                         Online Services.
@@ -649,7 +699,13 @@ function UnlockedBrandHeader() {
                               ? "Sign in required"
                               : "Not signed in"
                     }
-                    tone={authenticated ? "positive" : bound ? "attention" : "neutral"}
+                    tone={
+                        authenticated
+                            ? "positive"
+                            : bound
+                              ? "attention"
+                              : "neutral"
+                    }
                 />
                 <StatusLine
                     label="Service availability"
@@ -693,88 +749,107 @@ function UnlockedBrandHeader() {
                     showsVerticalScrollIndicator={false}
                     nestedScrollEnabled
                 >
-                <StatusLine
-                    label="Connected now"
-                    value={`${connectedDeviceCount} of ${devices.length} devices`}
-                    tone={connectedDeviceCount ? "positive" : "neutral"}
-                />
-                {devices.map((device) => {
-                    const connected = connectedIds.includes(device.ID);
-                    const result = syncQueue.results[device.ID];
-                    return (
-                        <View
-                            key={device.ID}
-                            style={{
-                                minHeight: 64,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 10,
-                                borderBottomWidth: 1,
-                                borderBottomColor: colors.border,
-                            }}
-                        >
+                    <StatusLine
+                        label="Connected now"
+                        value={`${connectedDeviceCount} of ${devices.length} devices`}
+                        tone={connectedDeviceCount ? "positive" : "neutral"}
+                    />
+                    {devices.map((device) => {
+                        const connected = connectedIds.includes(device.ID);
+                        const result = syncQueue.results[device.ID];
+                        return (
                             <View
+                                key={device.ID}
                                 style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 8,
+                                    minHeight: 64,
+                                    flexDirection: "row",
                                     alignItems: "center",
-                                    justifyContent: "center",
-                                    backgroundColor: connected
-                                        ? `${colors.success}18`
-                                        : `${colors.muted}12`,
+                                    gap: 10,
+                                    borderBottomWidth: 1,
+                                    borderBottomColor: colors.border,
                                 }}
                             >
-                                <Smartphone
-                                    size={18}
-                                    color={connected ? colors.success : colors.muted}
-                                    strokeWidth={1.7}
-                                />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <UnlockedText style={{ fontSize: 14 }}>
-                                    {device.Name || "Untitled device"}
-                                </UnlockedText>
-                                <UnlockedText
+                                <View
                                     style={{
-                                        color:
-                                            result === "Failed"
-                                                ? colors.primary
-                                                : connected
-                                                  ? colors.success
-                                                  : colors.muted,
-                                        fontSize: 12,
-                                        marginTop: 5,
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 8,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor: connected
+                                            ? `${colors.success}18`
+                                            : `${colors.muted}12`,
                                     }}
                                 >
-                                    {result ??
-                                        (connected
-                                            ? device.LastSync
-                                                ? `Connected, synced ${new Date(device.LastSync).toLocaleString()}`
-                                                : "Connected, never synced"
-                                            : "Disconnected")}
-                                </UnlockedText>
+                                    <Smartphone
+                                        size={18}
+                                        color={
+                                            connected
+                                                ? colors.success
+                                                : colors.muted
+                                        }
+                                        strokeWidth={1.7}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <UnlockedText style={{ fontSize: 14 }}>
+                                        {device.Name || "Untitled device"}
+                                    </UnlockedText>
+                                    <UnlockedText
+                                        style={{
+                                            color:
+                                                result === "Failed"
+                                                    ? colors.primary
+                                                    : connected
+                                                      ? colors.success
+                                                      : colors.muted,
+                                            fontSize: 12,
+                                            marginTop: 5,
+                                        }}
+                                    >
+                                        {result ??
+                                            (connected
+                                                ? device.LastSync
+                                                    ? `Connected, synced ${new Date(device.LastSync).toLocaleString()}`
+                                                    : "Connected, never synced"
+                                                : "Disconnected")}
+                                    </UnlockedText>
+                                </View>
+                                <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${connected ? "Sync" : "Connect"} ${device.Name || "device"}`}
+                                    disabled={syncQueue.active}
+                                    onPress={() =>
+                                        connected
+                                            ? void runSyncQueue([device.ID])
+                                            : void controller.connectDevice(
+                                                  device.ID,
+                                              )
+                                    }
+                                    style={{
+                                        width: 48,
+                                        height: 48,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    {connected ? (
+                                        <RotateCw
+                                            size={19}
+                                            color={
+                                                syncQueue.results[device.ID] ===
+                                                "Syncing"
+                                                    ? colors.primary
+                                                    : colors.foreground
+                                            }
+                                        />
+                                    ) : (
+                                        <Plus size={20} color={colors.muted} />
+                                    )}
+                                </Pressable>
                             </View>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`${connected ? "Sync" : "Connect"} ${device.Name || "device"}`}
-                                disabled={syncQueue.active}
-                                onPress={() =>
-                                    connected
-                                        ? void runSyncQueue([device.ID])
-                                        : void controller.connectDevice(device.ID)
-                                }
-                                style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
-                            >
-                                {connected ? (
-                                    <RotateCw size={19} color={syncQueue.results[device.ID] === "Syncing" ? colors.primary : colors.foreground} />
-                                ) : (
-                                    <Plus size={20} color={colors.muted} />
-                                )}
-                            </Pressable>
-                        </View>
-                    );
-                })}
+                        );
+                    })}
                 </ScrollView>
                 <UnlockedButton
                     variant="ghost"
@@ -787,7 +862,11 @@ function UnlockedBrandHeader() {
                 </UnlockedButton>
                 <UnlockedText
                     accessibilityRole="alert"
-                    style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                    }}
                 >
                     {syncQueue.active
                         ? `Syncing ${Math.min(syncQueue.done + 1, syncQueue.total)} of ${syncQueue.total}`
@@ -796,7 +875,11 @@ function UnlockedBrandHeader() {
                           : "Sync devices one at a time"}
                 </UnlockedText>
                 <UnlockedText
-                    style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                    }}
                 >
                     {devices.length - connectedDeviceCount} disconnected devices
                     excluded from Sync all.
@@ -889,9 +972,7 @@ function StatusLine({
                     backgroundColor: `${tint}14`,
                 }}
             >
-                {tone === "positive" ? (
-                    <Check size={14} color={tint} />
-                ) : null}
+                {tone === "positive" ? <Check size={14} color={tint} /> : null}
                 <UnlockedText style={{ color: tint, fontSize: 12 }}>
                     {value}
                 </UnlockedText>
@@ -1014,10 +1095,13 @@ export function UnlockedTaskHeader({
     useFocusEffect(
         useCallback(() => {
             if (!onBack) return;
-            const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-                onBack();
-                return true;
-            });
+            const subscription = BackHandler.addEventListener(
+                "hardwareBackPress",
+                () => {
+                    onBack();
+                    return true;
+                },
+            );
             return () => subscription.remove();
         }, [onBack]),
     );
@@ -1082,31 +1166,35 @@ export function UnlockedTaskScreen({
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
-                {scroll ? <ScrollView
-                    ref={scrollRef}
-                    innerViewRef={contentRef}
-                    onLayout={(event) =>
-                        setViewportHeight(event.nativeEvent.layout.height)
-                    }
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{
-                        flexGrow: 1,
-                        paddingHorizontal: 20,
-                        paddingTop: 24,
-                        paddingBottom: footer ? 18 : 30,
-                    }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                    showsVerticalScrollIndicator={false}
-                >
-                    <KeyboardScrollProvider
-                        scrollRef={scrollRef}
-                        contentRef={contentRef}
-                        viewportHeight={viewportHeight}
+                {scroll ? (
+                    <ScrollView
+                        ref={scrollRef}
+                        innerViewRef={contentRef}
+                        onLayout={(event) =>
+                            setViewportHeight(event.nativeEvent.layout.height)
+                        }
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{
+                            flexGrow: 1,
+                            paddingHorizontal: 20,
+                            paddingTop: 24,
+                            paddingBottom: footer ? 18 : 30,
+                        }}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        showsVerticalScrollIndicator={false}
                     >
-                        {children}
-                    </KeyboardScrollProvider>
-                </ScrollView> : children}
+                        <KeyboardScrollProvider
+                            scrollRef={scrollRef}
+                            contentRef={contentRef}
+                            viewportHeight={viewportHeight}
+                        >
+                            {children}
+                        </KeyboardScrollProvider>
+                    </ScrollView>
+                ) : (
+                    children
+                )}
                 {footer ? (
                     <View
                         style={{

@@ -45,9 +45,15 @@ describe("Android autofill matching", () => {
             displayName: "example.test",
             warningType: null,
         } as const;
-        expect(requiresAutofillReview(website, "accessibility-get", true)).toBe(true);
-        expect(requiresAutofillReview(website, "autofill-get", true)).toBe(false);
-        expect(requiresAutofillReview(website, "autofill-get", false)).toBe(true);
+        expect(requiresAutofillReview(website, "accessibility-get", true)).toBe(
+            true,
+        );
+        expect(requiresAutofillReview(website, "autofill-get", true)).toBe(
+            false,
+        );
+        expect(requiresAutofillReview(website, "autofill-get", false)).toBe(
+            true,
+        );
     });
 
     it("does not match a saved HTTPS login when the browser hides the scheme", () => {
@@ -61,10 +67,19 @@ describe("Android autofill matching", () => {
         expect(target.pageUrl).toBe("https://example.test");
         expect(target.warningType).toBe("unverified-web-scheme");
         expect(target.appUri).toBeNull();
-        expect(matchingAutofillCredentials([credential("secure", "https://example.test")], target)).toEqual([]);
-        expect(autofillAssociationWarning(target)).toContain("Browser connection type is unknown");
+        expect(
+            matchingAutofillCredentials(
+                [credential("secure", "https://example.test")],
+                target,
+            ),
+        ).toEqual([]);
+        expect(autofillAssociationWarning(target)).toContain(
+            "Browser connection type is unknown",
+        );
         expect(canAssociateAutofillTarget(target)).toBe(false);
-        expect(requiresAutofillReview(target, "accessibility-get", false)).toBe(true);
+        expect(requiresAutofillReview(target, "accessibility-get", false)).toBe(
+            true,
+        );
     });
 
     it("requires review when Android cannot identify the receiving field's website", () => {
@@ -79,7 +94,9 @@ describe("Android autofill matching", () => {
         const item = credential("login", "https://example.test");
 
         expect(matchingAutofillCredentials([item], target)).toEqual([item]);
-        expect(autofillAssociationWarning(target)).toContain("could not confirm");
+        expect(autofillAssociationWarning(target)).toContain(
+            "could not confirm",
+        );
         expect(requiresAutofillReview(target, "autofill-get", true)).toBe(true);
         expect(canAssociateAutofillTarget(target)).toBe(false);
     });
@@ -281,10 +298,7 @@ describe("Android autofill matching", () => {
         ];
 
         expect(
-            appendAutofillAssociation(
-                item,
-                "https://accounts.example.test",
-            ),
+            appendAutofillAssociation(item, "https://accounts.example.test"),
         ).toEqual([
             ...item.AdditionalURLs,
             {

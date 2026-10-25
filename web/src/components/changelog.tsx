@@ -41,6 +41,32 @@ const CHANGE_LABELS: Record<
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.8.0",
+        date: "2026-10-25",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "Set up a new browser by linking it to a device you already use. Open the Use invitation tab instead of creating a vault, receive your vault, then choose a master password for this browser.",
+            },
+            {
+                type: "changed",
+                description:
+                    'If the receiving vault has its own Online Services account, you now choose whether to keep or delete it before linking. Linking into such a vault used to fail with "Unauthorized".',
+            },
+            {
+                type: "changed",
+                description:
+                    "The Chromium Extension stays responsive with large vaults, and unlocking takes about half as long.",
+            },
+            {
+                type: "fix",
+                description:
+                    "The Chromium Extension's popup no longer fails after the extension renews its internal key, and offers Try again when it can't reach its background service.",
+            },
+        ],
+    },
+    {
         version: "v1.7.0",
         date: "2026-10-21",
         changes: [

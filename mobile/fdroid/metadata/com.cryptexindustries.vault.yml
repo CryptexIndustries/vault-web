@@ -17,8 +17,8 @@ Repo: https://github.com/CryptexIndustries/vault-web.git
 Binaries: https://github.com/CryptexIndustries/vault-web/releases/download/mobile-v%v/cryptex-vault-fdroid-%c.apk
 
 Builds:
-  - versionName: 0.3.0
-    versionCode: 41
+  - versionName: 0.4.0
+    versionCode: 51
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
@@ -62,8 +62,8 @@ Builds:
         build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
 
-  - versionName: 0.3.0
-    versionCode: 42
+  - versionName: 0.4.0
+    versionCode: 52
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
@@ -107,8 +107,8 @@ Builds:
         build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
 
-  - versionName: 0.3.0
-    versionCode: 43
+  - versionName: 0.4.0
+    versionCode: 53
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
@@ -152,8 +152,8 @@ Builds:
         build $$esbuild$$ $$LightningCSS$$ $$skia$$ $$GN$$
     ndk: 27.1.12297006
 
-  - versionName: 0.3.0
-    versionCode: 44
+  - versionName: 0.4.0
+    versionCode: 54
     commit: PUBLISH_RELEASE_COMMIT
     sudo:
       - apt-get update
@@ -235,5 +235,5 @@ VercodeOperation:
   - 10 * %c + 3
   - 10 * %c + 4
 UpdateCheckData: mobile/app.json|"versionCode"\s*:\s*(\d+)|.|"version"\s*:\s*"([^"]+)"
-CurrentVersion: 0.3.0
-CurrentVersionCode: 44
+CurrentVersion: 0.4.0
+CurrentVersionCode: 54

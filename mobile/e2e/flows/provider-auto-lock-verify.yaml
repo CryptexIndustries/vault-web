@@ -11,17 +11,17 @@ name: Credential Manager requires unlock after background timeout
 - inputText: CorrectHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 # AuthenticationAction refreshes entries for this original pending request.
 # Returning a password must not require restarting the fixture or requesting again.
 - assertVisible: cm-native@example.test
 - tapOn: cm-native@example.test
 - runFlow:
-    when:
-      visible: Choose a login
-    commands:
-      - tapOn:
-          text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
+      when:
+          visible: Choose a login
+      commands:
+          - tapOn:
+                text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
 - assertVisible: Review destination
 - tapOn: Fill once
 - assertVisible: "Credential Manager get complete: cm-native@example.test"

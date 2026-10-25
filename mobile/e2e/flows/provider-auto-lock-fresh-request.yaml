@@ -8,7 +8,7 @@ name: Credential Manager works after fresh unlock
 - tapOn: cm-native@example.test
 - assertVisible: Choose a login
 - tapOn:
-    text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
+      text: com.cryptex.autofillfixture, cm-native@example.test, matches destination
 - assertVisible: Review destination
 - tapOn: Fill once
 # The fixture only reports completion when both the username and password match.

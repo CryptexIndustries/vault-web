@@ -135,7 +135,9 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
                             controller.getWebRTCStatus(device.ID),
                         lastSync:
                             previous[device.ID]?.lastSync ??
-                            (device.LastSync ? new Date(device.LastSync) : null),
+                            (device.LastSync
+                                ? new Date(device.LastSync)
+                                : null),
                         ...partial,
                     },
                 }));
@@ -297,7 +299,8 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
         };
         controller.init();
         scheduleSessionPause();
-        const timeoutSubscription = subscribeVaultTimeoutChanges(scheduleSessionPause);
+        const timeoutSubscription =
+            subscribeVaultTimeoutChanges(scheduleSessionPause);
         const networkSubscription = NetInfo.addEventListener((state) => {
             // Internet reachability probes need not succeed for LAN-only servers.
             reachable = state.isConnected === true;
@@ -377,18 +380,22 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
         return new Promise<boolean>((resolve) => {
             let settled = false;
             let timeout: ReturnType<typeof setTimeout> | undefined;
-            const deviceListeners = listeners.current.get(deviceId) ?? new Set();
+            const deviceListeners =
+                listeners.current.get(deviceId) ?? new Set();
             const finish = async (success: boolean) => {
                 if (settled) return;
                 settled = true;
                 if (timeout) clearTimeout(timeout);
                 deviceListeners.delete(listener);
-                if (deviceListeners.size === 0) listeners.current.delete(deviceId);
+                if (deviceListeners.size === 0)
+                    listeners.current.delete(deviceId);
                 cancelActiveQueueItem.current = null;
                 if (!success) {
                     // A failed or timed-out item is torn down before the queue
                     // advances, so two synchronization sessions cannot overlap.
-                    await controller.disconnectDevice(device).catch(() => false);
+                    await controller
+                        .disconnectDevice(device)
+                        .catch(() => false);
                 }
                 resolve(success);
             };
@@ -430,7 +437,8 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
             deviceIds.length === 0 ||
             AppState.currentState !== "active" ||
             isAutoLockDue()
-        ) return;
+        )
+            return;
         queueActive.current = true;
         queueStopRequested.current = false;
         setSyncQueue((current) => {
@@ -452,7 +460,8 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
                     queueStopRequested.current ||
                     AppState.currentState !== "active" ||
                     isAutoLockDue()
-                ) break;
+                )
+                    break;
                 if (
                     controller.getWebRTCStatus(deviceId) !==
                     WebRTCStatus.Connected
@@ -515,16 +524,16 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
     };
 
     const value: SyncRuntime = {
-            controller,
-            connectionStatuses,
-            connectedDeviceCount: devices.filter(
-                (device) =>
-                    connectionStatuses[device.ID]?.webRTCStatus ===
-                    WebRTCStatus.Connected,
-            ).length,
-            syncQueue,
-            runSyncQueue,
-            stopSyncQueue,
+        controller,
+        connectionStatuses,
+        connectedDeviceCount: devices.filter(
+            (device) =>
+                connectionStatuses[device.ID]?.webRTCStatus ===
+                WebRTCStatus.Connected,
+        ).length,
+        syncQueue,
+        runSyncQueue,
+        stopSyncQueue,
     };
 
     return (
@@ -536,8 +545,7 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
 
 export function useSyncRuntime(): SyncRuntime {
     const runtime = useContext(SyncControllerContext);
-    if (!runtime)
-        throw new Error("Sync runtime is outside unlocked shell");
+    if (!runtime) throw new Error("Sync runtime is outside unlocked shell");
     return runtime;
 }
 

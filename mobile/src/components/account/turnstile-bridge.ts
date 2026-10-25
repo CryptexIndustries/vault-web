@@ -44,9 +44,7 @@ const turnstileBridgeMessageSchema = z.discriminatedUnion("type", [
     }),
 ]);
 
-type TurnstileBridgeMessage = z.infer<
-    typeof turnstileBridgeMessageSchema
->;
+type TurnstileBridgeMessage = z.infer<typeof turnstileBridgeMessageSchema>;
 
 export function isTurnstileConfigured(): boolean {
     return (env.TURNSTILE_SITE_KEY?.trim() ?? "").length > 0;

@@ -47,9 +47,10 @@ export default function VaultSearchScreen() {
     const [focused, setFocused] = useState(false);
     const [hasUserInput, setHasUserInput] = useState(false);
     const [dismissed, setDismissed] = useState(false);
-    const suggestions = focused && hasUserInput && !dismissed
-        ? searchFieldSuggestions(query)
-        : [];
+    const suggestions =
+        focused && hasUserInput && !dismissed
+            ? searchFieldSuggestions(query)
+            : [];
     const changeQuery = (value: string) => {
         setQuery(value);
         setHasUserInput(true);
@@ -75,51 +76,94 @@ export default function VaultSearchScreen() {
         [active, query],
     );
 
-    const suggestionsPopup = suggestions.length > 0 ? (
-        <View
-            accessibilityLabel="Search fields"
-            style={{
-                position: "absolute",
-                top: 84,
-                left: 20,
-                right: 20,
-                zIndex: 20,
-                elevation: 8,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                backgroundColor: colors.secondary,
-                shadowColor: "#000000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.24,
-                shadowRadius: 8,
-            }}
-        >
-            <View style={{ borderRadius: 12, overflow: "hidden", paddingVertical: 4 }}>
-                {suggestions.map((field) => {
-                    const FieldIcon = field === "name" ? Type : field === "tag" ? Tag : AlignLeft;
-                    const label = field === "name" ? "Name" : field === "tag" ? "Tag" : "Note";
-                    return (
-                        <Pressable
-                            key={field}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Search by ${field}`}
-                            accessibilityHint={`Insert ${field}: into the search`}
-                            onPress={() => applyField(field)}
-                            android_ripple={{ color: colors.border }}
-                            style={{ minHeight: 48, paddingHorizontal: 16, justifyContent: "center" }}
-                        >
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                                <FieldIcon size={20} color={colors.muted} strokeWidth={1.7} />
-                                <UnlockedText style={{ flex: 1, fontSize: 14 }}>{label}</UnlockedText>
-                                <UnlockedText style={{ fontSize: 12, fontFamily: "monospace", color: colors.muted }}>{field}:</UnlockedText>
-                            </View>
-                        </Pressable>
-                    );
-                })}
+    const suggestionsPopup =
+        suggestions.length > 0 ? (
+            <View
+                accessibilityLabel="Search fields"
+                style={{
+                    position: "absolute",
+                    top: 84,
+                    left: 20,
+                    right: 20,
+                    zIndex: 20,
+                    elevation: 8,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondary,
+                    shadowColor: "#000000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.24,
+                    shadowRadius: 8,
+                }}
+            >
+                <View
+                    style={{
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        paddingVertical: 4,
+                    }}
+                >
+                    {suggestions.map((field) => {
+                        const FieldIcon =
+                            field === "name"
+                                ? Type
+                                : field === "tag"
+                                  ? Tag
+                                  : AlignLeft;
+                        const label =
+                            field === "name"
+                                ? "Name"
+                                : field === "tag"
+                                  ? "Tag"
+                                  : "Note";
+                        return (
+                            <Pressable
+                                key={field}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Search by ${field}`}
+                                accessibilityHint={`Insert ${field}: into the search`}
+                                onPress={() => applyField(field)}
+                                android_ripple={{ color: colors.border }}
+                                style={{
+                                    minHeight: 48,
+                                    paddingHorizontal: 16,
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 14,
+                                    }}
+                                >
+                                    <FieldIcon
+                                        size={20}
+                                        color={colors.muted}
+                                        strokeWidth={1.7}
+                                    />
+                                    <UnlockedText
+                                        style={{ flex: 1, fontSize: 14 }}
+                                    >
+                                        {label}
+                                    </UnlockedText>
+                                    <UnlockedText
+                                        style={{
+                                            fontSize: 12,
+                                            fontFamily: "monospace",
+                                            color: colors.muted,
+                                        }}
+                                    >
+                                        {field}:
+                                    </UnlockedText>
+                                </View>
+                            </Pressable>
+                        );
+                    })}
+                </View>
             </View>
-        </View>
-    ) : null;
+        ) : null;
 
     const header = (
         <View style={{ position: "relative" }}>
@@ -183,9 +227,14 @@ export default function VaultSearchScreen() {
             </View>
 
             <UnlockedText
-                style={{ color: colors.muted, fontSize: 12, marginVertical: 10 }}
+                style={{
+                    color: colors.muted,
+                    fontSize: 12,
+                    marginVertical: 10,
+                }}
             >
-                {results.length} result{results.length === 1 ? "" : "s"} across your vault
+                {results.length} result{results.length === 1 ? "" : "s"} across
+                your vault
             </UnlockedText>
         </View>
     );
@@ -200,7 +249,13 @@ export default function VaultSearchScreen() {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
-                <View style={{ paddingHorizontal: 20, paddingTop: 24, zIndex: 10 }}>
+                <View
+                    style={{
+                        paddingHorizontal: 20,
+                        paddingTop: 24,
+                        zIndex: 10,
+                    }}
+                >
                     {header}
                 </View>
                 <FlatList
@@ -245,7 +300,8 @@ export default function VaultSearchScreen() {
                                         marginTop: 12,
                                     }}
                                 >
-                                    Try a different name, username, tag, or note.
+                                    Try a different name, username, tag, or
+                                    note.
                                 </UnlockedText>
                             </View>
                         ) : null
@@ -292,9 +348,7 @@ const SearchResult = memo(function SearchResult({
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${item.Name || "Untitled"}, ${secondary}`}
-                onPress={() =>
-                    router.push(`/(app)/(tabs)/vault/${item.ID}`)
-                }
+                onPress={() => router.push(`/(app)/(tabs)/vault/${item.ID}`)}
                 style={{
                     minHeight: 72,
                     minWidth: 0,

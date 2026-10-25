@@ -38,7 +38,11 @@ import {
     useClearUnlockedSnackbar,
     useUnlockedSnackbar,
 } from "@/components/unlocked/unlocked-snackbar";
-import { AgentSectionLabel, InfoCard, RadioRow } from "@/components/agents/agent-rows";
+import {
+    AgentSectionLabel,
+    InfoCard,
+    RadioRow,
+} from "@/components/agents/agent-rows";
 import { agentRuntime } from "@/agent/agent-app";
 import { useAgentRuntimeVersion } from "@/agent/agent-runtime-bridge";
 import { agentService } from "@/agent/agent-service";
@@ -81,7 +85,9 @@ function VerifiedBadge() {
             }}
         >
             <ShieldCheck size={11} color={colors.success} />
-            <Text style={{ fontSize: 11, color: colors.success }}>verified</Text>
+            <Text style={{ fontSize: 11, color: colors.success }}>
+                verified
+            </Text>
         </View>
     );
 }
@@ -155,7 +161,10 @@ function AgentRequestView() {
         else if (seen.current === id) leave();
     }, [request, busy, id]);
 
-    const key = useMemo(() => (request ? agentRuntime.keyFor(request) : null), [request]);
+    const key = useMemo(
+        () => (request ? agentRuntime.keyFor(request) : null),
+        [request],
+    );
 
     const finish = () => {
         const next = agentRuntime.nextRequest();
@@ -230,12 +239,24 @@ function AgentRequestView() {
                 }
             >
                 {waited ? (
-                    <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 21 }}>
-                        This request is no longer waiting. It was answered, withdrawn or
-                        it expired.
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 14,
+                            lineHeight: 21,
+                        }}
+                    >
+                        This request is no longer waiting. It was answered,
+                        withdrawn or it expired.
                     </Text>
                 ) : (
-                    <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            gap: 10,
+                            alignItems: "center",
+                        }}
+                    >
                         <ActivityIndicator color={colors.muted} size="small" />
                         <Text style={{ color: colors.muted, fontSize: 13 }}>
                             Waiting for the request…
@@ -247,9 +268,13 @@ function AgentRequestView() {
     }
 
     const { check } = request;
-    const agentName = sanitizeDisplayText(agentRuntime.agentName(request.agentId));
+    const agentName = sanitizeDisplayText(
+        agentRuntime.agentName(request.agentId),
+    );
     const caller = callerProcess(request.sign.processes);
-    const keyName = key ? sanitizeDisplayText(key.name || "SSH key", 40) : "Unknown";
+    const keyName = key
+        ? sanitizeDisplayText(key.name || "SSH key", 40)
+        : "Unknown";
     const keyLabel = key
         ? `${keyName}, ${sshKeyInfo({ Type: ItemType.SSHKey, SSHKey: key.sshKey })?.label ?? "SSH key"}`
         : "Not granted to this agent";
@@ -260,10 +285,15 @@ function AgentRequestView() {
     const via = forwardedViaLabel(request);
     const waitingCount = agentRuntime.waitingCount();
     const position =
-        agentRuntime.pendingRequests().findIndex((item) => item.id === request.id) + 1;
+        agentRuntime
+            .pendingRequests()
+            .findIndex((item) => item.id === request.id) + 1;
     // Server names come from the machine's known_hosts; only a name the user
     // approved for this host key before counts as known.
-    const hostCheck = checkKnownHost(liveAgent(vault, request.agentId), request);
+    const hostCheck = checkKnownHost(
+        liveAgent(vault, request.agentId),
+        request,
+    );
     const hostWarnings = knownHostWarnings(hostCheck);
     const hidden = requestHasHiddenCharacters(request);
 
@@ -309,14 +339,23 @@ function AgentRequestView() {
                 {waitingCount > 1 && position > 0 ? (
                     <Text
                         testID="agent-request-position"
-                        style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}
+                        style={{
+                            color: colors.muted,
+                            fontSize: 12,
+                            marginBottom: 6,
+                        }}
                     >
                         {`${position} of ${waitingCount}`}
                     </Text>
                 ) : null}
                 <Text
                     accessibilityRole="header"
-                    style={{ fontSize: 22, fontWeight: "500", letterSpacing: -0.5, marginBottom: 14 }}
+                    style={{
+                        fontSize: 22,
+                        fontWeight: "500",
+                        letterSpacing: -0.5,
+                        marginBottom: 14,
+                    }}
                 >
                     {requestTitle(request)}
                 </Text>
@@ -334,7 +373,9 @@ function AgentRequestView() {
                         className="mb-3"
                         testID="agent-hidden-characters"
                         tone="warning"
-                        message={"Contains hidden characters. Text from the machine had invisible characters, shown here as \uFFFD."}
+                        message={
+                            "Contains hidden characters. Text from the machine had invisible characters, shown here as \uFFFD."
+                        }
                     />
                 ) : null}
                 {unknown ? (
@@ -357,13 +398,22 @@ function AgentRequestView() {
                     <>
                         <PromptCard
                             label="Server"
-                            value={hostCheck?.name ?? serverName(check.verifiedHost)}
+                            value={
+                                hostCheck?.name ??
+                                serverName(check.verifiedHost)
+                            }
                             monospace={hidden}
-                            note={hostCheck?.name ? serverNameNote(hostCheck) : undefined}
+                            note={
+                                hostCheck?.name
+                                    ? serverNameNote(hostCheck)
+                                    : undefined
+                            }
                         />
                         <PromptCard
                             label="Host key"
-                            value={shortFingerprint(check.verifiedHost.fingerprint)}
+                            value={shortFingerprint(
+                                check.verifiedHost.fingerprint,
+                            )}
                             badge={<VerifiedBadge />}
                             note="The server proved it holds this key"
                             monospace
@@ -381,7 +431,10 @@ function AgentRequestView() {
                 {signature ? (
                     <PromptCard
                         label="Namespace"
-                        value={sanitizeDisplayText(check.namespace || "none", 32)}
+                        value={sanitizeDisplayText(
+                            check.namespace || "none",
+                            32,
+                        )}
                         monospace
                     />
                 ) : null}
@@ -397,7 +450,14 @@ function AgentRequestView() {
                         monospace={hidden}
                     />
                 ) : null}
-                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, marginBottom: 6 }}>
+                <Text
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                        marginBottom: 6,
+                    }}
+                >
                     {signature
                         ? isGitSignature(request)
                             ? "The phone sees only a hash of the commit. Process and folder are reported by the machine, and the repository isn't verified."
@@ -413,7 +473,12 @@ function AgentRequestView() {
                             <RadioRow
                                 key={item}
                                 testID={`agent-remember-${item}`}
-                                label={rememberLabel(item, request, keyName, agentName)}
+                                label={rememberLabel(
+                                    item,
+                                    request,
+                                    keyName,
+                                    agentName,
+                                )}
                                 selected={choice === item}
                                 onPress={() => setChoice(item)}
                             />
@@ -431,7 +496,14 @@ function AgentRequestView() {
                 >
                     {`Pause ${agentName}`}
                 </Button>
-                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>
+                <Text
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                        textAlign: "center",
+                    }}
+                >
                     Refuses its requests without asking until you resume it.
                 </Text>
             </View>

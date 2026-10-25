@@ -6,7 +6,9 @@ import { Text } from "react-native";
 import { runNativeCryptoTests } from "./native-crypto-suite";
 
 function CryptoTests() {
-    const [status, setStatus] = useState("Native crypto and WebRTC tests running");
+    const [status, setStatus] = useState(
+        "Native crypto and WebRTC tests running",
+    );
     useEffect(() => {
         void runNativeCryptoTests()
             .then((result) => {

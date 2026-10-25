@@ -1,6 +1,6 @@
 import "./vault-core-runtime";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { err, ok } from "neverthrow";
@@ -23,8 +23,6 @@ import {
     type PlaintextEnvelope,
 } from "./types/sw-messaging";
 import {
-    createEncryptedEnvelope,
-    createPlaintextEnvelope,
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
@@ -33,7 +31,11 @@ import PopupUnlock from "./components/popup-unlock";
 import PopupSaveCredential from "./components/popup-save-credential";
 import PopupPasskeyAssertion from "./components/popup-passkey-assertion";
 import VaultView from "./vault-view";
-import { sendEncryptedEnvelopeToSW } from "./utils/sw-envelope-client";
+import {
+    createPopupEnvelope,
+    getServerPublicKey,
+    sendEncryptedEnvelopeToSW,
+} from "./utils/sw-envelope-client";
 
 const WEBSITE_URL = "https://cryptex-vault.com";
 
@@ -80,6 +82,10 @@ const App = () => {
         metadata: null,
     });
     const [bgStateLoaded, setBgStateLoaded] = useState(false);
+    const [bgStateFailed, setBgStateFailed] = useState(false);
+    // Counts lock events, so a state read that started before a lock can't
+    // report the vault as unlocked afterwards.
+    const lockEventCountRef = useRef(0);
     const [serverPublicKey, setServerPublicKey] =
         useState<ServerPublicKey | null>(null);
     const [pendingSave, setPendingSave] = useState<PendingSavePrompt | null>(
@@ -93,31 +99,17 @@ const App = () => {
     const vaultsLoaded = rawVaults != null;
 
     /**
-     * Requests the server's public key for encrypted messaging.
+     * Requests the server's public key for encrypted messaging. Shares the
+     * envelope client's cache, so the popup fetches it once.
      * @returns An error if the public key request fails, otherwise ok.
      */
-    const requestServerPublicKey = useCallback(async () => {
-        const envelope = createPlaintextEnvelope(
-            MessageType.GetPublicKey,
-            null,
-            "popup",
-        );
-
-        const resp: PlaintextEnvelope =
-            await chrome.runtime.sendMessage(envelope);
-
-        if (!resp.payload.ok) {
-            return err(
-                "Failed to get public key: " +
-                    (resp.payload?.error ?? "Unknown error"),
-            );
+    const requestServerPublicKey = useCallback(async (forceRefresh = false) => {
+        const key = await getServerPublicKey(forceRefresh);
+        if (!key) {
+            return err("Failed to get public key");
         }
 
-        setServerPublicKey({
-            keyId: resp.payload.keyId,
-            publicKeyJwk: resp.payload.publicKeyJwk,
-        });
-
+        setServerPublicKey(key);
         return ok();
     }, []);
 
@@ -128,7 +120,7 @@ const App = () => {
     const handleStaleKeyError = useCallback(async () => {
         generalLog.debug("Stale key handler called, refreshing public key");
 
-        const res = await requestServerPublicKey();
+        const res = await requestServerPublicKey(true);
 
         if (res.isErr()) {
             return err("STALE_KEY_REFRESH_FAILED: " + res.error);
@@ -137,86 +129,48 @@ const App = () => {
         return ok();
     }, [requestServerPublicKey]);
 
+    const loadBackgroundState = useCallback(async () => {
+        setBgStateFailed(false);
+        const res = await requestServerPublicKey();
+        if (res.isErr()) {
+            generalLog.error("Failed to get server public key on popup init", {
+                error: res.error,
+            });
+            setBgStateFailed(true);
+            return;
+        }
+
+        const lockEventsBeforeRead = lockEventCountRef.current;
+        const state = await sendEncryptedEnvelopeToSW<BgState>(
+            MessageType.GetState,
+            null,
+        ).catch((error: unknown) => ({
+            ok: false as const,
+            error: error instanceof Error ? error.message : String(error),
+        }));
+        // A STALE_KEY retry refreshes only the shared cache; pick the
+        // new key up from there (no extra message).
+        await requestServerPublicKey();
+        // Without the state the popup can't tell locked from unlocked.
+        if (!state.ok) {
+            generalLog.error("Failed to fetch state on popup init", {
+                error: state.error,
+            });
+            setBgStateFailed(true);
+            return;
+        }
+        if (lockEventCountRef.current === lockEventsBeforeRead) {
+            setBg({
+                unlocked: state.payload.unlocked,
+                metadata: state.payload.metadata,
+            });
+        }
+        setBgStateLoaded(true);
+    }, [requestServerPublicKey]);
+
     useEffect(() => {
-        (async () => {
-            if (!serverPublicKey) {
-                const res = await requestServerPublicKey();
-                if (res.isErr()) {
-                    generalLog.error(
-                        "Failed to get server public key on popup init",
-                        { error: res.error },
-                    );
-                    return err("Failed to get server public key: " + res.error);
-                }
-
-                if (!serverPublicKey) {
-                    return err("Failed to get server public key");
-                }
-            }
-
-            let retried = false;
-            const fetchState = async (): Promise<void> => {
-                const envelope = await createEncryptedEnvelope(
-                    MessageType.GetState,
-                    null,
-                    serverPublicKey.publicKeyJwk,
-                    serverPublicKey.keyId,
-                    "popup",
-                );
-                const res: EncryptedEnvelope | PlaintextEnvelope =
-                    await chrome.runtime.sendMessage(envelope);
-
-                if (isEncryptedEnvelope(res)) {
-                    const decryptedPayload = await decryptResponseEnvelope<{
-                        unlocked: boolean;
-                        metadata: { id?: number; name: string } | null;
-                    }>(res);
-                    if (decryptedPayload?.ok && decryptedPayload.payload) {
-                        setBg({
-                            unlocked: decryptedPayload.payload.unlocked,
-                            metadata: decryptedPayload.payload.metadata,
-                        });
-                    }
-                    setBgStateLoaded(true);
-                    return;
-                }
-
-                if (!res.payload.ok && res.payload.error === "STALE_KEY") {
-                    const retryRes = await handleStaleKeyError();
-                    if (retryRes.isErr()) {
-                        generalLog.error(
-                            "Failed to refresh public key while fetching state",
-                            { error: retryRes.error },
-                        );
-                        setBgStateLoaded(true);
-                        return;
-                    }
-
-                    if (retried) {
-                        generalLog.error(
-                            "Repeated public key refresh failure while fetching state",
-                        );
-                        setBgStateLoaded(true);
-                        return;
-                    }
-
-                    retried = true;
-                    await fetchState();
-                    return;
-                }
-
-                generalLog.warn(
-                    "Unexpected plaintext envelope while fetching state",
-                    {
-                        payload: res.payload,
-                    },
-                );
-                setBgStateLoaded(true);
-            };
-
-            await fetchState();
-        })();
-    }, [serverPublicKey, requestServerPublicKey, handleStaleKeyError]);
+        void loadBackgroundState();
+    }, [loadBackgroundState]);
 
     // The worker can lock without this page asking (idle lock, another
     // popup or tab). A full-page tab stays open, so follow the session key.
@@ -230,6 +184,7 @@ const App = () => {
                 UNLOCKED_VAULT_METADATA_KEY in changes &&
                 !changes[UNLOCKED_VAULT_METADATA_KEY].newValue
             ) {
+                lockEventCountRef.current++;
                 setBg({ unlocked: false, metadata: null });
             }
         };
@@ -342,16 +297,14 @@ const App = () => {
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.Unlock,
             {
                 index: metadata.DBIndex,
                 form: formData,
                 protectionPhrase,
             },
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -422,12 +375,10 @@ const App = () => {
             return err("NO_PUBLIC_KEY_AVAILABLE");
         }
 
-        const envelope = await createEncryptedEnvelope(
+        const envelope = await createPopupEnvelope(
             MessageType.Lock,
             null,
-            serverPublicKey.publicKeyJwk,
-            serverPublicKey.keyId,
-            "popup",
+            serverPublicKey,
         );
 
         const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -459,6 +410,25 @@ const App = () => {
     };
 
     const renderBody = () => {
+        if (bgStateFailed) {
+            return (
+                <div className="flex h-full items-center justify-center p-4">
+                    <div className="flex w-full max-w-sm flex-col items-stretch gap-3 text-center">
+                        <p className="text-sm text-muted-foreground">
+                            Cryptex Vault couldn't reach its background service.
+                        </p>
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void loadBackgroundState()}
+                        >
+                            Try again
+                        </Button>
+                    </div>
+                </div>
+            );
+        }
+
         if (!vaultsLoaded || !bgStateLoaded) {
             return (
                 <div className="flex h-full items-center justify-center p-4">

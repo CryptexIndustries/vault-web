@@ -55,10 +55,7 @@ export function UnlockedConfirmationProvider({
                         </DialogDescription>
                     ) : null}
                 </DialogHeader>
-                <UnlockedButton
-                    variant="secondary"
-                    onPress={cancel}
-                >
+                <UnlockedButton variant="secondary" onPress={cancel}>
                     {confirmation?.cancelLabel}
                 </UnlockedButton>
                 <UnlockedButton

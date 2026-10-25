@@ -92,8 +92,8 @@ export function useDeviceActions() {
 
     const removeLocalDevices = useCallback(
         async (ids: string[]) => {
-            const removed = getUnlockedVault().LinkedDevices.Devices.filter((device) =>
-                ids.includes(device.ID),
+            const removed = getUnlockedVault().LinkedDevices.Devices.filter(
+                (device) => ids.includes(device.ID),
             );
             await removeLocalDeviceRecords(ids);
             for (const device of removed) {

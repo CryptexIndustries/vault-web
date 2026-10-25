@@ -147,7 +147,8 @@ async function deriveExtractableSessionDEK(
     return dek.value;
 }
 
-async function setSessionDEK(
+/** Stores an extractable DEK, e.g. the one an unlock just opened. */
+export async function setSessionDEK(
     vaultDbIndex: number,
     dek: CryptoKey,
 ): Promise<void> {

@@ -106,7 +106,14 @@ export function filterCredentials(
             credential.Name,
             credential.Username,
             credential.Notes,
-            ...(includeURLs ? [credential.URL, ...(credential.AdditionalURLs ?? []).map((rule) => rule.URL)] : []),
+            ...(includeURLs
+                ? [
+                      credential.URL,
+                      ...(credential.AdditionalURLs ?? []).map(
+                          (rule) => rule.URL,
+                      ),
+                  ]
+                : []),
             credential.Passkey?.RPID ?? "",
             credential.Passkey?.UserName ?? "",
             credential.Passkey?.UserDisplayName ?? "",

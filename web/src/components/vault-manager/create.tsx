@@ -46,6 +46,8 @@ import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 
 const CreateVaultTab: React.FC<{
     suggestedName?: string;
+    submitLabel?: string;
+    onUseInvitation?: () => void;
     executeCallback: (
         formData: NewVaultFormSchemaType & EncryptionFormGroupSchemaType,
         additionalKeyProtectionOptions?: VaultCreateAdditionalKeyProtectionOptions,
@@ -58,7 +60,7 @@ const CreateVaultTab: React.FC<{
               pendingUnlock: VaultPendingUnlock<VaultMetadata>;
           }
     >;
-}> = ({ executeCallback, suggestedName }) => {
+}> = ({ executeCallback, suggestedName, submitLabel, onUseInvitation }) => {
     const [additionalKeyProtectionChoice, setAdditionalKeyProtectionChoice] =
         useState<AdditionalKeyProtectionChoice>("none");
     const [additionalKeyProtectionSource, setAdditionalKeyProtectionSource] =
@@ -338,10 +340,22 @@ const CreateVaultTab: React.FC<{
                     ) : (
                         <span className="flex items-center">
                             <Lock className="mr-2 h-4 w-4" />
-                            Create Vault
+                            {submitLabel ?? "Create Vault"}
                         </span>
                     )}
                 </Button>
+                {onUseInvitation ? (
+                    <p className="mt-3 text-center text-sm text-muted-foreground">
+                        Already use Cryptex Vault on another device?{" "}
+                        <button
+                            type="button"
+                            className="font-medium text-foreground underline underline-offset-2"
+                            onClick={onUseInvitation}
+                        >
+                            Use invitation
+                        </button>
+                    </p>
+                ) : null}
             </div>
             <ImportWizard
                 open={isImportWizardOpen}

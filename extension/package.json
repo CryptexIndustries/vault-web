@@ -1,6 +1,6 @@
 {
     "name": "extension",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "private": true,
     "license": "AGPL-3.0-only",
     "packageManager": "pnpm@11.25.0",
@@ -38,6 +38,7 @@
         "react": "19.2.1",
         "react-dom": "19.2.1",
         "react-hook-form": "7.60.0",
+        "react-virtuoso": "4.13.0",
         "@yudiel/react-qr-scanner": "2.6.0",
         "sonner": "2.0.7",
         "superjson": "2.2.2",

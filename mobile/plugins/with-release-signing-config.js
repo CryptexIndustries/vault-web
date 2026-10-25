@@ -1,4 +1,9 @@
-const { withAndroidManifest, withAppBuildGradle, withDangerousMod, withProjectBuildGradle } = require("@expo/config-plugins");
+const {
+    withAndroidManifest,
+    withAppBuildGradle,
+    withDangerousMod,
+    withProjectBuildGradle,
+} = require("@expo/config-plugins");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const toolchain = require("../fdroid/toolchain.json");
@@ -30,7 +35,9 @@ gradle.taskGraph.whenReady { graph ->
             throw new GradleException('Test flags and alternate entry points are forbidden in production artifacts.')
         }
         def appProfile = System.getenv('CRYPTEX_APP_PROFILE') ?: 'production'
-        def appIds = [${Object.values(profiles).map(profile => `'${profile.name}': '${profile.applicationId}'`).join(', ')}]
+        def appIds = [${Object.values(profiles)
+            .map((profile) => `'${profile.name}': '${profile.applicationId}'`)
+            .join(", ")}]
         if (!appIds.containsKey(appProfile) || android.defaultConfig.applicationId != appIds[appProfile]) {
             throw new GradleException('Application ID must match the selected production or preprod profile.')
         }
@@ -44,30 +51,54 @@ gradle.taskGraph.whenReady { graph ->
 }
 `;
 
-const LEGACY_GUARD = GUARD.replace(/        def appProfile = [\s\S]*?        }\n(?=        if \(!providers)/, "        if (android.defaultConfig.applicationId != 'com.cryptex.vault') {\n            throw new GradleException('Production application ID must be com.cryptex.vault.')\n        }\n");
+const LEGACY_GUARD = GUARD.replace(
+    /        def appProfile = [\s\S]*?        }\n(?=        if \(!providers)/,
+    "        if (android.defaultConfig.applicationId != 'com.cryptex.vault') {\n            throw new GradleException('Production application ID must be com.cryptex.vault.')\n        }\n",
+);
 
 function configureReleaseSigning(contents) {
-    if (contents.includes(LEGACY_GUARD.trim())) contents = contents.replace(LEGACY_GUARD.trim(), GUARD.trim());
+    if (contents.includes(LEGACY_GUARD.trim()))
+        contents = contents.replace(LEGACY_GUARD.trim(), GUARD.trim());
     if (contents.includes(START)) {
-        if (!contents.includes(GUARD.trim()) ||
-            !contents.includes("? null : signingConfigs.release")) {
-            throw new Error("with-release-signing-config: generated release policy was modified");
+        if (
+            !contents.includes(GUARD.trim()) ||
+            !contents.includes("? null : signingConfigs.release")
+        ) {
+            throw new Error(
+                "with-release-signing-config: generated release policy was modified",
+            );
         }
         return contents;
     }
     if (!contents.includes("signingConfigs {")) {
-        throw new Error("with-release-signing-config: signingConfigs block not found");
+        throw new Error(
+            "with-release-signing-config: signingConfigs block not found",
+        );
     }
     // Migrate the earlier policy, including its debug-signing fallback.
-    contents = contents.replace(/\n\s*release \{\s*if \(System\.getenv\("CRYPTEX_KEYSTORE"\)\) \{[\s\S]*?\n\s*\}\s*\}/, "");
-    const signing = /(?:\/\/ Caution! In production, you need to generate your own keystore file\.\s*\/\/ see https:\/\/reactnative\.dev\/docs\/signed-apk-android\.\s*)?signingConfig (?:System\.getenv\("CRYPTEX_KEYSTORE"\) \? signingConfigs\.release : )?signingConfigs\.debug/;
-    const release = /release \{\s*((?:\/\/[^\n]*\n\s*)*)signingConfig (?:System\.getenv\("CRYPTEX_KEYSTORE"\) \? signingConfigs\.release : )?signingConfigs\.debug/;
+    contents = contents.replace(
+        /\n\s*release \{\s*if \(System\.getenv\("CRYPTEX_KEYSTORE"\)\) \{[\s\S]*?\n\s*\}\s*\}/,
+        "",
+    );
+    const signing =
+        /(?:\/\/ Caution! In production, you need to generate your own keystore file\.\s*\/\/ see https:\/\/reactnative\.dev\/docs\/signed-apk-android\.\s*)?signingConfig (?:System\.getenv\("CRYPTEX_KEYSTORE"\) \? signingConfigs\.release : )?signingConfigs\.debug/;
+    const release =
+        /release \{\s*((?:\/\/[^\n]*\n\s*)*)signingConfig (?:System\.getenv\("CRYPTEX_KEYSTORE"\) \? signingConfigs\.release : )?signingConfigs\.debug/;
     if (!release.test(contents)) {
-        throw new Error("with-release-signing-config: release signing reference not found");
+        throw new Error(
+            "with-release-signing-config: release signing reference not found",
+        );
     }
-    contents = contents.replace(release, match => match.replace(signing,
-        "signingConfig providers.gradleProperty('cryptexUnsignedRelease').map { it == 'true' }.getOrElse(false) ? null : signingConfigs.release"));
-    return contents.replace("signingConfigs {", `signingConfigs {${CONFIG}`) + GUARD;
+    contents = contents.replace(release, (match) =>
+        match.replace(
+            signing,
+            "signingConfig providers.gradleProperty('cryptexUnsignedRelease').map { it == 'true' }.getOrElse(false) ? null : signingConfigs.release",
+        ),
+    );
+    return (
+        contents.replace("signingConfigs {", `signingConfigs {${CONFIG}`) +
+        GUARD
+    );
 }
 
 function configureToolchain(contents) {
@@ -101,44 +132,70 @@ allprojects {
 `;
     // React's root plugin eagerly evaluates :app via evaluationDependsOn.
     // Register the Android callbacks before either root plugin is applied.
-    const rootPlugin = /^[ \t]*apply plugin: ["'](?:expo-root-project|com\.facebook\.react\.rootproject)["'][ \t]*$/m;
+    const rootPlugin =
+        /^[ \t]*apply plugin: ["'](?:expo-root-project|com\.facebook\.react\.rootproject)["'][ \t]*$/m;
     let beforePlugin = contents.search(rootPlugin);
     if (beforePlugin < 0) {
-        throw new Error("with-release-signing-config: root plugin application not found");
+        throw new Error(
+            "with-release-signing-config: root plugin application not found",
+        );
     }
     if (contents.includes(marker)) {
         if (contents.split(marker).length !== 2 || !contents.includes(policy)) {
-            throw new Error("with-release-signing-config: generated toolchain policy was modified");
+            throw new Error(
+                "with-release-signing-config: generated toolchain policy was modified",
+            );
         }
         if (contents.indexOf(marker) < beforePlugin) return contents;
         // Relocate only our exact earlier appended policy, preserving other edits.
         contents = contents.replace(policy, "");
         beforePlugin = contents.search(rootPlugin);
     }
-    return contents.slice(0, beforePlugin) + policy + "\n" + contents.slice(beforePlugin);
+    return (
+        contents.slice(0, beforePlugin) +
+        policy +
+        "\n" +
+        contents.slice(beforePlugin)
+    );
 }
 
-module.exports = config => {
-    config = withAndroidManifest(config, mod => {
+module.exports = (config) => {
+    config = withAndroidManifest(config, (mod) => {
         const application = mod.modResults.manifest.application[0].$;
         application["android:allowBackup"] = "false";
-        application["android:fullBackupContent"] = "@xml/cryptex_no_backup_rules";
-        application["android:dataExtractionRules"] = "@xml/cryptex_no_data_extraction_rules";
+        application["android:fullBackupContent"] =
+            "@xml/cryptex_no_backup_rules";
+        application["android:dataExtractionRules"] =
+            "@xml/cryptex_no_data_extraction_rules";
         return mod;
     });
-    config = withDangerousMod(config, ["android", async mod => {
-        const directory = path.join(mod.modRequest.platformProjectRoot, "app/src/main/res/xml");
-        await fs.mkdir(directory, { recursive: true });
-        for (const name of ["cryptex_no_backup_rules.xml", "cryptex_no_data_extraction_rules.xml"]) {
-            await fs.copyFile(path.join(__dirname, name), path.join(directory, name));
-        }
-        return mod;
-    }]);
-    config = withAppBuildGradle(config, mod => {
-        mod.modResults.contents = configureReleaseSigning(mod.modResults.contents);
+    config = withDangerousMod(config, [
+        "android",
+        async (mod) => {
+            const directory = path.join(
+                mod.modRequest.platformProjectRoot,
+                "app/src/main/res/xml",
+            );
+            await fs.mkdir(directory, { recursive: true });
+            for (const name of [
+                "cryptex_no_backup_rules.xml",
+                "cryptex_no_data_extraction_rules.xml",
+            ]) {
+                await fs.copyFile(
+                    path.join(__dirname, name),
+                    path.join(directory, name),
+                );
+            }
+            return mod;
+        },
+    ]);
+    config = withAppBuildGradle(config, (mod) => {
+        mod.modResults.contents = configureReleaseSigning(
+            mod.modResults.contents,
+        );
         return mod;
     });
-    return withProjectBuildGradle(config, mod => {
+    return withProjectBuildGradle(config, (mod) => {
         mod.modResults.contents = configureToolchain(mod.modResults.contents);
         return mod;
     });

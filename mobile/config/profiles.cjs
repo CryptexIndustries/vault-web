@@ -20,7 +20,10 @@ const profiles = Object.freeze({
 });
 
 function getProfile(name = "production") {
-    if (!Object.hasOwn(profiles, name)) throw new Error(`Unknown application profile: ${name}. Choose production or preprod.`);
+    if (!Object.hasOwn(profiles, name))
+        throw new Error(
+            `Unknown application profile: ${name}. Choose production or preprod.`,
+        );
     return profiles[name];
 }
 

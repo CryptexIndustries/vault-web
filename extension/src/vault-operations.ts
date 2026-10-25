@@ -11,10 +11,10 @@ import {
     PlaintextEnvelope,
 } from "./types/sw-messaging";
 import {
-    createEncryptedEnvelope,
     decryptResponseEnvelope,
     isEncryptedEnvelope,
 } from "./utils/session-utils";
+import { createPopupEnvelope } from "./utils/sw-envelope-client";
 
 export type ServerPublicKey = {
     keyId: string;
@@ -54,12 +54,10 @@ const getItems = async (
     serverPublicKey: ServerPublicKey,
     items: VaultUtilTypes.SyncItemReference[],
 ): Promise<VaultUtilTypes.SyncDataResponseMessage> => {
-    const envelope = await createEncryptedEnvelope(
+    const envelope = await createPopupEnvelope(
         MessageType.SyncGetItems,
         { items },
-        serverPublicKey.publicKeyJwk,
-        serverPublicKey.keyId,
-        "popup",
+        serverPublicKey,
     );
 
     const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -117,12 +115,10 @@ const getVersionVectors = async (
     shareLinkVersionVectors: VaultUtilTypes.VersionVector[];
     connectedAgentVersionVectors: VaultUtilTypes.VersionVector[];
 }> => {
-    const envelope = await createEncryptedEnvelope(
+    const envelope = await createPopupEnvelope(
         MessageType.SyncGetVersionVectors,
         null,
-        serverPublicKey.publicKeyJwk,
-        serverPublicKey.keyId,
-        "popup",
+        serverPublicKey,
     );
 
     const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -188,12 +184,10 @@ const getVersionVectors = async (
 export const getSynchronizationConfig = async (
     serverPublicKey: ServerPublicKey,
 ): Promise<VaultUtilTypes.LinkedDevices> => {
-    const envelope = await createEncryptedEnvelope(
+    const envelope = await createPopupEnvelope(
         MessageType.SyncGetConfiguration,
         null,
-        serverPublicKey.publicKeyJwk,
-        serverPublicKey.keyId,
-        "popup",
+        serverPublicKey,
     );
 
     const res: EncryptedEnvelope | PlaintextEnvelope =
@@ -236,7 +230,7 @@ const updateItems = async (
     shareLinks: VaultUtilTypes.ShareLink[],
     connectedAgents: VaultUtilTypes.ConnectedAgent[],
 ) => {
-    const envelope = await createEncryptedEnvelope(
+    const envelope = await createPopupEnvelope(
         MessageType.SyncUpdateItems,
         {
             directories,
@@ -244,9 +238,7 @@ const updateItems = async (
             shareLinks,
             connectedAgents: connectedAgentsToTransport(connectedAgents),
         },
-        serverPublicKey.publicKeyJwk,
-        serverPublicKey.keyId,
-        "popup",
+        serverPublicKey,
     );
 
     const res: EncryptedEnvelope | PlaintextEnvelope =

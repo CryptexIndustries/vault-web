@@ -113,7 +113,9 @@ export default function ConnectivityScreen() {
                 icon={SquareTerminal}
                 title="Agent relays"
                 subtitle="How connected agents reach this phone"
-                onPress={() => router.push("/(app)/devices/connectivity/agent-relay")}
+                onPress={() =>
+                    router.push("/(app)/devices/connectivity/agent-relay")
+                }
             />
             {agentService.available ? (
                 <UnlockedMenuRow

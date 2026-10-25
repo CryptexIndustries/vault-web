@@ -6,7 +6,12 @@ import {
 } from "@cryptex-industries/vault-core/synchronization-utils";
 
 jest.mock("@cryptex-industries/vault-core/runtime", () => {
-    const log = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+    const log = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+    };
     return {
         getVaultCoreRuntime: () => ({
             syncLog: log,
@@ -15,8 +20,14 @@ jest.mock("@cryptex-industries/vault-core/runtime", () => {
         }),
     };
 });
-jest.mock("@cryptex-industries/vault-core/vault-utils/post-quantum-kem", () => ({}));
-jest.mock("@cryptex-industries/vault-core/vault-utils/sync-signing", () => ({}));
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/post-quantum-kem",
+    () => ({}),
+);
+jest.mock(
+    "@cryptex-industries/vault-core/vault-utils/sync-signing",
+    () => ({}),
+);
 jest.mock("@cryptex-industries/vault-core/vault-utils/sync-crypto", () => ({}));
 
 it("closes background connections but keeps listeners for resumed status events", () => {
@@ -38,8 +49,14 @@ it("closes background connections but keeps listeners for resumed status events"
         _webRTCStatus: Map<string, WebRTCStatus>;
         _teardownSignalingConnection: (id: string) => void;
         _teardownWebRTCConnection: (id: string) => void;
-        broadcastSignalingServerEvent: (id: string, status: SignalingStatus) => void;
-        broadcastWebRTCConnectionEvent: (id: string, status: WebRTCStatus) => void;
+        broadcastSignalingServerEvent: (
+            id: string,
+            status: SignalingStatus,
+        ) => void;
+        broadcastWebRTCConnectionEvent: (
+            id: string,
+            status: WebRTCStatus,
+        ) => void;
     };
     const oldGeneration = internals._lifecycleGeneration;
     internals._connectAttempts.set("peer", Promise.resolve(true));
@@ -60,7 +77,10 @@ it("closes background connections but keeps listeners for resumed status events"
     expect(internals._signalingServers.size).toBe(0);
     expect(internals._webRTConnections.size).toBe(0);
 
-    internals.broadcastSignalingServerEvent("server", SignalingStatus.Connected);
+    internals.broadcastSignalingServerEvent(
+        "server",
+        SignalingStatus.Connected,
+    );
     internals._webRTCStatus.set("peer", WebRTCStatus.Connected);
     internals.broadcastWebRTCConnectionEvent("peer", WebRTCStatus.Connected);
     expect(signalingStatus).toHaveBeenCalledTimes(1);

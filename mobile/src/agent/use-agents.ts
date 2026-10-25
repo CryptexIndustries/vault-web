@@ -42,7 +42,8 @@ export function useConnectedAgents() {
         [vault.ConnectedAgents],
     );
     const approvedHere = (agent: ConnectedAgent) =>
-        isApprovedHere(agent, identity) && agentRuntime.approvesLocally(agent.ID);
+        isApprovedHere(agent, identity) &&
+        agentRuntime.approvesLocally(agent.ID);
     /** Devices list subtitle when something needs attention, else null. */
     const statusLabel = (agent: ConnectedAgent) =>
         approvedHere(agent) && agentRuntime.relayForgot(agent.ID)

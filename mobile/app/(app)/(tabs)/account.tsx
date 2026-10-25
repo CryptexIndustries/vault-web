@@ -811,6 +811,42 @@ export default function AccountScreen() {
                         >
                             Recover account
                         </Button>
+                        <View
+                            className="gap-3"
+                            style={{
+                                marginTop: 18,
+                                paddingTop: 22,
+                                borderTopWidth: 1,
+                                borderTopColor: colors.border,
+                            }}
+                        >
+                            <Text
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 10,
+                                    letterSpacing: 1.1,
+                                    textTransform: "uppercase",
+                                }}
+                            >
+                                Already set up on another device?
+                            </Text>
+                            <Text
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 13,
+                                    lineHeight: 20,
+                                }}
+                            >
+                                You don't need a second account. Link this vault
+                                to that device instead.
+                            </Text>
+                            <Button
+                                variant="secondary"
+                                onPress={() => router.push("/link-receive")}
+                            >
+                                Use invitation
+                            </Button>
+                        </View>
                     </View>
                 ) : (
                     <View className="gap-4">

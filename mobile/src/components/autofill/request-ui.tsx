@@ -110,16 +110,34 @@ export function AutofillRequestShell({
                     accessibilityRole="button"
                     accessibilityLabel={backLabel}
                     onPress={onBack}
-                    style={{ width: 44, height: compact ? 44 : 48, alignItems: "center", justifyContent: "center" }}
+                    style={{
+                        width: 44,
+                        height: compact ? 44 : 48,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
                 >
                     <ArrowLeft size={18} color={colors.foreground} />
                 </Pressable>
                 <BrandIcon size={compact ? 24 : 30} />
                 <View style={{ flex: 1, flexDirection: "row", gap: 7 }}>
-                    <UnlockedText style={{ fontSize: 12, fontWeight: "700", letterSpacing: 1.7 }}>
+                    <UnlockedText
+                        style={{
+                            fontSize: 12,
+                            fontWeight: "700",
+                            letterSpacing: 1.7,
+                        }}
+                    >
                         CRYPTEX
                     </UnlockedText>
-                    <UnlockedText style={{ color: colors.primary, fontSize: 12, fontWeight: "700", letterSpacing: 1.7 }}>
+                    <UnlockedText
+                        style={{
+                            color: colors.primary,
+                            fontSize: 12,
+                            fontWeight: "700",
+                            letterSpacing: 1.7,
+                        }}
+                    >
                         VAULT
                     </UnlockedText>
                 </View>
@@ -131,7 +149,10 @@ export function AutofillRequestShell({
                 {scroll ? (
                     <ScrollView
                         style={{ flex: 1 }}
-                        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+                        contentContainerStyle={{
+                            paddingHorizontal: 20,
+                            paddingBottom: 24,
+                        }}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                         showsVerticalScrollIndicator={false}
@@ -142,7 +163,15 @@ export function AutofillRequestShell({
                     <View style={{ flex: 1 }}>{content}</View>
                 )}
                 {footer ? (
-                    <View style={{ paddingHorizontal: 20, paddingVertical: compact ? 7 : 11, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.navigation }}>
+                    <View
+                        style={{
+                            paddingHorizontal: 20,
+                            paddingVertical: compact ? 7 : 11,
+                            borderTopWidth: 1,
+                            borderTopColor: colors.border,
+                            backgroundColor: colors.navigation,
+                        }}
+                    >
                         {footer}
                     </View>
                 ) : null}
@@ -187,17 +216,28 @@ export function RequestDestination({
                 <View style={{ flex: 1, minWidth: 0 }}>
                     <UnlockedText
                         numberOfLines={compact ? 1 : 2}
-                        style={{ fontSize: 14, lineHeight: 19, fontWeight: "600" }}
+                        style={{
+                            fontSize: 14,
+                            lineHeight: 19,
+                            fontWeight: "600",
+                        }}
                     >
                         {label}
                     </UnlockedText>
                     {compact ? null : (
-                        <UnlockedText style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>
-                            {detail ?? (kind === "website"
-                                ? "Website reported by Android"
-                                : kind === "app"
-                                  ? "App reported by Android"
-                                  : "Relying party")}
+                        <UnlockedText
+                            style={{
+                                color: colors.muted,
+                                fontSize: 12,
+                                marginTop: 3,
+                            }}
+                        >
+                            {detail ??
+                                (kind === "website"
+                                    ? "Website reported by Android"
+                                    : kind === "app"
+                                      ? "App reported by Android"
+                                      : "Relying party")}
                         </UnlockedText>
                     )}
                 </View>
@@ -216,7 +256,12 @@ export function RequestDestination({
                 >
                     <ShieldAlert size={18} color={colors.primary} />
                     <UnlockedText
-                        style={{ flex: 1, color: colors.foreground, fontSize: 13, lineHeight: 19 }}
+                        style={{
+                            flex: 1,
+                            color: colors.foreground,
+                            fontSize: 13,
+                            lineHeight: 19,
+                        }}
                     >
                         {warning}
                     </UnlockedText>
@@ -237,7 +282,8 @@ function CredentialRow({
 }) {
     const { credential, isMatch } = row;
     const [pressed, setPressed] = React.useState(false);
-    const rawTarget = credential.URL || credential.AdditionalURLs?.[0]?.URL || "Saved login";
+    const rawTarget =
+        credential.URL || credential.AdditionalURLs?.[0]?.URL || "Saved login";
     const target = (() => {
         try {
             const parsed = new URL(rawTarget);
@@ -286,36 +332,69 @@ function CredentialRow({
                     borderColor: colors.border,
                 }}
             >
-                <UnlockedText style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>
+                <UnlockedText
+                    style={{
+                        color: colors.primary,
+                        fontSize: 14,
+                        fontWeight: "700",
+                    }}
+                >
                     {(credential.Name.trim()[0] ?? "?").toUpperCase()}
                 </UnlockedText>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-                    <UnlockedText numberOfLines={1} style={{ flexShrink: 1, fontSize: 14, fontWeight: "600" }}>
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "baseline",
+                        gap: 6,
+                    }}
+                >
+                    <UnlockedText
+                        numberOfLines={1}
+                        style={{
+                            flexShrink: 1,
+                            fontSize: 14,
+                            fontWeight: "600",
+                        }}
+                    >
                         {credential.Name}
                     </UnlockedText>
                     {isMatch ? (
-                        <UnlockedText style={{ color: colors.primary, fontSize: 10 }}>
+                        <UnlockedText
+                            style={{ color: colors.primary, fontSize: 10 }}
+                        >
                             Match
                         </UnlockedText>
                     ) : null}
                 </View>
                 <UnlockedText
                     numberOfLines={1}
-                    style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 17,
+                    }}
                 >
                     {credential.Username || "Password only"}
                 </UnlockedText>
                 <UnlockedText
                     numberOfLines={1}
-                    style={{ color: colors.muted, fontSize: 11, lineHeight: 15 }}
+                    style={{
+                        color: colors.muted,
+                        fontSize: 11,
+                        lineHeight: 15,
+                    }}
                 >
                     {target}
                 </UnlockedText>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-                <UnlockedText style={{ color: colors.primary, fontSize: 12 }}>Fill</UnlockedText>
+            <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
+            >
+                <UnlockedText style={{ color: colors.primary, fontSize: 12 }}>
+                    Fill
+                </UnlockedText>
                 <ArrowUpRight size={12} color={colors.primary} />
             </View>
         </Pressable>
@@ -324,10 +403,16 @@ function CredentialRow({
 
 function useCompactPickerLayout() {
     const { height } = useWindowDimensions();
-    const [keyboardVisible, setKeyboardVisible] = React.useState(() => Keyboard.isVisible());
+    const [keyboardVisible, setKeyboardVisible] = React.useState(() =>
+        Keyboard.isVisible(),
+    );
     React.useEffect(() => {
-        const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
-        const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+        const show = Keyboard.addListener("keyboardDidShow", () =>
+            setKeyboardVisible(true),
+        );
+        const hide = Keyboard.addListener("keyboardDidHide", () =>
+            setKeyboardVisible(false),
+        );
         return () => {
             show.remove();
             hide.remove();
@@ -378,9 +463,7 @@ export function AutofillPicker({
             scroll={false}
             compact={compact}
             footer={
-                <View
-                    style={{ flexDirection: "row", gap: 10 }}
-                >
+                <View style={{ flexDirection: "row", gap: 10 }}>
                     <View style={{ flex: 1 }}>
                         <UnlockedButton
                             variant="ghost"
@@ -397,7 +480,13 @@ export function AutofillPicker({
                             onPress={onAdd}
                         >
                             <Plus size={16} color={colors.primary} />
-                            <UnlockedText style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>
+                            <UnlockedText
+                                style={{
+                                    color: colors.foreground,
+                                    fontSize: 14,
+                                    fontWeight: "600",
+                                }}
+                            >
                                 Add login
                             </UnlockedText>
                         </UnlockedButton>
@@ -410,16 +499,28 @@ export function AutofillPicker({
                     label={target.displayName}
                     kind={target.pageUrl ? "website" : "app"}
                     warning={warning}
-                    detail={target.warningType === "unverified-web-scheme"
-                        ? `Browser address: ${target.displayName} (scheme unavailable)`
-                        : `Reported destination: ${target.pageUrl ?? target.appUri ?? "Reported target"}`}
+                    detail={
+                        target.warningType === "unverified-web-scheme"
+                            ? `Browser address: ${target.displayName} (scheme unavailable)`
+                            : `Reported destination: ${target.pageUrl ?? target.appUri ?? "Reported target"}`
+                    }
                     compact={compact}
                 />
-                <View style={{ marginTop: compact ? 7 : 14, position: "relative" }}>
+                <View
+                    style={{
+                        marginTop: compact ? 7 : 14,
+                        position: "relative",
+                    }}
+                >
                     <Search
                         size={18}
                         color={colors.muted}
-                        style={{ position: "absolute", zIndex: 1, left: 14, top: 18 }}
+                        style={{
+                            position: "absolute",
+                            zIndex: 1,
+                            left: 14,
+                            top: 18,
+                        }}
                     />
                     <UnlockedInput
                         value={query}
@@ -440,17 +541,27 @@ export function AutofillPicker({
                     }}
                 >
                     <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>
-                        {rows.length} {rows.length === 1 ? "login" : "logins"}{" ("}
-                        {visibleMatchCount} {visibleMatchCount === 1 ? "match" : "matches"})
+                        {rows.length} {rows.length === 1 ? "login" : "logins"}
+                        {" ("}
+                        {visibleMatchCount}{" "}
+                        {visibleMatchCount === 1 ? "match" : "matches"})
                     </UnlockedText>
                     {eligibleCount > matchCount && !query.trim() ? (
                         <Pressable
                             accessibilityRole="button"
                             onPress={onToggleExpanded}
-                            style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 8 }}
+                            style={{
+                                minHeight: 44,
+                                justifyContent: "center",
+                                paddingHorizontal: 8,
+                            }}
                         >
-                            <UnlockedText style={{ color: colors.primary, fontSize: 13 }}>
-                                {expanded ? "Show less" : `Show all (${eligibleCount})`}
+                            <UnlockedText
+                                style={{ color: colors.primary, fontSize: 13 }}
+                            >
+                                {expanded
+                                    ? "Show less"
+                                    : `Show all (${eligibleCount})`}
                             </UnlockedText>
                         </Pressable>
                     ) : null}
@@ -458,7 +569,11 @@ export function AutofillPicker({
                 {error ? (
                     <UnlockedText
                         accessibilityRole="alert"
-                        style={{ color: colors.primary, fontSize: 13, marginBottom: 8 }}
+                        style={{
+                            color: colors.primary,
+                            fontSize: 13,
+                            marginBottom: 8,
+                        }}
                     >
                         {error}
                     </UnlockedText>
@@ -467,9 +582,15 @@ export function AutofillPicker({
                     data={rows}
                     keyExtractor={(row) => row.credential.ID}
                     renderItem={({ item }) => (
-                        <CredentialRow row={item} disabled={busy} onPress={onChoose} />
+                        <CredentialRow
+                            row={item}
+                            disabled={busy}
+                            onPress={onChoose}
+                        />
                     )}
-                    ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
+                    ItemSeparatorComponent={() => (
+                        <View style={{ height: 4 }} />
+                    )}
                     initialNumToRender={10}
                     maxToRenderPerBatch={10}
                     windowSize={7}
@@ -484,7 +605,13 @@ export function AutofillPicker({
                                     ? "No logins match your search."
                                     : `No login saved for ${target.displayName}`}
                             </UnlockedText>
-                            <UnlockedText style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+                            <UnlockedText
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 13,
+                                    lineHeight: 19,
+                                }}
+                            >
                                 {showingGlobalResults
                                     ? "Try another search or add a login."
                                     : "Show all logins or add one for this destination."}
@@ -529,11 +656,19 @@ export function FillDecisionScreen({
                         Fill once
                     </UnlockedButton>
                     {canAssociate ? (
-                        <UnlockedButton variant="secondary" disabled={busy} onPress={onAssociate}>
+                        <UnlockedButton
+                            variant="secondary"
+                            disabled={busy}
+                            onPress={onAssociate}
+                        >
                             {`Fill and associate ${kind}`}
                         </UnlockedButton>
                     ) : null}
-                    <UnlockedButton variant="ghost" disabled={busy} onPress={onClose}>
+                    <UnlockedButton
+                        variant="ghost"
+                        disabled={busy}
+                        onPress={onClose}
+                    >
                         Cancel
                     </UnlockedButton>
                 </View>
@@ -546,7 +681,13 @@ export function FillDecisionScreen({
                     warning={warning}
                 />
                 <View style={{ gap: 6 }}>
-                    <UnlockedText style={{ color: colors.muted, fontSize: 10, letterSpacing: 1 }}>
+                    <UnlockedText
+                        style={{
+                            color: colors.muted,
+                            fontSize: 10,
+                            letterSpacing: 1,
+                        }}
+                    >
                         SAVED LOGIN
                     </UnlockedText>
                     <UnlockedText style={{ fontSize: 17, fontWeight: "600" }}>
@@ -596,7 +737,11 @@ export function AssociationConsentScreen({
                     >
                         Save association and fill
                     </UnlockedButton>
-                    <UnlockedButton variant="ghost" disabled={busy} onPress={onBack}>
+                    <UnlockedButton
+                        variant="ghost"
+                        disabled={busy}
+                        onPress={onBack}
+                    >
                         Cancel
                     </UnlockedButton>
                 </View>
@@ -608,13 +753,24 @@ export function AssociationConsentScreen({
                     kind={target.pageUrl ? "website" : "app"}
                 />
                 <UnlockedText style={{ fontSize: 14, lineHeight: 21 }}>
-                    Add this exact {kind === "website" ? "hostname" : "package"} to {credential.Name}. Existing targets stay in place.
+                    Add this exact {kind === "website" ? "hostname" : "package"}{" "}
+                    to {credential.Name}. Existing targets stay in place.
                 </UnlockedText>
-                <UnlockedText selectable style={{ color: colors.muted, fontSize: 12 }}>
+                <UnlockedText
+                    selectable
+                    style={{ color: colors.muted, fontSize: 12 }}
+                >
                     {association}
                 </UnlockedText>
-                <UnlockedText style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
-                    Association changes where Cryptex Vault can offer this login. It does not verify the app or website.
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 13,
+                        lineHeight: 19,
+                    }}
+                >
+                    Association changes where Cryptex Vault can offer this
+                    login. It does not verify the app or website.
                 </UnlockedText>
                 <UnlockedCheckbox
                     checked={consented}
@@ -622,7 +778,10 @@ export function AssociationConsentScreen({
                     label={`Add this exact ${kind === "website" ? "hostname" : "app package"}`}
                 />
                 {error ? (
-                    <UnlockedText accessibilityRole="alert" style={{ color: colors.primary, fontSize: 13 }}>
+                    <UnlockedText
+                        accessibilityRole="alert"
+                        style={{ color: colors.primary, fontSize: 13 }}
+                    >
                         {error}
                     </UnlockedText>
                 ) : null}
@@ -647,11 +806,16 @@ export function SaveFailureSheet({
         if (!open) setDetails(false);
     }, [open]);
     return (
-        <Dialog open={open} onOpenChange={(next) => !next && onClose()} placement="bottom">
+        <Dialog
+            open={open}
+            onOpenChange={(next) => !next && onClose()}
+            placement="bottom"
+        >
             <DialogHeader>
                 <UnlockedDialogTitle>Could not save item</UnlockedDialogTitle>
                 <DialogDescription>
-                    The vault update could not be saved. Your changes are still in the editor.
+                    The vault update could not be saved. Your changes are still
+                    in the editor.
                 </DialogDescription>
             </DialogHeader>
             <Pressable
@@ -666,10 +830,24 @@ export function SaveFailureSheet({
             </Pressable>
             {details ? (
                 <View style={{ gap: 8 }}>
-                    <UnlockedText style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
-                        The local encrypted save did not finish. No changes were confirmed as saved, and no login was filled.
+                    <UnlockedText
+                        style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            lineHeight: 19,
+                        }}
+                    >
+                        The local encrypted save did not finish. No changes were
+                        confirmed as saved, and no login was filled.
                     </UnlockedText>
-                    <UnlockedText selectable style={{ color: colors.muted, fontFamily: "monospace", fontSize: 11 }}>
+                    <UnlockedText
+                        selectable
+                        style={{
+                            color: colors.muted,
+                            fontFamily: "monospace",
+                            fontSize: 11,
+                        }}
+                    >
                         Failure code: {code}
                     </UnlockedText>
                 </View>

@@ -2,8 +2,8 @@ appId: ${CRYPTEX_APP_ID}
 name: Verify a later encrypted synchronization reaches the receiving device
 ---
 - extendedWaitUntil:
-    visible: E2E Updated After Link.*
-    timeout: 120000
+      visible: E2E Updated After Link.*
+      timeout: 120000
 - assertNotVisible: E2E Transfer Login.*
 - stopApp
 - launchApp
@@ -11,5 +11,5 @@ name: Verify a later encrypted synchronization reaches the receiving device
 - inputText: ReceiverHorseBatteryStaple42
 - hideKeyboard
 - tapOn:
-    id: unlock-vault
+      id: unlock-vault
 - assertVisible: E2E Updated After Link.*

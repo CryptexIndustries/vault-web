@@ -65,6 +65,7 @@ import {
     LinkingProcessStatus,
     LinkingProcessStep,
 } from "@cryptex-industries/vault-core/vault-utils/linking";
+import type { SyncKeyPair } from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
 import {
     generateKeyPair,
     privateKeyJwkToString,
@@ -92,12 +93,14 @@ import {
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import {
     constructLinkPresenceChannelName,
+    deleteOnlineServicesAccount,
     finalizeCheckoutCompletion,
     refreshCheckoutTrpcCaches,
     type CheckoutTier,
 } from "@/app_lib/online-services";
 import {
     establishPremiumSession,
+    setOnlineServicesSessionIdentityTransition,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
@@ -107,6 +110,8 @@ import {
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     clearOnlineServicesSession,
+    onlineServicesDataAtom,
+    onlineServicesStore,
     setOnlineServicesData,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
@@ -116,6 +121,10 @@ import {
     ONLINE_SERVICES_SELECTION_ID,
 } from "@/utils/consts";
 import { hasValidServerSelections } from "./send-link-server-validation";
+import {
+    LinkAccountConflictDialog,
+    type AccountConflictChoice,
+} from "./link-account-conflict-dialog";
 import {
     onlineServicesLog,
     signalingLog,
@@ -159,7 +168,6 @@ import { toast } from "sonner";
 import { ulid } from "ulidx";
 import BarcodeScanner from "@/components/general/qr-scanner";
 import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
-import type { WarningDialogShowFn } from "@/components/dialog/warning";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
 
 export type SendLinkRequestDialogProps = {
@@ -2343,7 +2351,8 @@ export function SendLinkRequestDialog({
 export type ReceiveLinkRequestDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    showWarningDialog: WarningDialogShowFn;
+    /** Receive into a new vault instead of merging into the unlocked one. */
+    onVaultReceived?: (vault: Vault) => void;
 };
 
 type ReceiveLinkMethod = "qr" | "file";
@@ -2437,6 +2446,42 @@ const cloneOnlineServices = (onlineServices: VaultUtilTypes.OnlineServices) =>
         onlineServices.PublicKeyJWK,
         onlineServices.PrivateKeyJWK,
     );
+
+function syncKeyPairOf(linkedDevices: LinkedDevices): SyncKeyPair {
+    return {
+        signingPublicKey: linkedDevices.SyncSigningPublicKey,
+        signingPrivateKey: linkedDevices.SyncSigningPrivateKey,
+        kemPublicKey: linkedDevices.SyncKemPublicKey,
+        kemPrivateKey: linkedDevices.SyncKemPrivateKey,
+    };
+}
+
+async function generateSyncKeyPair() {
+    const linkedDevices = new LinkedDevices();
+    await ensureSyncSigningKeypair(linkedDevices);
+    await ensureSyncKemKeypair(linkedDevices);
+    return syncKeyPairOf(linkedDevices);
+}
+
+/** Builds this device's copy of the sender's vault, keyed to this device. */
+async function buildLinkedVault(
+    data: Uint8Array,
+    onlineServices: OnlineServices | null,
+    senderKeyBundle: VaultUtilTypes.SyncKeyBundle,
+    syncKeys: SyncKeyPair,
+) {
+    const vault = await parseReceivedVault(data);
+    vault.LinkedDevices.SyncSigningPublicKey = syncKeys.signingPublicKey;
+    vault.LinkedDevices.SyncSigningPrivateKey = syncKeys.signingPrivateKey;
+    vault.LinkedDevices.SyncKemPublicKey = syncKeys.kemPublicKey;
+    vault.LinkedDevices.SyncKemPrivateKey = syncKeys.kemPrivateKey;
+    for (const device of vault.LinkedDevices.Devices) {
+        device.RemoteSyncPublicKey = senderKeyBundle.SyncSigningPublicKey;
+        device.RemoteSyncKemPublicKey = senderKeyBundle.SyncKemPublicKey;
+    }
+    if (onlineServices) vault.OnlineServices = onlineServices;
+    return vault;
+}
 
 async function parseReceivedVault(data: Uint8Array) {
     const rawVault = VaultUtilTypes.Vault.decode(data);
@@ -2763,7 +2808,7 @@ function ReceiveLinkActiveLinkingPanel({
 export function ReceiveLinkRequestDialog({
     open,
     onOpenChange,
-    showWarningDialog,
+    onVaultReceived,
 }: ReceiveLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
@@ -2787,6 +2832,12 @@ export function ReceiveLinkRequestDialog({
     const [progressLog, setProgressLog] = useState<ProgressLogType[]>([]);
     const [mergeSummary, setMergeSummary] =
         useState<ReceiveMergeSummary | null>(null);
+    const [accountConflict, setAccountConflict] = useState<{
+        canDelete: boolean;
+    } | null>(null);
+    const accountConflictResolverRef = useRef<
+        ((choice: AccountConflictChoice) => void) | null
+    >(null);
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const completedRef = useRef(false);
@@ -2839,6 +2890,20 @@ export function ReceiveLinkRequestDialog({
         if (open) reset();
     }, [open]);
 
+    useEffect(() => {
+        if (stage !== "linking")
+            setOnlineServicesSessionIdentityTransition(false);
+    }, [stage]);
+
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            setOnlineServicesSessionIdentityTransition(false);
+        };
+    }, []);
+
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen && stage === "linking") {
             toast.info("Linking is in progress. Wait for it to finish.");
@@ -2882,17 +2947,39 @@ export function ReceiveLinkRequestDialog({
         }
     };
 
-    const confirmOnlineServicesOverwrite = (
-        incomingOnlineServices: VaultUtilTypes.OnlineServices,
-    ) =>
-        new Promise<boolean>((resolve) => {
-            showWarningDialog(
-                `This link request contains Online Services credentials for a different user (${incomingOnlineServices.UserID}). Continuing will replace the Online Services credentials saved in this vault.`,
-                () => resolve(true),
-                () => resolve(false),
-                "Overwrite credentials",
-            );
+    const askAccountConflict = (canDelete: boolean) =>
+        new Promise<AccountConflictChoice>((resolve) => {
+            accountConflictResolverRef.current = resolve;
+            setAccountConflict({ canDelete });
         });
+
+    const chooseAccountConflict = (choice: AccountConflictChoice) => {
+        accountConflictResolverRef.current?.(choice);
+        accountConflictResolverRef.current = null;
+        setAccountConflict(null);
+    };
+
+    const deleteReceivingAccount = async (account: OnlineServices) => {
+        await deleteOnlineServicesAccount(account.PrivateKeyJWK);
+        const unbound = await persistVaultMutation(
+            "vault.account",
+            (currentVault) => {
+                // The vault may have been locked and another one unlocked meanwhile.
+                if (currentVault.OnlineServices?.UserID !== account.UserID) {
+                    throw new Error("The unlocked vault changed.");
+                }
+                const next = Object.assign(new Vault(), currentVault);
+                Vault.unbindOnlineServices(next);
+                return { vault: next, result: undefined };
+            },
+        );
+        if (unbound.isErr()) {
+            throw new Error(
+                "The account was deleted, but this vault could not be updated. Try linking again.",
+            );
+        }
+        clearOnlineServicesSession();
+    };
 
     const mergeReceivedVault = async (
         receivedVaultData: Uint8Array,
@@ -3074,6 +3161,35 @@ export function ReceiveLinkRequestDialog({
         toast.info("Linking aborted.");
     };
 
+    const persistSyncKeys = async () => {
+        const syncKeyResult = await persistVaultMutation(
+            "vault.configuration",
+            async (currentVault) => {
+                const updatedVault = Object.assign(new Vault(), currentVault);
+                updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
+                    currentVault.LinkedDevices,
+                );
+                const generatedSigningKeys = await ensureSyncSigningKeypair(
+                    updatedVault.LinkedDevices,
+                );
+                const generatedKemKeys = await ensureSyncKemKeypair(
+                    updatedVault.LinkedDevices,
+                );
+                return {
+                    vault:
+                        generatedSigningKeys || generatedKemKeys
+                            ? updatedVault
+                            : currentVault,
+                    result: syncKeyPairOf(updatedVault.LinkedDevices),
+                };
+            },
+        );
+        if (syncKeyResult.isErr()) {
+            throw new Error("Failed to persist synchronization keys.");
+        }
+        return syncKeyResult.value;
+    };
+
     const startReceiving = async () => {
         setFormError("");
         setCameraError("");
@@ -3144,20 +3260,36 @@ export function ReceiveLinkRequestDialog({
                 : null;
 
             if (
+                !onVaultReceived &&
                 linkingBlob.OnlineServices &&
                 Vault.isOnlineServicesBound(unlockedVault) &&
                 unlockedVault.OnlineServices.UserID !==
                     linkingBlob.OnlineServices.UserID
             ) {
-                const confirmed = await confirmOnlineServicesOverwrite(
-                    linkingBlob.OnlineServices,
+                const choice = await askAccountConflict(
+                    onlineServicesStore.get(onlineServicesDataAtom)?.remoteData
+                        ?.root ?? unlockedVault.OnlineServices.IsRootDevice,
                 );
 
-                if (!confirmed) {
-                    const message = "Online Services overwrite cancelled.";
+                if (choice === "cancel") {
+                    const message = "Linking cancelled.";
                     setFormError(message);
                     toast.info(message);
                     return;
+                }
+                if (choice === "delete") {
+                    const toastId = toast.loading(
+                        "Deleting this device's account...",
+                    );
+                    try {
+                        await deleteReceivingAccount(
+                            unlockedVault.OnlineServices,
+                        );
+                        toast.success("Account deleted.", { id: toastId });
+                    } catch (error) {
+                        toast.dismiss(toastId);
+                        throw error;
+                    }
                 }
             }
 
@@ -3174,6 +3306,8 @@ export function ReceiveLinkRequestDialog({
             controllerRef.current = null;
 
             if (linkingBlob.OnlineServices) {
+                if (!mountedRef.current) return;
+                setOnlineServicesSessionIdentityTransition(true);
                 setOnlineServicesData({
                     deviceId: linkingBlob.OnlineServices.DeviceId,
                     sessionToken: null,
@@ -3194,50 +3328,16 @@ export function ReceiveLinkRequestDialog({
 
             addReceiveLog("Link package unlocked.", "done");
 
-            const syncKeyResult = await persistVaultMutation(
-                "vault.configuration",
-                async (currentVault) => {
-                    const updatedVault = Object.assign(
-                        new Vault(),
-                        currentVault,
-                    );
-                    updatedVault.LinkedDevices = LinkedDevices.fromGeneric(
-                        currentVault.LinkedDevices,
-                    );
-                    const generatedSigningKeys = await ensureSyncSigningKeypair(
-                        updatedVault.LinkedDevices,
-                    );
-                    const generatedKemKeys = await ensureSyncKemKeypair(
-                        updatedVault.LinkedDevices,
-                    );
-                    const syncKeys = {
-                        signingPublicKey:
-                            updatedVault.LinkedDevices.SyncSigningPublicKey,
-                        signingPrivateKey:
-                            updatedVault.LinkedDevices.SyncSigningPrivateKey,
-                        kemPublicKey:
-                            updatedVault.LinkedDevices.SyncKemPublicKey,
-                        kemPrivateKey:
-                            updatedVault.LinkedDevices.SyncKemPrivateKey,
-                    };
-                    return {
-                        vault:
-                            generatedSigningKeys || generatedKemKeys
-                                ? updatedVault
-                                : currentVault,
-                        result: syncKeys,
-                    };
-                },
-            );
-            if (syncKeyResult.isErr()) {
-                throw new Error("Failed to persist synchronization keys.");
-            }
+            const syncKeys = onVaultReceived
+                ? await generateSyncKeyPair()
+                : await persistSyncKeys();
 
             let vaultReceived = false;
+            let linkedVault: Vault | null = null;
             const controllerResult = await LinkingProcessController.create(
                 linkingBlob,
                 usesOnlineServices,
-                syncKeyResult.value,
+                syncKeys,
                 secret.trim(),
                 async (status) => {
                     updateStep(status);
@@ -3247,13 +3347,24 @@ export function ReceiveLinkRequestDialog({
                         status.State === LinkingProcessState.Completed &&
                         status.VaultBinaryData
                     ) {
+                        // Locking unmounts this dialog; never merge into a vault unlocked later.
+                        if (!mountedRef.current) return;
                         vaultReceived = true;
                         try {
-                            await mergeReceivedVault(
-                                status.VaultBinaryData,
-                                onlineServicesOverwrite,
-                                senderKeyBundle,
-                            );
+                            if (onVaultReceived) {
+                                linkedVault = await buildLinkedVault(
+                                    status.VaultBinaryData,
+                                    onlineServicesOverwrite,
+                                    senderKeyBundle,
+                                    syncKeys,
+                                );
+                            } else {
+                                await mergeReceivedVault(
+                                    status.VaultBinaryData,
+                                    onlineServicesOverwrite,
+                                    senderKeyBundle,
+                                );
+                            }
                         } catch (error) {
                             if (!failedRef.current) {
                                 failedRef.current = true;
@@ -3286,6 +3397,7 @@ export function ReceiveLinkRequestDialog({
                         }
                         setStage("done");
                         toast.success("Link received.");
+                        if (linkedVault) onVaultReceived?.(linkedVault);
                     }
                 },
             );
@@ -3361,7 +3473,9 @@ export function ReceiveLinkRequestDialog({
                     {stage === "input" ? (
                         <DialogDescription>
                             Import a link package from the sending device.
-                            Existing items stay; only missing data is added.
+                            {onVaultReceived
+                                ? null
+                                : " Existing items stay; only missing data is added."}
                         </DialogDescription>
                     ) : stage === "linking" ? (
                         <DialogDescription>
@@ -3850,6 +3964,11 @@ export function ReceiveLinkRequestDialog({
                         </>
                     )}
                 </DialogFooter>
+                <LinkAccountConflictDialog
+                    open={accountConflict !== null}
+                    canDelete={accountConflict?.canDelete ?? false}
+                    onChoose={chooseAccountConflict}
+                />
             </DialogContent>
         </Dialog>
     );

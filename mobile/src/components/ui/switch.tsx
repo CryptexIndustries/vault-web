@@ -1,5 +1,8 @@
 import * as React from "react";
-import { Switch as RNSwitch, type SwitchProps as RNSwitchProps } from "react-native";
+import {
+    Switch as RNSwitch,
+    type SwitchProps as RNSwitchProps,
+} from "react-native";
 
 import { cn } from "@/lib/utils";
 import { colors } from "@/theme";

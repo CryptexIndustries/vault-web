@@ -2,7 +2,9 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 
 import type { VaultManagerTab } from "@/components/vault-manager";
 
-function parseTab(raw: string | string[] | undefined): VaultManagerTab | undefined {
+function parseTab(
+    raw: string | string[] | undefined,
+): VaultManagerTab | undefined {
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (value === "unlock" || value === "create" || value === "restore") {
         return value;

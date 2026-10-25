@@ -447,7 +447,10 @@ export default function SharedLinksScreen() {
                         </View>
                     ) : (
                         <View style={{ paddingTop: 12 }}>
-                            <InlineNotice tone="info" message="No links match." />
+                            <InlineNotice
+                                tone="info"
+                                message="No links match."
+                            />
                         </View>
                     )
                 }

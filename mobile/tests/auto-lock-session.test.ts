@@ -100,7 +100,9 @@ describe("auto-lock session lifecycle", () => {
     it("does not carry an expired background timeout into a fresh unlock", async () => {
         const previous = await mountSession();
         appState("background");
-        expect(androidCredentials.backgroundProviderSession).toHaveBeenCalledWith(1);
+        expect(
+            androidCredentials.backgroundProviderSession,
+        ).toHaveBeenCalledWith(1);
         jest.advanceTimersByTime(60_001);
         expect(isAutoLockDue()).toBe(true);
         appState("active");
@@ -144,8 +146,13 @@ describe("auto-lock session lifecycle", () => {
         await Promise.resolve();
 
         session.resumeAfterFailedLock();
-        expect(androidCredentials.clearProviderCredentials).toHaveBeenCalledTimes(1);
-        expect(androidCredentials.setProviderCredentials).toHaveBeenCalledWith([], 1);
+        expect(
+            androidCredentials.clearProviderCredentials,
+        ).toHaveBeenCalledTimes(1);
+        expect(androidCredentials.setProviderCredentials).toHaveBeenCalledWith(
+            [],
+            1,
+        );
         expect(isAutoLockDue()).toBe(false);
         jest.advanceTimersByTime(59_999);
         expect(mockLock).toHaveBeenCalledTimes(1);
@@ -160,19 +167,25 @@ describe("auto-lock session lifecycle", () => {
         jest.advanceTimersByTime(30_000);
         appState("active");
         expect(mockLock).not.toHaveBeenCalled();
-        expect(androidCredentials.resumeProviderSession).toHaveBeenCalledWith(1);
+        expect(androidCredentials.resumeProviderSession).toHaveBeenCalledWith(
+            1,
+        );
         session.unmount();
     });
 
     it("locks on return after a monotonic deadline despite a backward clock change", async () => {
         const session = await mountSession();
-        const initialResumes = jest.mocked(androidCredentials.resumeProviderSession).mock.calls.length;
+        const initialResumes = jest.mocked(
+            androidCredentials.resumeProviderSession,
+        ).mock.calls.length;
         appState("background");
         jest.advanceTimersByTime(60_001);
         jest.setSystemTime(1_000_000);
         appState("active");
         expect(mockLock).toHaveBeenCalledTimes(1);
-        expect(androidCredentials.resumeProviderSession).toHaveBeenCalledTimes(initialResumes);
+        expect(androidCredentials.resumeProviderSession).toHaveBeenCalledTimes(
+            initialResumes,
+        );
         session.unmount();
     });
 

@@ -1,5 +1,9 @@
 /** A pending SSH login request as the agent runtime holds it. */
-export function sshLoginRequest(id: string, receivedAt = 0, names: string[] = []) {
+export function sshLoginRequest(
+    id: string,
+    receivedAt = 0,
+    names: string[] = [],
+) {
     return {
         id,
         agentId: "agent",
@@ -9,13 +13,25 @@ export function sshLoginRequest(id: string, receivedAt = 0, names: string[] = []
             publicKey: new Uint8Array(1),
             data: new Uint8Array(1),
             flags: 0,
-            processes: [{ pid: 1, uid: 1, exe: "/usr/bin/ssh", args: ["ssh"], cwd: "/" }],
+            processes: [
+                {
+                    pid: 1,
+                    uid: 1,
+                    exe: "/usr/bin/ssh",
+                    args: ["ssh"],
+                    cwd: "/",
+                },
+            ],
             sessionBinds: [],
             hostname: "box",
         },
         check: {
             kind: "login" as const,
-            verifiedHost: { hostKey: new Uint8Array(1), fingerprint: "SHA256:abc", names },
+            verifiedHost: {
+                hostKey: new Uint8Array(1),
+                fingerprint: "SHA256:abc",
+                names,
+            },
             forwardedVia: [],
             destinationUnknown: false,
         },

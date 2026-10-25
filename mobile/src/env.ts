@@ -15,7 +15,8 @@ export const env = {
     /** Hosted SSH agent relay (Online Services). */
     get RELAY_URL() {
         return (
-            process.env.EXPO_PUBLIC_RELAY_URL || "https://relay.cryptex-vault.com"
+            process.env.EXPO_PUBLIC_RELAY_URL ||
+            "https://relay.cryptex-vault.com"
         );
     },
     get CLOUD_ENABLED() {

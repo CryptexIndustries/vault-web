@@ -32,6 +32,7 @@ type AccountAuthProps = {
     registrationRetryRequired?: boolean;
     registerChallengeKey?: number;
     onRetryRegistration?: () => void;
+    onUseInvitation?: () => void;
 };
 
 export function AccountAuth({
@@ -54,6 +55,7 @@ export function AccountAuth({
     registrationRetryRequired,
     registerChallengeKey,
     onRetryRegistration,
+    onUseInvitation,
 }: AccountAuthProps) {
     return (
         <div className="space-y-5">
@@ -82,6 +84,25 @@ export function AccountAuth({
 
             {authMode === "register" ? (
                 <div className="space-y-4">
+                    {onUseInvitation ? (
+                        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                            <p className="font-medium">
+                                Already set up on another device?
+                            </p>
+                            <p className="mt-1 text-muted-foreground">
+                                You don&apos;t need a second account. Link this
+                                vault to that device instead.
+                            </p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={onUseInvitation}
+                            >
+                                Use invitation
+                            </Button>
+                        </div>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                         {purchaseAutoRegister
                             ? "Completing verification creates an Online Services account for sync and billing. Your keys stay in this vault."

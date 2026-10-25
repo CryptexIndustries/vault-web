@@ -910,6 +910,14 @@ export function AccountDialog({
                                         registerChallengeKey={
                                             registerChallengeKey
                                         }
+                                        onUseInvitation={
+                                            purchasePlan
+                                                ? undefined
+                                                : () => {
+                                                      onOpenChange(false);
+                                                      deviceControls.onReceiveInvitation();
+                                                  }
+                                        }
                                         onRetryRegistration={() => {
                                             setRegistrationRetryRequired(false);
                                             if (

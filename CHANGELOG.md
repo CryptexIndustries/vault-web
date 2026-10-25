@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-25
+
+### Added
+
+- A browser without a vault can receive one through the new Use invitation tab on the web app's vault screen. The Create tab links to it. After the transfer, you choose this browser's master password and save the vault. Leaving before saving asks first, because the received vault isn't stored until then.
+- Before you sign up, the web app's account dialog and the Android app's Account tab point to Use invitation, so another device joins your existing account instead of creating a second one.
+- The linking guide covers the Android app next to the web app: creating invitations, receiving on a new install or in a new browser, using one account for all your devices, and what happens when both devices have an account.
+
+### Changed
+
+- The Android app's first screen calls its Link Vault tab Use invitation, the same name as in the web app and the Devices tab.
+- When the receiving vault has its own Online Services account, the web app and the Android app explain that linking moves the vault to the sending device's account. You can keep the old account or delete it before linking. Deleting is offered on that account's root device and cancels a subscription bought on the web. A Google Play subscription has to be cancelled in the Play Store.
+
+### Fixed
+
+- In the web app, linking into a vault that had its own Online Services account always failed with "Unauthorized".
+
+### Chore
+
+- The web end-to-end suite links two browsers through self-hosted signaling and TURN servers that the Compose stack starts.
+
 ## [1.7.0] - 2026-10-21
 
 ### Added

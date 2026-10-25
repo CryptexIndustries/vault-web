@@ -27,6 +27,19 @@ import {
 const sessionRefreshRunner = createRefreshInFlightRunner();
 const forcedReauthGate = createForcedReauthGate();
 let sessionGeneration = 0;
+let sessionIdentityTransitionActive = false;
+let establishGeneration = 0;
+let pendingEstablish: { deviceId: string; promise: Promise<void> } | null =
+    null;
+
+/** Pause automatic session reconciliation while an unlocked link merge changes identity. */
+export function setOnlineServicesSessionIdentityTransition(active: boolean) {
+    sessionIdentityTransitionActive = active;
+}
+
+export function isOnlineServicesSessionIdentityTransitionActive() {
+    return sessionIdentityTransitionActive;
+}
 
 export function createBareAuthHeader() {
     const onlineServicesData = onlineServicesStore.get(onlineServicesDataAtom);
@@ -121,6 +134,8 @@ export async function refreshOnlineServicesSession(): Promise<boolean> {
 }
 
 async function reauthenticateOnlineServicesSession(): Promise<boolean> {
+    // A refresh that started before a link switched accounts must not sign the old one back in.
+    if (sessionIdentityTransitionActive) return false;
     const vault = getUnlockedVault();
 
     if (!Vault.isOnlineServicesBound(vault)) return false;
@@ -145,6 +160,7 @@ function runOnlineServicesSessionRefresh(
 }
 
 export async function forceOnlineServicesSessionReauthentication(): Promise<boolean> {
+    if (sessionIdentityTransitionActive) return false;
     return sessionRefreshRunner.run(async () => {
         if (!forcedReauthGate.tryEnter()) {
             return false;
@@ -160,6 +176,7 @@ export async function forceOnlineServicesSessionReauthentication(): Promise<bool
 }
 
 export async function ensureFreshOnlineServicesSession(): Promise<boolean> {
+    if (sessionIdentityTransitionActive) return false;
     const data = onlineServicesStore.get(onlineServicesDataAtom);
     const vault = getUnlockedVault();
     const vaultOnlineServices = Vault.isOnlineServicesBound(vault)
@@ -248,10 +265,26 @@ export async function logoutOnlineServicesSession(): Promise<void> {
 /**
  * Full device signing key challenge-response: obtain JWT for premium APIs.
  */
-export async function establishPremiumSession(options: {
+export function establishPremiumSession(options: {
     deviceId: string;
     privateKeyJWK: string;
 }): Promise<void> {
+    // Overlapping sign-ins as the same device share one attempt.
+    if (pendingEstablish?.deviceId === options.deviceId) {
+        return pendingEstablish.promise;
+    }
+    const generation = ++establishGeneration;
+    const promise = signInAsDevice(options, generation).finally(() => {
+        if (generation === establishGeneration) pendingEstablish = null;
+    });
+    pendingEstablish = { deviceId: options.deviceId, promise };
+    return promise;
+}
+
+async function signInAsDevice(
+    options: { deviceId: string; privateKeyJWK: string },
+    generation: number,
+): Promise<void> {
     onlineServicesStore.set(
         onlineServicesAuthConnectionStatusAtom,
         onlineServicesAuthenticationStatus.connecting(),
@@ -262,6 +295,8 @@ export async function establishPremiumSession(options: {
             webOnlineServicesAuthApi,
             options,
         );
+        // A later sign-in as another device, such as a link switching accounts, takes precedence.
+        if (generation !== establishGeneration) return;
 
         const prev = onlineServicesStore.get(onlineServicesDataAtom);
         const next: OnlineServicesData = applySessionTokens(
@@ -278,12 +313,14 @@ export async function establishPremiumSession(options: {
             onlineServicesAuthenticationStatus.connected(),
         );
     } catch (e) {
-        onlineServicesStore.set(
-            onlineServicesAuthConnectionStatusAtom,
-            onlineServicesAuthenticationStatus.failed(
-                e instanceof Error ? e.message : undefined,
-            ),
-        );
+        if (generation === establishGeneration) {
+            onlineServicesStore.set(
+                onlineServicesAuthConnectionStatusAtom,
+                onlineServicesAuthenticationStatus.failed(
+                    e instanceof Error ? e.message : undefined,
+                ),
+            );
+        }
         throw e;
     }
 }
@@ -298,8 +335,13 @@ export async function syncOnlineServicesRemoteConfiguration(): Promise<void> {
     // We need to use the trpc client (lazily) here to avoid circular dependencies
     const { trpc } = await import("@/utils/trpc");
     const config = await trpc.v1.user.configuration.query();
+    // The session may have changed while the request ran, e.g. a link switched accounts.
+    const latest = onlineServicesStore.get(onlineServicesDataAtom);
+    if (!latest?.sessionToken?.length || latest.deviceId !== prev.deviceId) {
+        return;
+    }
     setOnlineServicesData({
-        ...prev,
+        ...latest,
         deviceId: config.deviceId,
         remoteData: config,
     });

@@ -98,6 +98,7 @@ import {
 } from "@/app_lib/online-services";
 import {
     establishPremiumSession,
+    setOnlineServicesSessionIdentityTransition,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
@@ -2839,6 +2840,20 @@ export function ReceiveLinkRequestDialog({
         if (open) reset();
     }, [open]);
 
+    useEffect(() => {
+        if (stage !== "linking")
+            setOnlineServicesSessionIdentityTransition(false);
+    }, [stage]);
+
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            setOnlineServicesSessionIdentityTransition(false);
+        };
+    }, []);
+
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen && stage === "linking") {
             toast.info("Linking is in progress. Wait for it to finish.");
@@ -3174,6 +3189,8 @@ export function ReceiveLinkRequestDialog({
             controllerRef.current = null;
 
             if (linkingBlob.OnlineServices) {
+                if (!mountedRef.current) return;
+                setOnlineServicesSessionIdentityTransition(true);
                 setOnlineServicesData({
                     deviceId: linkingBlob.OnlineServices.DeviceId,
                     sessionToken: null,
@@ -3247,6 +3264,8 @@ export function ReceiveLinkRequestDialog({
                         status.State === LinkingProcessState.Completed &&
                         status.VaultBinaryData
                     ) {
+                        // Locking unmounts this dialog; never merge into a vault unlocked later.
+                        if (!mountedRef.current) return;
                         vaultReceived = true;
                         try {
                             await mergeReceivedVault(

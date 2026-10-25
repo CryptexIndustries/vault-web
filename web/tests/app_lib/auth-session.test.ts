@@ -691,6 +691,70 @@ describe("establishPremiumSession", () => {
         expect(status.status).toBe("FAILED");
         expect(status.statusDescription).toBe("nope");
     });
+
+    it("shares an overlapping sign-in as the same device", async () => {
+        challengeMutate.mockResolvedValue({
+            challengeId: "ch_1",
+            challenge: btoa("challenge-bytes"),
+            expiresAt: Date.now() + 60_000,
+        });
+        verifyMutate.mockResolvedValue({
+            sessionToken: "shared_token",
+            refreshToken: "shared_refresh",
+            expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
+        });
+        const options = { deviceId: "device_1", privateKeyJWK: "private_jwk" };
+
+        await Promise.all([
+            establishPremiumSession(options),
+            establishPremiumSession(options),
+        ]);
+
+        expect(challengeMutate).toHaveBeenCalledTimes(1);
+        expect(onlineServicesStore.get(onlineServicesDataAtom)).toMatchObject({
+            deviceId: "device_1",
+            sessionToken: "shared_token",
+        });
+    });
+
+    it("keeps a later sign-in as another device when an earlier one finishes last", async () => {
+        challengeMutate.mockResolvedValue({
+            challengeId: "ch_1",
+            challenge: btoa("challenge-bytes"),
+            expiresAt: Date.now() + 60_000,
+        });
+        const tokens = (sessionToken: string) => ({
+            sessionToken,
+            refreshToken: `${sessionToken}_refresh`,
+            expiresAt: Date.now() + 15 * 60_000,
+            refreshExpiresAt: Date.now() + 7 * 24 * 60 * 60_000,
+        });
+        let finishOld: (value: ReturnType<typeof tokens>) => void = () => {};
+        verifyMutate
+            .mockImplementationOnce(
+                () => new Promise((resolve) => (finishOld = resolve)),
+            )
+            .mockResolvedValueOnce(tokens("new_token"));
+
+        const oldSignIn = establishPremiumSession({
+            deviceId: "old_device",
+            privateKeyJWK: "old_jwk",
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(verifyMutate).toHaveBeenCalledTimes(1);
+        await establishPremiumSession({
+            deviceId: "new_device",
+            privateKeyJWK: "new_jwk",
+        });
+        finishOld(tokens("old_token"));
+        await oldSignIn;
+
+        expect(onlineServicesStore.get(onlineServicesDataAtom)).toMatchObject({
+            deviceId: "new_device",
+            sessionToken: "new_token",
+        });
+    });
 });
 
 describe("syncOnlineServicesRemoteConfiguration", () => {

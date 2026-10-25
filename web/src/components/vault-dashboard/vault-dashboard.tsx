@@ -1,5 +1,6 @@
 import {
     establishPremiumSession,
+    isOnlineServicesSessionIdentityTransitionActive,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
@@ -1262,7 +1263,7 @@ export function VaultDashboard({
         let cancelled = false;
 
         const vaultOs = unlockedVault.OnlineServices;
-        if (!vaultOs) {
+        if (!vaultOs || isOnlineServicesSessionIdentityTransitionActive()) {
             return;
         }
 
@@ -1277,7 +1278,15 @@ export function VaultDashboard({
             data?.sessionToken?.length &&
             data.deviceId === vaultOs.DeviceId
         ) {
-            // Get out, we're already signed in and the device id matches
+            // Already signed in as this device, e.g. right after a link.
+            if (!data.remoteData) {
+                await syncOnlineServicesRemoteConfiguration().catch((error) =>
+                    onlineServicesLog.error(
+                        "Failed to load Online Services configuration",
+                        { error },
+                    ),
+                );
+            }
             return;
         }
 

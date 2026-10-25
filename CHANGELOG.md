@@ -19,10 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Android app's first screen calls its Link Vault tab Use invitation, the same name as in the web app and the Devices tab.
 - When the receiving vault has its own Online Services account, the web app and the Android app explain that linking moves the vault to the sending device's account. You can keep the old account or delete it before linking. Deleting is offered on that account's root device and cancels a subscription bought on the web. A Google Play subscription has to be cancelled in the Play Store.
+- The Chromium Extension's popup stays responsive with large vaults. It draws only the credentials in view, so searching and editing no longer stall with hundreds of items, and it opens about twice as fast with 500 credentials.
+- Unlocking in the Chromium Extension derives the vault key once instead of twice, so it takes about half as long with the default security settings.
 
 ### Fixed
 
 - In the web app, linking into a vault that had its own Online Services account always failed with "Unauthorized".
+- The Chromium Extension renews the key for its internal messages every 30 days. If that happened while the popup was open, the next unlock, save or lock failed, even with the correct password.
+- The Chromium Extension's popup could stay on a loading spinner if it couldn't reach the extension's background service. It now says so and offers Try again.
+- If the vault locked while the Chromium Extension's popup was opening, the popup could still show it as unlocked.
 
 ### Chore
 

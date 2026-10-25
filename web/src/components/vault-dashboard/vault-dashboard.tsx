@@ -1403,13 +1403,6 @@ export function VaultDashboard({
         [lockVault],
     );
 
-    const showWarningDialog = useCallback(
-        (...args: Parameters<WarningDialogShowFn>) => {
-            showWarningDialogFnRef.current?.(...args);
-        },
-        [showWarningDialogFnRef],
-    );
-
     const lockVaultConfirm = useCallback(() => {
         showWarningDialogFnRef.current?.(
             "Are you sure you want to lock the vault? This will prevent anyone from accessing it.",
@@ -1904,7 +1897,6 @@ export function VaultDashboard({
             <ReceiveLinkRequestDialog
                 open={invitation === "receive"}
                 onOpenChange={closeInvitation}
-                showWarningDialog={showWarningDialog}
             />
             <DeviceConfigurationDialog
                 device={editingDevice}

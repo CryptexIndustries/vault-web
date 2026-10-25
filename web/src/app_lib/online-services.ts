@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { toast } from "sonner";
+import {
+    parseJwkFromString,
+    signChallenge,
+} from "@cryptex-industries/vault-core/vault-utils/device-signing-key";
 import { trpc } from "../utils/trpc";
 import { onlineServicesLog } from "../utils/logging";
 
@@ -9,6 +13,21 @@ export const signUpFormSchema = z.object({
 });
 export type SignUpFormSchemaType = z.infer<typeof signUpFormSchema>;
 //#endregion Sign up
+
+//#region Account
+/** Deletes the signed-in account. The server cancels a Stripe subscription, not a Google Play one. */
+export async function deleteOnlineServicesAccount(privateKeyJWK: string) {
+    const challenge = await trpc.v1.user.deleteChallenge.mutate();
+    const signature = await signChallenge(
+        parseJwkFromString(privateKeyJWK),
+        Uint8Array.fromBase64(challenge.challenge),
+    );
+    await trpc.v1.user.delete.mutate({
+        challengeId: challenge.challengeId,
+        signature,
+    });
+}
+//#endregion Account
 
 //#region Subscription
 export type CheckoutTier = "premiumMonthly" | "premiumYearly";

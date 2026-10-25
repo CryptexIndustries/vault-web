@@ -92,6 +92,7 @@ import {
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import {
     constructLinkPresenceChannelName,
+    deleteOnlineServicesAccount,
     finalizeCheckoutCompletion,
     refreshCheckoutTrpcCaches,
     type CheckoutTier,
@@ -108,6 +109,8 @@ import {
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     clearOnlineServicesSession,
+    onlineServicesDataAtom,
+    onlineServicesStore,
     setOnlineServicesData,
     unlockedVaultAtom,
     unlockedVaultMetadataAtom,
@@ -117,6 +120,10 @@ import {
     ONLINE_SERVICES_SELECTION_ID,
 } from "@/utils/consts";
 import { hasValidServerSelections } from "./send-link-server-validation";
+import {
+    LinkAccountConflictDialog,
+    type AccountConflictChoice,
+} from "./link-account-conflict-dialog";
 import {
     onlineServicesLog,
     signalingLog,
@@ -160,7 +167,6 @@ import { toast } from "sonner";
 import { ulid } from "ulidx";
 import BarcodeScanner from "@/components/general/qr-scanner";
 import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
-import type { WarningDialogShowFn } from "@/components/dialog/warning";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
 
 export type SendLinkRequestDialogProps = {
@@ -2344,7 +2350,6 @@ export function SendLinkRequestDialog({
 export type ReceiveLinkRequestDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    showWarningDialog: WarningDialogShowFn;
 };
 
 type ReceiveLinkMethod = "qr" | "file";
@@ -2764,7 +2769,6 @@ function ReceiveLinkActiveLinkingPanel({
 export function ReceiveLinkRequestDialog({
     open,
     onOpenChange,
-    showWarningDialog,
 }: ReceiveLinkRequestDialogProps) {
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const [stage, setStage] = useState<ReceiveLinkStage>("input");
@@ -2788,6 +2792,12 @@ export function ReceiveLinkRequestDialog({
     const [progressLog, setProgressLog] = useState<ProgressLogType[]>([]);
     const [mergeSummary, setMergeSummary] =
         useState<ReceiveMergeSummary | null>(null);
+    const [accountConflict, setAccountConflict] = useState<{
+        canDelete: boolean;
+    } | null>(null);
+    const accountConflictResolverRef = useRef<
+        ((choice: AccountConflictChoice) => void) | null
+    >(null);
 
     const progressLogRef = useRef<ProgressLogType[]>([]);
     const completedRef = useRef(false);
@@ -2897,17 +2907,39 @@ export function ReceiveLinkRequestDialog({
         }
     };
 
-    const confirmOnlineServicesOverwrite = (
-        incomingOnlineServices: VaultUtilTypes.OnlineServices,
-    ) =>
-        new Promise<boolean>((resolve) => {
-            showWarningDialog(
-                `This link request contains Online Services credentials for a different user (${incomingOnlineServices.UserID}). Continuing will replace the Online Services credentials saved in this vault.`,
-                () => resolve(true),
-                () => resolve(false),
-                "Overwrite credentials",
-            );
+    const askAccountConflict = (canDelete: boolean) =>
+        new Promise<AccountConflictChoice>((resolve) => {
+            accountConflictResolverRef.current = resolve;
+            setAccountConflict({ canDelete });
         });
+
+    const chooseAccountConflict = (choice: AccountConflictChoice) => {
+        accountConflictResolverRef.current?.(choice);
+        accountConflictResolverRef.current = null;
+        setAccountConflict(null);
+    };
+
+    const deleteReceivingAccount = async (account: OnlineServices) => {
+        await deleteOnlineServicesAccount(account.PrivateKeyJWK);
+        const unbound = await persistVaultMutation(
+            "vault.account",
+            (currentVault) => {
+                // The vault may have been locked and another one unlocked meanwhile.
+                if (currentVault.OnlineServices?.UserID !== account.UserID) {
+                    throw new Error("The unlocked vault changed.");
+                }
+                const next = Object.assign(new Vault(), currentVault);
+                Vault.unbindOnlineServices(next);
+                return { vault: next, result: undefined };
+            },
+        );
+        if (unbound.isErr()) {
+            throw new Error(
+                "The account was deleted, but this vault could not be updated. Try linking again.",
+            );
+        }
+        clearOnlineServicesSession();
+    };
 
     const mergeReceivedVault = async (
         receivedVaultData: Uint8Array,
@@ -3164,15 +3196,30 @@ export function ReceiveLinkRequestDialog({
                 unlockedVault.OnlineServices.UserID !==
                     linkingBlob.OnlineServices.UserID
             ) {
-                const confirmed = await confirmOnlineServicesOverwrite(
-                    linkingBlob.OnlineServices,
+                const choice = await askAccountConflict(
+                    onlineServicesStore.get(onlineServicesDataAtom)?.remoteData
+                        ?.root ?? unlockedVault.OnlineServices.IsRootDevice,
                 );
 
-                if (!confirmed) {
-                    const message = "Online Services overwrite cancelled.";
+                if (choice === "cancel") {
+                    const message = "Linking cancelled.";
                     setFormError(message);
                     toast.info(message);
                     return;
+                }
+                if (choice === "delete") {
+                    const toastId = toast.loading(
+                        "Deleting this device's account...",
+                    );
+                    try {
+                        await deleteReceivingAccount(
+                            unlockedVault.OnlineServices,
+                        );
+                        toast.success("Account deleted.", { id: toastId });
+                    } catch (error) {
+                        toast.dismiss(toastId);
+                        throw error;
+                    }
                 }
             }
 
@@ -3869,6 +3916,11 @@ export function ReceiveLinkRequestDialog({
                         </>
                     )}
                 </DialogFooter>
+                <LinkAccountConflictDialog
+                    open={accountConflict !== null}
+                    canDelete={accountConflict?.canDelete ?? false}
+                    onChoose={chooseAccountConflict}
+                />
             </DialogContent>
         </Dialog>
     );

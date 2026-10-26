@@ -465,15 +465,23 @@ func (c *Conn) call(ctx context.Context, frame *agentpb.ClientFrame) (*agentpb.S
 	if err := c.write(ctx, frame); err != nil {
 		return nil, err
 	}
+	var reply *agentpb.ServerFrame
 	select {
-	case reply := <-ch:
-		if r := reply.GetResult(); r != nil && r.Status != agentpb.Status_STATUS_OK {
-			return reply, &StatusError{Status: r.Status, Message: r.Message}
-		}
-		return reply, nil
+	case reply = <-ch:
 	case <-c.done:
-		return nil, c.err
+		// The reader hands over a reply before it ends the connection, so
+		// one that came just before the end (UnregisterAgent's OK, then the
+		// relay closing the agent) is already in ch.
+		select {
+		case reply = <-ch:
+		default:
+			return nil, c.err
+		}
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+	if r := reply.GetResult(); r != nil && r.Status != agentpb.Status_STATUS_OK {
+		return reply, &StatusError{Status: r.Status, Message: r.Message}
+	}
+	return reply, nil
 }

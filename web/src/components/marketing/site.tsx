@@ -24,6 +24,8 @@ import {
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
 export const BROWSER_EXTENSION =
     "https://chromewebstore.google.com/detail/mmkjefiodfpafhkckekfdeccnkhphfhp";
+export const GOOGLE_PLAY =
+    "https://play.google.com/store/apps/details?id=com.cryptexindustries.vault";
 export { s };
 export function Action({
     href = "/app",

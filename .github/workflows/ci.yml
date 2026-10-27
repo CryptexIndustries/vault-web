@@ -235,6 +235,8 @@ jobs:
         permissions:
             contents: read
             packages: write
+        outputs:
+            digest: ${{ steps.build.outputs.digest }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -282,6 +284,7 @@ jobs:
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish share server image
+              id: build
               uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
               with:
                   context: services
@@ -305,6 +308,8 @@ jobs:
         permissions:
             contents: read
             packages: write
+        outputs:
+            digest: ${{ steps.build.outputs.digest }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -358,6 +363,7 @@ jobs:
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish relay image
+              id: build
               uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
               with:
                   context: services
@@ -369,3 +375,79 @@ jobs:
                       org.opencontainers.image.revision=${{ github.sha }}
                   cache-from: type=gha,scope=relay-server-production
                   cache-to: type=gha,mode=max,scope=relay-server-production
+
+    # Each release job opens a draft GitHub release with that version's section
+    # of the component's CHANGELOG.md. Publishing the draft is a manual step.
+    web-release:
+        name: Draft web release
+        needs: [container-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      web/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}\`"
+                  scripts/draft-release.sh "Web v${GITHUB_REF_NAME#web-v}" web/CHANGELOG.md
+
+    share-server-release:
+        name: Draft share server release
+        needs: [share-server-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      services/cmd/share-server/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DIGEST: ${{ needs.share-server-image.outputs.digest }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}/share-server:${GITHUB_REF_NAME#share-server-}\`
+                  Digest: \`${DIGEST}\`
+
+                  Deploy it as described in the [Swarm guide](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/swarm-deployment.md#share-server-stack)."
+                  scripts/draft-release.sh "Share server v${GITHUB_REF_NAME#share-server-v}" services/cmd/share-server/CHANGELOG.md
+
+    relay-server-release:
+        name: Draft relay server release
+        needs: [relay-server-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      services/cmd/relay-server/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DIGEST: ${{ needs.relay-server-image.outputs.digest }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}/relay-server:${GITHUB_REF_NAME#relay-server-}\`
+                  Digest: \`${DIGEST}\`
+
+                  Deploy it as described in the [Swarm guide](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/swarm-deployment.md#agent-relay-stack)."
+                  scripts/draft-release.sh "Relay server v${GITHUB_REF_NAME#relay-server-v}" services/cmd/relay-server/CHANGELOG.md

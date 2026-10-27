@@ -75,7 +75,9 @@ jobs:
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                  sparse-checkout: services/cmd/cryptex-agent/CHANGELOG.md
+                  sparse-checkout: |
+                      services/cmd/cryptex-agent/CHANGELOG.md
+                      scripts/draft-release.sh
                   sparse-checkout-cone-mode: false
             - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
@@ -86,26 +88,13 @@ jobs:
               working-directory: dist
               env:
                   GH_TOKEN: ${{ github.token }}
+                  RELEASE_INTRO: Keyless SSH agent for Linux. Static binaries for amd64 and arm64 with a systemd user unit. See README.md in the tarball to set it up.
               shell: bash
               run: |
-                  version="${GITHUB_REF_NAME#cryptex-agent-v}"
-                  # The lines under "## <version>", up to the next version.
-                  changes="$(awk -v v="${version}" '$1 == "##" { if (found) exit; found = $2 == v; next } found' ../services/cmd/cryptex-agent/CHANGELOG.md | sed '/./,$!d')"
-                  if [[ -z "${changes//[[:space:]]/}" ]]; then
-                    echo "services/cmd/cryptex-agent/CHANGELOG.md has no entries under ## ${version}" >&2
-                    exit 1
-                  fi
-                  printf '%s\n\n%s\n' "Keyless SSH agent for Linux. Static binaries for amd64 and arm64 with a systemd user unit. See README.md in the tarball to set it up." "${changes}" > "${RUNNER_TEMP}/notes.md"
                   sha256sum -- *.tar.gz > sha256sums.txt
-                  prerelease=()
-                  if [[ "${version}" == *-* ]]; then prerelease=(--prerelease); fi
-                  gh release create "${GITHUB_REF_NAME}" \
-                    --repo "${GITHUB_REPOSITORY}" \
-                    --draft "${prerelease[@]}" \
-                    --verify-tag \
-                    --title "Cryptex Agent v${version}" \
-                    --notes-file "${RUNNER_TEMP}/notes.md" \
-                    -- *.tar.gz sha256sums.txt
+                  ../scripts/draft-release.sh "Cryptex Agent v${GITHUB_REF_NAME#cryptex-agent-v}" \
+                    ../services/cmd/cryptex-agent/CHANGELOG.md \
+                    *.tar.gz sha256sums.txt
 
     aur:
         name: Publish to the AUR

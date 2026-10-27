@@ -102,3 +102,32 @@ jobs:
                   archive: false
                   if-no-files-found: error
                   retention-days: 30
+
+    # extension-v1.2.3 tags open a draft GitHub release with the 1.2.3 section
+    # of extension/CHANGELOG.md and the ZIP. Publishing it is a manual step.
+    draft-release:
+        name: Draft GitHub release
+        needs: [package]
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      extension/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  pattern: cryptex-vault-chromium-*
+                  merge-multiple: true
+                  path: dist
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RELEASE_OUTRO: The Chrome Web Store update follows after review.
+              shell: bash
+              run: scripts/draft-release.sh "Extension v${GITHUB_REF_NAME#extension-v}" extension/CHANGELOG.md dist/*.zip

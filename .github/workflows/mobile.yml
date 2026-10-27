@@ -403,6 +403,68 @@ jobs:
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error
 
+  fdroid_release:
+    name: draft GitHub release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: fdroid_sign
+    # mobile-v1.2.3 tags open a draft release with the 1.2.3 section of
+    # mobile/CHANGELOG.md and the signed APKs. Publishing it is a manual step.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+
+      - name: Download signed F-Droid APKs and their configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mobile-fdroid-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#mobile-v}"
+          # One signed APK per architecture, named after its version code.
+          node --input-type=module -e '
+            import { artifactName } from "./mobile/scripts/release-config.mjs";
+            const devices = {
+              "arm64-v8a": "Most Android phones, ARM64",
+              "armeabi-v7a": "Older 32-bit ARM devices",
+              x86: "32-bit Intel devices",
+              x86_64: "64-bit Intel devices",
+            };
+            for (const [arch, device] of Object.entries(devices))
+              console.log(`${device}\t${artifactName({ distribution: "fdroid", arch })}`);
+          ' > "$RUNNER_TEMP/apks.tsv"
+          assets=() downloads=""
+          while IFS=$'\t' read -r device apk; do
+            assets+=("$apk" "$apk.json")
+            downloads+="- ${device}: \`${apk}\`"$'\n'
+          done < "$RUNNER_TEMP/apks.tsv"
+          assets+=(release-config.json)
+          cd "$RUNNER_TEMP/mobile-release"
+          # The signing step's SHA256SUMS also lists the unsigned APKs, which
+          # aren't published.
+          sha256sum -- "${assets[@]}" > SHA256SUMS
+          export RELEASE_INTRO="Download the APK for your device to install Cryptex Vault ${version} on Android.
+
+          ${downloads}
+          New in ${version}:"
+          export RELEASE_OUTRO="The APKs are signed with the Cryptex Vault production key. Each APK's JSON file records its source commit and signing certificate. Checksums are in \`SHA256SUMS\`."
+          "$GITHUB_WORKSPACE/scripts/draft-release.sh" "Android ${version}" "$GITHUB_WORKSPACE/mobile/CHANGELOG.md" "${assets[@]}" SHA256SUMS
+
   fdroid_preprod_sign:
     name: sign preproduction F-Droid APKs
     runs-on: ubuntu-24.04

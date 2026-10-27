@@ -22,6 +22,12 @@ RUN corepack enable pnpm && pnpm install --frozen-lockfile --filter web...
 
 COPY ./web ./web
 COPY ./packages ./packages
+# The changelog page reads each component's changelog.
+COPY extension/CHANGELOG.md ./extension/
+COPY mobile/CHANGELOG.md ./mobile/
+COPY services/cmd/cryptex-agent/CHANGELOG.md ./services/cmd/cryptex-agent/
+COPY services/cmd/share-server/CHANGELOG.md ./services/cmd/share-server/
+COPY services/cmd/relay-server/CHANGELOG.md ./services/cmd/relay-server/
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production

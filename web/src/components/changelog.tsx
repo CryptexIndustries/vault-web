@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import {
     Dialog,
@@ -8,7 +8,16 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "./ui/dialog";
-import { Bug, Calendar, GitCommit, Plus, Zap } from "lucide-react";
+import {
+    Bug,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    GitCommit,
+    Plus,
+    Zap,
+} from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import {
@@ -19,9 +28,15 @@ import {
 } from "./ui/tooltip";
 import styles from "@/styles/Changelog.module.css";
 
+import agentChangelog from "../../../services/cmd/cryptex-agent/CHANGELOG.md";
+import relayServerChangelog from "../../../services/cmd/relay-server/CHANGELOG.md";
+import shareServerChangelog from "../../../services/cmd/share-server/CHANGELOG.md";
+import extensionChangelog from "../../../extension/CHANGELOG.md";
+import androidChangelog from "../../../mobile/CHANGELOG.md";
+import webChangelog from "../../CHANGELOG.md";
+
 interface ChangelogRelease {
     version: string;
-    initialVersion?: boolean;
     date: string;
     changes: {
         type: "added" | "changed" | "fix" | "removed";
@@ -39,523 +54,228 @@ const CHANGE_LABELS: Record<
     removed: "Removed",
 };
 
-export const CHANGELOG_DATA: ChangelogRelease[] = [
+const CHANGE_TYPES = Object.fromEntries(
+    Object.entries(CHANGE_LABELS).map(([type, label]) => [label, type]),
+) as Record<string, ChangelogRelease["changes"][number]["type"]>;
+
+/**
+ * Reads the "## 1.2.3 - 2026-01-31" sections of a component's CHANGELOG.md.
+ * Throws on headings it doesn't know, so a typo fails the build instead of
+ * dropping entries from the page.
+ */
+function parseChangelog(markdown: string): ChangelogRelease[] {
+    const releases: ChangelogRelease[] = [];
+    let type: ChangelogRelease["changes"][number]["type"] | undefined;
+    let entry: ChangelogRelease["changes"][number] | undefined;
+    for (const line of markdown.split(/\r?\n/)) {
+        if (line.startsWith("## ")) {
+            const match = /^## (\S+) - (\d{4}-\d{2}-\d{2})$/.exec(line);
+            if (!match) throw new Error(`Bad changelog heading: ${line}`);
+            releases.push({
+                version: `v${match[1]}`,
+                date: match[2]!,
+                changes: [],
+            });
+            type = entry = undefined;
+        } else if (line.startsWith("### ")) {
+            type = CHANGE_TYPES[line.slice(4)];
+            if (!type) throw new Error(`Bad changelog heading: ${line}`);
+            entry = undefined;
+        } else if (line.startsWith("- ") && releases.length) {
+            if (!type)
+                throw new Error(`Changelog entry outside a section: ${line}`);
+            entry = { type, description: line.slice(2) };
+            releases.at(-1)!.changes.push(entry);
+        } else if (entry && /^\s+\S/.test(line)) {
+            // A bullet wrapped onto the next line.
+            entry.description += ` ${line.trim()}`;
+        }
+    }
+    return releases;
+}
+
+export const CHANGELOGS = [
     {
-        version: "v1.8.1",
-        date: "2026-10-27",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "The Android app is on Google Play. Find it on the Android download page.",
-            },
-        ],
+        key: "web",
+        label: "Web app",
+        path: "web/CHANGELOG.md",
+        releases: parseChangelog(webChangelog),
     },
     {
-        version: "v1.8.0",
-        date: "2026-10-25",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Set up a new browser by linking it to a device you already use. Open the Use invitation tab instead of creating a vault, receive your vault, then choose a master password for this browser.",
-            },
-            {
-                type: "changed",
-                description:
-                    'If the receiving vault has its own Online Services account, you now choose whether to keep or delete it before linking. Linking into such a vault used to fail with "Unauthorized".',
-            },
-            {
-                type: "changed",
-                description:
-                    "The Chromium Extension stays responsive with large vaults, and unlocking takes about half as long.",
-            },
-            {
-                type: "fix",
-                description:
-                    "The Chromium Extension's popup no longer fails after the extension renews its internal key, and offers Try again when it can't reach its background service.",
-            },
-        ],
+        key: "extension",
+        label: "Extension",
+        path: "extension/CHANGELOG.md",
+        releases: parseChangelog(extensionChangelog),
     },
     {
-        version: "v1.7.0",
-        date: "2026-10-21",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "SSH key items. Generate or import Ed25519, ECDSA and RSA keys, copy or save the public key, and share a key through a one-time link.",
-            },
-            {
-                type: "added",
-                description:
-                    "An SSH agent for Linux that holds no private keys. Your phone or the web app approves each signature, and you can pause or revoke an agent from any linked device.",
-            },
-            {
-                type: "added",
-                description:
-                    "A 14-day free trial of Online Services for new subscribers. Add a card to start it. You're charged when the trial ends unless you cancel before then.",
-            },
-            {
-                type: "changed",
-                description:
-                    "The vault can be open in only one browser tab at a time, and leaving it for another page of the site locks it after saving.",
-            },
-        ],
+        key: "android",
+        label: "Android",
+        path: "mobile/CHANGELOG.md",
+        releases: parseChangelog(androidChangelog),
     },
     {
-        version: "v1.6.0",
-        date: "2026-10-15",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "The account dialog shows what your plan includes. On the free plan you see what Online Services adds and what it costs, instead of an empty billing card. Subscribers see each service with its allowance and how many linked devices they use.",
-            },
-            {
-                type: "added",
-                description:
-                    "A new download page lists every way to get Cryptex Vault. The Android page explains how to install the app from our F-Droid repository.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Dialogs, menus and dropdowns in the web vault now use the dark theme, and Delete account and other destructive buttons are readable in it again.",
-            },
-        ],
+        key: "agent",
+        label: "SSH agent",
+        path: "services/cmd/cryptex-agent/CHANGELOG.md",
+        releases: parseChangelog(agentChangelog),
     },
     {
-        version: "v1.5.0",
-        date: "2026-10-14",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Credential rules in the web app and extension now accept exact Android app associations such as androidapp://com.example.app. These associations stay separate from website matching.",
-            },
-            {
-                type: "added",
-                description:
-                    "A new billing return page takes you back to the web vault or Android app. A return button stays available if your browser blocks automatic navigation.",
-            },
-            {
-                type: "added",
-                description:
-                    "Share a credential or any text through a link that opens once. You pick the fields, when the link expires and whether it needs a passphrase. Your device encrypts it, and the key stays in the link, so the share server can't read what you send.",
-            },
-            {
-                type: "added",
-                description:
-                    "Shared links shows every link you've sent and whether it was opened. You can search and filter it, and revoke a link nobody has opened yet. It syncs between your devices.",
-            },
-            {
-                type: "added",
-                description:
-                    "If you self-host, you can run the open-source share server next to your web app and hand out creation tokens to the people who may send links.",
-            },
-            {
-                type: "added",
-                description:
-                    "If you subscribed through Google Play or the App Store, the account dialog says so and tells you where to manage the subscription.",
-            },
-            {
-                type: "changed",
-                description:
-                    'The device linking dialog now says "Verification words" instead of "Mnemonic", the same term the extension, Android app and documentation use.',
-            },
-            {
-                type: "fix",
-                description:
-                    "Device linking and synchronization now wait for delayed connection candidates instead of failing immediately. Pending failure timers are cleared when connections end or are replaced.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Failures while deriving the password key now return a handled vault unlock error.",
-            },
-            {
-                type: "fix",
-                description:
-                    "The extension locks your vault when your computer's screen locks, not only after 30 minutes of inactivity.",
-            },
-            {
-                type: "fix",
-                description:
-                    "An open extension tab shows the unlock screen as soon as the vault locks somewhere else.",
-            },
-        ],
+        key: "share-server",
+        label: "Share server",
+        path: "services/cmd/share-server/CHANGELOG.md",
+        releases: parseChangelog(shareServerChangelog),
     },
     {
-        version: "v1.4.1",
-        date: "2026-09-25",
-        changes: [
-            {
-                type: "fix",
-                description:
-                    "Text in password and secret fields now stops before the show, copy, and generate icons instead of running underneath them.",
-            },
-            {
-                type: "added",
-                description:
-                    "Sort vault credentials by name in either direction, recently updated, or newest created. The web app remembers your choice in this browser.",
-            },
-            {
-                type: "added",
-                description:
-                    "Manage your linked devices from Account or the vault sidebar. A connection map and searchable list show each device and its links, including direct links that do not use Online Services.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Device actions now make it clearer when you are connecting, syncing, unlinking, or removing a device. Sidebar quick actions also work with a long press on touch screens.",
-            },
-            {
-                type: "added",
-                description:
-                    "Change your master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key from Vault Security. Key rotation gives you a new recovery code. In the web app, your recovery code can also be used to set a new password.",
-            },
-            {
-                type: "changed",
-                description:
-                    "When managed backups are enabled, security changes start a fresh backup. You can opt to delete older account restore points, including linked-device copies, after the upload succeeds. Downloaded backups remain yours to delete and still use the password and recovery information they had when downloaded.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Imports now show what will be added, skipped, or saved differently before you confirm. More details from Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox exports are carried over, and invalid files show clearer errors.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Synchronization handles simultaneous connections and disconnects more reliably. A failed vault save no longer appears as a successful sync, and secure custom relay server addresses now work.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Backup Center now shows current coverage only after a backup has finished uploading.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Vault transfers now verify the sending device before accepting the encrypted vault. Update the sending device if a new link reports that its transfer could not be authenticated.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Boolean custom fields now have an on/off switch in the web credential editor.",
-            },
-            {
-                type: "added",
-                description:
-                    "Self-hosting templates are available for the web app and its device-linking services, including secure TURN setup.",
-            },
-        ],
+        key: "relay-server",
+        label: "Relay",
+        path: "services/cmd/relay-server/CHANGELOG.md",
+        releases: parseChangelog(relayServerChangelog),
     },
-    {
-        version: "v1.4.0",
-        date: "2026-07-06",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Credentials can store multiple website rules with exact-host, parent/sibling domain, or safe wildcard matching.",
-            },
-            {
-                type: "added",
-                description:
-                    "A new Backup Center provides encrypted downloads and optional Online Services managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.",
-            },
-            {
-                type: "added",
-                description:
-                    "Choose how long the web vault waits before automatically locking after inactivity.",
-            },
-            {
-                type: "added",
-                description:
-                    "Organize credentials into directories across the web app and extension, move multiple credentials at once, and preserve directories through imports, exports, and linked-device synchronization.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Online Services sessions now refresh and sign out more reliably, including when locking a vault or removing an account connection.",
-            },
-            {
-                type: "removed",
-                description:
-                    "Removed the unused Online Services feature-voting integration and outdated subscription perk listing.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Older v2 vault backups can be restored and unlocked again without an invalid-version error.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Production Online Services error logs no longer include request inputs or response details that may contain sensitive information.",
-            },
-            {
-                type: "added",
-                description:
-                    "Payments now stay inside Cryptex Vault with embedded monthly and yearly checkout, billing management, and clearer account and recovery flows.",
-            },
-            {
-                type: "added",
-                description:
-                    "The browser extension can securely recognize authentication forms, fill, save, and manage credentials for the current site, generate passwords and linking passphrases, keep its controls aligned, and automatically lock when idle.",
-            },
-            {
-                type: "added",
-                description:
-                    "Vault protection now includes password-strength guidance, optional recovery phrases and additional protection keys, safer secret handling, and clearer setup and recovery controls.",
-            },
-            {
-                type: "added",
-                description:
-                    "Import passwords from Cryptex Vault, Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox using a guided preview, including during new vault setup.",
-            },
-            {
-                type: "added",
-                description:
-                    "Linking and synchronization are now encrypted end-to-end with more reliable QR exchange, improved connectivity, and post-quantum message signing.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Vault, account, recovery, and connected-device screens have been refined for clearer feedback.",
-            },
-        ],
-    },
-    {
-        version: "v1.3.0",
-        date: "2026-01-06",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Introduced a Log Inspector dialog for enhanced debugging and log management.",
-            },
-            {
-                type: "added",
-                description:
-                    "Added an auto-confirm countdown to the Vault Lock dialog.",
-            },
-            {
-                type: "added",
-                description:
-                    "Added a `showPasswordGenerator` prop to `FormInput` for optional password generator buttons, and removed the default generator from the vault unlock secret input.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Started unifying vault UI components for a more consistent experience.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Added autofocus to the secret key input in the Unlock tab for faster entry.",
-            },
-            {
-                type: "changed",
-                description:
-                    "The `web` package version has been bumped to `v1.3.0`.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Updated `.gitignore` to exclude extension build artifacts.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Correctly reference the credentials list in `applyDiffs` so vault synchronization works properly.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Added a short UI delay in the Unlock Vault dialog to improve responsiveness during unlock.",
-            },
-            {
-                type: "fix",
-                description:
-                    "Unified HTML5 quote escape sequences in `unlock.tsx` to avoid parsing inconsistencies.",
-            },
-        ],
-    },
-    {
-        version: "v1.2.0",
-        date: "2025-12-06",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "QR code data can be copied in the in-vault linking dialog.",
-            },
-            {
-                type: "added",
-                description: "Changelog dialog now highlights unseen releases.",
-            },
-            {
-                type: "added",
-                description:
-                    "Implemented a new vault metadata editor in the Vault Manager.",
-            },
-            {
-                type: "added",
-                description:
-                    "Implemented a credential generator dialog on every password input field.",
-            },
-            {
-                type: "changed",
-                description:
-                    "Strip the linking configuration and devices from the generated backup.",
-            },
-            {
-                type: "changed",
-                description:
-                    "The `web` package version has been bumped to `v1.2.0`.",
-            },
-            {
-                type: "fix",
-                description: "Removed reliance on the nodejs Buffer class.",
-            },
-        ],
-    },
-    {
-        version: "v1.1.0",
-        date: "2025-08-03",
-        changes: [
-            {
-                type: "added",
-                description: "Added the `CHANGELOG.md` file (#5)",
-            },
-            {
-                type: "added",
-                description: "Changelog dialog inside the application",
-            },
-            {
-                type: "changed",
-                description: "Replaced `npm` with `pnpm` (#5)",
-            },
-            {
-                type: "changed",
-                description:
-                    "Changed the project structure to allow for browser extension collocation",
-            },
-            {
-                type: "changed",
-                description: "Bumped the dependency versions",
-            },
-            {
-                type: "changed",
-                description:
-                    "Stripe API integration now targets the latest version used by the account - not pinned to a specific version",
-            },
-            {
-                type: "changed",
-                description:
-                    "The `web` package version has been bumped to `v1.1.0`",
-            },
-        ],
-    },
-    {
-        version: "v1.0.2",
-        date: "2025-07-12",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Show a notification when the TURN server configuration is saved (#4)",
-            },
-            {
-                type: "fix",
-                description:
-                    "Make sure that the Vault Manager UI is refreshed when the last vault is removed (#4)",
-            },
-            {
-                type: "fix",
-                description:
-                    "In-vault dialog header title color has appropriate contrast",
-            },
-            {
-                type: "fix",
-                description:
-                    "In-vault number input control text color has appropriate contrast",
-            },
-            {
-                type: "fix",
-                description:
-                    "Signaling server configuration is now properly saved",
-            },
-            {
-                type: "fix",
-                description:
-                    "In-vault STUN/TURN/Signaling server configuration dialog UI elements now use appropriate colors",
-            },
-            {
-                type: "changed",
-                description:
-                    "Remove `console.error` calls when the credential list is rendering (#4)",
-            },
-            {
-                type: "changed",
-                description:
-                    "In-vault credential list item favicons now load lazily",
-            },
-        ],
-    },
-    {
-        version: "v1.0.1",
-        date: "2025-07-11",
-        changes: [
-            {
-                type: "added",
-                description:
-                    "Show all tier perks in the account dialog, along with an icon indicating whether or not it is available in the current tier (#3)",
-            },
-        ],
-    },
-    {
-        version: "v1.0.0",
-        date: "2025-07-01",
-        initialVersion: true,
-        changes: [
-            {
-                type: "fix",
-                description:
-                    "Fix Stripe configuration so that it accepts promotional codes (#1)",
-            },
-            {
-                type: "fix",
-                description: "Fix QR decoding when linking outside vault (#2)",
-            },
-            {
-                type: "changed",
-                description: "Redesigned the index page",
-            },
-            {
-                type: "changed",
-                description: "Redesigned the Vault Manager page",
-            },
-            {
-                type: "changed",
-                description: "Rewrote the synchronization logic",
-            },
-            {
-                type: "changed",
-                description: "Project made public",
-            },
-        ],
-    },
-];
+] as const;
+
+export type ChangelogKey = (typeof CHANGELOGS)[number]["key"];
+
+export function isChangelogKey(value: unknown): value is ChangelogKey {
+    return CHANGELOGS.some((changelog) => changelog.key === value);
+}
+
+export function ChangelogPicker({
+    value,
+    onChange,
+    className,
+    buttonClassName,
+}: {
+    value: ChangelogKey;
+    onChange: (key: ChangelogKey) => void;
+    className: string;
+    buttonClassName?: string;
+}) {
+    const groupRef = useRef<HTMLDivElement>(null);
+    const [hidden, setHidden] = useState({ left: false, right: false });
+
+    // Fades out an edge of the row when more buttons are hidden past it.
+    const updateHidden = useCallback(() => {
+        const group = groupRef.current;
+        if (!group) return;
+        const left = group.scrollLeft > 1;
+        const right =
+            group.scrollLeft + group.clientWidth < group.scrollWidth - 1;
+        setHidden((current) =>
+            current.left === left && current.right === right
+                ? current
+                : { left, right },
+        );
+    }, []);
+
+    useEffect(() => {
+        const group = groupRef.current;
+        if (!group) return;
+        updateHidden();
+        const observer = new ResizeObserver(updateHidden);
+        observer.observe(group);
+        return () => observer.disconnect();
+    }, [updateHidden]);
+
+    // The row scrolls sideways on narrow screens; keep the selected button in
+    // it visible without scrolling the page.
+    useEffect(() => {
+        const group = groupRef.current;
+        const selected = group?.querySelector('[aria-pressed="true"]');
+        if (!group || !selected) return;
+        const row = group.getBoundingClientRect();
+        const button = selected.getBoundingClientRect();
+        if (button.left < row.left) group.scrollLeft -= row.left - button.left;
+        else if (button.right > row.right)
+            group.scrollLeft += button.right - row.right;
+    }, [value]);
+
+    // Mouse users can't easily scroll sideways, so the chevrons do it. They're
+    // hidden from keyboards and screen readers, which reach every button anyway.
+    const scrollRow = (direction: 1 | -1) => {
+        const group = groupRef.current;
+        group?.scrollBy({
+            left: direction * group.clientWidth * 0.6,
+            behavior: "smooth",
+        });
+    };
+    const chevronClassName =
+        "absolute inset-y-0 flex items-center opacity-70 transition-opacity hover:opacity-100";
+
+    return (
+        <div className="relative shrink-0">
+            <div
+                ref={groupRef}
+                role="group"
+                aria-label="Component"
+                className={`flex overflow-x-auto [scrollbar-width:none] ${className}`}
+                onScroll={updateHidden}
+                style={{
+                    maskImage: `linear-gradient(to right, ${hidden.left ? "transparent 1.5rem" : "black"}, black 4rem, black calc(100% - 4rem), ${hidden.right ? "transparent calc(100% - 1.5rem)" : "black"})`,
+                }}
+            >
+                {CHANGELOGS.map((changelog) => (
+                    <button
+                        key={changelog.key}
+                        type="button"
+                        aria-pressed={changelog.key === value}
+                        className={`flex-none whitespace-nowrap ${buttonClassName ?? ""}`}
+                        onClick={() => onChange(changelog.key)}
+                    >
+                        {changelog.label}
+                        <span className="font-mono opacity-70">
+                            {changelog.releases[0]?.version.slice(1)}
+                        </span>
+                    </button>
+                ))}
+            </div>
+            {hidden.left && (
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden
+                    className={`${chevronClassName} left-0`}
+                    onClick={() => scrollRow(-1)}
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+            )}
+            {hidden.right && (
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden
+                    className={`${chevronClassName} right-0`}
+                    onClick={() => scrollRow(1)}
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            )}
+        </div>
+    );
+}
+
+/** Renders `code` spans; changelog entries use no other markdown. */
+function Description({ text }: { text: string }) {
+    return text
+        .split("`")
+        .map((part, index) =>
+            index % 2 ? <code key={index}>{part}</code> : part,
+        );
+}
 
 /** Release content shared by the app dialog and the public changelog. */
-export function ChangelogEntries({ website = false }: { website?: boolean }) {
+export function ChangelogEntries({
+    changelog,
+    website = false,
+}: {
+    changelog: ChangelogKey;
+    website?: boolean;
+}) {
+    const releases = CHANGELOGS.find(({ key }) => key === changelog)!.releases;
     return (
         <TooltipProvider>
             <div className={website ? styles.website : "space-y-6"}>
-                {CHANGELOG_DATA.map((release) => (
+                {releases.map((release) => (
                     <section
                         key={release.version}
                         id={website ? release.version : undefined}
@@ -569,8 +289,7 @@ export function ChangelogEntries({ website = false }: { website?: boolean }) {
                                     role="heading"
                                     aria-level={2}
                                     variant={
-                                        release.version ===
-                                        CHANGELOG_DATA[0]?.version
+                                        release === releases[0]
                                             ? "default"
                                             : "secondary"
                                     }
@@ -578,14 +297,6 @@ export function ChangelogEntries({ website = false }: { website?: boolean }) {
                                 >
                                     {release.version}
                                 </Badge>
-                                {release.initialVersion && (
-                                    <Badge
-                                        variant="outline"
-                                        className="text-xs"
-                                    >
-                                        Initial Release
-                                    </Badge>
-                                )}
                             </div>
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Calendar className="h-3 w-3" />
@@ -641,15 +352,16 @@ export function ChangelogEntries({ website = false }: { website?: boolean }) {
                                         <p
                                             className={`text-sm leading-relaxed ${styles.description}`}
                                         >
-                                            {change.description}
+                                            <Description
+                                                text={change.description}
+                                            />
                                         </p>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        {release !==
-                            CHANGELOG_DATA[CHANGELOG_DATA.length - 1] && (
+                        {release !== releases.at(-1) && (
                             <Separator className={`mt-6 ${styles.separator}`} />
                         )}
                     </section>
@@ -660,12 +372,11 @@ export function ChangelogEntries({ website = false }: { website?: boolean }) {
 }
 
 export const ChangelogDialog: React.FC = () => {
-    const currentVersion =
-        CHANGELOG_DATA.find((release) => release.version !== "Unreleased")
-            ?.version ?? "";
+    const currentVersion = CHANGELOGS[0].releases[0]?.version ?? "";
     const storageKey = "changelog:lastSeenVersion";
 
     const [open, setOpen] = useState(false);
+    const [changelog, setChangelog] = useState<ChangelogKey>("web");
     const [hasUnseen, setHasUnseen] = useState(false);
 
     useEffect(() => {
@@ -713,31 +424,36 @@ export const ChangelogDialog: React.FC = () => {
                     </span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="flex max-h-[80vh] max-w-2xl flex-col overflow-hidden">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[80vh] max-w-3xl flex-col overflow-hidden">
+                <DialogHeader className="flex-row items-center gap-4 space-y-0 pr-8">
                     <DialogTitle className="flex items-center gap-2">
                         <GitCommit className="h-5 w-5" />
                         Changelog
                     </DialogTitle>
-                    <DialogDescription>
-                        Track updates, improvements, and new features in Cryptex
-                        Vault.
-                        <br />
-                        Detailed release notes are published in the repository
-                        changelog.
-                        <br />
-                        Source URL:{" "}
-                        <a
-                            href="https://github.com/CryptexIndustries/vault-web"
-                            target="blank"
-                            className="text-primary underline"
-                        >
-                            https://github.com/CryptexIndustries/vault-web
-                        </a>
+                    <DialogDescription className="sr-only">
+                        Release notes for each Cryptex Vault component.
                     </DialogDescription>
+                    <a
+                        href={`https://github.com/CryptexIndustries/vault-web/blob/master/${
+                            CHANGELOGS.find(({ key }) => key === changelog)!
+                                .path
+                        }`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-auto flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        View on GitHub
+                        <ExternalLink className="h-3 w-3" />
+                    </a>
                 </DialogHeader>
+                <ChangelogPicker
+                    value={changelog}
+                    onChange={setChangelog}
+                    className="gap-1"
+                    buttonClassName="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground aria-pressed:bg-secondary aria-pressed:text-foreground [&>span]:ml-1.5"
+                />
                 <div className="flex-1 overflow-y-auto pr-2">
-                    <ChangelogEntries />
+                    <ChangelogEntries changelog={changelog} />
                 </div>
             </DialogContent>
         </Dialog>

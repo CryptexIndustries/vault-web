@@ -1,6 +1,7 @@
 # Client-only dev compose with hot reload. No Postgres/Redis/API.
 # Mirrors only the `app` service pattern from cryptex-vault-cloud/compose.dev.yaml.
 # ./web and ./packages are bind-mounted over /app sources so edits apply without rebuild.
+# The other components' CHANGELOG.md files are mounted for the changelog page.
 #
 # Local-only vault (default, loopback HTTP):
 #   docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.default up --build
@@ -64,6 +65,11 @@ services:
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./web:/app/web
       - ./packages:/app/packages
+      - ./extension/CHANGELOG.md:/app/extension/CHANGELOG.md:ro
+      - ./mobile/CHANGELOG.md:/app/mobile/CHANGELOG.md:ro
+      - ./services/cmd/cryptex-agent/CHANGELOG.md:/app/services/cmd/cryptex-agent/CHANGELOG.md:ro
+      - ./services/cmd/share-server/CHANGELOG.md:/app/services/cmd/share-server/CHANGELOG.md:ro
+      - ./services/cmd/relay-server/CHANGELOG.md:/app/services/cmd/relay-server/CHANGELOG.md:ro
       - cryptex_dev_node_modules:/app/web/node_modules
       - cryptex_dev_next_local:/app/web/.next
     ports:
@@ -85,6 +91,11 @@ services:
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./web:/app/web
       - ./packages:/app/packages
+      - ./extension/CHANGELOG.md:/app/extension/CHANGELOG.md:ro
+      - ./mobile/CHANGELOG.md:/app/mobile/CHANGELOG.md:ro
+      - ./services/cmd/cryptex-agent/CHANGELOG.md:/app/services/cmd/cryptex-agent/CHANGELOG.md:ro
+      - ./services/cmd/share-server/CHANGELOG.md:/app/services/cmd/share-server/CHANGELOG.md:ro
+      - ./services/cmd/relay-server/CHANGELOG.md:/app/services/cmd/relay-server/CHANGELOG.md:ro
       - cryptex_dev_node_modules:/app/web/node_modules
       - cryptex_dev_next_cloud:/app/web/.next
     ports:
@@ -109,6 +120,11 @@ services:
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./web:/app/web
       - ./packages:/app/packages
+      - ./extension/CHANGELOG.md:/app/extension/CHANGELOG.md:ro
+      - ./mobile/CHANGELOG.md:/app/mobile/CHANGELOG.md:ro
+      - ./services/cmd/cryptex-agent/CHANGELOG.md:/app/services/cmd/cryptex-agent/CHANGELOG.md:ro
+      - ./services/cmd/share-server/CHANGELOG.md:/app/services/cmd/share-server/CHANGELOG.md:ro
+      - ./services/cmd/relay-server/CHANGELOG.md:/app/services/cmd/relay-server/CHANGELOG.md:ro
       - cryptex_dev_node_modules:/app/web/node_modules
       - cryptex_dev_next_lan:/app/web/.next
     ports:
@@ -131,6 +147,11 @@ services:
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./web:/app/web
       - ./packages:/app/packages
+      - ./extension/CHANGELOG.md:/app/extension/CHANGELOG.md:ro
+      - ./mobile/CHANGELOG.md:/app/mobile/CHANGELOG.md:ro
+      - ./services/cmd/cryptex-agent/CHANGELOG.md:/app/services/cmd/cryptex-agent/CHANGELOG.md:ro
+      - ./services/cmd/share-server/CHANGELOG.md:/app/services/cmd/share-server/CHANGELOG.md:ro
+      - ./services/cmd/relay-server/CHANGELOG.md:/app/services/cmd/relay-server/CHANGELOG.md:ro
       - cryptex_dev_node_modules:/app/web/node_modules
       - cryptex_dev_next_lan_cloud:/app/web/.next
     ports:

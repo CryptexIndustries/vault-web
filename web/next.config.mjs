@@ -67,6 +67,16 @@ const nextConfig = {
     output: "standalone",
     turbopack: {
         root: workspaceRoot,
+        rules: {
+            "CHANGELOG.md": {
+                loaders: [
+                    fileURLToPath(
+                        new URL("./changelog-loader.cjs", import.meta.url),
+                    ),
+                ],
+                as: "*.js",
+            },
+        },
     },
     transpilePackages: [
         "@cryptex-industries/api-contract",

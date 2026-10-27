@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-27
+
+### Added
+
+- The Android app is on Google Play. The Android download page links to it first, and the download page and roadmap no longer say Google Play is reviewing it.
+
+### Changed
+
+- The homepage roadmap lists the SSH agent as available and custom backup destinations as in development. Each item in its Available now card links to its download or docs page, and the footer links to the SSH agent.
+- Bumped the web app and Chromium Extension versions to `1.8.1`.
+
 ## [1.8.0] - 2026-10-25
 
 ### Added

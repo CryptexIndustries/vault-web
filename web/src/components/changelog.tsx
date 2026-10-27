@@ -41,6 +41,17 @@ const CHANGE_LABELS: Record<
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
     {
+        version: "v1.8.1",
+        date: "2026-10-27",
+        changes: [
+            {
+                type: "added",
+                description:
+                    "The Android app is on Google Play. Find it on the Android download page.",
+            },
+        ],
+    },
+    {
         version: "v1.8.0",
         date: "2026-10-25",
         changes: [

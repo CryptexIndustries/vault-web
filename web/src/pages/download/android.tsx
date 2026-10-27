@@ -8,6 +8,7 @@ import {
     Label,
     Section,
     Action,
+    GOOGLE_PLAY,
     REPO,
     s,
 } from "@/components/marketing/site";
@@ -75,7 +76,7 @@ export default function Download() {
     return (
         <Site
             title="Get the Android app"
-            description="Install Cryptex Vault on Android from our F-Droid repository, or download the signed APK."
+            description="Install Cryptex Vault on Android from Google Play or our F-Droid repository, or download the signed APK."
         >
             <section className={s.pageHero}>
                 <Link href="/download" className={d.back}>
@@ -84,11 +85,15 @@ export default function Download() {
                 <Label>ANDROID</Label>
                 <h1>Cryptex Vault for Android</h1>
                 <p>
-                    Add our F-Droid repository and your F-Droid client installs
-                    new versions as we release them.
+                    Install it from Google Play, or add our F-Droid repository
+                    and your F-Droid client installs new versions as we release
+                    them.
                 </p>
                 <div className={s.actions}>
-                    <Action href={FDROID_ADD_LINK}>Add to F-Droid</Action>
+                    <Action href={GOOGLE_PLAY}>Get it on Google Play</Action>
+                    <Action href={FDROID_ADD_LINK} secondary>
+                        Add to F-Droid
+                    </Action>
                     <Action href="#apk" secondary>
                         Download the APK
                     </Action>
@@ -188,13 +193,16 @@ export default function Download() {
                         </p>
                         <span className={d.status}>In review</span>
                     </article>
-                    <article className={d.soon}>
+                    <article>
                         <h3>Google Play</h3>
                         <p>
-                            Google is reviewing the release. We&apos;ll link it
-                            here once it&apos;s approved.
+                            Play installs updates for you. Online Services
+                            bought in the app are billed through Google Play.
+                            Google signs the Play copy with its own key, so to
+                            switch from an APK or F-Droid install, export your
+                            vault, uninstall the app and install it from Play.
                         </p>
-                        <span className={d.status}>In review</span>
+                        <Action href={GOOGLE_PLAY}>Open Google Play</Action>
                     </article>
                 </div>
             </Section>

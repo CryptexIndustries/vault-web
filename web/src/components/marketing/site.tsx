@@ -24,6 +24,8 @@ import {
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
 export const BROWSER_EXTENSION =
     "https://chromewebstore.google.com/detail/mmkjefiodfpafhkckekfdeccnkhphfhp";
+export const GOOGLE_PLAY =
+    "https://play.google.com/store/apps/details?id=com.cryptexindustries.vault";
 export { s };
 export function Action({
     href = "/app",
@@ -224,6 +226,7 @@ export function Site({
                             Chromium Extension
                         </a>
                         <Link href="/download/android">Android app</Link>
+                        <Link href="/docs/ssh-agent#install">SSH agent</Link>
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>RESOURCES</span>

@@ -47,9 +47,9 @@ export default function Downloads() {
                     <article>
                         <h3>Android</h3>
                         <p>
-                            Install from our F-Droid repository or as an APK
-                            from GitHub. Google Play and F-Droid are reviewing
-                            it.
+                            Install from Google Play, our F-Droid repository or
+                            as an APK from GitHub. The main F-Droid repository
+                            is reviewing it.
                         </p>
                         <Action href="/download/android">
                             Get the Android app

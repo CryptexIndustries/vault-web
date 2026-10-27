@@ -226,6 +226,7 @@ export function Site({
                             Chromium Extension
                         </a>
                         <Link href="/download/android">Android app</Link>
+                        <Link href="/docs/ssh-agent#install">SSH agent</Link>
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>RESOURCES</span>

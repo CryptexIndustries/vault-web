@@ -23,6 +23,12 @@ const roadmap = [
                 target: "Q4 2026",
                 description: "Use Cryptex Vault on Android.",
             },
+            {
+                title: "Custom backup destinations",
+                target: null,
+                description:
+                    "Store backups on your own infrastructure or in commercial S3-compatible buckets.",
+            },
         ],
     },
     {
@@ -35,12 +41,6 @@ const roadmap = [
                 target: "Q1 2027",
                 description:
                     "Scan dark web data dumps and alert you to exposed credentials.",
-            },
-            {
-                title: "Custom backup destinations",
-                target: null,
-                description:
-                    "Store backups on your own infrastructure or in commercial S3-compatible buckets.",
             },
             {
                 title: "Firefox extension",

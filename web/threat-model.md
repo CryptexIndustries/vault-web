@@ -145,7 +145,7 @@ Weak passwords still permit offline guessing. Browser storage integrity, cryptog
 
 ### Sync and device linking
 
-- Pusher presence channels provide signaling; WebRTC carries peer traffic. Sync channels use `presence-sync-{syncID}`. Connectivity uses configured STUN/TURN servers or Cloud-provided TURN credentials.
+- Pusher presence channels provide signaling; WebRTC carries peer traffic. Sync channels use `presence-sync-{syncID}`. Connectivity uses configured STUN/TURN servers or Cloud-provided TURN credentials. The server editor's Test connection can run before a server is saved. It sends the typed TURN username and password, or a presence signature made with the typed signaling secret, to the host in the form.
 - Sync keys reside in vault `LinkedDevices` data. Sync uses ML-KEM-768 and ML-DSA-65, with HKDF-derived AES-GCM keys and transcript-bound additional authenticated data.
 - Linking encrypts the package using a 12-word BIP39 mnemonic, Argon2id, and XChaCha20-Poly1305. Its HMAC-SHA-256 uses mnemonic bytes as the MAC key.
 - The linking copy removes current Online Services data, resets linked-device state, and installs sender root-device metadata for the receiver.

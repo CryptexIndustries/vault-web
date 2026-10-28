@@ -455,6 +455,8 @@ Required invariants:
 3. They exchange versioned vault changes over WebRTC data channels.
 4. The write coordinator serializes merges and persistence.
 
+The server editor's Test connection can run before a server is saved. It sends the typed TURN username and password, or a presence signature made with the typed signaling secret, to the host in the form.
+
 Required invariants:
 
 - Only current linked-device keys may establish a session.

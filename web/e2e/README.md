@@ -10,9 +10,9 @@ The runner exposes the app to its own browser through a loopback proxy. That
 keeps Web Crypto available (browsers treat loopback as a trustworthy origin)
 while the proxy reaches the app through Compose service DNS.
 
-The initial journey covers local vault creation, recovery-code acknowledgement,
-credential create, search, edit and delete, encrypted persistence, and
-lock/re-unlock.
+The specs in `tests/` cover the main vault journey (create, edit, search,
+lock and unlock), importing, SSH keys and the SSH agent, the purchase journey,
+device linking between two browsers, and the vault's server settings.
 
 ## Run
 
@@ -20,6 +20,12 @@ lock/re-unlock.
 pnpm test:e2e:install # once per machine/CI image
 pnpm test:e2e:web
 ```
+
+Every run gets the self-hosted signaling (soketi) and TURN (coturn) servers
+from `compose.e2e.yaml`. The Docker command starts them in its stack. Runs on
+the host start the same two containers from `global-setup.ts`, publish them on
+loopback (`E2E_SIGNALING_PORT`, default 6001, and `E2E_TURN_PORT`, default
+3478), and stop them when Playwright exits. Host runs need Docker for this.
 
 The Docker command downloads its own browser, so `test:e2e:install` is only
 needed for local debugging. Use `pnpm test:e2e:web:local` for a fast host run or

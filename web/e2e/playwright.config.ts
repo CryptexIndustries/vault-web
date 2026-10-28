@@ -9,6 +9,7 @@ const externalServer = process.env.E2E_EXTERNAL_SERVER === "1";
 
 export default defineConfig({
     testDir: path.resolve(e2eDirectory, "tests"),
+    globalSetup: path.resolve(e2eDirectory, "global-setup.ts"),
     outputDir: path.resolve(repositoryRoot, "test-results/web-e2e"),
     fullyParallel: false,
     workers: 1,

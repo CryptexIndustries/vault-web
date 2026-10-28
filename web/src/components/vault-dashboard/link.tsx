@@ -9,10 +9,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+    LIST_ROW_HEIGHT,
+    LIST_ROWS,
+    LIST_SEARCH_FROM,
+} from "@/components/agents/agent-ui";
+import {
     ControlWithActions,
     plainFieldClassName,
 } from "@/components/ui/control-with-actions";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,6 +53,7 @@ import {
 import {
     clearDeviceLocalFields,
     Directory,
+    type LinkedDevice,
     LinkedDevices,
     OnlineServices,
     SignalingServerConfiguration,
@@ -108,6 +115,8 @@ import {
     MISSING_VAULT_SECRET_ERROR,
 } from "@/utils/vault-session";
 import { persistVaultMutation } from "@/utils/vault-mutations";
+import { testIceServer } from "@/utils/test-ice-server";
+import { testSignalingServerConnection } from "@/utils/test-signaling";
 import {
     clearOnlineServicesSession,
     onlineServicesDataAtom,
@@ -145,27 +154,42 @@ import { TRPCClientError } from "@trpc/client";
 import { useAtomValue } from "jotai/react";
 import {
     AlertCircle,
+    AlertTriangle,
     Camera,
     CheckCircle2,
     Download,
     Eye,
     EyeOff,
     FileText,
+    Globe,
     ChevronDown,
     ChevronRight,
     Loader2,
     Plus,
     QrCode,
+    RadioTower,
+    Search,
+    Server,
     ShieldCheck,
     Sun,
     Trash2,
     Upload,
     X,
 } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Virtuoso } from "react-virtuoso";
+import {
+    type RefObject,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { toast } from "sonner";
 import { ulid } from "ulidx";
+import { z } from "zod";
 import BarcodeScanner from "@/components/general/qr-scanner";
 import { CheckoutTierPicker } from "@/components/vault-dashboard/checkout-tier-picker";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
@@ -3980,13 +4004,73 @@ export type VaultSignalingConfig = {
     signalingServers: SignalingServerConfiguration[];
 };
 
+/** Toast text for one change to the vault signaling config. */
+export type VaultSignalingSaveMessages = { pending: string; done: string };
+
 export type VaultSignalingConfigDialogProps = VaultSignalingConfig & {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (config: VaultSignalingConfig) => Promise<void> | void;
+    /** Linked devices, to warn when a deleted server is still in use. */
+    devices: LinkedDevice[];
+    onSave: (
+        config: VaultSignalingConfig,
+        messages: VaultSignalingSaveMessages,
+    ) => Promise<void> | void;
 };
 
-type ServerKind = "stun" | "turn" | "signaling";
+type ServerTestResult = { ok: boolean; message: string };
+
+type ServerBase = { ID: string; Name: string; Host: string };
+
+type ServerField<T> = {
+    key: keyof T & string;
+    label: string;
+    placeholder?: string;
+    required?: boolean;
+    secret?: boolean;
+    numeric?: boolean;
+};
+
+type ServerValues = Record<string, string>;
+
+type ServerSectionConfig<T extends ServerBase> = {
+    kind: "stun" | "turn" | "signaling";
+    label: string;
+    /** The label mid-sentence: "STUN" and "TURN" stay uppercase. */
+    noun: string;
+    icon: typeof Server;
+    description: string;
+    fields: ServerField<T>[];
+    /** Validates the form and trims everything except secrets. */
+    schema: z.ZodType<ServerValues, z.ZodTypeDef, ServerValues>;
+    create: () => T;
+    clone: (server: T) => T;
+    test: (server: T) => Promise<ServerTestResult>;
+    usedBy: (device: LinkedDevice, id: string) => boolean;
+};
+
+const nameField = z.string().trim().min(1, "Enter a name.");
+
+const hostField = z
+    .string()
+    .trim()
+    .min(1, "Enter a host.")
+    .refine((value) => !/\s/.test(value), "Remove the spaces from the host.");
+
+/** A STUN or TURN host: host[:port], or a URL with a matching scheme. */
+const iceHostField = (scheme: "stun" | "turn") =>
+    hostField.refine((value) => {
+        // "host:3478" has a port after the colon; "turns:host" has a scheme.
+        const prefix = /^([a-z]+):(?!\d)/i.exec(value)?.[1]?.toLowerCase();
+        return !prefix || prefix === scheme || prefix === `${scheme}s`;
+    }, `Start with ${scheme}: or ${scheme}s:, or enter just the host.`);
+
+const listFormat = new Intl.ListFormat("en", { type: "conjunction" });
+
+const nameKey = (name: string) => name.trim().toLowerCase();
+
+const isPort = (value: string) =>
+    /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 65535;
 
 const cloneSTUNServer = (server: STUNServerConfiguration) =>
     Object.assign(new STUNServerConfiguration(), server);
@@ -3997,52 +4081,754 @@ const cloneTURNServer = (server: TURNServerConfiguration) =>
 const cloneSignalingServer = (server: SignalingServerConfiguration) =>
     Object.assign(new SignalingServerConfiguration(), server);
 
-function countLabel(count: number, singular: string) {
-    return `${count} ${singular}${count === 1 ? "" : "s"}`;
-}
+const stunSection: ServerSectionConfig<STUNServerConfiguration> = {
+    kind: "stun",
+    label: "STUN",
+    noun: "STUN",
+    icon: Globe,
+    description: "Discover a direct route between devices.",
+    fields: [
+        {
+            key: "Name",
+            label: "Name",
+            placeholder: "e.g. Home STUN",
+            required: true,
+        },
+        {
+            key: "Host",
+            label: "Host",
+            placeholder: "e.g. stun.example.com:3478",
+            required: true,
+        },
+    ],
+    schema: z.object({ Name: nameField, Host: iceHostField("stun") }),
+    create: () => new STUNServerConfiguration("", ""),
+    clone: cloneSTUNServer,
+    test: (server) => testIceServer("stun", server),
+    usedBy: (device, id) => device.STUNServerIDs.includes(id),
+};
 
-function EmptyServerState({ kind }: { kind: ServerKind }) {
-    const labels: Record<ServerKind, string> = {
-        stun: "No custom STUN servers. Vault uses Online Services.",
-        turn: "No custom TURN servers. Vault uses Online Services.",
-        signaling: "No custom signaling servers. Vault uses Online Services.",
+const turnSection: ServerSectionConfig<TURNServerConfiguration> = {
+    kind: "turn",
+    label: "TURN",
+    noun: "TURN",
+    icon: Server,
+    description: "Relay encrypted traffic when a direct route is unavailable.",
+    fields: [
+        {
+            key: "Name",
+            label: "Name",
+            placeholder: "e.g. Home TURN",
+            required: true,
+        },
+        {
+            key: "Host",
+            label: "Host or TURN URL",
+            placeholder: "e.g. turns:turn.example.com:5349?transport=tcp",
+            required: true,
+        },
+        { key: "Username", label: "Username", placeholder: "e.g. turn-user" },
+        { key: "Password", label: "Password", secret: true },
+    ],
+    schema: z
+        .object({
+            Name: nameField,
+            Host: iceHostField("turn"),
+            Username: z.string().trim(),
+            Password: z.string(),
+        })
+        .superRefine((values, context) => {
+            if (values.Password && !values.Username)
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["Username"],
+                    message: "Enter the username for this password.",
+                });
+            if (values.Username && !values.Password)
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["Password"],
+                    message: "Enter the password for this username.",
+                });
+        }),
+    create: () => new TURNServerConfiguration("", "", "", ""),
+    clone: cloneTURNServer,
+    test: (server) => testIceServer("turn", server),
+    usedBy: (device, id) => device.TURNServerIDs.includes(id),
+};
+
+const signalingSection: ServerSectionConfig<SignalingServerConfiguration> = {
+    kind: "signaling",
+    label: "Signaling",
+    noun: "signaling",
+    icon: RadioTower,
+    description:
+        "Let devices discover each other and exchange connection information.",
+    fields: [
+        {
+            key: "Name",
+            label: "Name",
+            placeholder: "e.g. Home signaling",
+            required: true,
+        },
+        {
+            key: "Host",
+            label: "Host",
+            placeholder: "e.g. signal.example.com",
+            required: true,
+        },
+        {
+            key: "AppID",
+            label: "App ID",
+            placeholder: "e.g. app-id",
+            required: true,
+        },
+        {
+            key: "Key",
+            label: "Key",
+            placeholder: "e.g. pusher-key",
+            required: true,
+        },
+        { key: "Secret", label: "Secret", secret: true, required: true },
+        {
+            key: "ServicePort",
+            label: "WS port",
+            placeholder: "e.g. 6001",
+            numeric: true,
+        },
+        {
+            key: "SecureServicePort",
+            label: "WSS port",
+            placeholder: "e.g. 443, or 0 to turn off",
+            numeric: true,
+        },
+    ],
+    schema: z
+        .object({
+            Name: nameField,
+            Host: hostField.refine(
+                // A bracketed IPv6 address is the one host with colons.
+                (value) =>
+                    /^\[[\da-f:.]+\]$/i.test(value) || !/[/:]/.test(value),
+                "Enter just the host name, without a scheme, port or path.",
+            ),
+            AppID: z.string().trim().min(1, "Enter the app ID."),
+            Key: z.string().trim().min(1, "Enter the key."),
+            Secret: z.string().min(1, "Enter the secret."),
+            ServicePort: z
+                .string()
+                .trim()
+                .refine(
+                    (value) => !value || isPort(value),
+                    "Enter a port from 1 to 65535.",
+                ),
+            SecureServicePort: z
+                .string()
+                .trim()
+                .refine(
+                    (value) => !value || value === "0" || isPort(value),
+                    "Enter a port from 1 to 65535, or 0 to turn WSS off.",
+                )
+                // Sync reads an empty WSS port as WSS on.
+                .transform((value) => value || "0"),
+        })
+        // Either port will do; 0 or nothing turns WSS off.
+        .superRefine((values, context) => {
+            if (!values.ServicePort && !isPort(values.SecureServicePort))
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["ServicePort"],
+                    message: "Enter a WS port, or a WSS port below.",
+                });
+        }),
+    create: () =>
+        new SignalingServerConfiguration("", "", "", "", "", "6001", "0"),
+    clone: cloneSignalingServer,
+    test: testSignalingServerConnection,
+    usedBy: (device, id) => device.SignalingServerID === id,
+};
+
+/** What the vault signaling dialog shows in place of the server list. */
+type ServerEdit<T extends ServerBase = ServerBase> = {
+    kind: ServerSectionConfig<T>["kind"];
+    server: T;
+    action: "add" | "edit" | "delete";
+};
+
+/** Asks the open server form to run `leave`, confirming unsaved changes first. */
+type LeaveRequest = (leave: () => void) => void;
+
+/** The add and edit form for one server, in place of the server list. */
+function ServerForm<T extends ServerBase>({
+    config,
+    server,
+    isNew,
+    takenNames,
+    leaveRequest,
+    onClose,
+    onSave,
+}: {
+    config: ServerSectionConfig<T>;
+    server: T;
+    isNew: boolean;
+    /** The other servers' names, as nameKey gives them. */
+    takenNames: string[];
+    leaveRequest: RefObject<LeaveRequest | null>;
+    onClose: () => void;
+    onSave: (server: T) => Promise<void>;
+}) {
+    const {
+        register,
+        handleSubmit,
+        getValues,
+        watch,
+        formState: { errors, isDirty, isSubmitting },
+    } = useForm<ServerValues>({
+        resolver: zodResolver(
+            config.schema.superRefine(({ Name = "" }, context) => {
+                if (takenNames.includes(nameKey(Name)))
+                    context.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ["Name"],
+                        message: `A ${config.noun} server named ${Name} already exists.`,
+                    });
+            }),
+        ),
+        defaultValues: Object.fromEntries(
+            config.fields.map((field) => [
+                field.key,
+                String(server[field.key] ?? ""),
+            ]),
+        ),
+    });
+    const [error, setError] = useState("");
+    const [test, setTest] = useState<ServerTestResult | "testing">();
+    const [discard, setDiscard] = useState<{ leave: () => void } | null>(null);
+    const { kind, noun } = config;
+    const host = watch("Host");
+
+    // A test result or save failure belongs to the values it was made with.
+    useEffect(() => {
+        const subscription = watch(() => {
+            setTest(undefined);
+            setError("");
+        });
+        return () => subscription.unsubscribe();
+    }, [watch]);
+
+    // Escape, an outside click, Close and Cancel all come here. Asking again
+    // while "Discard changes?" shows goes back to the form.
+    const requestLeave: LeaveRequest = (leave) => {
+        if (isSubmitting) return;
+        if (discard) setDiscard(null);
+        else if (isDirty) setDiscard({ leave });
+        else leave();
     };
+    useEffect(() => {
+        leaveRequest.current = requestLeave;
+        return () => {
+            leaveRequest.current = null;
+        };
+    });
+
+    const save = handleSubmit(async (values) => {
+        try {
+            await onSave(Object.assign(config.clone(server), values));
+            onClose();
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Could not save server.",
+            );
+        }
+    });
+
+    if (discard) {
+        return (
+            <>
+                <DialogHeader>
+                    <DialogTitle>Discard changes?</DialogTitle>
+                    <DialogDescription>
+                        Your {noun} server changes have not been saved.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        autoFocus
+                        onClick={() => setDiscard(null)}
+                    >
+                        Keep editing
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={discard.leave}
+                    >
+                        Discard changes
+                    </Button>
+                </DialogFooter>
+            </>
+        );
+    }
 
     return (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-            {labels[kind]}
-        </div>
+        <form className="grid gap-4" noValidate onSubmit={save}>
+            <DialogHeader>
+                <DialogTitle>
+                    {isNew ? "Add" : "Edit"} {noun} server
+                </DialogTitle>
+                <DialogDescription>Saved inside this vault.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+                {config.fields.map((field, index) => {
+                    const id = `${kind}-${field.key}`;
+                    const fieldError = errors[field.key];
+                    const props = {
+                        id,
+                        placeholder: field.placeholder,
+                        autoFocus: index === 0,
+                        autoComplete: field.secret ? "new-password" : "off",
+                        spellCheck: false,
+                        disabled: isSubmitting,
+                        inputMode: field.numeric
+                            ? ("numeric" as const)
+                            : undefined,
+                        "aria-invalid": fieldError ? true : undefined,
+                        ...register(field.key),
+                    };
+                    return (
+                        <div key={field.key} className="space-y-2">
+                            <Label htmlFor={id}>
+                                {field.label}
+                                {field.required ? (
+                                    <>
+                                        {" "}
+                                        <span className="text-destructive">
+                                            *
+                                        </span>
+                                    </>
+                                ) : null}
+                            </Label>
+                            {field.secret ? (
+                                <PasswordInput
+                                    {...props}
+                                    secretLabel={field.label.toLowerCase()}
+                                    controlClassName={cn(
+                                        fieldError && "border-destructive",
+                                    )}
+                                />
+                            ) : (
+                                <Input
+                                    {...props}
+                                    className={cn(
+                                        fieldError && "border-destructive",
+                                    )}
+                                />
+                            )}
+                            {fieldError ? (
+                                <p className="text-xs text-destructive">
+                                    {fieldError.message}
+                                </p>
+                            ) : null}
+                        </div>
+                    );
+                })}
+            </div>
+            {test && test !== "testing" ? (
+                <p
+                    role="status"
+                    className={cn(
+                        "text-sm",
+                        test.ok
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : "text-destructive",
+                    )}
+                >
+                    {test.message}
+                </p>
+            ) : null}
+            {error ? (
+                <p className="text-sm text-destructive" role="alert">
+                    {error}
+                </p>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={() => requestLeave(onClose)}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                        isSubmitting || test === "testing" || !host.trim()
+                    }
+                    onClick={async () => {
+                        setTest("testing");
+                        setTest(
+                            await config.test(
+                                Object.assign(
+                                    config.clone(server),
+                                    getValues(),
+                                ),
+                            ),
+                        );
+                    }}
+                >
+                    {test === "testing" ? "Testing…" : "Test connection"}
+                </Button>
+                <Button
+                    type="submit"
+                    disabled={isSubmitting || (!isNew && !isDirty)}
+                >
+                    {isSubmitting ? "Saving…" : "Save server"}
+                </Button>
+            </DialogFooter>
+        </form>
     );
 }
 
-function Field({
-    id,
-    label,
-    value,
-    onChange,
-    placeholder,
-    type = "text",
+/** Asks before deleting a server, in place of the server list. */
+function DeleteServerConfirm({
+    name,
+    users,
+    leaveRequest,
+    onClose,
+    onDelete,
 }: {
-    id: string;
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    type?: string;
+    name: string;
+    /** Names of the linked devices set to use this server. */
+    users: string[];
+    leaveRequest: RefObject<LeaveRequest | null>;
+    onClose: () => void;
+    onDelete: () => Promise<void>;
 }) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+
+    // Any way of closing while the question shows keeps the server.
+    useEffect(() => {
+        leaveRequest.current = () => {
+            if (!busy) onClose();
+        };
+        return () => {
+            leaveRequest.current = null;
+        };
+    });
+
+    const remove = async () => {
+        setBusy(true);
+        setError("");
+        try {
+            await onDelete();
+            onClose();
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Could not delete server.",
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+
     return (
-        <div className="space-y-1.5">
-            <Label htmlFor={id} className="text-xs">
-                {label}
-            </Label>
-            <Input
-                id={id}
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-                placeholder={placeholder}
-                type={type}
-            />
-        </div>
+        <>
+            <DialogHeader>
+                <DialogTitle>Delete server?</DialogTitle>
+                <DialogDescription>
+                    Remove {name} from the vault.
+                </DialogDescription>
+            </DialogHeader>
+            {users.length ? (
+                <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <p className="text-foreground">
+                        Used by {listFormat.format(users)}.{" "}
+                        {users.length === 1
+                            ? "It may stop syncing until you choose another server for it."
+                            : "They may stop syncing until you choose another server for them."}
+                    </p>
+                </div>
+            ) : null}
+            {error ? (
+                <p className="text-sm text-destructive" role="alert">
+                    {error}
+                </p>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    autoFocus
+                    onClick={onClose}
+                >
+                    Keep server
+                </Button>
+                <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => void remove()}
+                >
+                    {busy ? "Deleting…" : "Delete server"}
+                </Button>
+            </DialogFooter>
+        </>
+    );
+}
+
+function ServerSection<T extends ServerBase>({
+    config,
+    servers,
+    devices,
+    edit,
+    leaveRequest,
+    onEdit,
+    onSaveServers,
+}: {
+    config: ServerSectionConfig<T>;
+    servers: T[];
+    devices: LinkedDevice[];
+    edit?: ServerEdit<T>;
+    leaveRequest: RefObject<LeaveRequest | null>;
+    onEdit: (edit: ServerEdit<T> | null) => void;
+    onSaveServers: (
+        servers: T[],
+        messages: VaultSignalingSaveMessages,
+    ) => Promise<void>;
+}) {
+    const [query, setQuery] = useState("");
+    const { kind, label, noun, icon: Icon } = config;
+    const needle = query.trim().toLowerCase();
+    const shown = needle
+        ? servers.filter((server) =>
+              `${server.Name}\n${server.Host}`.toLowerCase().includes(needle),
+          )
+        : servers;
+
+    // The edit that last replaced the list. Back on the list, focus returns
+    // to the button that started it, or to Add when that row is gone.
+    const returnTo = useRef<ServerEdit<T> | null>(null);
+    useEffect(() => {
+        if (edit) returnTo.current = edit;
+    }, [edit]);
+    const focusOnce = useCallback((element: HTMLElement | null) => {
+        if (!element || !returnTo.current) return;
+        returnTo.current = null;
+        // Virtuoso hides the list until it has scrolled to its start row,
+        // and a hidden button can't take focus.
+        const until = performance.now() + 1000;
+        const focus = () => {
+            element.focus();
+            if (
+                document.activeElement !== element &&
+                element.isConnected &&
+                performance.now() < until
+            )
+                requestAnimationFrame(focus);
+        };
+        focus();
+    }, []);
+    const back = edit ? null : returnTo.current;
+    const backIndex = back
+        ? shown.findIndex((server) => server.ID === back.server.ID)
+        : -1;
+
+    if (edit) {
+        return (
+            <TabsContent value={kind} className="mt-0 grid gap-4">
+                {edit.action === "delete" ? (
+                    <DeleteServerConfirm
+                        name={edit.server.Name}
+                        users={devices
+                            .filter((device) =>
+                                config.usedBy(device, edit.server.ID),
+                            )
+                            .map((device) => device.Name)}
+                        leaveRequest={leaveRequest}
+                        onClose={() => onEdit(null)}
+                        onDelete={() =>
+                            onSaveServers(
+                                servers.filter(
+                                    (item) => item.ID !== edit.server.ID,
+                                ),
+                                {
+                                    pending: `Deleting ${noun} server...`,
+                                    done: `${label} server deleted.`,
+                                },
+                            )
+                        }
+                    />
+                ) : (
+                    <ServerForm
+                        key={edit.server.ID}
+                        config={config}
+                        server={edit.server}
+                        isNew={edit.action === "add"}
+                        takenNames={servers
+                            .filter((item) => item.ID !== edit.server.ID)
+                            .map((item) => nameKey(item.Name))}
+                        leaveRequest={leaveRequest}
+                        onClose={() => onEdit(null)}
+                        onSave={(saved) =>
+                            onSaveServers(
+                                edit.action === "add"
+                                    ? [...servers, saved]
+                                    : servers.map((item) =>
+                                          item.ID === saved.ID ? saved : item,
+                                      ),
+                                {
+                                    pending: `Saving ${noun} server...`,
+                                    done: `${label} server saved.`,
+                                },
+                            )
+                        }
+                    />
+                )}
+            </TabsContent>
+        );
+    }
+
+    return (
+        <TabsContent value={kind} className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+                {config.description}
+            </p>
+            <div className="flex min-h-6 items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {label} servers
+                </span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                    {servers.length}
+                </span>
+            </div>
+            {servers.length >= LIST_SEARCH_FROM ? (
+                <div className="relative">
+                    <Search
+                        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                        aria-hidden="true"
+                    />
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder={`Search ${noun} servers`}
+                        aria-label={`Search ${noun} servers`}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="pl-9"
+                    />
+                </div>
+            ) : null}
+            {shown.length ? (
+                <Virtuoso
+                    className="rounded-lg border border-border"
+                    style={{
+                        height:
+                            Math.min(shown.length, LIST_ROWS) *
+                                LIST_ROW_HEIGHT +
+                            2,
+                    }}
+                    data={shown}
+                    fixedItemHeight={LIST_ROW_HEIGHT}
+                    // Scrolled so the row focus returns to is in view.
+                    initialTopMostItemIndex={Math.max(
+                        0,
+                        backIndex - Math.floor(LIST_ROWS) + 1,
+                    )}
+                    computeItemKey={(_, server) => server.ID}
+                    itemContent={(index, server) => (
+                        <div className="px-2">
+                            <div
+                                className={cn(
+                                    "flex h-14 items-center gap-1 pr-1 transition-colors hover:bg-muted/40",
+                                    index < shown.length - 1 &&
+                                        "border-b border-border",
+                                )}
+                            >
+                                <button
+                                    ref={
+                                        index === backIndex &&
+                                        back?.action !== "delete"
+                                            ? focusOnce
+                                            : undefined
+                                    }
+                                    type="button"
+                                    onClick={() =>
+                                        onEdit({ kind, server, action: "edit" })
+                                    }
+                                    className="flex h-full min-w-0 flex-1 items-center gap-3 px-1 text-left"
+                                >
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                                        <Icon
+                                            className="h-4 w-4 text-muted-foreground"
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm text-foreground">
+                                            {server.Name}
+                                        </span>
+                                        <span className="block truncate font-mono text-xs text-muted-foreground">
+                                            {server.Host}
+                                        </span>
+                                    </span>
+                                </button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    ref={
+                                        index === backIndex &&
+                                        back?.action === "delete"
+                                            ? focusOnce
+                                            : undefined
+                                    }
+                                    title="Delete server"
+                                    aria-label={`Delete ${server.Name}`}
+                                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() =>
+                                        onEdit({
+                                            kind,
+                                            server,
+                                            action: "delete",
+                                        })
+                                    }
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                />
+            ) : servers.length ? (
+                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No servers match.
+                </p>
+            ) : (
+                <p className="border-l-2 border-border pl-3 text-xs leading-5 text-muted-foreground">
+                    No custom {noun} servers. The vault uses Online Services.
+                </p>
+            )}
+            <div className="flex justify-end">
+                <Button
+                    ref={back && backIndex < 0 ? focusOnce : undefined}
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                        onEdit({ kind, server: config.create(), action: "add" })
+                    }
+                >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add {noun} server
+                </Button>
+            </div>
+        </TabsContent>
     );
 }
 
@@ -4052,662 +4838,99 @@ export function VaultSignalingConfigDialog({
     stunServers,
     turnServers,
     signalingServers,
+    devices,
     onSave,
 }: VaultSignalingConfigDialogProps) {
-    const [draftSTUNServers, setDraftSTUNServers] = useState<
-        STUNServerConfiguration[]
-    >([]);
-    const [draftTURNServers, setDraftTURNServers] = useState<
-        TURNServerConfiguration[]
-    >([]);
-    const [draftSignalingServers, setDraftSignalingServers] = useState<
-        SignalingServerConfiguration[]
-    >([]);
-    const [error, setError] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        if (!open) return;
-
-        setDraftSTUNServers(stunServers.map(cloneSTUNServer));
-        setDraftTURNServers(turnServers.map(cloneTURNServer));
-        setDraftSignalingServers(signalingServers.map(cloneSignalingServer));
-        setError("");
-    }, [open, signalingServers, stunServers, turnServers]);
-
-    const addSTUNServer = () => {
-        setDraftSTUNServers((servers) => [
-            ...servers,
-            new STUNServerConfiguration("", ""),
-        ]);
+    const [edit, setEdit] = useState<ServerEdit | null>(null);
+    // Set while a server form is open, so closing can't drop typed changes.
+    const leaveRequest = useRef<LeaveRequest | null>(null);
+    const close = () => {
+        setEdit(null);
+        onOpenChange(false);
     };
-
-    const addTURNServer = () => {
-        setDraftTURNServers((servers) => [
-            ...servers,
-            new TURNServerConfiguration("", "", "", ""),
-        ]);
-    };
-
-    const addSignalingServer = () => {
-        setDraftSignalingServers((servers) => [
-            ...servers,
-            new SignalingServerConfiguration("", "", "", "", "", "6001", "0"),
-        ]);
-    };
-
-    const save = async () => {
-        setError("");
-
-        const cleanSTUNServers = draftSTUNServers.map((server) =>
-            Object.assign(cloneSTUNServer(server), {
-                Name: server.Name.trim(),
-                Host: server.Host.trim(),
-            }),
-        );
-        const cleanTURNServers = draftTURNServers.map((server) =>
-            Object.assign(cloneTURNServer(server), {
-                Name: server.Name.trim(),
-                Host: server.Host.trim(),
-                Username: server.Username.trim(),
-                Password: server.Password,
-            }),
-        );
-        const cleanSignalingServers = draftSignalingServers.map((server) =>
-            Object.assign(cloneSignalingServer(server), {
-                Name: server.Name.trim(),
-                AppID: server.AppID.trim(),
-                Key: server.Key.trim(),
-                Secret: server.Secret,
-                Host: server.Host.trim(),
-                ServicePort: server.ServicePort.trim(),
-                SecureServicePort: server.SecureServicePort.trim(),
-            }),
-        );
-
-        const missingSTUN = cleanSTUNServers.some(
-            (server) => !server.Name || !server.Host,
-        );
-        const missingTURN = cleanTURNServers.some(
-            (server) => !server.Name || !server.Host,
-        );
-        const missingSignaling = cleanSignalingServers.some(
-            (server) =>
-                !server.Name ||
-                !server.AppID ||
-                !server.Key ||
-                !server.Secret ||
-                !server.Host ||
-                (!server.ServicePort && !server.SecureServicePort),
-        );
-
-        if (missingSTUN || missingTURN || missingSignaling) {
-            setError(
-                "Fill required fields or remove incomplete entries before saving.",
-            );
-            return;
-        }
-
-        setIsSaving(true);
-        try {
-            await onSave({
-                stunServers: cleanSTUNServers,
-                turnServers: cleanTURNServers,
-                signalingServers: cleanSignalingServers,
-            });
-            onOpenChange(false);
-        } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to save signaling configuration.",
-            );
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    const config = { stunServers, turnServers, signalingServers };
+    const save = (
+        update: Partial<VaultSignalingConfig>,
+        messages: VaultSignalingSaveMessages,
+    ) => Promise.resolve(onSave({ ...config, ...update }, messages));
+    const editOf = <T extends ServerBase>(kind: ServerEdit["kind"]) =>
+        edit?.kind === kind ? (edit as ServerEdit<T>) : undefined;
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Vault signaling</DialogTitle>
-                    <DialogDescription>
-                        Configure custom signaling, STUN, and TURN servers for
-                        device linking and synchronization. Leave sections empty
-                        to use Online Services.
-                    </DialogDescription>
-                </DialogHeader>
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                if (next) onOpenChange(true);
+                else if (leaveRequest.current) leaveRequest.current(close);
+                else close();
+            }}
+        >
+            <DialogContent
+                data-testid="vault-servers-dialog"
+                className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+                onEscapeKeyDown={(event) => {
+                    // Escape leaves the form first, then the dialog.
+                    if (!leaveRequest.current) return;
+                    event.preventDefault();
+                    leaveRequest.current(() => setEdit(null));
+                }}
+            >
+                {edit ? null : (
+                    <DialogHeader>
+                        <DialogTitle>Vault signaling</DialogTitle>
+                        <DialogDescription>
+                            Servers this vault uses to link and sync devices.
+                            Leave a tab empty to use Online Services. Links
+                            without Online Services need a signaling server and
+                            at least one STUN or TURN server.
+                        </DialogDescription>
+                    </DialogHeader>
+                )}
 
-                <Tabs defaultValue="stun" className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="stun">STUN</TabsTrigger>
-                        <TabsTrigger value="turn">TURN</TabsTrigger>
-                        <TabsTrigger value="signaling">Signaling</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="stun" className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm text-muted-foreground">
-                                {countLabel(draftSTUNServers.length, "server")}
-                            </p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={addSTUNServer}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add STUN
-                            </Button>
-                        </div>
-                        {draftSTUNServers.length === 0 ? (
-                            <EmptyServerState kind="stun" />
-                        ) : (
-                            <div className="space-y-3">
-                                {draftSTUNServers.map((server, index) => (
-                                    <div
-                                        key={server.ID}
-                                        className="rounded-lg border border-border p-3"
-                                    >
-                                        <div className="mb-3 flex items-center justify-between gap-3">
-                                            <p className="text-sm font-medium">
-                                                STUN server {index + 1}
-                                            </p>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                                onClick={() =>
-                                                    setDraftSTUNServers(
-                                                        (servers) =>
-                                                            servers.filter(
-                                                                (item) =>
-                                                                    item.ID !==
-                                                                    server.ID,
-                                                            ),
-                                                    )
-                                                }
-                                                aria-label="Remove STUN server"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <Field
-                                                id={`stun-name-${server.ID}`}
-                                                label="Name"
-                                                value={server.Name}
-                                                placeholder="Home STUN"
-                                                onChange={(value) =>
-                                                    setDraftSTUNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSTUNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Name: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`stun-host-${server.ID}`}
-                                                label="Host"
-                                                value={server.Host}
-                                                placeholder="stun.example.com:3478"
-                                                onChange={(value) =>
-                                                    setDraftSTUNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSTUNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Host: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </TabsContent>
-
-                    <TabsContent value="turn" className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm text-muted-foreground">
-                                {countLabel(draftTURNServers.length, "server")}
-                            </p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={addTURNServer}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add TURN
-                            </Button>
-                        </div>
-                        {draftTURNServers.length === 0 ? (
-                            <EmptyServerState kind="turn" />
-                        ) : (
-                            <div className="space-y-3">
-                                {draftTURNServers.map((server, index) => (
-                                    <div
-                                        key={server.ID}
-                                        className="rounded-lg border border-border p-3"
-                                    >
-                                        <div className="mb-3 flex items-center justify-between gap-3">
-                                            <p className="text-sm font-medium">
-                                                TURN server {index + 1}
-                                            </p>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                                onClick={() =>
-                                                    setDraftTURNServers(
-                                                        (servers) =>
-                                                            servers.filter(
-                                                                (item) =>
-                                                                    item.ID !==
-                                                                    server.ID,
-                                                            ),
-                                                    )
-                                                }
-                                                aria-label="Remove TURN server"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <Field
-                                                id={`turn-name-${server.ID}`}
-                                                label="Name"
-                                                value={server.Name}
-                                                placeholder="Home TURN"
-                                                onChange={(value) =>
-                                                    setDraftTURNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneTURNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Name: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`turn-host-${server.ID}`}
-                                                label="Host or TURN URL"
-                                                value={server.Host}
-                                                placeholder="turns:turn.example.com:5349?transport=tcp"
-                                                onChange={(value) =>
-                                                    setDraftTURNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneTURNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Host: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`turn-username-${server.ID}`}
-                                                label="Username"
-                                                value={server.Username}
-                                                placeholder="turn-user"
-                                                onChange={(value) =>
-                                                    setDraftTURNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneTURNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Username:
-                                                                                      value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`turn-password-${server.ID}`}
-                                                label="Password"
-                                                value={server.Password}
-                                                placeholder="TURN credential"
-                                                type="password"
-                                                onChange={(value) =>
-                                                    setDraftTURNServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneTURNServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Password:
-                                                                                      value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </TabsContent>
-
-                    <TabsContent value="signaling" className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm text-muted-foreground">
-                                {countLabel(
-                                    draftSignalingServers.length,
-                                    "server",
-                                )}
-                            </p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={addSignalingServer}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add signaling
-                            </Button>
-                        </div>
-                        {draftSignalingServers.length === 0 ? (
-                            <EmptyServerState kind="signaling" />
-                        ) : (
-                            <div className="space-y-3">
-                                {draftSignalingServers.map((server, index) => (
-                                    <div
-                                        key={server.ID}
-                                        className="rounded-lg border border-border p-3"
-                                    >
-                                        <div className="mb-3 flex items-center justify-between gap-3">
-                                            <p className="text-sm font-medium">
-                                                Signaling server {index + 1}
-                                            </p>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                                onClick={() =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.filter(
-                                                                (item) =>
-                                                                    item.ID !==
-                                                                    server.ID,
-                                                            ),
-                                                    )
-                                                }
-                                                aria-label="Remove signaling server"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <Field
-                                                id={`signaling-name-${server.ID}`}
-                                                label="Name"
-                                                value={server.Name}
-                                                placeholder="Home signaling"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Name: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-host-${server.ID}`}
-                                                label="Host"
-                                                value={server.Host}
-                                                placeholder="signal.example.com"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Host: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-app-id-${server.ID}`}
-                                                label="App ID"
-                                                value={server.AppID}
-                                                placeholder="app-id"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  AppID: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-key-${server.ID}`}
-                                                label="Key"
-                                                value={server.Key}
-                                                placeholder="pusher-key"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Key: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-secret-${server.ID}`}
-                                                label="Secret"
-                                                value={server.Secret}
-                                                placeholder="pusher-secret"
-                                                type="password"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  Secret: value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-service-port-${server.ID}`}
-                                                label="WS port"
-                                                value={server.ServicePort}
-                                                placeholder="6001"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  ServicePort:
-                                                                                      value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                            <Field
-                                                id={`signaling-secure-port-${server.ID}`}
-                                                label="WSS port"
-                                                value={server.SecureServicePort}
-                                                placeholder="443, or 0 to disable"
-                                                onChange={(value) =>
-                                                    setDraftSignalingServers(
-                                                        (servers) =>
-                                                            servers.map(
-                                                                (item) =>
-                                                                    item.ID ===
-                                                                    server.ID
-                                                                        ? Object.assign(
-                                                                              cloneSignalingServer(
-                                                                                  item,
-                                                                              ),
-                                                                              {
-                                                                                  SecureServicePort:
-                                                                                      value,
-                                                                              },
-                                                                          )
-                                                                        : item,
-                                                            ),
-                                                    )
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </TabsContent>
+                <Tabs defaultValue="stun">
+                    {edit ? null : (
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="stun">STUN</TabsTrigger>
+                            <TabsTrigger value="turn">TURN</TabsTrigger>
+                            <TabsTrigger value="signaling">
+                                Signaling
+                            </TabsTrigger>
+                        </TabsList>
+                    )}
+                    <ServerSection
+                        config={stunSection}
+                        servers={stunServers}
+                        edit={editOf<STUNServerConfiguration>("stun")}
+                        devices={devices}
+                        leaveRequest={leaveRequest}
+                        onEdit={setEdit}
+                        onSaveServers={(list, messages) =>
+                            save({ stunServers: list }, messages)
+                        }
+                    />
+                    <ServerSection
+                        config={turnSection}
+                        servers={turnServers}
+                        edit={editOf<TURNServerConfiguration>("turn")}
+                        devices={devices}
+                        leaveRequest={leaveRequest}
+                        onEdit={setEdit}
+                        onSaveServers={(list, messages) =>
+                            save({ turnServers: list }, messages)
+                        }
+                    />
+                    <ServerSection
+                        config={signalingSection}
+                        servers={signalingServers}
+                        edit={editOf<SignalingServerConfiguration>("signaling")}
+                        devices={devices}
+                        leaveRequest={leaveRequest}
+                        onEdit={setEdit}
+                        onSaveServers={(list, messages) =>
+                            save({ signalingServers: list }, messages)
+                        }
+                    />
                 </Tabs>
-
-                {error ? (
-                    <p className="text-sm text-destructive" role="alert">
-                        {error}
-                    </p>
-                ) : null}
-
-                <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={isSaving}
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="button" onClick={save} disabled={isSaving}>
-                        {isSaving ? "Saving..." : "Save configuration"}
-                    </Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

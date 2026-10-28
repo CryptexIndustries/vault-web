@@ -26,6 +26,8 @@ export type PasswordInputProps = Omit<
     onRevealedChange?: (revealed: boolean) => void;
     secretLabel?: string;
     actions?: PasswordInputAction[];
+    /** Classes for the bordered box around the input, such as an error border. */
+    controlClassName?: string;
 };
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
@@ -37,6 +39,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             onRevealedChange,
             secretLabel = "password",
             actions = [],
+            controlClassName,
             style,
             ...props
         },
@@ -55,6 +58,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
 
         return (
             <ControlWithActions
+                className={controlClassName}
                 actions={
                     <>
                         {actions.map((action) => (

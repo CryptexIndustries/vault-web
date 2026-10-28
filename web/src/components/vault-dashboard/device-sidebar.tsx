@@ -49,7 +49,11 @@ import { Separator } from "@/components/ui/separator";
 import { LinkedDevice } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { cn } from "@/lib/utils";
-import { type VaultSignalingConfig, VaultSignalingConfigDialog } from "./link";
+import {
+    type VaultSignalingConfig,
+    VaultSignalingConfigDialog,
+    type VaultSignalingSaveMessages,
+} from "./link";
 import {
     SubscriptionCtaPopover,
     type SubscriptionCtaVariant,
@@ -120,6 +124,7 @@ interface DeviceSidebarProps {
     signalingConfig: VaultSignalingConfig;
     onSaveSignalingConfig: (
         config: VaultSignalingConfig,
+        messages: VaultSignalingSaveMessages,
     ) => Promise<void> | void;
     syncConnectionController: SyncConnectionController;
     deviceConnectionStatuses: Record<string, DeviceConnectionStatus>;
@@ -1007,6 +1012,7 @@ export function DeviceSidebar({
                 stunServers={signalingConfig.stunServers}
                 turnServers={signalingConfig.turnServers}
                 signalingServers={signalingConfig.signalingServers}
+                devices={devices}
                 onSave={onSaveSignalingConfig}
             />
         </aside>

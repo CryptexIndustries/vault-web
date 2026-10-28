@@ -92,6 +92,7 @@ import {
     SendLinkRequestDialog,
     ReceiveLinkRequestDialog,
     type VaultSignalingConfig,
+    type VaultSignalingSaveMessages,
 } from "./link";
 import { getDeviceConnectionDisplay } from "./device-status";
 import { useDeviceActions } from "./use-device-actions";
@@ -897,8 +898,11 @@ export function VaultDashboard({
     // );
 
     const handleSaveSignalingConfig = useCallback(
-        async (config: VaultSignalingConfig) => {
-            const toastId = toast.loading("Saving signaling configuration...");
+        async (
+            config: VaultSignalingConfig,
+            messages: VaultSignalingSaveMessages,
+        ) => {
+            const toastId = toast.loading(messages.pending);
             const mutationResult = await persistVaultMutation(
                 "vault.configuration",
                 (currentVault) => {
@@ -945,7 +949,7 @@ export function VaultDashboard({
                 throw new Error(message);
             }
 
-            toast.success("Signaling configuration saved.", {
+            toast.success(messages.done, {
                 id: toastId,
                 duration: 3000,
             });

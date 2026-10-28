@@ -12,7 +12,7 @@ explicit SW message handlers.
 
 **Host:** `vault-view.tsx` when popup is unlocked and `serverPublicKey` is available.
 
-**Controller:** `SyncConnectionController` from `web/src/app_lib/synchronization.ts`.
+**Controller:** `SyncConnectionController` from `packages/vault-core/src/synchronization.ts`.
 
 **Extension bridge (`VaultOperations`):** popup does not hold the vault. It issues
 encrypted SW messages:
@@ -111,5 +111,5 @@ credentials from SW.
 | `src/trpc-ext.ts`                                  | Extension tRPC client (proxy only)      |
 | `src/utils/sw-proxy-fetch.ts`                      | fetch shim → ProxyFetch                 |
 | `web/src/app_lib/online-services-session/`         | Shared session port + auth protocol     |
-| `web/src/app_lib/synchronization.ts`               | Sync wire protocol                      |
+| `packages/vault-core/src/synchronization.ts`       | Sync wire protocol                      |
 | `packages/vault-core/src/vault-utils/linking.ts`   | Link package + process controller       |

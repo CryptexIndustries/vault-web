@@ -2,6 +2,12 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
+## 1.9.0 - 2026-10-29
+
+### Fixed
+
+- Sync now works with a STUN server entered as a `stun:` URL, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
+
 ## 1.8.1 - 2026-10-27
 
 ### Changed

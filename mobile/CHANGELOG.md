@@ -2,6 +2,12 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
+## 0.4.1 - 2026-10-29
+
+### Fixed
+
+- Sync now works with a STUN server entered as a `stun:` URL in the web app, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
+
 ## 0.4.0 - 2026-10-25
 
 ### Changed

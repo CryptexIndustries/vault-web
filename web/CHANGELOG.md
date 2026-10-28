@@ -2,6 +2,21 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## 1.9.0 - 2026-10-29
+
+### Added
+
+- Test connection checks a STUN, TURN or signaling server from your browser before you save it.
+
+### Changed
+
+- Vault signaling lists your servers, and each one is saved on its own. It used to be one long form with a single Save button.
+- Deleting a server that a linked device uses now warns you first.
+
+### Fixed
+
+- Sync now works with a STUN server entered as a `stun:` URL, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
+
 ## 1.8.1 - 2026-10-27
 
 ### Added

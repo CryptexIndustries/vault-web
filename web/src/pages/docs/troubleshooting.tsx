@@ -130,9 +130,13 @@ export default function Troubleshooting() {
                         Services access also requires an active{" "}
                         <Link href="/pricing">eligible plan</Link>; self-hosted
                         users should check their signaling, STUN, and TURN
-                        configuration. Signaling can connect successfully while
-                        the device connection fails if no direct route is
-                        available and the TURN relay cannot be reached.
+                        configuration. Open <strong>Vault signaling</strong>{" "}
+                        from the gear beside <strong>Linked Devices</strong>,
+                        select each server and choose{" "}
+                        <strong>Test connection</strong>. Signaling can connect
+                        successfully while the device connection fails if no
+                        direct route is available and the TURN relay cannot be
+                        reached.
                     </li>
                     <li>
                         A web-app tab can synchronize in the background while

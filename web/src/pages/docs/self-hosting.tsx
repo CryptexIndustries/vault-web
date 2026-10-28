@@ -656,13 +656,30 @@ curl -I https://vault.example.com/app`}</DocCode>
             </DocSection>
             <DocSection id="sync" title="6. Add the servers in Cryptex Vault">
                 <p>
-                    In the sending vault, start linking a device and expand
-                    <strong> Advanced connection</strong>. Open the server
-                    editor and add the following entries. Names are labels of
-                    your choice. Signaling and STUN Host fields do not include{" "}
-                    <code>https://</code>, <code>wss://</code>, or{" "}
-                    <code>stun:</code>. TURN accepts a host and port or a full{" "}
-                    <code>turn:</code> or <code>turns:</code> URL.
+                    In the sending vault, select the gear beside{" "}
+                    <strong>Linked Devices</strong> to open{" "}
+                    <strong>Vault signaling</strong>. It has a tab for each
+                    server type. On each tab, choose the add button, such as{" "}
+                    <strong>Add TURN server</strong>, fill in the fields below
+                    and choose <strong>Save server</strong>. Each server is
+                    saved in the vault on its own.
+                </p>
+                <DocScreenshot
+                    src="/images/docs/self-hosting-open-servers.png"
+                    alt="Top of the web application sidebar, with the Configure linking gear beside Linked Devices highlighted"
+                    caption="Web application: select the gear beside Linked Devices."
+                    width={1036}
+                    height={1056}
+                />
+                <p>
+                    Names are labels of your choice, and each name can be used
+                    once per tab. The signaling Host is only the host name,
+                    without <code>https://</code>, <code>wss://</code>, a port
+                    or a path. Put an IPv6 address in brackets, like{" "}
+                    <code>[2001:db8::1]</code>. STUN accepts a host and port or
+                    a <code>stun:</code> or <code>stuns:</code> URL. TURN
+                    accepts a host and port or a full <code>turn:</code> or{" "}
+                    <code>turns:</code> URL.
                 </p>
 
                 <div
@@ -701,15 +718,15 @@ curl -I https://vault.example.com/app`}</DocCode>
                     )}
                     <DocScreenshot
                         src={`/images/docs/self-hosting-${serverTab}.png`}
-                        alt={`Web application server editor showing the ${serverTab} settings`}
-                        caption={`Web application: ${serverTab === "signaling" ? "Signaling" : serverTab.toUpperCase()} configuration.`}
-                        width={672}
+                        alt={`Add ${serverTab === "signaling" ? "signaling" : serverTab.toUpperCase()} server form in the web application, filled in with the values from the table`}
+                        caption={`Web application: the ${serverTab === "signaling" ? "signaling" : serverTab.toUpperCase()} server form.`}
+                        width={1024}
                         height={
                             serverTab === "signaling"
-                                ? 648
+                                ? 1468
                                 : serverTab === "stun"
-                                  ? 414
-                                  : 492
+                                  ? 628
+                                  : 964
                         }
                     />
                     <div className={t.tableWrap}>
@@ -765,7 +782,8 @@ curl -I https://vault.example.com/app`}</DocCode>
                                             <td>WSS port</td>
                                             <td>
                                                 <code>443</code>, which enables
-                                                TLS
+                                                TLS. Enter <code>0</code> or
+                                                leave it empty to turn WSS off
                                             </td>
                                         </tr>
                                     </>
@@ -844,12 +862,33 @@ curl -I https://vault.example.com/app`}</DocCode>
                     </div>
                 </div>
                 <p>
-                    Save, then select the custom signaling server and the TLS
-                    TURN entry for the link. Leave STUN unselected for the
-                    TLS-only setup. For regular TURN, select the two alternative
-                    TURN entries and optionally the STUN entry. With Online
-                    Services disabled, a custom TURN selection is required.
-                    Complete the{" "}
+                    Before you save, choose <strong>Test connection</strong> to
+                    check the server from this browser. For signaling, the test
+                    connects and signs in to a presence channel with your key
+                    and secret. For TURN, it asks the relay for an address with
+                    your username and password. For STUN, it waits for the
+                    server to report your public address.
+                </p>
+                <DocScreenshot
+                    src="/images/docs/self-hosting-server-list.png"
+                    alt="Vault signaling dialog on the TURN tab listing three saved TURN servers, each with a delete button"
+                    caption="Web application: saved servers are listed on their tab. Select a server to edit it, or its trash icon to delete it."
+                    width={1024}
+                    height={960}
+                />
+                <p>
+                    Before you delete a server that a linked device uses, the
+                    dialog names that device. It may stop syncing until you
+                    choose another server for it.
+                </p>
+                <p>
+                    Close the dialog, start linking a device and expand{" "}
+                    <strong>Advanced connection</strong>. Select the custom
+                    signaling server and the TLS TURN entry for the link. Leave
+                    STUN unselected for the TLS-only setup. For regular TURN,
+                    select the two alternative TURN entries and optionally the
+                    STUN entry. With Online Services disabled, a custom TURN
+                    selection is required. Complete the{" "}
                     <Link href="/docs/linking-devices">linking flow</Link>. The
                     encrypted invitation carries the server configuration to the
                     receiver.
@@ -869,41 +908,21 @@ curl -I https://vault.example.com/app`}</DocCode>
                     </li>
 
                     <li>
-                        Open the open-source{" "}
-                        <a
-                            href="https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/"
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            WebRTC Trickle ICE sample
-                        </a>
-                        . Remove the default server. Enter one TURN URL and your
-                        credentials, select <strong>Add Server</strong>, choose{" "}
-                        <strong>relay</strong>
-                        for IceTransports, then select{" "}
-                        <strong>Gather candidates</strong>. Look for a candidate
-                        with type <code>relay</code>. Test{" "}
-                        <code>turns:turn.example.com:5349?transport=tcp</code>{" "}
-                        for the recommended setup and repeat from your other
-                        network. For regular TURN, test UDP and TCP separately.
+                        In the web app, open <strong>Vault signaling</strong>,
+                        select a TURN entry and choose{" "}
+                        <strong>Test connection</strong>. Look for{" "}
+                        <strong>TURN relay allocation succeeded.</strong> Test
+                        the TLS entry for the recommended setup. For regular
+                        TURN, test the UDP and TCP entries one at a time. Repeat
+                        on your other network.
                     </li>
                 </ol>
                 <p>
-                    A <code>relay</code> candidate confirms that TURN allocated
-                    a relay address. It does not prove data can pass between two
+                    A successful TURN test means the relay gave this device a
+                    relay address. It does not prove data can pass between two
                     devices through that relay. Complete the synchronization
                     test above as well; a direct connection alone does not
                     verify the relay data path.
-                </p>
-                <p>
-                    Only enter credentials into a tester you trust. The sample
-                    is
-                    <a href="https://github.com/webrtc/samples/tree/gh-pages/src/content/peerconnection/trickle-ice">
-                        {" "}
-                        open source
-                    </a>{" "}
-                    and can be run locally. Remove your server entry after
-                    testing, especially on a shared browser.
                 </p>
             </DocSection>
             <DocSection id="share-server" title="8. Use one-time share links">

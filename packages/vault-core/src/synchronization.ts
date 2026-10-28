@@ -18,6 +18,7 @@ import {
     SynchronizationEnvelope,
     WebRTCMessageEventType,
     WebRTCStatus,
+    iceServerURL,
     isRTCSessionDescriptionInit,
     type SCCSignalingEventHandler,
     type SCCWebRTCEventHandler,
@@ -164,7 +165,7 @@ export const initWebRTC = async (
         stunServers.length === 0
             ? []
             : stunServers.map((stunServer) => ({
-                  urls: `stun:${stunServer.Host}`,
+                  urls: iceServerURL("stun", stunServer.Host),
               }));
 
     let _turnServers: RTCIceServer[];
@@ -194,19 +195,11 @@ export const initWebRTC = async (
         }
         _turnServers = turnCredentials.iceServers;
     } else {
-        _turnServers = turnServers.map((turnServer) => {
-            const host = turnServer.Host.trim();
-            return {
-                // Preserve explicit TURN/TLS URLs; older vaults store host:port.
-                urls: /^turns?:/i.test(host)
-                    ? host.replace(/^turns?:/i, (scheme) =>
-                          scheme.toLowerCase(),
-                      )
-                    : `turn:${host}`,
-                username: turnServer.Username,
-                credential: turnServer.Password,
-            };
-        });
+        _turnServers = turnServers.map((turnServer) => ({
+            urls: iceServerURL("turn", turnServer.Host),
+            username: turnServer.Username,
+            credential: turnServer.Password,
+        }));
     }
 
     return new RTCPeerConnection({

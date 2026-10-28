@@ -1,3 +1,5 @@
+import { iceServerURL } from "@cryptex-industries/vault-core/synchronization-utils";
+
 import { RTCPeerConnection } from "@/lib/webrtc";
 
 /** Verify a STUN response or TURN allocation, without transferring vault data. */
@@ -8,8 +10,7 @@ export async function testIceServer(
     let peer: RTCPeerConnection | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-        const host = server.Host.trim();
-        const urls = /^(stun|turn)s?:/i.test(host) ? host : `${type}:${host}`;
+        const urls = iceServerURL(type, server.Host);
         const connection = new RTCPeerConnection({
             iceServers: [
                 {

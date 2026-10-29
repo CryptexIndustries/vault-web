@@ -1,0 +1,1 @@
+Šifrirani trezor lozinki i pristupnih ključeva s popunjavanjem i sinkronizacijom

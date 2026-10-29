@@ -1,4 +1,5 @@
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
+import { vaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 
 import {
     unlockedVaultAtom,
@@ -193,29 +194,37 @@ class ManagedBackupCoordinator {
                 this.deleteOlderSnapshotsAfterUpload ||
                 this.pendingHistoryPurgeSnapshot != null;
 
-            const metadata = vaultStore.get(unlockedVaultMetadataAtom);
-            const vault = vaultStore.get(unlockedVaultAtom);
-            const dek = getVaultDEKFromSession();
             const onlineServicesDeviceId = this.onlineServicesDeviceId;
-            if (!metadata?.Blob || dek.isErr() || !onlineServicesDeviceId) {
+            if (!onlineServicesDeviceId) {
                 throw new ManagedBackupError("BACKUP_VAULT_UNAVAILABLE");
             }
             const client = createAccountBoundTrpcClient(onlineServicesDeviceId);
             const sourceStorageKey = this.storageKey();
-            const sourceHash = await this.sourceHash();
-            if (lifecycle !== this.lifecycle) return;
+            // A key rotation publishes the new envelope before the new key.
             const uploadAttempt =
-                this.uploadAttempt?.sourceHash === sourceHash
-                    ? this.uploadAttempt
-                    : {
-                          sourceHash,
-                          idempotencyKey: crypto.randomUUID(),
-                          bytes: await createEncryptedBackupBytes(
-                              vault,
-                              metadata,
-                              dek.value,
-                          ),
-                      };
+                await vaultWriteCoordinator.readBetweenKeyChanges(async () => {
+                    const metadata = vaultStore.get(unlockedVaultMetadataAtom);
+                    const vault = vaultStore.get(unlockedVaultAtom);
+                    const dek = getVaultDEKFromSession();
+                    if (!metadata?.Blob || dek.isErr()) {
+                        throw new ManagedBackupError(
+                            "BACKUP_VAULT_UNAVAILABLE",
+                        );
+                    }
+                    const sourceHash = await this.sourceHash();
+                    return this.uploadAttempt?.sourceHash === sourceHash
+                        ? this.uploadAttempt
+                        : {
+                              sourceHash,
+                              idempotencyKey: crypto.randomUUID(),
+                              bytes: await createEncryptedBackupBytes(
+                                  vault,
+                                  metadata,
+                                  dek.value,
+                              ),
+                          };
+                });
+            const { sourceHash } = uploadAttempt;
             if (lifecycle !== this.lifecycle) return;
             this.uploadAttempt = uploadAttempt;
             const snapshot = await uploadEncryptedBackup(

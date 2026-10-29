@@ -66,6 +66,7 @@ export function toShareListRows(
     records: readonly VaultUtilTypes.ShareLink[],
     credentialNames: ReadonlyMap<string, string>,
     now = Date.now(),
+    placeholders = { deletedItem: "Deleted item", secret: "Secret" },
 ): ShareListRow[] {
     return records
         .filter((record) => !record.Deleted)
@@ -75,7 +76,9 @@ export function toShareListRows(
             name:
                 record.Label ||
                 credentialNames.get(record.CredentialID) ||
-                (record.CredentialID ? "Deleted item" : "Secret"),
+                (record.CredentialID
+                    ? placeholders.deletedItem
+                    : placeholders.secret),
             host: hostOf(record.ServerOrigin),
         }));
 }

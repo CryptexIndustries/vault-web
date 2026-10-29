@@ -557,6 +557,13 @@ export const CredentialFormBaseSchema = z.object({
     ),
 });
 
+/** `params.code` of the custom issues CredentialFormSchema adds. */
+export type CredentialFormIssueCode =
+    | "PASSKEY_INCOMPLETE"
+    | "SSH_KEY_DAMAGED"
+    | "SSH_KEY_MISSING"
+    | "URL_INVALID";
+
 export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
     (form, context) => {
         if (form.Type === VaultUtilTypes.ItemType.Passkey || form.Passkey) {
@@ -569,6 +576,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                     code: z.ZodIssueCode.custom,
                     path: ["Passkey"],
                     message: "Passkey credential material is incomplete.",
+                    params: { code: "PASSKEY_INCOMPLETE" },
                 });
             }
         }
@@ -581,6 +589,11 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                     message: form.SSHKey
                         ? "This SSH key's data is damaged."
                         : "Generate a new key or import an existing one.",
+                    params: {
+                        code: form.SSHKey
+                            ? "SSH_KEY_DAMAGED"
+                            : "SSH_KEY_MISSING",
+                    },
                 });
             }
         }
@@ -595,6 +608,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                 path: ["URL"],
                 message:
                     "Enter a valid website, Android app, or safe wildcard pattern.",
+                params: { code: "URL_INVALID" },
             });
         }
 
@@ -605,6 +619,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                 path: ["AdditionalURLs", index, "URL"],
                 message:
                     "Enter a valid website, Android app, or safe wildcard pattern.",
+                params: { code: "URL_INVALID" },
             });
         });
     },

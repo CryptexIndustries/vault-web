@@ -71,10 +71,28 @@ export type SSHKeyErrorCode =
     | "multiple-keys"
     | "kdf-too-expensive";
 
+/** The values a parameterized message names, for clients that word it themselves. */
+export type SSHKeyErrorParams = {
+    /** The cipher, key type or OID the file names. */
+    name?: string;
+    /** Set instead of `name` when the message describes the scheme in words. */
+    scheme?:
+        | "legacy-pkcs8"
+        | "non-pbkdf2-kdf"
+        | "pbkdf2-hash"
+        | "pkcs8-cipher"
+        | "unknown-cipher"
+        | "elliptic-curve";
+    count?: number;
+    max?: number;
+    unit?: "rounds" | "iterations";
+};
+
 export class SSHKeyError extends Error {
     constructor(
         public readonly code: SSHKeyErrorCode,
         message: string,
+        public readonly params?: SSHKeyErrorParams,
     ) {
         super(message);
         this.name = "SSHKeyError";
@@ -116,8 +134,12 @@ type PrivateKeyMaterial =
 //#endregion Types
 
 //#region Errors
-const fail = (code: SSHKeyErrorCode, message: string): never => {
-    throw new SSHKeyError(code, message);
+const fail = (
+    code: SSHKeyErrorCode,
+    message: string,
+    params?: SSHKeyErrorParams,
+): never => {
+    throw new SSHKeyError(code, message, params);
 };
 
 const messages = {
@@ -149,7 +171,9 @@ const messages = {
 const describeAlgorithmError = (type: string): never => {
     if (type === "ssh-dss") fail("dsa", messages.dsa);
     if (type.startsWith("sk-")) fail("security-key", messages.securityKey);
-    return fail("unsupported-key-type", messages.unsupportedKeyType(type));
+    return fail("unsupported-key-type", messages.unsupportedKeyType(type), {
+        name: type,
+    });
 };
 //#endregion Errors
 
@@ -402,6 +426,7 @@ const parseOpenSSH = (
             return fail(
                 "unsupported-cipher",
                 messages.unsupportedCipher(cipherName),
+                { name: cipherName },
             );
         }
         const ciphertext = reader.bytes(encryptedLength + cipher.tagLength);
@@ -419,6 +444,11 @@ const parseOpenSSH = (
                     MAX_IMPORT_BCRYPT_ROUNDS,
                     "rounds",
                 ),
+                {
+                    count: rounds,
+                    max: MAX_IMPORT_BCRYPT_ROUNDS,
+                    unit: "rounds",
+                },
             );
         }
         const derived = bcryptPbkdf(
@@ -596,6 +626,7 @@ const parseSEC1 = (
         return fail(
             "unsupported-key-type",
             messages.unsupportedKeyType("This elliptic curve"),
+            { scheme: "elliptic-curve" },
         );
     }
     const dValue = bytesToBigInt(d);
@@ -619,6 +650,7 @@ const parsePKCS8 = (der: Uint8Array): PrivateKeyMaterial => {
             return fail(
                 "unsupported-key-type",
                 messages.unsupportedKeyType("This elliptic curve"),
+                { scheme: "elliptic-curve" },
             );
         }
         return parseSEC1(privateKey, curve);
@@ -633,7 +665,9 @@ const parsePKCS8 = (der: Uint8Array): PrivateKeyMaterial => {
         };
     }
     if (oid === OID.dsa) return fail("dsa", messages.dsa);
-    return fail("unsupported-key-type", messages.unsupportedKeyType(oid));
+    return fail("unsupported-key-type", messages.unsupportedKeyType(oid), {
+        name: oid,
+    });
 };
 
 const PBKDF2_HASHES: Record<string, CHash> = {
@@ -656,6 +690,7 @@ const decryptPKCS8 = (der: Uint8Array, passphrase: string): Uint8Array => {
         return fail(
             "unsupported-cipher",
             messages.unsupportedCipher("a legacy PKCS#8 scheme"),
+            { scheme: "legacy-pkcs8" },
         );
     }
     const [kdf, encryption] = sequence(scheme[1]);
@@ -664,6 +699,7 @@ const decryptPKCS8 = (der: Uint8Array, passphrase: string): Uint8Array => {
         return fail(
             "unsupported-cipher",
             messages.unsupportedCipher("a key derivation other than PBKDF2"),
+            { scheme: "non-pbkdf2-kdf" },
         );
     }
     const params = sequence(kdfFields[1]);
@@ -677,6 +713,11 @@ const decryptPKCS8 = (der: Uint8Array, passphrase: string): Uint8Array => {
                 MAX_IMPORT_PBKDF2_ITERATIONS,
                 "iterations",
             ),
+            {
+                count: iterations,
+                max: MAX_IMPORT_PBKDF2_ITERATIONS,
+                unit: "iterations",
+            },
         );
     }
     let hash: CHash = sha1;
@@ -687,6 +728,7 @@ const decryptPKCS8 = (der: Uint8Array, passphrase: string): Uint8Array => {
                 return fail(
                     "unsupported-cipher",
                     messages.unsupportedCipher("this PBKDF2 hash"),
+                    { scheme: "pbkdf2-hash" },
                 );
             }
             hash = prf;
@@ -699,6 +741,7 @@ const decryptPKCS8 = (der: Uint8Array, passphrase: string): Uint8Array => {
         return fail(
             "unsupported-cipher",
             messages.unsupportedCipher("this PKCS#8 cipher"),
+            { scheme: "pkcs8-cipher" },
         );
     }
     const iv = octetString(encryptionFields[1]);
@@ -754,6 +797,9 @@ const decryptLegacyPem = (pem: Armor, passphrase: string): Uint8Array => {
             messages.unsupportedCipher(
                 cipherName.trim() || "an unknown cipher",
             ),
+            cipherName.trim()
+                ? { name: cipherName.trim() }
+                : { scheme: "unknown-cipher" },
         );
     }
     const iv = Uint8Array.from(

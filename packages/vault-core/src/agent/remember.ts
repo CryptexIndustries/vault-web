@@ -60,20 +60,26 @@ export function callerProcess(processes: readonly Process[]): Process | null {
 }
 
 /** "git push" as reported by the machine, sanitized. */
-export function processLabel(process: Process | null): string {
-    if (!process) return "Unknown program";
+export function processLabel(
+    process: Process | null,
+    unknown = "Unknown program",
+): string {
+    if (!process) return unknown;
     const args = process.args.length
         ? process.args
               .map((arg, index) => (index === 0 ? baseName(arg) : arg))
               .join(" ")
         : baseName(process.exe);
-    return sanitizeDisplayText(args || "Unknown program", 80);
+    return sanitizeDisplayText(args || unknown, 80);
 }
 
 /** Short program name for the Remember rows, such as "git". */
-export function processName(process: Process | null): string {
+export function processName(
+    process: Process | null,
+    fallback = "this program",
+): string {
     return sanitizeDisplayText(
-        (process && baseName(process.exe)) || "this program",
+        (process && baseName(process.exe)) || fallback,
         32,
     );
 }

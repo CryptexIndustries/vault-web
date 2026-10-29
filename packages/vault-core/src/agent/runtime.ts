@@ -250,6 +250,13 @@ export class VaultLockedError extends Error {
     }
 }
 
+/** approve() again while the first approval is still being sent. */
+export class ApprovalInProgressError extends Error {
+    constructor() {
+        super("This request is being approved already.");
+    }
+}
+
 /**
  * approve(): the request expired while its signature was being sent, or
  * after a send the relay never confirmed. The signature may have reached
@@ -1849,8 +1856,7 @@ export class AgentRuntime {
         const t = this.requests.get(id);
         if (!t || !this.visible(t)) throw new RequestGoneError();
         // Approve again while the first one waits for the relay: no.
-        if (t.state !== "waiting")
-            throw new Error("This request is being approved already.");
+        if (t.state !== "waiting") throw new ApprovalInProgressError();
         // Its expiry timer can run late (timers in hidden browser tabs fire
         // up to a minute late); the agent has given up on it by now.
         if (t.request.expiresAt <= this.now()) {

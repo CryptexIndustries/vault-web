@@ -179,6 +179,39 @@ export const LINK_OFFER_TIMEOUT_MS = 60_000;
 export const LINK_CONNECT_TIMEOUT_MS = 45_000;
 export const LINK_TRANSFER_SILENCE_MS = 60_000;
 
+export type LinkingLogCode =
+    | "ONLINE_SERVICES_CONNECTING"
+    | "SIGNALING_CONNECTING"
+    | "ONLINE_SERVICES_CONNECTED"
+    | "SIGNALING_CONNECTED"
+    | "PRIVATE_CONNECTION_SETUP_FAILED"
+    | "SIGNALING_DROPPED"
+    | "SIGNALING_AUTHORIZATION_FAILED"
+    | "SENDER_DID_NOT_RESPOND"
+    | "WAITING_FOR_SENDER"
+    | "OFFER_RECEIVED"
+    | "SENDER_CONNECT_FAILED"
+    | "FINISHING_PRIVATE_CONNECTION"
+    | "SENDER_STOPPED_RESPONDING"
+    | "CLEANUP_COMPLETED"
+    | "PRIVATE_CONNECTION_ESTABLISHED"
+    | "PRIVATE_CONNECTION_FAILED"
+    | "PRIVATE_CONNECTION_TERMINATED"
+    | "PRIVATE_CHANNEL_OPEN"
+    | "SENDER_AUTHENTICATED"
+    | "RECEIVER_KEY_ACCEPTED"
+    | "KEY_EXCHANGE_FAILED"
+    | "RECEIVING_VAULT_TRANSFER"
+    | "VAULT_TRANSFER_DECRYPTED"
+    | "VAULT_READY"
+    | "VAULT_TRANSFER_SIGNATURE_INVALID"
+    | "VAULT_TRANSFER_DECRYPT_FAILED"
+    | "CLEANUP_STARTED"
+    | "SECURE_CHANNEL_ERROR"
+    | "ICE_CANDIDATES_FAILED"
+    | "ICE_CANDIDATE_SENT"
+    | "WAITING_ABORTED";
+
 export interface LinkingProcessStatus {
     Step: LinkingProcessStep;
     State: LinkingProcessState;
@@ -186,6 +219,7 @@ export interface LinkingProcessStatus {
     /** When the current wait gives up (epoch ms), for a countdown. */
     Deadline?: number;
     LogMessage?: {
+        code: LinkingLogCode;
         message: string;
         timestamp: number;
         type: "debug" | "info" | "error";
@@ -242,6 +276,7 @@ export class LinkingProcessController {
     private giveUpAfter(
         ms: number,
         step: LinkingProcessStep,
+        code: LinkingLogCode,
         message: string,
     ): number {
         this.stopWaiting();
@@ -255,7 +290,12 @@ export class LinkingProcessController {
             this.onStatusChange({
                 Step: step,
                 State: LinkingProcessState.Error,
-                LogMessage: { message, timestamp: Date.now(), type: "error" },
+                LogMessage: {
+                    code,
+                    message,
+                    timestamp: Date.now(),
+                    type: "error",
+                },
             });
         }, ms);
         return Date.now() + ms;
@@ -332,6 +372,9 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.Signaling,
                             State: LinkingProcessState.Active,
                             LogMessage: {
+                                code: this.usesOnlineServices
+                                    ? "ONLINE_SERVICES_CONNECTING"
+                                    : "SIGNALING_CONNECTING",
                                 message: this.usesOnlineServices
                                     ? "Connecting to Cryptex Vault Online Services..."
                                     : "Connecting to the Signaling Server...",
@@ -345,6 +388,9 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.Signaling,
                             State: LinkingProcessState.Completed,
                             LogMessage: {
+                                code: this.usesOnlineServices
+                                    ? "ONLINE_SERVICES_CONNECTED"
+                                    : "SIGNALING_CONNECTED",
                                 message: this.usesOnlineServices
                                     ? "Connected to Cryptex Vault Online Services."
                                     : "Connected to the Signaling Server.",
@@ -361,6 +407,7 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.Signaling,
                             State: LinkingProcessState.Error,
                             LogMessage: {
+                                code: "PRIVATE_CONNECTION_SETUP_FAILED",
                                 message:
                                     "An error occurred while setting up a private connection.",
                                 timestamp: Date.now(),
@@ -384,6 +431,7 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.SignalingCleanup,
                             State: LinkingProcessState.Completed,
                             LogMessage: {
+                                code: "SIGNALING_DROPPED",
                                 message: "Dropped Signaling Server connection.",
                                 timestamp: Date.now(),
                                 type: "info",
@@ -401,6 +449,7 @@ export class LinkingProcessController {
                 Step: LinkingProcessStep.Signaling,
                 State: LinkingProcessState.Error,
                 LogMessage: {
+                    code: "SIGNALING_AUTHORIZATION_FAILED",
                     message: "Failed to authorize the signaling channel.",
                     timestamp: Date.now(),
                     type: "error",
@@ -419,9 +468,11 @@ export class LinkingProcessController {
                     Deadline: this.giveUpAfter(
                         LINK_OFFER_TIMEOUT_MS,
                         LinkingProcessStep.SignalingWaitingOtherDevice,
+                        "SENDER_DID_NOT_RESPOND",
                         "The sending device didn't respond.",
                     ),
                     LogMessage: {
+                        code: "WAITING_FOR_SENDER",
                         message: "Waiting for other device to notice us...",
                         timestamp: Date.now(),
                         type: "info",
@@ -441,6 +492,7 @@ export class LinkingProcessController {
                         Step: LinkingProcessStep.SignalingWaitingOtherDevice,
                         State: LinkingProcessState.Completed,
                         LogMessage: {
+                            code: "OFFER_RECEIVED",
                             message: "Received WebRTC offer from other device",
                             timestamp: Date.now(),
                             type: "debug",
@@ -453,9 +505,11 @@ export class LinkingProcessController {
                         Deadline: this.giveUpAfter(
                             LINK_CONNECT_TIMEOUT_MS,
                             LinkingProcessStep.DirectConnection,
+                            "SENDER_CONNECT_FAILED",
                             "Couldn't connect to the sending device.",
                         ),
                         LogMessage: {
+                            code: "FINISHING_PRIVATE_CONNECTION",
                             message:
                                 "Finishing establishing private connection...",
                             timestamp: Date.now(),
@@ -488,6 +542,7 @@ export class LinkingProcessController {
             this.giveUpAfter(
                 LINK_TRANSFER_SILENCE_MS,
                 LinkingProcessStep.VaultTransfer,
+                "SENDER_STOPPED_RESPONDING",
                 "The sending device stopped responding.",
             );
         const cleanup = () => {
@@ -500,6 +555,7 @@ export class LinkingProcessController {
                 Step: LinkingProcessStep.DirectConnectionCleanup,
                 State: LinkingProcessState.Completed,
                 LogMessage: {
+                    code: "CLEANUP_COMPLETED",
                     message: "Cleanup completed",
                     timestamp: Date.now(),
                     type: "info",
@@ -530,6 +586,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Completed,
                     LogMessage: {
+                        code: "PRIVATE_CONNECTION_ESTABLISHED",
                         message: "Private connection established.",
                         timestamp: Date.now(),
                         type: "info",
@@ -557,6 +614,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Error,
                     LogMessage: {
+                        code: "PRIVATE_CONNECTION_FAILED",
                         message: "Failed to establish private connection",
                         timestamp: Date.now(),
                         type: "error",
@@ -572,6 +630,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnectionCleanup,
                     State: LinkingProcessState.Completed,
                     LogMessage: {
+                        code: "PRIVATE_CONNECTION_TERMINATED",
                         message: "Private connection has been terminated.",
                         timestamp: Date.now(),
                         type: "info",
@@ -586,6 +645,7 @@ export class LinkingProcessController {
                 State: LinkingProcessState.Active,
                 Deadline: transferDeadline(),
                 LogMessage: {
+                    code: "PRIVATE_CHANNEL_OPEN",
                     message:
                         "Private channel open. Waiting for sender authentication...",
                     timestamp: Date.now(),
@@ -632,6 +692,7 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.SyncKeyExchange,
                             State: LinkingProcessState.Active,
                             LogMessage: {
+                                code: "SENDER_AUTHENTICATED",
                                 message:
                                     "Sender authenticated. Sharing this device's post-quantum sync key...",
                                 timestamp: Date.now(),
@@ -669,6 +730,7 @@ export class LinkingProcessController {
                             State: LinkingProcessState.Completed,
                             Deadline: transferDeadline(),
                             LogMessage: {
+                                code: "RECEIVER_KEY_ACCEPTED",
                                 message:
                                     "Receiver key accepted. Waiting for encrypted vault transfer...",
                                 timestamp: Date.now(),
@@ -681,6 +743,7 @@ export class LinkingProcessController {
                             Step: LinkingProcessStep.SyncKeyExchange,
                             State: LinkingProcessState.Error,
                             LogMessage: {
+                                code: "KEY_EXCHANGE_FAILED",
                                 message:
                                     "Failed to authenticate link key exchange.",
                                 timestamp: Date.now(),
@@ -703,6 +766,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.VaultTransfer,
                     State: LinkingProcessState.Active,
                     LogMessage: {
+                        code: "RECEIVING_VAULT_TRANSFER",
                         message:
                             "Receiving encrypted vault transfer and checking authenticity...",
                         timestamp: Date.now(),
@@ -759,6 +823,7 @@ export class LinkingProcessController {
                         State: LinkingProcessState.Completed,
                         VaultBinaryData: rawVaultMetadata,
                         LogMessage: {
+                            code: "VAULT_TRANSFER_DECRYPTED",
                             message:
                                 "Vault authenticity confirmed. Transfer decrypted successfully.",
                             timestamp: Date.now(),
@@ -770,6 +835,7 @@ export class LinkingProcessController {
                         Step: LinkingProcessStep.VaultSave,
                         State: LinkingProcessState.Completed,
                         LogMessage: {
+                            code: "VAULT_READY",
                             message:
                                 "Vault is ready to merge or save on this device.",
                             timestamp: Date.now(),
@@ -784,6 +850,9 @@ export class LinkingProcessController {
                         Step: LinkingProcessStep.VaultTransfer,
                         State: LinkingProcessState.Error,
                         LogMessage: {
+                            code: signatureInvalid
+                                ? "VAULT_TRANSFER_SIGNATURE_INVALID"
+                                : "VAULT_TRANSFER_DECRYPT_FAILED",
                             message: signatureInvalid
                                 ? "Vault transfer could not be authenticated. Update the sending device and try again."
                                 : "Failed to decrypt vault transfer.",
@@ -804,6 +873,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnectionCleanup,
                     State: LinkingProcessState.Active,
                     LogMessage: {
+                        code: "CLEANUP_STARTED",
                         message: "Starting cleanup of private connection...",
                         timestamp: Date.now(),
                         type: "info",
@@ -819,6 +889,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Error,
                     LogMessage: {
+                        code: "SECURE_CHANNEL_ERROR",
                         message: "Secure channel error",
                         timestamp: Date.now(),
                         type: "error",
@@ -852,6 +923,7 @@ export class LinkingProcessController {
                 Step: LinkingProcessStep.DirectConnection,
                 State: LinkingProcessState.Error,
                 LogMessage: {
+                    code: "ICE_CANDIDATES_FAILED",
                     message:
                         "Failed to generate ICE candidates. WebRTC failure.",
                     timestamp: Date.now(),
@@ -868,6 +940,7 @@ export class LinkingProcessController {
                     Step: LinkingProcessStep.DirectConnection,
                     State: LinkingProcessState.Active,
                     LogMessage: {
+                        code: "ICE_CANDIDATE_SENT",
                         message: "Sending WebRTC ice candidate",
                         timestamp: Date.now(),
                         type: "debug",
@@ -899,6 +972,7 @@ export class LinkingProcessController {
             Step: LinkingProcessStep.SignalingWaitingOtherDevice,
             State: LinkingProcessState.Warning,
             LogMessage: {
+                code: "WAITING_ABORTED",
                 message: "Linking aborted while waiting for the other device.",
                 timestamp: Date.now(),
                 type: "info",

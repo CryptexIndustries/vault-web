@@ -68,8 +68,17 @@ export function buildDeviceRelationshipMap(
     topology: DeviceTopology | undefined,
     localDevices: LinkedDevice[],
     currentServerId?: string | null,
-    options: { topologyVerified?: boolean; currentRoot?: boolean } = {},
+    options: {
+        topologyVerified?: boolean;
+        currentRoot?: boolean;
+        /** Display names for the current device and unnamed local links. */
+        names?: { current: string; unnamed: string };
+    } = {},
 ): DeviceRelationshipMap {
+    const names = options.names ?? {
+        current: "This device",
+        unnamed: "Unnamed linked device",
+    };
     const serverCurrent =
         currentServerId ?? topology?.devices.find((d) => d.current)?.id;
     const currentDeviceId = serverCurrent
@@ -85,7 +94,7 @@ export function buildDeviceRelationshipMap(
             root: device.root,
             displayName:
                 id === currentDeviceId
-                    ? "This device"
+                    ? names.current
                     : formatSyncId(device.id),
             lastSeen: device.lastSeen,
             localDevices: [],
@@ -95,7 +104,7 @@ export function buildDeviceRelationshipMap(
         nodes.set(currentDeviceId, {
             id: currentDeviceId,
             serverId: serverCurrent ?? undefined,
-            displayName: "This device",
+            displayName: names.current,
             current: true,
             root: options.currentRoot ?? false,
             lastSeen: null,
@@ -148,7 +157,7 @@ export function buildDeviceRelationshipMap(
             const id = `local:${local.ID}`;
             nodes.set(id, {
                 id,
-                displayName: local.Name.trim() || "Unnamed linked device",
+                displayName: local.Name.trim() || names.unnamed,
                 current: false,
                 root: false,
                 lastSeen: null,

@@ -2,11 +2,11 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
-## 1.9.0 - 2026-10-29
+## 1.9.0 - 2026-10-30
 
 ### Added
 
-- Backup destinations in the Backup Center. After each change, the extension uploads an encrypted backup straight to S3-compatible buckets you control. Destinations sync with your vault to your other devices. Each device thins out older backups in its own folder the way managed backups do, or keeps them all.
+- Backup destinations in the Backup Center. After each change, the extension uploads an encrypted backup straight to the user's own S3-compatible buckets. Destinations sync with the vault to other linked devices. Each device thins out older backups in its own folder the way managed backups do, or keeps them all.
 
 ### Fixed
 
@@ -52,7 +52,7 @@ Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show
 
 ### Fixed
 
-- The extension locks your vault when your computer's screen locks, not only after 30 minutes of inactivity.
+- The extension locks the vault when the computer's screen locks, not only after 30 minutes of inactivity.
 - An open extension tab shows the unlock screen as soon as the vault locks somewhere else.
 
 ## 1.4.1 - 2026-10-06
@@ -60,4 +60,4 @@ Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show
 ### Added
 
 - First release. The extension recognizes sign-in forms, fills, saves and manages credentials for the current site, generates passwords and linking passphrases, and locks when idle.
-- Change your master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key from Vault Security.
+- Vault Security can change the master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key.

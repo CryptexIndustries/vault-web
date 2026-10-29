@@ -2,24 +2,25 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
-## 1.9.0 - 2026-10-29
+## 1.9.0 - 2026-10-30
 
 ### Added
 
-- Backup destinations in the Backup Center. After each change, the web app uploads an encrypted backup straight from your browser to S3-compatible buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage. The bucket keys sync with your vault to your other devices, and the feature is free. Each device thins the backups in its own folder by age, like managed backups, or keeps them all.
+- Backup destinations in the Backup Center. After each change, the web app uploads an encrypted backup straight from the browser to the user's own S3-compatible buckets, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage. The bucket keys sync with the vault to other linked devices, and the feature is free. Each device thins the backups in its own folder by age, like managed backups, or keeps them all.
 - The Restore tab can list the backups in a bucket and restore one as a new vault.
 - A new backup destinations guide covers bucket permissions, the CORS rule the web app needs, and restoring.
-- Test connection checks a STUN, TURN or signaling server from your browser before you save it.
+- Test connection checks a STUN, TURN or signaling server from the browser before it is saved.
 
 ### Changed
 
-- Vault signaling lists your servers, and each one is saved on its own. It used to be one long form with a single Save button.
-- Deleting a server that a linked device uses now warns you first.
+- Vault signaling lists the configured servers, and each one is saved on its own. It used to be one long form with a single Save button.
+- Deleting a server that a linked device uses now shows a warning first.
 
 ### Fixed
 
 - Sync now works with a STUN server entered as a `stun:` URL, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
 - The captcha step no longer rejects managed-backup restores started in the Android app.
+- A managed backup taken while the vault's security settings are changed or the Recovery Kit is rotated can now always be restored. Before, such a backup could pair the new settings with the old key and fail to restore.
 
 ## 1.8.1 - 2026-10-27
 
@@ -31,19 +32,19 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ### Added
 
-- Set up a new browser by linking it to a device you already use. Open the Use invitation tab instead of creating a vault, receive your vault, then choose a master password for this browser.
+- A new browser can be set up by linking it to a device already in use. The Use invitation tab, offered instead of creating a vault, receives the vault, and the browser then gets its own master password.
 
 ### Changed
 
-- If the receiving vault has its own Online Services account, you now choose whether to keep or delete it before linking. Linking into such a vault used to fail with "Unauthorized".
+- If the receiving vault has its own Online Services account, linking now offers to keep or delete that account first. Linking into such a vault used to fail with "Unauthorized".
 
 ## 1.7.0 - 2026-10-21
 
 ### Added
 
 - SSH key items. Generate or import Ed25519, ECDSA and RSA keys, copy or save the public key, and share a key through a one-time link.
-- The web app approves SSH agent requests, and you can pause or revoke an agent from any linked device.
-- A 14-day free trial of Online Services for new subscribers. Add a card to start it. You're charged when the trial ends unless you cancel before then.
+- The web app approves SSH agent requests, and an agent can be paused or revoked from any linked device.
+- A 14-day free trial of Online Services for new subscribers. Adding a card starts it. The card is charged when the trial ends unless the subscription is cancelled before then.
 
 ### Changed
 
@@ -53,7 +54,7 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ### Added
 
-- The account dialog shows what your plan includes. On the free plan you see what Online Services adds and what it costs, instead of an empty billing card. Subscribers see each service with its allowance and how many linked devices they use.
+- The account dialog shows what the plan includes. On the free plan it shows what Online Services adds and what it costs, instead of an empty billing card. Subscribers see each service with its allowance and how many linked devices they use.
 - A new download page lists every way to get Cryptex Vault. The Android page explains how to install the app from our F-Droid repository.
 
 ### Changed
@@ -65,11 +66,11 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 ### Added
 
 - Credential rules in the web app and extension now accept exact Android app associations such as androidapp://com.example.app. These associations stay separate from website matching.
-- A new billing return page takes you back to the web vault or Android app. A return button stays available if your browser blocks automatic navigation.
-- Share a credential or any text through a link that opens once. You pick the fields, when the link expires and whether it needs a passphrase. Your device encrypts it, and the key stays in the link, so the share server can't read what you send.
-- Shared links shows every link you've sent and whether it was opened. You can search and filter it, and revoke a link nobody has opened yet. It syncs between your devices.
-- If you self-host, you can run the open-source share server next to your web app and hand out creation tokens to the people who may send links.
-- If you subscribed through Google Play or the App Store, the account dialog says so and tells you where to manage the subscription.
+- A new billing return page leads back to the web vault or Android app. A return button stays available if the browser blocks automatic navigation.
+- A credential or any text can be shared through a link that opens once. The sender picks the fields, when the link expires and whether it needs a passphrase. The sending device encrypts it, and the key stays in the link, so the share server can't read the contents.
+- Shared links shows every sent link and whether it was opened. It can be searched and filtered, and a link nobody has opened yet can be revoked. It syncs between linked devices.
+- Self-hosters can run the open-source share server next to their web app and hand out creation tokens to the people who may send links.
+- For subscriptions made through Google Play or the App Store, the account dialog says so and points to where the subscription is managed.
 
 ### Changed
 
@@ -84,16 +85,16 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ### Added
 
-- Sort vault credentials by name in either direction, recently updated, or newest created. The web app remembers your choice in this browser.
-- Manage your linked devices from Account or the vault sidebar. A connection map and searchable list show each device and its links, including direct links that do not use Online Services.
-- Change your master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key from Vault Security. Key rotation gives you a new recovery code. In the web app, your recovery code can also be used to set a new password.
+- Vault credentials can be sorted by name in either direction, recently updated, or newest created. The web app remembers the choice in this browser.
+- Linked devices can be managed from Account or the vault sidebar. A connection map and searchable list show each device and its links, including direct links that do not use Online Services.
+- Vault Security can change the master password and extra key protection, generate a new vault recovery code, or rotate this device's encryption key. Key rotation issues a new recovery code. In the web app, the recovery code can also be used to set a new password.
 - Self-hosting templates are available for the web app and its device-linking services, including secure TURN setup.
 
 ### Changed
 
-- Device actions now make it clearer when you are connecting, syncing, unlinking, or removing a device. Sidebar quick actions also work with a long press on touch screens.
-- When managed backups are enabled, security changes start a fresh backup. You can opt to delete older account restore points, including linked-device copies, after the upload succeeds. Downloaded backups remain yours to delete and still use the password and recovery information they had when downloaded.
-- Imports now show what will be added, skipped, or saved differently before you confirm. More details from Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox exports are carried over, and invalid files show clearer errors.
+- Device actions now make it clearer when a device is connecting, syncing, unlinking, or being removed. Sidebar quick actions also work with a long press on touch screens.
+- When managed backups are enabled, security changes start a fresh backup. Older account restore points, including linked-device copies, can optionally be deleted after the upload succeeds. Downloaded backups are never deleted automatically and still use the password and recovery information they had when downloaded.
+- Imports now show what will be added, skipped, or saved differently before the import is confirmed. More details from Bitwarden, 1Password, KeePass, LastPass, Chrome, and Firefox exports are carried over, and invalid files show clearer errors.
 - Boolean custom fields now have an on/off switch in the web credential editor.
 
 ### Fixed
@@ -108,7 +109,7 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 ### Added
 
 - Credentials can store multiple website rules with exact-host, parent/sibling domain, or safe wildcard matching.
-- A new Backup Center provides encrypted downloads and optional Online Services managed restore points with backup status, history, and management controls. Restore local files or recover on a fresh device without replacing an existing vault, and rotate or replace your Recovery Kit for future recovery.
+- A new Backup Center provides encrypted downloads and optional Online Services managed restore points with backup status, history, and management controls. Local files can be restored, or a vault recovered on a fresh device, without replacing an existing vault, and the Recovery Kit can be rotated or replaced for future recovery.
 - Choose how long the web vault waits before automatically locking after inactivity.
 - Organize credentials into directories across the web app and extension, move multiple credentials at once, and preserve directories through imports, exports, and linked-device synchronization.
 - Payments now stay inside Cryptex Vault with embedded monthly and yearly checkout, billing management, and clearer account and recovery flows.

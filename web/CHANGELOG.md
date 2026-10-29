@@ -19,6 +19,7 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 ### Fixed
 
 - Sync now works with a STUN server entered as a `stun:` URL, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
+- The captcha step no longer rejects managed-backup restores started in the Android app.
 
 ## 1.8.1 - 2026-10-27
 

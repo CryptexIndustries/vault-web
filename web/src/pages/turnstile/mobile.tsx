@@ -11,8 +11,9 @@ import { env } from "@/env/public";
  * Posts strict JSON to window.ReactNativeWebView - never puts tokens in the URL,
  * cookies, logs, or visible DOM.
  *
- * Query `action` must be allowlisted (auth_register | auth_recover); arbitrary
- * values are rejected. Instance nonce is bridge correlation only (not Turnstile cData).
+ * Query `action` must be allowlisted (auth_register | auth_recover |
+ * backup_recovery); arbitrary values are rejected. Instance nonce is bridge
+ * correlation only (not Turnstile cData).
  */
 
 type BridgeMessage =
@@ -33,7 +34,11 @@ declare global {
 
 const CHALLENGE_TIMEOUT_MS = 90_000;
 const NONCE_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
-const ALLOWED_ACTIONS = ["auth_register", "auth_recover"] as const;
+const ALLOWED_ACTIONS = [
+    "auth_register",
+    "auth_recover",
+    "backup_recovery",
+] as const;
 type TurnstileBridgeAction = (typeof ALLOWED_ACTIONS)[number];
 
 function isAllowedAction(value: string): value is TurnstileBridgeAction {

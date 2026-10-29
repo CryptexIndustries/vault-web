@@ -537,10 +537,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                     void chooseCloudSnapshot(snapshot.id)
                                 }
                             >
-                                {new Date(snapshot.createdAt).toLocaleString(
-                                    i18n.locale,
-                                )}{" "}
-                                ({snapshot.sourceLabel})
+                                {`${new Date(snapshot.createdAt).toLocaleString(i18n.locale)} (${snapshot.sourceLabel})`}
                             </Button>
                         ))}
                     </View>

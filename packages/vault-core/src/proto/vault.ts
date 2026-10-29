@@ -100,6 +100,7 @@ export enum SyncItemType {
     DirectoryItem = 1,
     ShareLinkItem = 2,
     ConnectedAgentItem = 3,
+    BackupDestinationItem = 4,
 }
 
 /** #region Encryption */
@@ -203,6 +204,40 @@ export interface Vault {
      * backups, managed backups), never synced or exported.
      */
     AgentApprover?: AgentApproverSettings | undefined;
+    /**
+     * S3-compatible buckets every device uploads encrypted backups to.
+     * Synced, and kept in backups and exports.
+     */
+    BackupDestinations: BackupDestination[];
+}
+
+/** #region BackupDestinations */
+export interface BackupDestination {
+    /** ULID, also the folder the vault's backups go under. */
+    ID: string;
+    Name: string;
+    /** Origin of the S3 API, such as "https://s3.eu-central-1.amazonaws.com". */
+    Endpoint: string;
+    Region: string;
+    Bucket: string;
+    /** Empty, or a key prefix ending in "/". */
+    Prefix: string;
+    /** Address the bucket as <endpoint>/<bucket> instead of <bucket>.<host>. */
+    PathStyle: boolean;
+    AccessKeyID: string;
+    SecretAccessKey: string;
+    /**
+     * Devices never delete their backups here, for keys without delete
+     * rights. Otherwise each device thins its own backups by age.
+     */
+    KeepAll: boolean;
+    /** Paused destinations get no uploads from any device. */
+    Paused: boolean;
+    CreatedAtTimestamp: number;
+    Hash: string;
+    Version: number;
+    DateModifiedTimestamp: number;
+    Deleted: boolean;
 }
 
 /**
@@ -413,6 +448,10 @@ export interface LinkedDevices {
     /** ML-KEM-768 keypair for encrypting sync/link sessions (one per vault installation). */
     SyncKemPublicKey: string;
     SyncKemPrivateKey: string;
+    /** Names this installation's folder in backup destinations. Never synced or backed up. */
+    BackupDeviceID: string;
+    /** Keys the local marker of what this installation last backed up. */
+    BackupMarkerKey: string;
 }
 
 export interface LinkedDevice {
@@ -576,6 +615,7 @@ export interface SyncHelloMessage {
     DirectoryVersionVectors: VersionVector[];
     ShareLinkVersionVectors: VersionVector[];
     ConnectedAgentVersionVectors: VersionVector[];
+    BackupDestinationVersionVectors: VersionVector[];
 }
 
 export interface SyncHelloEchoMessage {
@@ -583,6 +623,7 @@ export interface SyncHelloEchoMessage {
     DirectoryVersionVectors: VersionVector[];
     ShareLinkVersionVectors: VersionVector[];
     ConnectedAgentVersionVectors: VersionVector[];
+    BackupDestinationVersionVectors: VersionVector[];
 }
 
 export interface SyncItemReference {
@@ -599,6 +640,7 @@ export interface SyncDataResponseMessage {
     Directories: Directory[];
     ShareLinks: ShareLink[];
     ConnectedAgents: ConnectedAgent[];
+    BackupDestinations: BackupDestination[];
 }
 
 /** #region Linking */
@@ -1537,6 +1579,7 @@ function createBaseVault(): Vault {
         Directories: [],
         ShareLinks: [],
         ConnectedAgents: [],
+        BackupDestinations: [],
     };
 }
 
@@ -1586,6 +1629,9 @@ export const Vault: MessageFns<Vault> = {
                 message.AgentApprover,
                 writer.uint32(114).fork(),
             ).join();
+        }
+        for (const v of message.BackupDestinations) {
+            BackupDestination.encode(v!, writer.uint32(122).fork()).join();
         }
         return writer;
     },
@@ -1698,6 +1744,16 @@ export const Vault: MessageFns<Vault> = {
                     );
                     continue;
                 }
+                case 15: {
+                    if (tag !== 122) {
+                        break;
+                    }
+
+                    message.BackupDestinations.push(
+                        BackupDestination.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -1740,6 +1796,266 @@ export const Vault: MessageFns<Vault> = {
             object.AgentApprover !== undefined && object.AgentApprover !== null
                 ? AgentApproverSettings.fromPartial(object.AgentApprover)
                 : undefined;
+        message.BackupDestinations =
+            object.BackupDestinations?.map((e) =>
+                BackupDestination.fromPartial(e),
+            ) || [];
+        return message;
+    },
+};
+
+function createBaseBackupDestination(): BackupDestination {
+    return {
+        ID: "",
+        Name: "",
+        Endpoint: "",
+        Region: "",
+        Bucket: "",
+        Prefix: "",
+        PathStyle: false,
+        AccessKeyID: "",
+        SecretAccessKey: "",
+        KeepAll: false,
+        Paused: false,
+        CreatedAtTimestamp: 0,
+        Hash: "",
+        Version: 0,
+        DateModifiedTimestamp: 0,
+        Deleted: false,
+    };
+}
+
+export const BackupDestination: MessageFns<BackupDestination> = {
+    encode(
+        message: BackupDestination,
+        writer: BinaryWriter = new BinaryWriter(),
+    ): BinaryWriter {
+        if (message.ID !== "") {
+            writer.uint32(10).string(message.ID);
+        }
+        if (message.Name !== "") {
+            writer.uint32(18).string(message.Name);
+        }
+        if (message.Endpoint !== "") {
+            writer.uint32(26).string(message.Endpoint);
+        }
+        if (message.Region !== "") {
+            writer.uint32(34).string(message.Region);
+        }
+        if (message.Bucket !== "") {
+            writer.uint32(42).string(message.Bucket);
+        }
+        if (message.Prefix !== "") {
+            writer.uint32(50).string(message.Prefix);
+        }
+        if (message.PathStyle !== false) {
+            writer.uint32(56).bool(message.PathStyle);
+        }
+        if (message.AccessKeyID !== "") {
+            writer.uint32(66).string(message.AccessKeyID);
+        }
+        if (message.SecretAccessKey !== "") {
+            writer.uint32(74).string(message.SecretAccessKey);
+        }
+        if (message.KeepAll !== false) {
+            writer.uint32(80).bool(message.KeepAll);
+        }
+        if (message.Paused !== false) {
+            writer.uint32(88).bool(message.Paused);
+        }
+        if (message.CreatedAtTimestamp !== 0) {
+            writer.uint32(96).int64(message.CreatedAtTimestamp);
+        }
+        if (message.Hash !== "") {
+            writer.uint32(106).string(message.Hash);
+        }
+        if (message.Version !== 0) {
+            writer.uint32(112).int32(message.Version);
+        }
+        if (message.DateModifiedTimestamp !== 0) {
+            writer.uint32(120).int64(message.DateModifiedTimestamp);
+        }
+        if (message.Deleted !== false) {
+            writer.uint32(128).bool(message.Deleted);
+        }
+        return writer;
+    },
+
+    decode(
+        input: BinaryReader | Uint8Array,
+        length?: number,
+    ): BackupDestination {
+        const reader =
+            input instanceof BinaryReader ? input : new BinaryReader(input);
+        const end = length === undefined ? reader.len : reader.pos + length;
+        const message = createBaseBackupDestination();
+        while (reader.pos < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1: {
+                    if (tag !== 10) {
+                        break;
+                    }
+
+                    message.ID = reader.string();
+                    continue;
+                }
+                case 2: {
+                    if (tag !== 18) {
+                        break;
+                    }
+
+                    message.Name = reader.string();
+                    continue;
+                }
+                case 3: {
+                    if (tag !== 26) {
+                        break;
+                    }
+
+                    message.Endpoint = reader.string();
+                    continue;
+                }
+                case 4: {
+                    if (tag !== 34) {
+                        break;
+                    }
+
+                    message.Region = reader.string();
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.Bucket = reader.string();
+                    continue;
+                }
+                case 6: {
+                    if (tag !== 50) {
+                        break;
+                    }
+
+                    message.Prefix = reader.string();
+                    continue;
+                }
+                case 7: {
+                    if (tag !== 56) {
+                        break;
+                    }
+
+                    message.PathStyle = reader.bool();
+                    continue;
+                }
+                case 8: {
+                    if (tag !== 66) {
+                        break;
+                    }
+
+                    message.AccessKeyID = reader.string();
+                    continue;
+                }
+                case 9: {
+                    if (tag !== 74) {
+                        break;
+                    }
+
+                    message.SecretAccessKey = reader.string();
+                    continue;
+                }
+                case 10: {
+                    if (tag !== 80) {
+                        break;
+                    }
+
+                    message.KeepAll = reader.bool();
+                    continue;
+                }
+                case 11: {
+                    if (tag !== 88) {
+                        break;
+                    }
+
+                    message.Paused = reader.bool();
+                    continue;
+                }
+                case 12: {
+                    if (tag !== 96) {
+                        break;
+                    }
+
+                    message.CreatedAtTimestamp = longToNumber(reader.int64());
+                    continue;
+                }
+                case 13: {
+                    if (tag !== 106) {
+                        break;
+                    }
+
+                    message.Hash = reader.string();
+                    continue;
+                }
+                case 14: {
+                    if (tag !== 112) {
+                        break;
+                    }
+
+                    message.Version = reader.int32();
+                    continue;
+                }
+                case 15: {
+                    if (tag !== 120) {
+                        break;
+                    }
+
+                    message.DateModifiedTimestamp = longToNumber(
+                        reader.int64(),
+                    );
+                    continue;
+                }
+                case 16: {
+                    if (tag !== 128) {
+                        break;
+                    }
+
+                    message.Deleted = reader.bool();
+                    continue;
+                }
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skip(tag & 7);
+        }
+        return message;
+    },
+
+    create<I extends Exact<DeepPartial<BackupDestination>, I>>(
+        base?: I,
+    ): BackupDestination {
+        return BackupDestination.fromPartial(base ?? ({} as any));
+    },
+    fromPartial<I extends Exact<DeepPartial<BackupDestination>, I>>(
+        object: I,
+    ): BackupDestination {
+        const message = createBaseBackupDestination();
+        message.ID = object.ID ?? "";
+        message.Name = object.Name ?? "";
+        message.Endpoint = object.Endpoint ?? "";
+        message.Region = object.Region ?? "";
+        message.Bucket = object.Bucket ?? "";
+        message.Prefix = object.Prefix ?? "";
+        message.PathStyle = object.PathStyle ?? false;
+        message.AccessKeyID = object.AccessKeyID ?? "";
+        message.SecretAccessKey = object.SecretAccessKey ?? "";
+        message.KeepAll = object.KeepAll ?? false;
+        message.Paused = object.Paused ?? false;
+        message.CreatedAtTimestamp = object.CreatedAtTimestamp ?? 0;
+        message.Hash = object.Hash ?? "";
+        message.Version = object.Version ?? 0;
+        message.DateModifiedTimestamp = object.DateModifiedTimestamp ?? 0;
+        message.Deleted = object.Deleted ?? false;
         return message;
     },
 };
@@ -3411,6 +3727,8 @@ function createBaseLinkedDevices(): LinkedDevices {
         SyncSigningPrivateKey: "",
         SyncKemPublicKey: "",
         SyncKemPrivateKey: "",
+        BackupDeviceID: "",
+        BackupMarkerKey: "",
     };
 }
 
@@ -3445,6 +3763,12 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
         }
         if (message.SyncKemPrivateKey !== "") {
             writer.uint32(98).string(message.SyncKemPrivateKey);
+        }
+        if (message.BackupDeviceID !== "") {
+            writer.uint32(106).string(message.BackupDeviceID);
+        }
+        if (message.BackupMarkerKey !== "") {
+            writer.uint32(114).string(message.BackupMarkerKey);
         }
         return writer;
     },
@@ -3532,6 +3856,22 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
                     message.SyncKemPrivateKey = reader.string();
                     continue;
                 }
+                case 13: {
+                    if (tag !== 106) {
+                        break;
+                    }
+
+                    message.BackupDeviceID = reader.string();
+                    continue;
+                }
+                case 14: {
+                    if (tag !== 114) {
+                        break;
+                    }
+
+                    message.BackupMarkerKey = reader.string();
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -3568,6 +3908,8 @@ export const LinkedDevices: MessageFns<LinkedDevices> = {
         message.SyncSigningPrivateKey = object.SyncSigningPrivateKey ?? "";
         message.SyncKemPublicKey = object.SyncKemPublicKey ?? "";
         message.SyncKemPrivateKey = object.SyncKemPrivateKey ?? "";
+        message.BackupDeviceID = object.BackupDeviceID ?? "";
+        message.BackupMarkerKey = object.BackupMarkerKey ?? "";
         return message;
     },
 };
@@ -5144,6 +5486,7 @@ function createBaseSyncHelloMessage(): SyncHelloMessage {
         DirectoryVersionVectors: [],
         ShareLinkVersionVectors: [],
         ConnectedAgentVersionVectors: [],
+        BackupDestinationVersionVectors: [],
     };
 }
 
@@ -5163,6 +5506,9 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
         }
         for (const v of message.ConnectedAgentVersionVectors) {
             VersionVector.encode(v!, writer.uint32(34).fork()).join();
+        }
+        for (const v of message.BackupDestinationVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(42).fork()).join();
         }
         return writer;
     },
@@ -5214,6 +5560,16 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
                     }
 
                     message.ConnectedAgentVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.BackupDestinationVersionVectors.push(
                         VersionVector.decode(reader, reader.uint32()),
                     );
                     continue;
@@ -5252,6 +5608,10 @@ export const SyncHelloMessage: MessageFns<SyncHelloMessage> = {
             object.ConnectedAgentVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
+        message.BackupDestinationVersionVectors =
+            object.BackupDestinationVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
         return message;
     },
 };
@@ -5262,6 +5622,7 @@ function createBaseSyncHelloEchoMessage(): SyncHelloEchoMessage {
         DirectoryVersionVectors: [],
         ShareLinkVersionVectors: [],
         ConnectedAgentVersionVectors: [],
+        BackupDestinationVersionVectors: [],
     };
 }
 
@@ -5281,6 +5642,9 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
         }
         for (const v of message.ConnectedAgentVersionVectors) {
             VersionVector.encode(v!, writer.uint32(34).fork()).join();
+        }
+        for (const v of message.BackupDestinationVersionVectors) {
+            VersionVector.encode(v!, writer.uint32(42).fork()).join();
         }
         return writer;
     },
@@ -5336,6 +5700,16 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
                     );
                     continue;
                 }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.BackupDestinationVersionVectors.push(
+                        VersionVector.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -5368,6 +5742,10 @@ export const SyncHelloEchoMessage: MessageFns<SyncHelloEchoMessage> = {
             ) || [];
         message.ConnectedAgentVersionVectors =
             object.ConnectedAgentVersionVectors?.map((e) =>
+                VersionVector.fromPartial(e),
+            ) || [];
+        message.BackupDestinationVersionVectors =
+            object.BackupDestinationVersionVectors?.map((e) =>
                 VersionVector.fromPartial(e),
             ) || [];
         return message;
@@ -5509,6 +5887,7 @@ function createBaseSyncDataResponseMessage(): SyncDataResponseMessage {
         Directories: [],
         ShareLinks: [],
         ConnectedAgents: [],
+        BackupDestinations: [],
     };
 }
 
@@ -5528,6 +5907,9 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
         }
         for (const v of message.ConnectedAgents) {
             ConnectedAgent.encode(v!, writer.uint32(34).fork()).join();
+        }
+        for (const v of message.BackupDestinations) {
+            BackupDestination.encode(v!, writer.uint32(42).fork()).join();
         }
         return writer;
     },
@@ -5583,6 +5965,16 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
                     );
                     continue;
                 }
+                case 5: {
+                    if (tag !== 42) {
+                        break;
+                    }
+
+                    message.BackupDestinations.push(
+                        BackupDestination.decode(reader, reader.uint32()),
+                    );
+                    continue;
+                }
             }
             if ((tag & 7) === 4 || tag === 0) {
                 break;
@@ -5610,6 +6002,10 @@ export const SyncDataResponseMessage: MessageFns<SyncDataResponseMessage> = {
         message.ConnectedAgents =
             object.ConnectedAgents?.map((e) => ConnectedAgent.fromPartial(e)) ||
             [];
+        message.BackupDestinations =
+            object.BackupDestinations?.map((e) =>
+                BackupDestination.fromPartial(e),
+            ) || [];
         return message;
     },
 };

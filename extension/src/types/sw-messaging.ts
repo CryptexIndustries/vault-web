@@ -193,6 +193,15 @@ export enum MessageType {
 
     /** Popup: save which share server this device uses. */
     SaveShareSettings = 54,
+
+    /** Popup: backup destinations and this device's upload status for each. */
+    GetBackupDestinations = 55,
+
+    /** Popup: add, edit, pause or remove one backup destination. */
+    SaveBackupDestinations = 56,
+
+    /** Popup: upload to one backup destination now. */
+    BackupDestinationNow = 57,
 }
 
 /**
@@ -559,6 +568,7 @@ export type VaultSecurityStateResponse =
           additionalKeyProtectionKind: AdditionalKeyProtectionKind;
           kdf: { memLimit: number; opsLimit: number };
           webAuthnUnsupported: boolean;
+          hasBackupDestinations: boolean;
           latestBackupJobId?: string;
       }
     | { ok: false; error: string };
@@ -574,11 +584,13 @@ export type ReconfigureVaultSecurityRequest = VaultSecurityAuthorization & {
     kdf: { memLimit: number; opsLimit: number };
     rotateDataKey: boolean;
     deleteOlderManagedBackups: boolean;
+    deleteOlderDestinationBackups: boolean;
 };
 
 export type RotateVaultRecoveryCodeRequest = VaultSecurityAuthorization & {
     rotateDataKey: boolean;
     deleteOlderManagedBackups: boolean;
+    deleteOlderDestinationBackups: boolean;
 };
 
 export type VaultSecurityMutationResponse =

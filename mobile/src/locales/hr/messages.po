@@ -596,6 +596,11 @@ msgstr "Pristup završava"
 msgid "Access ends {billingDate}"
 msgstr "Pristup završava {billingDate}"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Access key ID"
+msgstr "ID ključa za pristup"
+
 #: src/components/account/account-security.tsx
 msgid "Access on this device"
 msgstr "Pristup na ovom uređaju"
@@ -765,6 +770,10 @@ msgstr "Dodaj zaštitnu frazu"
 #: src/components/vault/credential-form.tsx
 msgid "Add custom field"
 msgstr "Dodaj prilagođeno polje"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Add destination"
+msgstr "Dodaj odredište"
 
 #: src/components/unlocked/unlocked-ui.tsx
 #: src/components/vault/add-item-sheet.tsx
@@ -1023,6 +1032,10 @@ msgstr "Došlo je do pogreške pri uspostavljanju privatne veze."
 msgid "An optional Cryptex Vault button can appear on login fields where Android autofill is unavailable."
 msgstr "Na poljima za prijavu na kojima automatsko popunjavanje Androida nije dostupno može se prikazati izborni gumb Cryptex Vault."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "An S3-compatible bucket. The keys are saved in your vault and used by each of your devices."
+msgstr "Spremnik kompatibilan sa S3. Ključevi se spremaju u tvoj trezor i koristi ih svaki tvoj uređaj."
+
 #: src/components/account/membership-upgrade.tsx
 msgid "An upgrade is available for connected free accounts."
 msgstr "Za povezane besplatne račune dostupna je nadogradnja."
@@ -1030,6 +1043,10 @@ msgstr "Za povezane besplatne račune dostupna je nadogradnja."
 #: app/(app)/settings/security-report/index.tsx
 msgid "Analyzing passwords…"
 msgstr "Analiza lozinki…"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Android"
+msgstr "Android"
 
 #: src/components/vault/credential-detail-panel.tsx
 #: src/components/vault/credential-form.tsx
@@ -1239,6 +1256,11 @@ msgstr "Automatske sigurnosne kopije"
 msgid "Automatic backups paused. Existing history remains."
 msgstr "Automatske sigurnosne kopije su pauzirane. Postojeća povijest ostaje."
 
+#. placeholder {0}: destination.Name
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Automatic backups to {0}"
+msgstr "Automatske sigurnosne kopije: {0}"
+
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Automatic managed backups"
 msgstr "Automatske upravljane sigurnosne kopije"
@@ -1299,8 +1321,14 @@ msgid "Back to unlock"
 msgstr "Natrag na otključavanje"
 
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Back up now"
 msgstr "Izradi kopiju sada"
+
+#. placeholder {0}: destination.Name
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Backed up to {0}"
+msgstr "Sigurnosna kopija spremljena: {0}"
 
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -1318,6 +1346,10 @@ msgstr "Izrada sigurnosne kopije nije uspjela."
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Backup file"
 msgstr "Datoteka sigurnosne kopije"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Backup from {createdAt}"
+msgstr "Sigurnosna kopija od {createdAt}"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Backup history"
@@ -1454,9 +1486,18 @@ msgstr "Adresa u pregledniku: {displayName} (shema nedostupna)"
 msgid "Browser connection type is unknown. Saved logins will not match automatically. The page may use HTTP; review the form before filling."
 msgstr "Vrsta veze preglednika nije poznata. Spremljeni pristupni podaci neće se automatski podudarati. Stranica možda koristi HTTP; provjeri obrazac prije popunjavanja."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Browser extension"
+msgstr "Proširenje za preglednik"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Browser integrations"
 msgstr "Integracije s preglednicima"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Bucket"
+msgstr "Spremnik"
 
 #: app/link-receive.tsx
 msgid "Camera access is blocked. Enable it in Android settings, or use a link file or pasted data."
@@ -1505,6 +1546,7 @@ msgstr "Nije moguće pristupiti poslužitelju za dijeljenje. Provjeri vezu i pok
 #: src/components/account/account-controller.tsx
 #: src/components/account/turnstile-challenge.tsx
 #: src/components/autofill/request-ui.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 #: src/components/vault-import/import-wizard.tsx
@@ -1649,6 +1691,7 @@ msgstr "Provjera pretplate…"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Checking…"
 msgstr "Provjera…"
@@ -2656,6 +2699,10 @@ msgstr "Kopiranje poveznice nije uspjelo."
 msgid "Couldn't copy to the clipboard."
 msgstr "Kopiranje u međuspremnik nije uspjelo."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Couldn't list the bucket."
+msgstr "Dohvaćanje popisa spremnika nije uspjelo."
+
 #: app/(app)/share/index.tsx
 msgid "Couldn't open the share sheet."
 msgstr "Nije moguće otvoriti izbornik za dijeljenje."
@@ -2665,9 +2712,22 @@ msgstr "Nije moguće otvoriti izbornik za dijeljenje."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Pauziranje agenta nije uspjelo. Pokušaj ponovno."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Couldn't reach the bucket. Check the endpoint and your connection."
+msgstr "Spremnik nije dostupan. Provjeri krajnju točku i internetsku vezu."
+
 #: app/(app)/devices/connect-agent.tsx
 msgid "Couldn't reach the relay. Check your connection and try again."
 msgstr "Relej nije dostupan. Provjeri vezu i pokušaj ponovno."
+
+#. placeholder {0}: editingStatus.pruneError
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't remove old backups: {0}"
+msgstr "Uklanjanje starih sigurnosnih kopija nije uspjelo: {0}"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't remove the destination."
+msgstr "Uklanjanje odredišta nije uspjelo."
 
 #: app/(app)/devices/agents/[id].tsx
 msgid "Couldn't resume the agent. Try again."
@@ -2676,6 +2736,14 @@ msgstr "Nastavak rada agenta nije uspio. Pokušaj ponovno."
 #: app/(app)/devices/agents/[id].tsx
 msgid "Couldn't revoke the agent. Try again."
 msgstr "Opoziv agenta nije uspio. Pokušaj ponovno."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't save the change."
+msgstr "Spremanje promjene nije uspjelo."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't save the destination."
+msgstr "Spremanje odredišta nije uspjelo."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Couldn't save the relay token on this phone."
@@ -3053,6 +3121,10 @@ msgid "Delete item"
 msgstr "Izbriši stavku"
 
 #: src/components/vault-security/vault-security-dialog.tsx
+msgid "Delete older destination backups after replacement"
+msgstr "Nakon zamjene izbriši starije sigurnosne kopije u odredištima"
+
+#: src/components/vault-security/vault-security-dialog.tsx
 msgid "Delete older managed backups after replacement"
 msgstr "Nakon zamjene izbriši starije upravljane sigurnosne kopije"
 
@@ -3116,6 +3188,18 @@ msgstr "Opis (nije obavezno)"
 #: src/components/vault-manager/create-tab.tsx
 msgid "Description & password import"
 msgstr "Opis i uvoz lozinki"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination added"
+msgstr "Odredište dodano"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination removed"
+msgstr "Odredište uklonjeno"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination saved"
+msgstr "Odredište spremljeno"
 
 #: app/credential-request.tsx
 msgid "Destination unavailable"
@@ -3197,6 +3281,10 @@ msgstr "Uređaji"
 #: app/(app)/(tabs)/devices.tsx
 msgid "Devices could not be updated"
 msgstr "Ažuriranje uređaja nije uspjelo"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Devices stop uploading to this bucket. Backups already there stay."
+msgstr "Uređaji prestaju prenositi u ovaj spremnik. Sigurnosne kopije koje su već ondje ostaju."
 
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/diagnostics.tsx
@@ -3379,6 +3467,10 @@ msgstr "npr. Poslovni laptop"
 msgid "e.g., you@laptop"
 msgstr "npr. ti@laptop"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Each device keeps its backups from the last day, one a day for a month and one a month for a year, and deletes the rest."
+msgstr "Svaki uređaj čuva svoje sigurnosne kopije iz posljednjeg dana, jednu dnevno tijekom mjesec dana i jednu mjesečno tijekom godine, a ostale briše."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Each signaling server needs name, app ID, key, secret, host, and a service port."
 msgstr "Svaki signalizacijski poslužitelj treba naziv, ID aplikacije, ključ, tajnu, host i port usluge."
@@ -3412,6 +3504,10 @@ msgstr "Uredi autentifikator"
 #: app/(app)/(tabs)/vault/_layout.tsx
 msgid "Edit credential"
 msgstr "Uredi stavku"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Edit destination"
+msgstr "Uredi odredište"
 
 #: app/(app)/(tabs)/vault/[id].tsx
 #: src/components/vault/credential-detail-panel.tsx
@@ -3549,9 +3645,21 @@ msgstr "Šifriranje…"
 msgid "Encryption settings"
 msgstr "Postavke šifriranja"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Endpoint"
+msgstr "Krajnja točka"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Endpoint, such as https://s3.amazonaws.com"
+msgstr "Krajnja točka, npr. https://s3.amazonaws.com"
+
 #: app/(app)/settings/security/index.tsx
 msgid "Enroll a fingerprint in Android Settings first."
 msgstr "Najprije dodaj otisak prsta u postavkama Androida."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a bucket name of 3 to 63 letters, digits, dots or hyphens."
+msgstr "Unesi naziv spremnika od 3 do 63 slova, znamenke, točke ili crtice."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Enter a device name between 1 and 150 characters."
@@ -3598,6 +3706,10 @@ msgstr "Unesi naziv ovog povezanog trezora."
 msgid "Enter a name for this vault."
 msgstr "Unesi naziv ovog trezora."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a name of up to 64 characters."
+msgstr "Unesi naziv od najviše 64 znaka."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter a new master password."
 msgstr "Unesi novu glavnu lozinku."
@@ -3605,6 +3717,10 @@ msgstr "Unesi novu glavnu lozinku."
 #: app/(app)/share/index.tsx
 msgid "Enter a passphrase or turn it off."
 msgstr "Unesi pristupnu frazu ili je isključi."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a region such as us-east-1, or auto for R2."
+msgstr "Unesi regiju, npr. us-east-1, ili auto za R2."
 
 #: src/components/vault/credential-form.tsx
 msgid "Enter a setup key using letters A–Z and digits 2–7."
@@ -3638,6 +3754,18 @@ msgstr "Unesi ključ"
 msgid "Enter master password"
 msgstr "Unesi glavnu lozinku"
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the access key ID."
+msgstr "Unesi ID ključa za pristup."
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Enter the bucket your devices back up to. Backups stay encrypted until you unlock the restored vault."
+msgstr "Unesi spremnik u koji tvoji uređaji spremaju sigurnosne kopije. Kopije ostaju šifrirane dok ne otključaš vraćeni trezor."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the endpoint as an https:// address with no path."
+msgstr "Unesi krajnju točku kao https:// adresu bez putanje."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter the generated protection phrase saved with this vault."
 msgstr "Unesi generiranu zaštitnu frazu spremljenu uz ovaj trezor."
@@ -3667,6 +3795,10 @@ msgstr "Ponovno unesi istu lozinku."
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter the saved protection phrase"
 msgstr "Unesi spremljenu zaštitnu frazu"
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the secret access key."
+msgstr "Unesi tajni ključ za pristup."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4087,8 +4219,16 @@ msgid "Filters apply to the map and list."
 msgstr "Filtri se primjenjuju na kartu i popis."
 
 #: src/components/vault-manager/restore-tab.tsx
+msgid "Find and select a backup in your bucket."
+msgstr "Pronađi i odaberi sigurnosnu kopiju u svom spremniku."
+
+#: src/components/vault-manager/restore-tab.tsx
 msgid "Find and select a managed backup."
 msgstr "Pronađi i odaberi upravljanu sigurnosnu kopiju."
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Find backups"
+msgstr "Pronađi sigurnosne kopije"
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Find managed backups"
@@ -4157,6 +4297,11 @@ msgstr "Usredotoči se na jačanje slabih lozinki."
 #: app/(app)/agent-request.tsx
 msgid "Folder"
 msgstr "Mapa"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Folder (optional)"
+msgstr "Mapa (neobavezno)"
 
 #: app/(app)/settings/autofill.tsx
 msgid "For apps that do not support Android autofill"
@@ -4392,6 +4537,10 @@ msgstr "Sakrij vrijednost"
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "High Argon2 memory ({mem} MiB) may OOM or stall unlock on phones. Prefer {preferredMemory} MiB / ops {preferredOperations}."
 msgstr "Velika memorija za Argon2 ({mem} MiB) na telefonima može potrošiti svu memoriju ili zaustaviti otključavanje. Preporučeno: {preferredMemory} MiB, operacije: {preferredOperations}."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Home NAS"
+msgstr "Kućni NAS"
 
 #. Example name for a signaling server
 #: src/components/devices/connectivity-panel.tsx
@@ -4730,6 +4879,10 @@ msgstr "Zadrži mapu"
 msgid "Keep editing"
 msgstr "Nastavi uređivati"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Keep every backup"
+msgstr "Čuvaj sve sigurnosne kopije"
+
 #: app/link-receive.tsx
 msgid "Keep it and link"
 msgstr "Zadrži ga i poveži"
@@ -4849,6 +5002,14 @@ msgstr "Oznaka je predugačka"
 msgid "Language"
 msgstr "Jezik"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Last backup {when}"
+msgstr "Zadnja sigurnosna kopija: {when}"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Last backup {when}, changes waiting"
+msgstr "Zadnja sigurnosna kopija: {when}, promjene čekaju"
+
 #: app/(app)/settings/security-report/index.tsx
 msgid "Last changed a year or more ago"
 msgstr "Zadnja promjena prije godinu dana ili više"
@@ -4910,6 +5071,10 @@ msgstr "Ostavi prazno za korištenje poslužitelja Cryptex Vault."
 #: src/components/vault/directory-manager.tsx
 msgid "Leave this off to keep your credentials."
 msgstr "Ostavi isključeno da zadržiš stavke."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Leaves clean-up to the bucket's own rules. The key then needs no delete permission."
+msgstr "Čišćenje prepušta pravilima samog spremnika. Ključu tada ne treba dopuštenje za brisanje."
 
 #. Short label on the device map button that opens the legend
 #: src/components/devices/device-network.tsx
@@ -5419,6 +5584,7 @@ msgstr "Moj uređaj"
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
 #: app/(app)/share/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/devices/connectivity-panel.tsx
 #: src/components/vault-manager/unlock-tab.tsx
 #: src/components/vault/credential-form.tsx
@@ -5461,6 +5627,10 @@ msgstr "Naziv, korisničko ime ili web-mjesto"
 #: app/(app)/agent-request.tsx
 msgid "Namespace"
 msgstr "Imenski prostor"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Needed for MinIO, Garage and most self-hosted servers."
+msgstr "Potrebno za MinIO, Garage i većinu vlastitih poslužitelja."
 
 #: app/(app)/devices/link-send.tsx
 #: app/link-receive.tsx
@@ -5533,6 +5703,18 @@ msgstr "Ne"
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "No additional key protection"
 msgstr "Bez dodatne zaštite ključa"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "No backup yet"
+msgstr "Još nema sigurnosne kopije"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "No backup yet, changes waiting"
+msgstr "Još nema sigurnosne kopije, promjene čekaju"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "No Cryptex Vault backups under this folder."
+msgstr "U ovoj mapi nema sigurnosnih kopija za Cryptex Vault."
 
 #: src/components/vault/credential-form.tsx
 msgid "No custom fields yet"
@@ -6338,6 +6520,11 @@ msgstr "Zalijepljeni podaci za povezivanje"
 msgid "Pasted pairing code"
 msgstr "Zalijepljeni kôd za uparivanje"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Path-style addresses"
+msgstr "Adrese u obliku putanje"
+
 #: app/(app)/agent-request.tsx
 msgid "Pause {agentName}"
 msgstr "Pauziraj agenta {agentName}"
@@ -6348,6 +6535,7 @@ msgstr "Pauziraj agenta"
 
 #. SSH agent status in the devices list
 #: src/agent/use-agents.ts
+#: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Paused"
 msgstr "Pauzirano"
 
@@ -6811,6 +6999,14 @@ msgstr "Njegovi se zahtjevi odbijaju bez pitanja dok ne nastaviš njegov rad."
 msgid "Regenerate password"
 msgstr "Generiraj novu lozinku"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Region"
+msgstr "Regija"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Region (us-east-1 if blank)"
+msgstr "Regija (us-east-1 ako je prazno)"
+
 #: src/components/devices/device-overviews.tsx
 msgid "Registered with Online Services"
 msgstr "Registrirano u usluzi Online Services"
@@ -6879,6 +7075,10 @@ msgstr "Zapamti"
 msgid "Removal scope"
 msgstr "Opseg uklanjanja"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Remove"
+msgstr "Ukloni"
+
 #: src/components/vault/ssh-key-form.tsx
 msgid "Remove .pub file"
 msgstr "Ukloni .pub datoteku"
@@ -6918,6 +7118,10 @@ msgstr "Ukloni cilj automatskog popunjavanja {targetNumber}"
 #: src/components/vault/credential-form.tsx
 msgid "Remove custom field"
 msgstr "Ukloni prilagođeno polje"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Remove destination"
+msgstr "Ukloni odredište"
 
 #: src/components/vault/directory-manager.tsx
 msgid "Remove directory"
@@ -7125,6 +7329,10 @@ msgstr "Nastavi rad agenta"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Resuming…"
 msgstr "Nastavljanje…"
+
+#: src/components/vault-manager/restore-tab.tsx
+msgid "Retrieve a backup from an S3 bucket your devices upload to."
+msgstr "Dohvati sigurnosnu kopiju iz S3 spremnika u koji tvoji uređaji prenose kopije."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Retrieve a backup stored with Cryptex Vault."
@@ -7375,6 +7583,10 @@ msgstr "Spremi šifriranu kopiju"
 msgid "Save and open vault"
 msgstr "Spremi i otvori trezor"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Save anyway"
+msgstr "Ipak spremi"
+
 #: src/components/autofill/request-ui.tsx
 msgid "Save association and fill"
 msgstr "Spremi povezivanje i popuni"
@@ -7544,6 +7756,7 @@ msgstr "Spremanje agenta u tvoj trezor…"
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/devices/connectivity/agent-relay.tsx
 #: app/(app)/share/server.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/vault/credential-form.tsx
 #: src/components/vault/ssh-key-details.tsx
 #: src/components/vault/ssh-key-form.tsx
@@ -7657,6 +7870,11 @@ msgstr "Pretraži… probaj name: tag: ili note:"
 #: src/components/devices/connectivity-panel.tsx
 msgid "Secret"
 msgstr "Tajna"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Secret access key"
+msgstr "Tajni ključ za pristup"
 
 #: src/utils/linking-messages.ts
 msgid "Secure channel error"
@@ -8168,6 +8386,10 @@ msgstr "Došlo je do pogreške pri izradi poveznice."
 msgid "Something went wrong while reading this key. Try again."
 msgstr "Došlo je do pogreške pri čitanju ovog ključa. Pokušaj ponovno."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Something went wrong."
+msgstr "Nešto je pošlo po zlu."
+
 #: app/(app)/share/links.tsx
 msgid "Sort by"
 msgstr "Poredaj po"
@@ -8436,9 +8658,17 @@ msgstr "Dodirni za povećanje"
 msgid "Tap to scan"
 msgstr "Dodirni za skeniranje"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Test and save"
+msgstr "Provjeri i spremi"
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Test connection"
 msgstr "Testiraj vezu"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Testing connection…"
+msgstr "Provjera veze…"
 
 #. Custom field type
 #: src/components/vault/credential-form.tsx
@@ -8526,6 +8756,22 @@ msgstr "Pridruživanje nije moguće spremiti. Pristupni podaci nisu popunjeni. V
 msgid "The association was saved, but the request expired before Cryptex Vault could fill the login."
 msgstr "Pridruživanje je spremljeno, ali zahtjev je istekao prije popunjavanja pristupnih podataka."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "The backup file is no longer in the bucket."
+msgstr "Datoteka sigurnosne kopije više nije u spremniku."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket doesn't exist at this endpoint."
+msgstr "Spremnik ne postoji na ovoj krajnjoj točki."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket refused the access key. Check the key, the secret and the key's permissions."
+msgstr "Spremnik je odbio ključ za pristup. Provjeri ključ, tajnu i dopuštenja ključa."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket rejected the request."
+msgstr "Spremnik je odbio zahtjev."
+
 #: src/components/vault/credential-form.tsx
 msgid "The camera could not start. Try again or enter the setup key."
 msgstr "Kamera se nije mogla pokrenuti. Pokušaj ponovno ili unesi ključ za postavljanje."
@@ -8541,6 +8787,10 @@ msgstr "Relej Cryptex Vault nije prihvatio ovaj telefon. Provjeri je li usluga O
 #: src/components/devices/device-removal-content.tsx
 msgid "The device removal could not be completed. Refresh account data before trying again."
 msgstr "Uklanjanje uređaja nije moguće dovršiti. Osvježi podatke računa prije ponovnog pokušaja."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The endpoint didn't answer like an S3 service."
+msgstr "Krajnja točka nije odgovorila kao S3 usluga."
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "The export uses this vault’s current password and protection settings."
@@ -8691,6 +8941,10 @@ msgstr "Primljena kopija nije spremljena. Ponovnim pokretanjem ova će se kopija
 msgid "The received vault has not been saved."
 msgstr "Primljeni trezor nije spremljen."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "The region doesn't match the bucket."
+msgstr "Regija ne odgovara spremniku."
+
 #: src/agent/relay-wording.ts
 msgid "The relay at {host} didn't accept the access token saved on this phone. Enter its current access token."
 msgstr "Relej na adresi {host} nije prihvatio pristupni token spremljen na ovom telefonu. Unesi njegov trenutačni pristupni token."
@@ -8780,6 +9034,10 @@ msgstr "Trezor je šifriran i spremljen, ali ovaj uređaj nije mogao pohraniti n
 msgid "The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings."
 msgstr "Ključ trezora je zamijenjen, ali biometrijsko otključavanje nije moguće osvježiti pa je isključeno. Ponovno ga uključi u postavkama „Sigurnost“."
 
+#: src/app_lib/backup-destinations.ts
+msgid "The vault locked before the backup was ready."
+msgstr "Trezor se zaključao prije nego što je sigurnosna kopija bila spremna."
+
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
 msgstr "Sesija trezora se promijenila. Za nastavak ponovno otvori karticu „Uređaji“."
@@ -8857,6 +9115,10 @@ msgstr "Ova veza više nije dostupna. Zatvori ove pojedinosti i odaberi drugu ve
 msgid "This credential request expired. Return to the app or browser and try again."
 msgstr "Ovaj zahtjev za pristupne podatke je istekao. Vrati se u aplikaciju ili preglednik i pokušaj ponovno."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "This destination was removed on another device."
+msgstr "Ovo je odredište uklonjeno na drugom uređaju."
+
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: src/components/devices/device-browser.tsx
@@ -8891,6 +9153,14 @@ msgstr "Ovaj uređaj više nije dostupan. Zatvori ove pojedinosti i odaberi drug
 #: app/(app)/(tabs)/devices.tsx
 msgid "This device will keep its registration and sync links but lose root permissions."
 msgstr "Ovaj uređaj zadržat će registraciju i veze za sinkronizaciju, ali će izgubiti root ovlasti."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "This device's clock is wrong. Correct the date and time, then try again."
+msgstr "Sat na ovom uređaju nije točan. Ispravi datum i vrijeme pa pokušaj ponovno."
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay."
+msgstr "Starije sigurnosne kopije ovog uređaja u tvojim odredištima brišu se tek kad se nova kopija prenese u svako od njih. Kopije drugih uređaja ostaju."
 
 #: src/components/vault/vault-home.tsx
 msgid "This directory is empty."
@@ -9009,6 +9279,7 @@ msgstr "Ova datoteka nije JSON izvoz trezora iz Bitwardena: nedostaje niz items.
 msgid "This file is not a Bitwarden vault JSON export."
 msgstr "Ova datoteka nije JSON izvoz trezora iz Bitwardena."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
 #: src/components/vault-manager/restore-tab.tsx
 msgid "This file is not a readable Cryptex Vault backup."
 msgstr "Ova datoteka nije čitljiva sigurnosna kopija za Cryptex Vault."
@@ -9593,6 +9864,14 @@ msgstr "Nadogradi"
 msgid "Upgrade membership"
 msgstr "Nadogradi članstvo"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Upload encrypted backups after every change to S3 buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage."
+msgstr "Nakon svake promjene prenosi šifrirane sigurnosne kopije u S3 spremnike kojima upravljaš, npr. AWS S3, Backblaze B2, Cloudflare R2, MinIO ili Garage."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Uploading…"
+msgstr "Prijenos…"
+
 #: src/components/vault/password-generator.tsx
 msgid "Uppercase"
 msgstr "Velika slova"
@@ -9656,6 +9935,10 @@ msgstr "Koristi automatsko popunjavanje zaštićeno preglednikom gdje je dostupn
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Use fingerprint"
 msgstr "Upotrijebi otisak prsta"
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Use folder names separated by /, without . or .. parts."
+msgstr "Upotrijebi nazive mapa odvojene znakom / i bez dijelova . ili .. u putanji."
 
 #. Tab label: link this device using an invitation
 #: app/(app)/(tabs)/account.tsx
@@ -10060,6 +10343,10 @@ msgstr "Slabe lozinke"
 msgid "Weak SSH keys"
 msgstr "Slabi SSH ključevi"
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Web app"
+msgstr "Web aplikacija"
+
 #: src/components/account/membership-benefits.tsx
 msgid "Web app, Android app & Chromium extension"
 msgstr "Web-aplikacija, Android aplikacija i proširenje za Chromium"
@@ -10247,6 +10534,11 @@ msgstr "Ovdje će se prikazati tvoja sljedeća upravljana sigurnosna kopija."
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Your own relays"
 msgstr "Vlastiti releji"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-tab.tsx
+msgid "Your own storage"
+msgstr "Vlastita pohrana"
 
 #: src/components/account/account-summary.tsx
 msgid "Your payment needs attention. Open Manage billing to review it."

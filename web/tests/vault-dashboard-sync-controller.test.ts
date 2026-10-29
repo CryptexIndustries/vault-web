@@ -163,7 +163,13 @@ describe("vault dashboard sync controller helpers", () => {
         activeMetadata = vaultB;
         vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
 
-        await operations.updateItems?.([], [credential("from-sync")], [], []);
+        await operations.updateItems?.(
+            [],
+            [credential("from-sync")],
+            [],
+            [],
+            [],
+        );
 
         expect(vaultA.save).not.toHaveBeenCalled();
         expect(vaultB.save).toHaveBeenCalledTimes(1);
@@ -186,7 +192,7 @@ describe("vault dashboard sync controller helpers", () => {
         const operations = createVaultOperations();
 
         await expect(
-            operations.updateItems([], [credential("from-sync")], [], []),
+            operations.updateItems([], [credential("from-sync")], [], [], []),
         ).rejects.toThrow("VAULT_SAVE_FAILED");
 
         expect(
@@ -195,7 +201,7 @@ describe("vault dashboard sync controller helpers", () => {
         expect(toast.error).toHaveBeenCalled();
         expect(toast.success).not.toHaveBeenCalled();
 
-        await operations.updateItems([], [credential("from-sync")], [], []);
+        await operations.updateItems([], [credential("from-sync")], [], [], []);
         expect(
             vaultStore.get(unlockedVaultAtom).Credentials.map((c) => c.ID),
         ).toContain("from-sync");
@@ -207,7 +213,7 @@ describe("vault dashboard sync controller helpers", () => {
         vaultStore.set(unlockedVaultMetadataAtom, activeMetadata);
         const operations = createVaultOperations();
 
-        await operations.updateItems?.([directory("work")], [], [], []);
+        await operations.updateItems?.([directory("work")], [], [], [], []);
 
         expect(vaultStore.get(unlockedVaultAtom).Directories).toEqual([
             expect.objectContaining({ ID: "work", Name: "Directory work" }),
@@ -234,6 +240,7 @@ describe("vault dashboard sync controller helpers", () => {
 
         await createVaultOperations().updateItems(
             [directory("current"), incoming],
+            [],
             [],
             [],
             [],
@@ -274,6 +281,7 @@ describe("vault dashboard sync controller helpers", () => {
                 },
             ],
             [valid, missing],
+            [],
             [],
             [],
         );

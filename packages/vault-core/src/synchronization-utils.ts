@@ -271,6 +271,7 @@ export class SynchronizationEnvelope
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
         connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        backupDestinationVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloMessage.encode({
@@ -278,6 +279,7 @@ export class SynchronizationEnvelope
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
             ConnectedAgentVersionVectors: connectedAgentVersionVectors,
+            BackupDestinationVersionVectors: backupDestinationVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -296,6 +298,7 @@ export class SynchronizationEnvelope
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
         connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        backupDestinationVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
@@ -303,6 +306,7 @@ export class SynchronizationEnvelope
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
             ConnectedAgentVersionVectors: connectedAgentVersionVectors,
+            BackupDestinationVersionVectors: backupDestinationVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -342,12 +346,14 @@ export class SynchronizationEnvelope
         directories: VaultUtilTypes.Directory[] = [],
         shareLinks: VaultUtilTypes.ShareLink[] = [],
         connectedAgents: VaultUtilTypes.ConnectedAgent[] = [],
+        backupDestinations: VaultUtilTypes.BackupDestination[] = [],
     ) {
         const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
             Credentials: credentials,
             Directories: directories,
             ShareLinks: shareLinks,
             ConnectedAgents: connectedAgents,
+            BackupDestinations: backupDestinations,
         }).finish();
 
         return SynchronizationEnvelope.encodeEnvelope(

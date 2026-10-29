@@ -687,6 +687,11 @@ const coreFeatures: { title: string; description?: string }[] = [
         description: "Download an encrypted vault copy to store separately.",
     },
     {
+        title: "Backups to your own storage",
+        description:
+            "Upload encrypted backups automatically to S3-compatible buckets you control.",
+    },
+    {
         title: "Peer-to-peer synchronization",
         description:
             "Use your own signaling and relay infrastructure to sync linked vaults while both devices are online.",

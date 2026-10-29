@@ -15,10 +15,13 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
+    BACKUP_SOURCE_LABELS,
     formatBackupAge,
     getBackupOverview,
+    latestDestinationBackupAt,
     type LocalBackupReceipt,
 } from "@/app_lib/backup-status";
+import { BackupDestinationsCard } from "@/components/vault-dashboard/backup-destinations-card";
 import {
     downloadBackupBytes,
     downloadBackupFile,
@@ -71,6 +74,7 @@ import {
     backupStorageUsage,
     hasBackupHistoryAccess,
 } from "../utils/backup-status-labels";
+import { useExtensionBackupDestinationsController } from "../utils/backup-destinations-client";
 import { vaultLog } from "../utils/ext-logging";
 import { isExtensionCloudServicesEnabled } from "../utils/online-services-api-url";
 
@@ -199,6 +203,8 @@ export function PopupBackupDialog({
     });
     const [busy, setBusy] = useState<BackupBusy>(null);
     const [enableConfirmOpen, setEnableConfirmOpen] = useState(false);
+    const backupDestinationsController =
+        useExtensionBackupDestinationsController(open);
 
     const refresh = useCallback(async () => {
         const context = await getBackupContextViaSW();
@@ -393,18 +399,22 @@ export function PopupBackupDialog({
         managedBackupAt: readyStatus?.latestReadyAt
             ? new Date(readyStatus.latestReadyAt)
             : null,
+        destinationBackupAt: latestDestinationBackupAt(
+            backupDestinationsController.destinations,
+            backupDestinationsController.statuses,
+        ),
         managedEnabled: readyStatus?.enabled === true,
         managedEntitled: readyStatus?.entitled === true,
     });
     const hasCurrentCoverage =
         !overview.isStale &&
         (overview.latestSource === "managed" ||
+            overview.latestSource === "destination" ||
             (overview.latestSource === "local" && localReceipt?.isCurrent));
 
     let latestBackupLabel = "No completed backup recorded";
     if (overview.latestBackupAt) {
-        const source =
-            overview.latestSource === "managed" ? "Managed" : "Local";
+        const source = BACKUP_SOURCE_LABELS[overview.latestSource ?? "local"];
         latestBackupLabel = `${source} backup ${formatBackupAge(overview.latestBackupAt)}`;
         if (overview.latestSource === "local" && !localReceipt?.isCurrent) {
             latestBackupLabel += "; changes since backup";
@@ -471,11 +481,14 @@ export function PopupBackupDialog({
                                     {latestBackupLabel}.{" "}
                                     {overview.needsReminder
                                         ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
-                                        : readyStatus?.enabled
-                                          ? "Use Backup Now to upload a restore point from this extension. Automatic backups also run while the web vault is open."
-                                          : !overview.isStale
-                                            ? "Keep the downloaded file in a separate, secure location."
-                                            : "Managed backups are not active for this account."}
+                                        : overview.latestSource ===
+                                            "destination"
+                                          ? "Automatic backups to your own storage run while the vault is unlocked."
+                                          : readyStatus?.enabled
+                                            ? "Use Backup Now to upload a restore point from this extension. Automatic backups also run while the web vault is open."
+                                            : !overview.isStale
+                                              ? "Keep the downloaded file in a separate, secure location."
+                                              : "Managed backups are not active for this account."}
                                 </p>
                             </div>
                         </div>
@@ -513,6 +526,10 @@ export function PopupBackupDialog({
                                 </Button>
                             </CardContent>
                         </Card>
+
+                        <BackupDestinationsCard
+                            controller={backupDestinationsController}
+                        />
 
                         <ManagedBackupsPanel
                             view={managedView}

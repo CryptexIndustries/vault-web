@@ -47,6 +47,11 @@ const userGuides = [
         "Download an encrypted backup or use managed restore points.",
     ],
     [
+        "Backup destinations",
+        "/docs/backup-destinations",
+        "Upload encrypted backups to an S3-compatible bucket you control.",
+    ],
+    [
         "Recovery",
         "/docs/recovery",
         "Know which recovery secret you need before a device is lost.",

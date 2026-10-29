@@ -24,6 +24,7 @@ import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
 import { Switch } from "@/components/ui/switch";
 import { InlineNotice } from "@/components/inline-notice";
+import { BackupDestinationsSection } from "@/components/backup-destinations/backup-destinations-section";
 import { colors } from "@/theme";
 
 function formatBytes(bytes: number) {
@@ -522,6 +523,7 @@ export function BackupCenterScreen({
                     })
                 }
             />
+            <BackupDestinationsSection />
             {status.isLoading ? (
                 <InlineNotice
                     tone="loading"

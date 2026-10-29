@@ -95,7 +95,8 @@ export function parseReconfigureVaultSecurityRequest(
     }
     if (
         !parseBoolean(payload.rotateDataKey) ||
-        !parseBoolean(payload.deleteOlderManagedBackups)
+        !parseBoolean(payload.deleteOlderManagedBackups) ||
+        !parseBoolean(payload.deleteOlderDestinationBackups)
     ) {
         return { ok: false, error: "INVALID_SECURITY_OPTIONS" };
     }
@@ -114,6 +115,8 @@ export function parseReconfigureVaultSecurityRequest(
             },
             rotateDataKey: payload.rotateDataKey,
             deleteOlderManagedBackups: payload.deleteOlderManagedBackups,
+            deleteOlderDestinationBackups:
+                payload.deleteOlderDestinationBackups,
         },
     };
 }
@@ -128,7 +131,8 @@ export function parseRotateVaultRecoveryCodeRequest(
     if (!auth.ok) return auth;
     if (
         !parseBoolean(payload.rotateDataKey) ||
-        !parseBoolean(payload.deleteOlderManagedBackups)
+        !parseBoolean(payload.deleteOlderManagedBackups) ||
+        !parseBoolean(payload.deleteOlderDestinationBackups)
     ) {
         return { ok: false, error: "INVALID_SECURITY_OPTIONS" };
     }
@@ -138,6 +142,8 @@ export function parseRotateVaultRecoveryCodeRequest(
             ...auth.value,
             rotateDataKey: payload.rotateDataKey,
             deleteOlderManagedBackups: payload.deleteOlderManagedBackups,
+            deleteOlderDestinationBackups:
+                payload.deleteOlderDestinationBackups,
         },
     };
 }

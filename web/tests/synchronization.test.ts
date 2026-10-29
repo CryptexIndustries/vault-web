@@ -10,6 +10,7 @@ import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils
 import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import { LinkedDevices } from "@cryptex-industries/vault-core/vault-utils/vault";
 import * as syncCrypto from "@cryptex-industries/vault-core/vault-utils/sync-crypto";
+import { createBackupDestinationRecord } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 import { createConnectedAgentRecord } from "@cryptex-industries/vault-core/vault-utils/connected-agents";
 import {
     getSyncVersionVectors,
@@ -132,11 +133,13 @@ function createOps(
         getDirectoryVersionVectors: jest.fn(async () => []),
         getShareLinkVersionVectors: jest.fn(async () => []),
         getConnectedAgentVersionVectors: jest.fn(async () => []),
+        getBackupDestinationVersionVectors: jest.fn(async () => []),
         getItems: jest.fn(async () => ({
             Credentials: [],
             Directories: [],
             ShareLinks: [],
             ConnectedAgents: [],
+            BackupDestinations: [],
         })),
         updateItems: jest.fn(async () => undefined),
         getSynchronizationConfig: jest.fn(async () => own),
@@ -272,7 +275,57 @@ describe("VaultItemSynchronization encrypted transport", () => {
                 },
             ]),
         );
-        expect(updateItems).toHaveBeenCalledWith([], [], [], [agent]);
+        expect(updateItems).toHaveBeenCalledWith([], [], [], [agent], []);
+    });
+
+    it("requests and applies backup destinations the remote is missing", async () => {
+        const pair = createPair();
+        const destination = createBackupDestinationRecord({
+            Name: "Garage",
+            Endpoint: "https://s3.example.com",
+            Region: "garage",
+            Bucket: "vault-backups",
+            Prefix: "",
+            PathStyle: true,
+            AccessKeyID: "GK123",
+            SecretAccessKey: "secret",
+            KeepAll: false,
+        });
+        const getItems = jest.fn<VaultOperations["getItems"]>(async (items) =>
+            selectSyncItems(
+                {
+                    Credentials: [],
+                    Directories: [],
+                    ShareLinks: [],
+                    BackupDestinations: [destination],
+                },
+                items,
+            ),
+        );
+        const updateItems = jest.fn<VaultOperations["updateItems"]>(
+            async () => undefined,
+        );
+        pair.localOps.getBackupDestinationVersionVectors = jest.fn(async () =>
+            getSyncVersionVectors([destination]),
+        );
+        pair.localOps.getItems = getItems;
+        pair.remoteOps.updateItems = updateItems;
+
+        await pair.localSync.transmitSyncHello(
+            "remote-device",
+            pair.localChannel,
+        );
+        await pair.flush();
+
+        expect(getItems).toHaveBeenCalledWith(
+            expect.arrayContaining([
+                {
+                    Type: VaultUtilTypes.SyncItemType.BackupDestinationItem,
+                    ID: destination.ID,
+                },
+            ]),
+        );
+        expect(updateItems).toHaveBeenCalledWith([], [], [], [], [destination]);
     });
 
     it("does not record completion after a failed save and allows a later retry", async () => {

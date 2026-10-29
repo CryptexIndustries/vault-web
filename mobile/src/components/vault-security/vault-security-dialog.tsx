@@ -6,6 +6,7 @@ import { useLingui } from "@lingui/react/macro";
 
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { visibleBackupDestinations } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import {
@@ -18,6 +19,7 @@ import {
     getVaultSessionGeneration,
     setVaultDEKInSession,
 } from "@/utils/vault-session";
+import { replaceBackupDestinationsAfterSecurityChange } from "@/app_lib/backup-destination-hooks";
 import { queueManagedBackupNow } from "@/app_lib/managed-backup-hooks";
 import {
     VaultMetadata,
@@ -34,10 +36,10 @@ import { PasswordGeneratorDialog } from "@/components/vault/password-generator";
 import { InlineNotice } from "@/components/inline-notice";
 import {
     UnlockedButton as Button,
-    UnlockedCheckbox as Checkbox,
     UnlockedDialogTitle,
     UnlockedInput as Input,
     UnlockedLabel as Label,
+    UnlockedSwitchRow,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
@@ -62,26 +64,29 @@ function KeyRotationOptions({
     onRotateDataKeyChange,
     deleteOlderManagedBackups,
     onDeleteOlderManagedBackupsChange,
+    deleteOlderDestinationBackups,
+    onDeleteOlderDestinationBackupsChange,
     disabled,
 }: {
     rotateDataKey: boolean;
     onRotateDataKeyChange: (checked: boolean) => void;
     deleteOlderManagedBackups: boolean;
     onDeleteOlderManagedBackupsChange: (checked: boolean) => void;
+    /** Null when the vault has no backup destinations. */
+    deleteOlderDestinationBackups: boolean | null;
+    onDeleteOlderDestinationBackupsChange: (checked: boolean) => void;
     disabled: boolean;
 }) {
     const { t } = useLingui();
     return (
         <View className="gap-3 rounded-md border border-border p-3">
-            <Checkbox
-                checked={rotateDataKey}
-                onCheckedChange={onRotateDataKeyChange}
+            <UnlockedSwitchRow
+                value={rotateDataKey}
+                onValueChange={onRotateDataKeyChange}
                 disabled={disabled}
                 label={t`Rotate this device's vault encryption key`}
+                hint={t`Off by default. Rotation re-encrypts this vault with a fresh data key and generates a new recovery code. Linked devices keep their own vault keys.`}
             />
-            <Text className="text-xs leading-5 text-muted-foreground">
-                {t`Off by default. Rotation re-encrypts this vault with a fresh data key and generates a new recovery code. Linked devices keep their own vault keys.`}
-            </Text>
             {rotateDataKey ? (
                 <InlineNotice
                     tone="warning"
@@ -91,15 +96,22 @@ function KeyRotationOptions({
             <Text className="text-xs leading-5 text-muted-foreground">
                 {t`Downloaded backup files are independent copies and may still open with the credentials that protected them when downloaded.`}
             </Text>
-            <Checkbox
-                checked={deleteOlderManagedBackups}
-                onCheckedChange={onDeleteOlderManagedBackupsChange}
+            <UnlockedSwitchRow
+                value={deleteOlderManagedBackups}
+                onValueChange={onDeleteOlderManagedBackupsChange}
                 disabled={disabled}
                 label={t`Delete older managed backups after replacement`}
+                hint={t`If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds.`}
             />
-            <Text className="text-xs leading-5 text-muted-foreground">
-                {t`If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds.`}
-            </Text>
+            {deleteOlderDestinationBackups != null ? (
+                <UnlockedSwitchRow
+                    value={deleteOlderDestinationBackups}
+                    onValueChange={onDeleteOlderDestinationBackupsChange}
+                    disabled={disabled}
+                    label={t`Delete older destination backups after replacement`}
+                    hint={t`This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay.`}
+                />
+            ) : null}
         </View>
     );
 }
@@ -154,6 +166,18 @@ export function VaultSecurityDialog({
         useState(false);
     const [deleteOldBackupsOnRecovery, setDeleteOldBackupsOnRecovery] =
         useState(false);
+    const [
+        deleteDestinationBackupsOnProtection,
+        setDeleteDestinationBackupsOnProtection,
+    ] = useState(false);
+    const [
+        deleteDestinationBackupsOnRecovery,
+        setDeleteDestinationBackupsOnRecovery,
+    ] = useState(false);
+    const hasBackupDestinations =
+        visibleBackupDestinations(
+            useAtomValue(unlockedVaultAtom).BackupDestinations ?? [],
+        ).length > 0;
     const [error, setError] = useState("");
     const [status, setStatus] = useState("");
     const [warning, setWarning] = useState("");
@@ -221,36 +245,43 @@ export function VaultSecurityDialog({
         ) => Promise<Result<VaultSecurityUpdate, string>>,
     ): Promise<Result<VaultSecurityUpdate, string>> => {
         const generation = getVaultSessionGeneration();
-        return vaultWriteCoordinator.run("vault.configuration", async () => {
-            if (generation !== getVaultSessionGeneration())
-                return err("VAULT_SESSION_CHANGED");
-            const metadata = vaultStore.get(unlockedVaultMetadataAtom);
-            const dek = getVaultDEKFromSession();
-            if (!metadata) return err("VAULT_METADATA_MISSING");
-            if (dek.isErr()) return err(dek.error);
-            const result = await change(
-                metadata,
-                vaultStore.get(unlockedVaultAtom),
-                dek.value,
-            );
-            if (generation !== getVaultSessionGeneration())
-                return err("VAULT_SESSION_CHANGED");
-            if (result.isErr()) return result;
-            if (result.value.sessionDek) {
-                setVaultDEKInSession(result.value.sessionDek);
-            }
-            vaultStore.set(
-                unlockedVaultMetadataAtom,
-                Object.assign(new VaultMetadata(), metadata),
-            );
-            return result;
-        });
+        return vaultWriteCoordinator.run(
+            "vault.security.reconfigure",
+            async () => {
+                if (generation !== getVaultSessionGeneration())
+                    return err("VAULT_SESSION_CHANGED");
+                const metadata = vaultStore.get(unlockedVaultMetadataAtom);
+                const dek = getVaultDEKFromSession();
+                if (!metadata) return err("VAULT_METADATA_MISSING");
+                if (dek.isErr()) return err(dek.error);
+                const result = await change(
+                    metadata,
+                    vaultStore.get(unlockedVaultAtom),
+                    dek.value,
+                );
+                if (generation !== getVaultSessionGeneration())
+                    return err("VAULT_SESSION_CHANGED");
+                if (result.isErr()) return result;
+                if (result.value.sessionDek) {
+                    setVaultDEKInSession(result.value.sessionDek);
+                }
+                vaultStore.set(
+                    unlockedVaultMetadataAtom,
+                    Object.assign(new VaultMetadata(), metadata),
+                );
+                return result;
+            },
+        );
     };
 
     const queueSecurityBackup = (
         deleteOlderSnapshots: boolean,
+        deleteOlderDestinationBackups: boolean,
         localSuccessMessage: string,
     ) => {
+        void replaceBackupDestinationsAfterSecurityChange(
+            deleteOlderDestinationBackups,
+        ).catch(() => undefined);
         setStatus(t`${localSuccessMessage} Updating managed backup…`);
         void queueManagedBackupNow(deleteOlderSnapshots)
             .then(() => {
@@ -389,6 +420,7 @@ export function VaultSecurityDialog({
                 : t`Security settings updated.`;
             queueSecurityBackup(
                 deleteOldBackupsOnProtection,
+                deleteDestinationBackupsOnProtection,
                 cacheWarning
                     ? `${successMessage} ${cacheWarning}`
                     : successMessage,
@@ -469,6 +501,7 @@ export function VaultSecurityDialog({
             setRevealRecovery(res.value.recoveryCode);
             queueSecurityBackup(
                 deleteOldBackupsOnRecovery,
+                deleteDestinationBackupsOnRecovery,
                 res.value.dataKeyRotated
                     ? t`Recovery code and vault encryption key replaced.`
                     : t`New recovery code generated.`,
@@ -818,6 +851,14 @@ export function VaultSecurityDialog({
                         onDeleteOlderManagedBackupsChange={
                             setDeleteOldBackupsOnProtection
                         }
+                        deleteOlderDestinationBackups={
+                            hasBackupDestinations
+                                ? deleteDestinationBackupsOnProtection
+                                : null
+                        }
+                        onDeleteOlderDestinationBackupsChange={
+                            setDeleteDestinationBackupsOnProtection
+                        }
                         disabled={
                             !isEnvelope || busy || hasUnacknowledgedSecrets
                         }
@@ -873,6 +914,14 @@ export function VaultSecurityDialog({
                             }
                             onDeleteOlderManagedBackupsChange={
                                 setDeleteOldBackupsOnRecovery
+                            }
+                            deleteOlderDestinationBackups={
+                                hasBackupDestinations
+                                    ? deleteDestinationBackupsOnRecovery
+                                    : null
+                            }
+                            onDeleteOlderDestinationBackupsChange={
+                                setDeleteDestinationBackupsOnRecovery
                             }
                             disabled={
                                 !isEnvelope || busy || hasUnacknowledgedSecrets

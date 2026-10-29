@@ -4,6 +4,10 @@ Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show
 
 ## 1.9.0 - 2026-10-29
 
+### Added
+
+- Backup destinations in the Backup Center. After each change, the extension uploads an encrypted backup straight to S3-compatible buckets you control. Destinations sync with your vault to your other devices. Each device thins out older backups in its own folder the way managed backups do, or keeps them all.
+
 ### Fixed
 
 - Sync now works with a STUN server entered as a `stun:` URL, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.

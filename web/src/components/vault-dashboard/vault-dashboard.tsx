@@ -106,6 +106,8 @@ import { VaultSettingsDialog } from "./vault-settings-dialog";
 import { VaultMigrationNoticeDialog } from "./vault-migration-notice-dialog";
 import { BackupDialog } from "./backup-dialog";
 import { managedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
+import { backupDestinationScheduler } from "@/app_lib/backup-destinations";
+import { stopBackupDestinations } from "@/app_lib/backup-destination-hooks";
 import {
     type SCCEvent,
     type SignalingEventData,
@@ -1327,6 +1329,11 @@ export function VaultDashboard({
             await ensureSession();
         })();
     }, [ensureSession, cloudServicesEnabled]);
+
+    useEffect(() => {
+        void backupDestinationScheduler.start();
+        return () => stopBackupDestinations();
+    }, []);
 
     useEffect(() => {
         if (!cloudServicesEnabled || !onlineServicesData?.sessionToken) return;

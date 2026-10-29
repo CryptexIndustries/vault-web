@@ -81,6 +81,7 @@ import {
 import type { TextProps } from "@/components/ui/text";
 import { SSH_KEYS_FILTER } from "@/utils/ssh-keys";
 import { Checkbox, type CheckboxProps } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
     useOptionalSyncRuntime,
     useSyncRuntime,
@@ -219,6 +220,41 @@ export function UnlockedCheckbox({ labelStyle, ...props }: CheckboxProps) {
             {...props}
             labelStyle={[{ fontFamily: SYSTEM_FONT }, labelStyle]}
         />
+    );
+}
+
+/** A setting with a description and a switch on the right. */
+export function UnlockedSwitchRow({
+    label,
+    hint,
+    value,
+    onValueChange,
+    disabled,
+    testID,
+}: {
+    label: string;
+    hint: string;
+    value: boolean;
+    onValueChange: (value: boolean) => void;
+    disabled?: boolean;
+    testID?: string;
+}) {
+    return (
+        <View className="min-h-[48px] flex-row items-center justify-between gap-3">
+            <View className="flex-1">
+                <UnlockedText className="text-sm">{label}</UnlockedText>
+                <UnlockedText className="mt-1 text-xs text-muted-foreground">
+                    {hint}
+                </UnlockedText>
+            </View>
+            <Switch
+                testID={testID}
+                value={value}
+                onValueChange={onValueChange}
+                disabled={disabled}
+                accessibilityLabel={label}
+            />
+        </View>
     );
 }
 

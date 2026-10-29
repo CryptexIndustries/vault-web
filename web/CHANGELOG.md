@@ -6,6 +6,9 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ### Added
 
+- Backup destinations in the Backup Center. After each change, the web app uploads an encrypted backup straight from your browser to S3-compatible buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage. The bucket keys sync with your vault to your other devices, and the feature is free. Each device thins the backups in its own folder by age, like managed backups, or keeps them all.
+- The Restore tab can list the backups in a bucket and restore one as a new vault.
+- A new backup destinations guide covers bucket permissions, the CORS rule the web app needs, and restoring.
 - Test connection checks a STUN, TURN or signaling server from your browser before you save it.
 
 ### Changed

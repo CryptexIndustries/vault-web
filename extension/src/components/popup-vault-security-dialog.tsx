@@ -110,6 +110,9 @@ type RotationOptionsProps = {
     setRotate: (value: boolean) => void;
     deleteOlder: boolean;
     setDeleteOlder: (value: boolean) => void;
+    /** Null when the vault has no backup destinations. */
+    deleteOlderDestinations: boolean | null;
+    setDeleteOlderDestinations: (value: boolean) => void;
     disabled: boolean;
 };
 
@@ -119,6 +122,8 @@ const RotationOptions = ({
     setRotate,
     deleteOlder,
     setDeleteOlder,
+    deleteOlderDestinations,
+    setDeleteOlderDestinations,
     disabled,
 }: RotationOptionsProps) => (
     <div className="space-y-2 rounded-md border p-3">
@@ -173,6 +178,31 @@ const RotationOptions = ({
                 </span>
             </Label>
         </div>
+        {deleteOlderDestinations != null ? (
+            <div className="flex items-start gap-2">
+                <Checkbox
+                    id={`${prefix}-delete-destination-history`}
+                    checked={deleteOlderDestinations}
+                    onCheckedChange={(checked) =>
+                        setDeleteOlderDestinations(checked === true)
+                    }
+                    disabled={disabled}
+                />
+                <Label
+                    htmlFor={`${prefix}-delete-destination-history`}
+                    className="space-y-1 text-xs font-normal"
+                >
+                    <span className="block font-medium">
+                        Delete older destination backups after replacement
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">
+                        This browser&apos;s older backups in your backup
+                        destinations are deleted only after the new backup
+                        uploads to each one. Other devices&apos; backups stay.
+                    </span>
+                </Label>
+            </div>
+        ) : null}
     </div>
 );
 
@@ -212,6 +242,10 @@ export function PopupVaultSecurityDialog({
         useState(false);
     const [rotateRecoveryDek, setRotateRecoveryDek] = useState(false);
     const [deleteRecoveryHistory, setDeleteRecoveryHistory] = useState(false);
+    const [deleteProtectionDestinations, setDeleteProtectionDestinations] =
+        useState(false);
+    const [deleteRecoveryDestinations, setDeleteRecoveryDestinations] =
+        useState(false);
     const [busy, setBusy] = useState<"protection" | "recovery" | null>(null);
     const [revealProtectionPhrase, setRevealProtectionPhrase] = useState<
         string | null
@@ -251,6 +285,8 @@ export function PopupVaultSecurityDialog({
         setDeleteProtectionHistory(false);
         setRotateRecoveryDek(false);
         setDeleteRecoveryHistory(false);
+        setDeleteProtectionDestinations(false);
+        setDeleteRecoveryDestinations(false);
         setRevealProtectionPhrase(null);
         setRevealRecovery(null);
         setSecretsAcknowledged(false);
@@ -380,6 +416,7 @@ export function PopupVaultSecurityDialog({
             kdf: { memLimit: Number(memLimit), opsLimit: Number(opsLimit) },
             rotateDataKey: rotateProtectionDek,
             deleteOlderManagedBackups: deleteProtectionHistory,
+            deleteOlderDestinationBackups: deleteProtectionDestinations,
         };
 
         try {
@@ -441,6 +478,7 @@ export function PopupVaultSecurityDialog({
                 : {}),
             rotateDataKey: rotateRecoveryDek,
             deleteOlderManagedBackups: deleteRecoveryHistory,
+            deleteOlderDestinationBackups: deleteRecoveryDestinations,
         };
 
         setBusy("recovery");
@@ -494,6 +532,8 @@ export function PopupVaultSecurityDialog({
     const hasSecrets = !!revealProtectionPhrase || !!revealRecovery;
     const mustAcknowledge = hasSecrets && !secretsAcknowledged;
     const unsupported = security?.ok && security.webAuthnUnsupported;
+    const hasBackupDestinations =
+        security?.ok === true && security.hasBackupDestinations;
     const belowRecommended = isBelowOwaspRecommendedArgon2id(
         Number(memLimit),
         Number(opsLimit),
@@ -763,6 +803,14 @@ export function PopupVaultSecurityDialog({
                                     setRotate={setRotateProtectionDek}
                                     deleteOlder={deleteProtectionHistory}
                                     setDeleteOlder={setDeleteProtectionHistory}
+                                    deleteOlderDestinations={
+                                        hasBackupDestinations
+                                            ? deleteProtectionDestinations
+                                            : null
+                                    }
+                                    setDeleteOlderDestinations={
+                                        setDeleteProtectionDestinations
+                                    }
                                     disabled={
                                         !!busy ||
                                         unsupported ||
@@ -806,6 +854,14 @@ export function PopupVaultSecurityDialog({
                                     setRotate={setRotateRecoveryDek}
                                     deleteOlder={deleteRecoveryHistory}
                                     setDeleteOlder={setDeleteRecoveryHistory}
+                                    deleteOlderDestinations={
+                                        hasBackupDestinations
+                                            ? deleteRecoveryDestinations
+                                            : null
+                                    }
+                                    setDeleteOlderDestinations={
+                                        setDeleteRecoveryDestinations
+                                    }
                                     disabled={
                                         !!busy ||
                                         unsupported ||

@@ -2,7 +2,12 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
-## 0.4.1 - 2026-10-29
+## 0.5.0 - 2026-10-29
+
+### Added
+
+- Backup destinations in the Backup Center. After each change, the app uploads an encrypted backup to S3-compatible buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage. Uploads go straight from your phone to the bucket, and the bucket keys sync with your vault. Each device thins the backups in its own folder by age, like managed backups do, or keeps them all.
+- The restore screen can list the backups in a bucket and restore one as a new vault.
 
 ### Fixed
 

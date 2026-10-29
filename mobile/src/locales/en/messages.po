@@ -596,6 +596,11 @@ msgstr "Access ends"
 msgid "Access ends {billingDate}"
 msgstr "Access ends {billingDate}"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Access key ID"
+msgstr "Access key ID"
+
 #: src/components/account/account-security.tsx
 msgid "Access on this device"
 msgstr "Access on this device"
@@ -765,6 +770,10 @@ msgstr "Add a protection phrase"
 #: src/components/vault/credential-form.tsx
 msgid "Add custom field"
 msgstr "Add custom field"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Add destination"
+msgstr "Add destination"
 
 #: src/components/unlocked/unlocked-ui.tsx
 #: src/components/vault/add-item-sheet.tsx
@@ -1023,6 +1032,10 @@ msgstr "An error occurred while setting up a private connection."
 msgid "An optional Cryptex Vault button can appear on login fields where Android autofill is unavailable."
 msgstr "An optional Cryptex Vault button can appear on login fields where Android autofill is unavailable."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "An S3-compatible bucket. The keys are saved in your vault and used by each of your devices."
+msgstr "An S3-compatible bucket. The keys are saved in your vault and used by each of your devices."
+
 #: src/components/account/membership-upgrade.tsx
 msgid "An upgrade is available for connected free accounts."
 msgstr "An upgrade is available for connected free accounts."
@@ -1030,6 +1043,10 @@ msgstr "An upgrade is available for connected free accounts."
 #: app/(app)/settings/security-report/index.tsx
 msgid "Analyzing passwords…"
 msgstr "Analyzing passwords…"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Android"
+msgstr "Android"
 
 #: src/components/vault/credential-detail-panel.tsx
 #: src/components/vault/credential-form.tsx
@@ -1239,6 +1256,11 @@ msgstr "Automatic backups"
 msgid "Automatic backups paused. Existing history remains."
 msgstr "Automatic backups paused. Existing history remains."
 
+#. placeholder {0}: destination.Name
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Automatic backups to {0}"
+msgstr "Automatic backups to {0}"
+
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Automatic managed backups"
 msgstr "Automatic managed backups"
@@ -1299,8 +1321,14 @@ msgid "Back to unlock"
 msgstr "Back to unlock"
 
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Back up now"
 msgstr "Back up now"
+
+#. placeholder {0}: destination.Name
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Backed up to {0}"
+msgstr "Backed up to {0}"
 
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -1318,6 +1346,10 @@ msgstr "Backup failed."
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Backup file"
 msgstr "Backup file"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Backup from {createdAt}"
+msgstr "Backup from {createdAt}"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Backup history"
@@ -1454,9 +1486,18 @@ msgstr "Browser address: {displayName} (scheme unavailable)"
 msgid "Browser connection type is unknown. Saved logins will not match automatically. The page may use HTTP; review the form before filling."
 msgstr "Browser connection type is unknown. Saved logins will not match automatically. The page may use HTTP; review the form before filling."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Browser extension"
+msgstr "Browser extension"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Browser integrations"
 msgstr "Browser integrations"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Bucket"
+msgstr "Bucket"
 
 #: app/link-receive.tsx
 msgid "Camera access is blocked. Enable it in Android settings, or use a link file or pasted data."
@@ -1505,6 +1546,7 @@ msgstr "Can't reach the share server. Check your connection and try again."
 #: src/components/account/account-controller.tsx
 #: src/components/account/turnstile-challenge.tsx
 #: src/components/autofill/request-ui.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 #: src/components/vault-import/import-wizard.tsx
@@ -1649,6 +1691,7 @@ msgstr "Checking your subscription…"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Checking…"
 msgstr "Checking…"
@@ -2656,6 +2699,10 @@ msgstr "Couldn't copy the link."
 msgid "Couldn't copy to the clipboard."
 msgstr "Couldn't copy to the clipboard."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Couldn't list the bucket."
+msgstr "Couldn't list the bucket."
+
 #: app/(app)/share/index.tsx
 msgid "Couldn't open the share sheet."
 msgstr "Couldn't open the share sheet."
@@ -2665,9 +2712,22 @@ msgstr "Couldn't open the share sheet."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Couldn't pause the agent. Try again."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Couldn't reach the bucket. Check the endpoint and your connection."
+msgstr "Couldn't reach the bucket. Check the endpoint and your connection."
+
 #: app/(app)/devices/connect-agent.tsx
 msgid "Couldn't reach the relay. Check your connection and try again."
 msgstr "Couldn't reach the relay. Check your connection and try again."
+
+#. placeholder {0}: editingStatus.pruneError
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't remove old backups: {0}"
+msgstr "Couldn't remove old backups: {0}"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't remove the destination."
+msgstr "Couldn't remove the destination."
 
 #: app/(app)/devices/agents/[id].tsx
 msgid "Couldn't resume the agent. Try again."
@@ -2676,6 +2736,14 @@ msgstr "Couldn't resume the agent. Try again."
 #: app/(app)/devices/agents/[id].tsx
 msgid "Couldn't revoke the agent. Try again."
 msgstr "Couldn't revoke the agent. Try again."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't save the change."
+msgstr "Couldn't save the change."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Couldn't save the destination."
+msgstr "Couldn't save the destination."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Couldn't save the relay token on this phone."
@@ -3053,6 +3121,10 @@ msgid "Delete item"
 msgstr "Delete item"
 
 #: src/components/vault-security/vault-security-dialog.tsx
+msgid "Delete older destination backups after replacement"
+msgstr "Delete older destination backups after replacement"
+
+#: src/components/vault-security/vault-security-dialog.tsx
 msgid "Delete older managed backups after replacement"
 msgstr "Delete older managed backups after replacement"
 
@@ -3116,6 +3188,18 @@ msgstr "Description (optional)"
 #: src/components/vault-manager/create-tab.tsx
 msgid "Description & password import"
 msgstr "Description & password import"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination added"
+msgstr "Destination added"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination removed"
+msgstr "Destination removed"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Destination saved"
+msgstr "Destination saved"
 
 #: app/credential-request.tsx
 msgid "Destination unavailable"
@@ -3197,6 +3281,10 @@ msgstr "Devices"
 #: app/(app)/(tabs)/devices.tsx
 msgid "Devices could not be updated"
 msgstr "Devices could not be updated"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Devices stop uploading to this bucket. Backups already there stay."
+msgstr "Devices stop uploading to this bucket. Backups already there stay."
 
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/diagnostics.tsx
@@ -3379,6 +3467,10 @@ msgstr "e.g., Work laptop"
 msgid "e.g., you@laptop"
 msgstr "e.g., you@laptop"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Each device keeps its backups from the last day, one a day for a month and one a month for a year, and deletes the rest."
+msgstr "Each device keeps its backups from the last day, one a day for a month and one a month for a year, and deletes the rest."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Each signaling server needs name, app ID, key, secret, host, and a service port."
 msgstr "Each signaling server needs name, app ID, key, secret, host, and a service port."
@@ -3412,6 +3504,10 @@ msgstr "Edit authenticator"
 #: app/(app)/(tabs)/vault/_layout.tsx
 msgid "Edit credential"
 msgstr "Edit credential"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Edit destination"
+msgstr "Edit destination"
 
 #: app/(app)/(tabs)/vault/[id].tsx
 #: src/components/vault/credential-detail-panel.tsx
@@ -3549,9 +3645,21 @@ msgstr "Encrypting…"
 msgid "Encryption settings"
 msgstr "Encryption settings"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Endpoint"
+msgstr "Endpoint"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Endpoint, such as https://s3.amazonaws.com"
+msgstr "Endpoint, such as https://s3.amazonaws.com"
+
 #: app/(app)/settings/security/index.tsx
 msgid "Enroll a fingerprint in Android Settings first."
 msgstr "Enroll a fingerprint in Android Settings first."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a bucket name of 3 to 63 letters, digits, dots or hyphens."
+msgstr "Enter a bucket name of 3 to 63 letters, digits, dots or hyphens."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Enter a device name between 1 and 150 characters."
@@ -3598,6 +3706,10 @@ msgstr "Enter a name for this linked vault."
 msgid "Enter a name for this vault."
 msgstr "Enter a name for this vault."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a name of up to 64 characters."
+msgstr "Enter a name of up to 64 characters."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter a new master password."
 msgstr "Enter a new master password."
@@ -3605,6 +3717,10 @@ msgstr "Enter a new master password."
 #: app/(app)/share/index.tsx
 msgid "Enter a passphrase or turn it off."
 msgstr "Enter a passphrase or turn it off."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter a region such as us-east-1, or auto for R2."
+msgstr "Enter a region such as us-east-1, or auto for R2."
 
 #: src/components/vault/credential-form.tsx
 msgid "Enter a setup key using letters A–Z and digits 2–7."
@@ -3638,6 +3754,18 @@ msgstr "Enter key"
 msgid "Enter master password"
 msgstr "Enter master password"
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the access key ID."
+msgstr "Enter the access key ID."
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Enter the bucket your devices back up to. Backups stay encrypted until you unlock the restored vault."
+msgstr "Enter the bucket your devices back up to. Backups stay encrypted until you unlock the restored vault."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the endpoint as an https:// address with no path."
+msgstr "Enter the endpoint as an https:// address with no path."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter the generated protection phrase saved with this vault."
 msgstr "Enter the generated protection phrase saved with this vault."
@@ -3667,6 +3795,10 @@ msgstr "Enter the same password again."
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter the saved protection phrase"
 msgstr "Enter the saved protection phrase"
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Enter the secret access key."
+msgstr "Enter the secret access key."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4087,8 +4219,16 @@ msgid "Filters apply to the map and list."
 msgstr "Filters apply to the map and list."
 
 #: src/components/vault-manager/restore-tab.tsx
+msgid "Find and select a backup in your bucket."
+msgstr "Find and select a backup in your bucket."
+
+#: src/components/vault-manager/restore-tab.tsx
 msgid "Find and select a managed backup."
 msgstr "Find and select a managed backup."
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Find backups"
+msgstr "Find backups"
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Find managed backups"
@@ -4157,6 +4297,11 @@ msgstr "Focus on making weak passwords stronger."
 #: app/(app)/agent-request.tsx
 msgid "Folder"
 msgstr "Folder"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Folder (optional)"
+msgstr "Folder (optional)"
 
 #: app/(app)/settings/autofill.tsx
 msgid "For apps that do not support Android autofill"
@@ -4392,6 +4537,10 @@ msgstr "Hide value"
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "High Argon2 memory ({mem} MiB) may OOM or stall unlock on phones. Prefer {preferredMemory} MiB / ops {preferredOperations}."
 msgstr "High Argon2 memory ({mem} MiB) may OOM or stall unlock on phones. Prefer {preferredMemory} MiB / ops {preferredOperations}."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Home NAS"
+msgstr "Home NAS"
 
 #. Example name for a signaling server
 #: src/components/devices/connectivity-panel.tsx
@@ -4730,6 +4879,10 @@ msgstr "Keep directory"
 msgid "Keep editing"
 msgstr "Keep editing"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Keep every backup"
+msgstr "Keep every backup"
+
 #: app/link-receive.tsx
 msgid "Keep it and link"
 msgstr "Keep it and link"
@@ -4849,6 +5002,14 @@ msgstr "Label is too long"
 msgid "Language"
 msgstr "Language"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Last backup {when}"
+msgstr "Last backup {when}"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Last backup {when}, changes waiting"
+msgstr "Last backup {when}, changes waiting"
+
 #: app/(app)/settings/security-report/index.tsx
 msgid "Last changed a year or more ago"
 msgstr "Last changed a year or more ago"
@@ -4910,6 +5071,10 @@ msgstr "Leave empty to use the Cryptex Vault server."
 #: src/components/vault/directory-manager.tsx
 msgid "Leave this off to keep your credentials."
 msgstr "Leave this off to keep your credentials."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Leaves clean-up to the bucket's own rules. The key then needs no delete permission."
+msgstr "Leaves clean-up to the bucket's own rules. The key then needs no delete permission."
 
 #. Short label on the device map button that opens the legend
 #: src/components/devices/device-network.tsx
@@ -5419,6 +5584,7 @@ msgstr "My Device"
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
 #: app/(app)/share/index.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/devices/connectivity-panel.tsx
 #: src/components/vault-manager/unlock-tab.tsx
 #: src/components/vault/credential-form.tsx
@@ -5461,6 +5627,10 @@ msgstr "Name, username, or website"
 #: app/(app)/agent-request.tsx
 msgid "Namespace"
 msgstr "Namespace"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Needed for MinIO, Garage and most self-hosted servers."
+msgstr "Needed for MinIO, Garage and most self-hosted servers."
 
 #: app/(app)/devices/link-send.tsx
 #: app/link-receive.tsx
@@ -5533,6 +5703,18 @@ msgstr "No"
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "No additional key protection"
 msgstr "No additional key protection"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "No backup yet"
+msgstr "No backup yet"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "No backup yet, changes waiting"
+msgstr "No backup yet, changes waiting"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "No Cryptex Vault backups under this folder."
+msgstr "No Cryptex Vault backups under this folder."
 
 #: src/components/vault/credential-form.tsx
 msgid "No custom fields yet"
@@ -6338,6 +6520,11 @@ msgstr "Pasted link data"
 msgid "Pasted pairing code"
 msgstr "Pasted pairing code"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Path-style addresses"
+msgstr "Path-style addresses"
+
 #: app/(app)/agent-request.tsx
 msgid "Pause {agentName}"
 msgstr "Pause {agentName}"
@@ -6348,6 +6535,7 @@ msgstr "Pause agent"
 
 #. SSH agent status in the devices list
 #: src/agent/use-agents.ts
+#: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Paused"
 msgstr "Paused"
 
@@ -6811,6 +6999,14 @@ msgstr "Refuses its requests without asking until you resume it."
 msgid "Regenerate password"
 msgstr "Regenerate password"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Region"
+msgstr "Region"
+
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Region (us-east-1 if blank)"
+msgstr "Region (us-east-1 if blank)"
+
 #: src/components/devices/device-overviews.tsx
 msgid "Registered with Online Services"
 msgstr "Registered with Online Services"
@@ -6879,6 +7075,10 @@ msgstr "Remember"
 msgid "Removal scope"
 msgstr "Removal scope"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Remove"
+msgstr "Remove"
+
 #: src/components/vault/ssh-key-form.tsx
 msgid "Remove .pub file"
 msgstr "Remove .pub file"
@@ -6918,6 +7118,10 @@ msgstr "Remove autofill target {targetNumber}"
 #: src/components/vault/credential-form.tsx
 msgid "Remove custom field"
 msgstr "Remove custom field"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Remove destination"
+msgstr "Remove destination"
 
 #: src/components/vault/directory-manager.tsx
 msgid "Remove directory"
@@ -7125,6 +7329,10 @@ msgstr "Resume agent"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Resuming…"
 msgstr "Resuming…"
+
+#: src/components/vault-manager/restore-tab.tsx
+msgid "Retrieve a backup from an S3 bucket your devices upload to."
+msgstr "Retrieve a backup from an S3 bucket your devices upload to."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Retrieve a backup stored with Cryptex Vault."
@@ -7375,6 +7583,10 @@ msgstr "Save an encrypted copy"
 msgid "Save and open vault"
 msgstr "Save and open vault"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Save anyway"
+msgstr "Save anyway"
+
 #: src/components/autofill/request-ui.tsx
 msgid "Save association and fill"
 msgstr "Save association and fill"
@@ -7544,6 +7756,7 @@ msgstr "Saving the agent in your vault…"
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/devices/connectivity/agent-relay.tsx
 #: app/(app)/share/server.tsx
+#: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/vault/credential-form.tsx
 #: src/components/vault/ssh-key-details.tsx
 #: src/components/vault/ssh-key-form.tsx
@@ -7657,6 +7870,11 @@ msgstr "Search… try name: tag: or note:"
 #: src/components/devices/connectivity-panel.tsx
 msgid "Secret"
 msgstr "Secret"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Secret access key"
+msgstr "Secret access key"
 
 #: src/utils/linking-messages.ts
 msgid "Secure channel error"
@@ -8168,6 +8386,10 @@ msgstr "Something went wrong while creating the link."
 msgid "Something went wrong while reading this key. Try again."
 msgstr "Something went wrong while reading this key. Try again."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Something went wrong."
+msgstr "Something went wrong."
+
 #: app/(app)/share/links.tsx
 msgid "Sort by"
 msgstr "Sort by"
@@ -8436,9 +8658,17 @@ msgstr "Tap to enlarge"
 msgid "Tap to scan"
 msgstr "Tap to scan"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Test and save"
+msgstr "Test and save"
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Test connection"
 msgstr "Test connection"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Testing connection…"
+msgstr "Testing connection…"
 
 #. Custom field type
 #: src/components/vault/credential-form.tsx
@@ -8526,6 +8756,22 @@ msgstr "The association could not be saved. The login was not filled. Go back to
 msgid "The association was saved, but the request expired before Cryptex Vault could fill the login."
 msgstr "The association was saved, but the request expired before Cryptex Vault could fill the login."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "The backup file is no longer in the bucket."
+msgstr "The backup file is no longer in the bucket."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket doesn't exist at this endpoint."
+msgstr "The bucket doesn't exist at this endpoint."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket refused the access key. Check the key, the secret and the key's permissions."
+msgstr "The bucket refused the access key. Check the key, the secret and the key's permissions."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The bucket rejected the request."
+msgstr "The bucket rejected the request."
+
 #: src/components/vault/credential-form.tsx
 msgid "The camera could not start. Try again or enter the setup key."
 msgstr "The camera could not start. Try again or enter the setup key."
@@ -8541,6 +8787,10 @@ msgstr "The Cryptex Vault relay didn't accept this phone. Check that Online Serv
 #: src/components/devices/device-removal-content.tsx
 msgid "The device removal could not be completed. Refresh account data before trying again."
 msgstr "The device removal could not be completed. Refresh account data before trying again."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "The endpoint didn't answer like an S3 service."
+msgstr "The endpoint didn't answer like an S3 service."
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "The export uses this vault’s current password and protection settings."
@@ -8691,6 +8941,10 @@ msgstr "The received copy has not been saved. Restarting means this copy will be
 msgid "The received vault has not been saved."
 msgstr "The received vault has not been saved."
 
+#: src/app_lib/backup-destination-messages.ts
+msgid "The region doesn't match the bucket."
+msgstr "The region doesn't match the bucket."
+
 #: src/agent/relay-wording.ts
 msgid "The relay at {host} didn't accept the access token saved on this phone. Enter its current access token."
 msgstr "The relay at {host} didn't accept the access token saved on this phone. Enter its current access token."
@@ -8780,6 +9034,10 @@ msgstr "The vault is encrypted and saved, but this device could not cache its pr
 msgid "The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings."
 msgstr "The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings."
 
+#: src/app_lib/backup-destinations.ts
+msgid "The vault locked before the backup was ready."
+msgstr "The vault locked before the backup was ready."
+
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
 msgstr "The vault session changed. Open Devices again to continue."
@@ -8857,6 +9115,10 @@ msgstr "This connection is no longer available. Close these details and select a
 msgid "This credential request expired. Return to the app or browser and try again."
 msgstr "This credential request expired. Return to the app or browser and try again."
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "This destination was removed on another device."
+msgstr "This destination was removed on another device."
+
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: src/components/devices/device-browser.tsx
@@ -8891,6 +9153,14 @@ msgstr "This device is no longer available. Close these details and select anoth
 #: app/(app)/(tabs)/devices.tsx
 msgid "This device will keep its registration and sync links but lose root permissions."
 msgstr "This device will keep its registration and sync links but lose root permissions."
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "This device's clock is wrong. Correct the date and time, then try again."
+msgstr "This device's clock is wrong. Correct the date and time, then try again."
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay."
+msgstr "This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay."
 
 #: src/components/vault/vault-home.tsx
 msgid "This directory is empty."
@@ -9009,6 +9279,7 @@ msgstr "This file is not a Bitwarden vault JSON export: the items array is missi
 msgid "This file is not a Bitwarden vault JSON export."
 msgstr "This file is not a Bitwarden vault JSON export."
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
 #: src/components/vault-manager/restore-tab.tsx
 msgid "This file is not a readable Cryptex Vault backup."
 msgstr "This file is not a readable Cryptex Vault backup."
@@ -9593,6 +9864,14 @@ msgstr "Upgrade"
 msgid "Upgrade membership"
 msgstr "Upgrade membership"
 
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Upload encrypted backups after every change to S3 buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage."
+msgstr "Upload encrypted backups after every change to S3 buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage."
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+msgid "Uploading…"
+msgstr "Uploading…"
+
 #: src/components/vault/password-generator.tsx
 msgid "Uppercase"
 msgstr "Uppercase"
@@ -9656,6 +9935,10 @@ msgstr "Use browser-protected autofill where available"
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Use fingerprint"
 msgstr "Use fingerprint"
+
+#: src/app_lib/backup-destination-messages.ts
+msgid "Use folder names separated by /, without . or .. parts."
+msgstr "Use folder names separated by /, without . or .. parts."
 
 #. Tab label: link this device using an invitation
 #: app/(app)/(tabs)/account.tsx
@@ -10060,6 +10343,10 @@ msgstr "Weak passwords"
 msgid "Weak SSH keys"
 msgstr "Weak SSH keys"
 
+#: src/components/vault-manager/restore-bucket-panel.tsx
+msgid "Web app"
+msgstr "Web app"
+
 #: src/components/account/membership-benefits.tsx
 msgid "Web app, Android app & Chromium extension"
 msgstr "Web app, Android app & Chromium extension"
@@ -10247,6 +10534,11 @@ msgstr "Your next managed backup will appear here."
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Your own relays"
 msgstr "Your own relays"
+
+#: src/components/backup-destinations/backup-destinations-section.tsx
+#: src/components/vault-manager/restore-tab.tsx
+msgid "Your own storage"
+msgstr "Your own storage"
 
 #: src/components/account/account-summary.tsx
 msgid "Your payment needs attention. Open Manage billing to review it."

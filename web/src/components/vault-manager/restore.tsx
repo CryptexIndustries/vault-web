@@ -35,9 +35,10 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { RestoreBucketPanel } from "./restore-bucket-panel";
 
 type RestoreResult = { dbIndex: number } | false;
-type RestoreSource = "local" | "cloud";
+type RestoreSource = "local" | "cloud" | "bucket";
 
 function recoveryAuthorizeErrorMessage(error: unknown): string {
     const message =
@@ -436,8 +437,8 @@ function RestoreAction({
                 )}
             </Button>
             <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-                {source === "cloud"
-                    ? "The snapshot stays encrypted until you unlock the restored vault."
+                {source !== "local"
+                    ? "The backup stays encrypted until you unlock the restored vault."
                     : "A restored copy is created; existing vaults are never overwritten."}
             </p>
         </div>
@@ -450,10 +451,15 @@ type RestoreLayoutProps = {
     fileReady: boolean;
     sourceChangeDisabled: boolean;
     onSourceChange: (source: RestoreSource) => void;
-    localPanel: ReactNode;
-    cloudPanel: ReactNode;
+    panel: ReactNode;
     details: ReactNode;
     action: ReactNode;
+};
+
+const SOURCE_SWITCH_LABELS: Record<RestoreSource, string> = {
+    local: "Use a backup file instead",
+    cloud: "No file? Use Managed Backups (Online Services)",
+    bucket: "Restore from your own S3 storage",
 };
 
 function RestoreLayout(props: RestoreLayoutProps) {
@@ -472,28 +478,28 @@ function RestoreLayout(props: RestoreLayoutProps) {
                     <ArchiveRestore className="h-4 w-4" />
                 </span>
             </div>
-            {props.source === "local" ? props.localPanel : props.cloudPanel}
-            {props.cloudEnabled ? (
-                <div className="flex items-center gap-3">
-                    <div className="h-px flex-1 bg-border" />
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={props.sourceChangeDisabled}
-                        onClick={() =>
-                            props.onSourceChange(
-                                props.source === "local" ? "cloud" : "local",
-                            )
-                        }
-                    >
-                        {props.source === "local"
-                            ? "No file? Use Managed Backups (Online Services)"
-                            : "Use a backup file instead"}
-                    </Button>
-                    <div className="h-px flex-1 bg-border" />
-                </div>
-            ) : null}
+            {props.panel}
+            {(["local", "cloud", "bucket"] as const)
+                .filter(
+                    (option) =>
+                        option !== props.source &&
+                        (option !== "cloud" || props.cloudEnabled),
+                )
+                .map((option) => (
+                    <div key={option} className="flex items-center gap-3">
+                        <div className="h-px flex-1 bg-border" />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={props.sourceChangeDisabled}
+                            onClick={() => props.onSourceChange(option)}
+                        >
+                            {SOURCE_SWITCH_LABELS[option]}
+                        </Button>
+                        <div className="h-px flex-1 bg-border" />
+                    </div>
+                ))}
             {props.fileReady ? (
                 <div className="space-y-4">
                     {props.details}
@@ -737,6 +743,15 @@ const RestoreTab: React.FC<{
                 onSelectSnapshot={selectCloudSnapshot}
             />
         ) : null;
+    const bucketPanel = (
+        <RestoreBucketPanel
+            disabled={isSubmitting}
+            onFile={(file) =>
+                setValue("BackupFile", file, { shouldValidate: true })
+            }
+            onClear={clearSelectedFile}
+        />
+    );
     const details = (
         <VaultDetails
             register={register}
@@ -759,8 +774,13 @@ const RestoreTab: React.FC<{
             fileReady={fileReady}
             sourceChangeDisabled={cloudLoading || isSubmitting}
             onSourceChange={changeSource}
-            localPanel={localPanel}
-            cloudPanel={cloudPanel}
+            panel={
+                source === "local"
+                    ? localPanel
+                    : source === "cloud"
+                      ? cloudPanel
+                      : bucketPanel
+            }
             details={details}
             action={action}
         />

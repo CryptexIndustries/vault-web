@@ -233,6 +233,7 @@ describe("share link records", () => {
             Directories: [],
             ShareLinks: [b],
             ConnectedAgents: [],
+            BackupDestinations: [],
         });
     });
 });

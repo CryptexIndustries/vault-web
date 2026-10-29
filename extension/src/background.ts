@@ -23,6 +23,20 @@ import {
     parseShareLinksPayload,
     parseShareSettingsPayload,
 } from "./background/share-links";
+import {
+    BACKUP_DESTINATION_ALARM,
+    createServiceWorkerBackupDestinations,
+    withBackupDeviceIdentity,
+    parseBackupDestinationChangePayload,
+    parseBackupDestinationNowPayload,
+    parseSyncedBackupDestinations,
+} from "./background/backup-destinations";
+import {
+    applyBackupDestinationChange,
+    mergeReceivedBackupDestinations,
+    visibleBackupDestinations,
+} from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
+import { S3Error } from "@cryptex-industries/vault-core/vault-utils/s3-client";
 import { getSyncVersionVectors } from "@cryptex-industries/vault-core/sync-operations";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import {
@@ -128,7 +142,46 @@ const backupBlobStore = createIndexedDbBackupBlobStore();
 
 registerVaultActionStateIndicator();
 
+const backupDestinations = createServiceWorkerBackupDestinations({
+    getUnlocked: async () => {
+        const vault = await getVaultFromSessionStorage();
+        const metadata = await getVaultMetadataFromSessionStorage();
+        const dek = await getVaultDEKFromSessionStorage();
+        return vault && metadata && dek ? { vault, metadata, dek } : null;
+    },
+    saveVault: (update) =>
+        vaultWriteCoordinator.run("backup.device", async () => {
+            const vault = await getVaultFromSessionStorage();
+            const metadata = await getVaultMetadataFromSessionStorage();
+            const dek = await getVaultDEKFromSessionStorage();
+            if (!vault || !metadata || !dek) {
+                throw new Error("VAULT_NOT_UNLOCKED");
+            }
+            const next = update(vault);
+            if (next !== vault) {
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(next, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    next,
+                    metadata.DBIndex!,
+                );
+            }
+            return next;
+        }),
+});
+// The worker may have stopped with uploads pending while the vault stayed
+// unlocked.
+void backupDestinations.ensureStarted();
+
 chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === BACKUP_DESTINATION_ALARM) {
+        void backupDestinations.onAlarm();
+        return;
+    }
     if (!alarm.name.startsWith(SECURITY_BACKUP_ALARM_PREFIX)) return;
     const jobId = alarm.name.slice(SECURITY_BACKUP_ALARM_PREFIX.length);
     void (async () => {
@@ -227,6 +280,9 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.GetShareLinks,
     MessageType.UpdateShareLinks,
     MessageType.SaveShareSettings,
+    MessageType.GetBackupDestinations,
+    MessageType.SaveBackupDestinations,
+    MessageType.BackupDestinationNow,
     MessageType.RotateVaultRecoveryCode,
     MessageType.GetSecurityBackupJob,
 ]);
@@ -528,6 +584,7 @@ const VAULT_WRITE_MESSAGE_TYPES: Partial<Record<MessageType, VaultWriteKind>> =
         [MessageType.SyncUpdateItems]: "synchronization.apply",
         [MessageType.UpdateShareLinks]: "share.update",
         [MessageType.SaveShareSettings]: "share.settings",
+        [MessageType.SaveBackupDestinations]: "backup.destinations",
         [MessageType.ReconfigureVaultSecurity]: "vault.security.reconfigure",
         [MessageType.RotateVaultRecoveryCode]: "vault.recovery.rotate",
     };
@@ -606,6 +663,7 @@ async function processMessageUncoordinated(
                     metadata.DBIndex,
                 );
                 allowOnlineServicesSessionEstablishment();
+                void backupDestinations.ensureStarted();
 
                 // Seed the Online Services session from the just-unlocked
                 // vault so the SW has both the credentials AND a fresh JWT
@@ -632,6 +690,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.Lock: {
+                await backupDestinations.flushBeforeLock();
                 // The OS session is tied to the unlocked vault's identity.
                 // Its bearer is captured and local auth is invalidated before
                 // remote revocation; then all vault material is removed.
@@ -1104,12 +1163,28 @@ async function processMessageUncoordinated(
                         connectedAgentIDs.has(agent.ID),
                     ),
                 );
+                const backupDestinationIDs = new Set(
+                    payload.items
+                        .filter(
+                            (item: VaultUtilTypes.SyncItemReference) =>
+                                item.Type ===
+                                VaultUtilTypes.SyncItemType
+                                    .BackupDestinationItem,
+                        )
+                        .map(
+                            (item: VaultUtilTypes.SyncItemReference) => item.ID,
+                        ),
+                );
                 return {
                     ok: true,
                     credentials,
                     directories,
                     shareLinks,
                     connectedAgents,
+                    backupDestinations: (vault.BackupDestinations ?? []).filter(
+                        (destination) =>
+                            backupDestinationIDs.has(destination.ID),
+                    ),
                 };
             }
             case MessageType.SyncGetVersionVectors: {
@@ -1121,6 +1196,7 @@ async function processMessageUncoordinated(
                         directoryVersionVectors: [],
                         shareLinkVersionVectors: [],
                         connectedAgentVersionVectors: [],
+                        backupDestinationVersionVectors: [],
                         error: "VAULT_NOT_UNLOCKED",
                     };
                 }
@@ -1151,6 +1227,9 @@ async function processMessageUncoordinated(
                     ),
                     connectedAgentVersionVectors: getSyncVersionVectors(
                         vault.ConnectedAgents ?? [],
+                    ),
+                    backupDestinationVersionVectors: getSyncVersionVectors(
+                        vault.BackupDestinations ?? [],
                     ),
                 };
             }
@@ -1270,6 +1349,10 @@ async function processMessageUncoordinated(
                 vault.ConnectedAgents = mergeReceivedConnectedAgents(
                     vault.ConnectedAgents ?? [],
                     connectedAgentsFromTransport(payload.connectedAgents),
+                );
+                vault.BackupDestinations = mergeReceivedBackupDestinations(
+                    vault.BackupDestinations ?? [],
+                    parseSyncedBackupDestinations(payload.backupDestinations),
                 );
 
                 // TODO: Remove the unnecessary object assignment when we clean up the storage layer
@@ -1591,6 +1674,64 @@ async function processMessageUncoordinated(
                 };
             }
 
+            case MessageType.GetBackupDestinations: {
+                const view = await backupDestinations.getView();
+                return view
+                    ? { ok: true, ...view }
+                    : { ok: false, error: "VAULT_NOT_UNLOCKED" };
+            }
+
+            case MessageType.SaveBackupDestinations: {
+                const vault = await getVaultFromSessionStorage();
+                const metadata = await getVaultMetadataFromSessionStorage();
+                const dek = await getVaultDEKFromSessionStorage();
+                if (!vault || !metadata || !dek) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+                const change = parseBackupDestinationChangePayload(payload);
+                if (!change) {
+                    return { ok: false, error: "INVALID_BACKUP_DESTINATIONS" };
+                }
+                try {
+                    vault.BackupDestinations = applyBackupDestinationChange(
+                        vault.BackupDestinations ?? [],
+                        change,
+                    );
+                } catch {
+                    return { ok: false, error: "INVALID_BACKUP_DESTINATIONS" };
+                }
+                // Name this device's folder now, outside any later lock.
+                const updated = withBackupDeviceIdentity(vault);
+                const metadataInstance = Object.assign(
+                    new Storage.VaultMetadata(),
+                    metadata,
+                );
+                await metadataInstance.save(updated, dek);
+                await setVaultInSessionStorage(
+                    metadataInstance,
+                    updated,
+                    metadata.DBIndex!,
+                );
+                return { ok: true };
+            }
+
+            case MessageType.BackupDestinationNow: {
+                const id = parseBackupDestinationNowPayload(payload);
+                if (!id) return { ok: false, error: "INVALID_REQUEST" };
+                try {
+                    await backupDestinations.backupNow(id);
+                    return { ok: true };
+                } catch (error) {
+                    return {
+                        ok: false,
+                        error:
+                            error instanceof S3Error
+                                ? error.message
+                                : "The backup couldn't be created.",
+                    };
+                }
+            }
+
             case MessageType.UpdateShareLinks:
             case MessageType.SaveShareSettings: {
                 const vault = await getVaultFromSessionStorage();
@@ -1661,6 +1802,11 @@ async function processMessageUncoordinated(
                     webAuthnUnsupported:
                         envelope.PrimaryProtectionKind ===
                         VaultUtilTypes.AdditionalKeyProtectionKind.WEBAUTHN_PRF,
+                    hasBackupDestinations:
+                        visibleBackupDestinations(
+                            (await getVaultFromSessionStorage())
+                                ?.BackupDestinations ?? [],
+                        ).length > 0,
                     latestBackupJobId: await getLatestSecurityBackupJobId(
                         envelope.VaultID,
                     ),
@@ -1687,6 +1833,7 @@ async function processMessageUncoordinated(
                 let sessionMasterPassword: string;
                 let currentProtectionPhrase: string | undefined;
                 let deleteOlderManagedBackups: boolean;
+                let deleteOlderDestinationBackups: boolean;
                 let mutation: Awaited<
                     ReturnType<typeof reconfigureExtensionVaultSecurity>
                 >;
@@ -1710,6 +1857,8 @@ async function processMessageUncoordinated(
                         request.value.currentProtectionPhrase;
                     deleteOlderManagedBackups =
                         request.value.deleteOlderManagedBackups;
+                    deleteOlderDestinationBackups =
+                        request.value.deleteOlderDestinationBackups;
                 } else {
                     const request =
                         parseRotateVaultRecoveryCodeRequest(payload);
@@ -1728,6 +1877,8 @@ async function processMessageUncoordinated(
                         request.value.currentProtectionPhrase;
                     deleteOlderManagedBackups =
                         request.value.deleteOlderManagedBackups;
+                    deleteOlderDestinationBackups =
+                        request.value.deleteOlderDestinationBackups;
                 }
                 if (!mutation.ok) {
                     return {
@@ -1758,6 +1909,14 @@ async function processMessageUncoordinated(
                 } catch {
                     sessionContinued = false;
                     await clearSessionStorage().catch(() => undefined);
+                }
+
+                if (sessionContinued) {
+                    void backupDestinations
+                        .replaceAfterSecurityChange(
+                            deleteOlderDestinationBackups,
+                        )
+                        .catch(() => undefined);
                 }
 
                 let backupJobId: string | undefined;
@@ -1996,9 +2155,11 @@ async function setVaultInSessionStorage(
         } satisfies SessionVault,
         [ACTIVE_VAULT_DB_INDEX_KEY]: vaultDbIndex,
     });
+    backupDestinations.vaultSaved(vault, metadata);
 }
 
 async function clearSessionStorage(): Promise<void> {
+    backupDestinations.stop();
     const idx = await getActiveVaultDbIndex();
     if (idx != null) {
         await clearSessionDEK(idx);
@@ -2094,6 +2255,7 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
         console.debug("[SW] Vault locked due to inactivity");
 
         await vaultWriteCoordinator.run("vault.lock", async () => {
+            await backupDestinations.flushBeforeLock();
             // Match explicit lock ordering: invalidate/capture Online Services,
             // revoke remotely, then remove every local session value.
             await clearOnlineServicesSessionInSW();

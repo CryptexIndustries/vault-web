@@ -48,6 +48,7 @@ const emptySyncItems = (): VaultUtilTypes.SyncDataResponseMessage => ({
     Directories: [],
     ShareLinks: [],
     ConnectedAgents: [],
+    BackupDestinations: [],
 });
 
 const getItems = async (
@@ -72,6 +73,7 @@ const getItems = async (
                   shareLinks?: VaultUtilTypes.ShareLink[];
                   /** Base64 protobuf, see connectedAgentsToTransport. */
                   connectedAgents?: string[];
+                  backupDestinations?: VaultUtilTypes.BackupDestination[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -97,6 +99,8 @@ const getItems = async (
             ConnectedAgents: connectedAgentsFromTransport(
                 decryptedPayload.payload.connectedAgents,
             ),
+            BackupDestinations:
+                decryptedPayload.payload.backupDestinations ?? [],
         };
     }
 
@@ -114,6 +118,7 @@ const getVersionVectors = async (
     directoryVersionVectors: VaultUtilTypes.VersionVector[];
     shareLinkVersionVectors: VaultUtilTypes.VersionVector[];
     connectedAgentVersionVectors: VaultUtilTypes.VersionVector[];
+    backupDestinationVersionVectors: VaultUtilTypes.VersionVector[];
 }> => {
     const envelope = await createPopupEnvelope(
         MessageType.SyncGetVersionVectors,
@@ -132,6 +137,7 @@ const getVersionVectors = async (
                   directoryVersionVectors: VaultUtilTypes.VersionVector[];
                   shareLinkVersionVectors?: VaultUtilTypes.VersionVector[];
                   connectedAgentVersionVectors?: VaultUtilTypes.VersionVector[];
+                  backupDestinationVersionVectors?: VaultUtilTypes.VersionVector[];
               }
         >(res);
         if (!decryptedPayload.ok) {
@@ -144,6 +150,7 @@ const getVersionVectors = async (
                 directoryVersionVectors: [],
                 shareLinkVersionVectors: [],
                 connectedAgentVersionVectors: [],
+                backupDestinationVersionVectors: [],
             };
         }
 
@@ -157,6 +164,7 @@ const getVersionVectors = async (
                 directoryVersionVectors: [],
                 shareLinkVersionVectors: [],
                 connectedAgentVersionVectors: [],
+                backupDestinationVersionVectors: [],
             };
         }
 
@@ -166,6 +174,8 @@ const getVersionVectors = async (
                 decryptedPayload.payload.shareLinkVersionVectors ?? [],
             connectedAgentVersionVectors:
                 decryptedPayload.payload.connectedAgentVersionVectors ?? [],
+            backupDestinationVersionVectors:
+                decryptedPayload.payload.backupDestinationVersionVectors ?? [],
         };
     }
 
@@ -178,6 +188,7 @@ const getVersionVectors = async (
         directoryVersionVectors: [],
         shareLinkVersionVectors: [],
         connectedAgentVersionVectors: [],
+        backupDestinationVersionVectors: [],
     };
 };
 
@@ -229,6 +240,7 @@ const updateItems = async (
     credentials: VaultUtilTypes.Credential[],
     shareLinks: VaultUtilTypes.ShareLink[],
     connectedAgents: VaultUtilTypes.ConnectedAgent[],
+    backupDestinations: VaultUtilTypes.BackupDestination[],
 ) => {
     const envelope = await createPopupEnvelope(
         MessageType.SyncUpdateItems,
@@ -237,6 +249,7 @@ const updateItems = async (
             credentials,
             shareLinks,
             connectedAgents: connectedAgentsToTransport(connectedAgents),
+            backupDestinations,
         },
         serverPublicKey,
     );
@@ -296,6 +309,10 @@ export const createVaultOperations = (
             return (await getVersionVectors(serverPublicKey))
                 .connectedAgentVersionVectors;
         },
+        getBackupDestinationVersionVectors: async () => {
+            return (await getVersionVectors(serverPublicKey))
+                .backupDestinationVersionVectors;
+        },
         getItems: async (items: VaultUtilTypes.SyncItemReference[]) => {
             return await getItems(serverPublicKey, items);
         },
@@ -304,6 +321,7 @@ export const createVaultOperations = (
             credentials,
             shareLinks,
             connectedAgents,
+            backupDestinations,
         ) => {
             await updateItems(
                 serverPublicKey,
@@ -311,6 +329,7 @@ export const createVaultOperations = (
                 credentials,
                 shareLinks,
                 connectedAgents,
+                backupDestinations,
             );
             await onCredentialsUpdated?.();
         },

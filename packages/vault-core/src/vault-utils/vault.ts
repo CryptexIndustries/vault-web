@@ -39,6 +39,7 @@ export class Vault implements VaultUtilTypes.Vault {
     public ConnectedAgents: VaultUtilTypes.ConnectedAgent[] = [];
     /** This device's SSH agent approver keys. Device-local, never leaves it. */
     public AgentApprover?: VaultUtilTypes.AgentApproverSettings;
+    public BackupDestinations: VaultUtilTypes.BackupDestination[] = [];
 
     constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
@@ -295,6 +296,8 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     public SyncSigningPrivateKey = "";
     public SyncKemPublicKey = "";
     public SyncKemPrivateKey = "";
+    public BackupDeviceID = "";
+    public BackupMarkerKey = "";
 
     public static fromGeneric(rawOnlineServices: VaultUtilTypes.LinkedDevices) {
         // TODO: Remove this
@@ -1245,8 +1248,9 @@ export const packageForLinking = (
     // would let the other device answer for agents paired here.
     clearDeviceLocalFields(vaultCopy);
 
-    // ShareLinks and ConnectedAgents are synced data and travel with the copy,
-    // so the new device can list and revoke agents paired elsewhere.
+    // ShareLinks, ConnectedAgents and BackupDestinations are synced data and
+    // travel with the copy, so the new device can list and revoke agents
+    // paired elsewhere and back up to the same buckets.
 
     // Copy over only the used STUN and TURN servers, and the signaling server
     vaultCopy.LinkedDevices.STUNServers =

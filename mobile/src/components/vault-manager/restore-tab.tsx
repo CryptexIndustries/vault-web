@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, View, type TextInput } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { Check, CloudDownload, FileUp } from "lucide-react-native";
+import { Check, CloudDownload, Database, FileUp } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useLingui } from "@lingui/react/macro";
 
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
 import { InlineNotice } from "@/components/inline-notice";
+import { RestoreBucketPanel } from "./restore-bucket-panel";
 import { AdvancedDisclosure } from "@/components/section";
 import {
     VaultEntryAction,
@@ -43,7 +44,7 @@ type RestoreTabProps = {
 export function RestoreTab({ onRestored }: RestoreTabProps) {
     const { t, i18n } = useLingui();
     const extension = BACKUP_FILE_EXTENSION;
-    const [source, setSource] = useState<"file" | "managed">("file");
+    const [source, setSource] = useState<"file" | "managed" | "bucket">("file");
     const [name, setName] = useState(() => t`Restored vault`);
     const [description, setDescription] = useState("");
     const [fileName, setFileName] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [errorContext, setErrorContext] = useState<
-        "file" | "managed" | "restore" | null
+        "file" | "managed" | "bucket" | "restore" | null
     >(null);
     const [fieldErrors, setFieldErrors] = useState({
         name: "",
@@ -272,7 +273,9 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             showError(
                 source === "file"
                     ? t`Choose a .${extension} backup file.`
-                    : t`Find and select a managed backup.`,
+                    : source === "managed"
+                      ? t`Find and select a managed backup.`
+                      : t`Find and select a backup in your bucket.`,
                 source,
             );
             return;
@@ -331,6 +334,12 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                             title: t`Managed backup`,
                             description: t`Retrieve a backup stored with Cryptex Vault.`,
                             icon: CloudDownload,
+                        },
+                        {
+                            id: "bucket",
+                            title: t`Your own storage`,
+                            description: t`Retrieve a backup from an S3 bucket your devices upload to.`,
+                            icon: Database,
                         },
                     ] as const
                 ).map((option) => (
@@ -428,6 +437,31 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                 tone="error"
                                 message={error}
                             />
+                        </View>
+                    ) : null}
+                </View>
+            ) : source === "bucket" ? (
+                <View>
+                    <RestoreBucketPanel
+                        disabled={loading}
+                        onSelect={selectBackup}
+                        onClear={() => {
+                            setFileBytes(null);
+                            setFileName(null);
+                            setBackupGuidance("");
+                        }}
+                    />
+                    {fileName ? (
+                        <View
+                            className="mt-3 rounded-md border border-primary p-3"
+                            accessibilityLiveRegion="polite"
+                        >
+                            <Text className="font-semibold text-sm">
+                                {fileName}
+                            </Text>
+                            <Text className="mt-1 text-xs text-muted-foreground">
+                                {t`Backup ready to restore`}
+                            </Text>
                         </View>
                     ) : null}
                 </View>

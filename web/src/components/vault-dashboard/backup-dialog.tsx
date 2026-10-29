@@ -14,9 +14,15 @@ import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 
 import * as Storage from "@/app_lib/vault-utils/storage";
 import {
+    backupDestinationStatusesAtom,
+    useBackupDestinationsController,
+} from "@/app_lib/backup-destinations";
+import {
+    BACKUP_SOURCE_LABELS,
     formatBackupAge,
     getBackupOverview,
     getLocalBackupReceipt,
+    latestDestinationBackupAt,
     LOCAL_BACKUP_STATUS_EVENT,
     recordLocalBackupCompleted,
     type LocalBackupReceipt,
@@ -26,6 +32,7 @@ import {
     MANAGED_BACKUP_STATUS_EVENT,
     type ManagedBackupStatusDetail,
 } from "@/app_lib/managed-backup-coordinator";
+import { BackupDestinationsCard } from "@/components/vault-dashboard/backup-destinations-card";
 import { ManagedBackupsSettingsCard } from "@/components/vault-dashboard/managed-backups-settings-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +84,10 @@ export function BackupSidebarEntry({
     const hasOnlineServicesSession = Boolean(onlineServicesData?.sessionToken);
     const [localBackup, setLocalBackup] = useState<LocalBackupReceipt | null>(
         null,
+    );
+    const destinationBackupAt = latestDestinationBackupAt(
+        useAtomValue(unlockedVaultAtom).BackupDestinations ?? [],
+        useAtomValue(backupDestinationStatusesAtom),
     );
     const managedStatus = trpcReact.v1.backup.status.useQuery(undefined, {
         enabled: cloudServicesEnabled && hasOnlineServicesSession,
@@ -135,11 +146,12 @@ export function BackupSidebarEntry({
     const overview = getBackupOverview({
         localBackupAt: localBackup?.completedAt ?? null,
         managedBackupAt,
+        destinationBackupAt,
         managedEnabled: managedStatus.data?.enabled === true,
         managedEntitled: managedStatus.data?.entitled === true,
     });
     const backupLabel = overview.latestBackupAt
-        ? `${overview.latestSource === "managed" ? "Managed" : "Local"} | ${formatBackupAge(overview.latestBackupAt)}${overview.latestSource === "local" && !localBackup?.isCurrent ? " - changes since" : ""}`
+        ? `${BACKUP_SOURCE_LABELS[overview.latestSource ?? "local"]} | ${formatBackupAge(overview.latestBackupAt)}${overview.latestSource === "local" && !localBackup?.isCurrent ? " - changes since" : ""}`
         : "No backup yet";
     const managedStatePrefix = managedStatus.data?.enabled
         ? "On"
@@ -194,6 +206,11 @@ export function BackupDialog({
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useOnlineServicesData();
+    const backupDestinationsController = useBackupDestinationsController();
+    const destinationBackupAt = latestDestinationBackupAt(
+        backupDestinationsController.destinations,
+        backupDestinationsController.statuses,
+    );
     const vaultId = vaultMetadata?.Blob?.Envelope?.VaultID;
     const [isCreatingLocalBackup, setIsCreatingLocalBackup] = useState(false);
     const [localBackup, setLocalBackup] = useState<LocalBackupReceipt | null>(
@@ -242,12 +259,14 @@ export function BackupDialog({
     const overview = getBackupOverview({
         localBackupAt: localBackup?.completedAt ?? null,
         managedBackupAt,
+        destinationBackupAt,
         managedEnabled: managedStatus.data?.enabled === true,
         managedEntitled: managedStatus.data?.entitled === true,
     });
     const hasCurrentCoverage =
         !overview.isStale &&
         (overview.latestSource === "managed" ||
+            overview.latestSource === "destination" ||
             (overview.latestSource === "local" && localBackup?.isCurrent));
     const handleAccountAction = () => {
         onOpenChange(false);
@@ -311,8 +330,7 @@ export function BackupDialog({
 
     let latestBackupLabel = "No completed backup recorded";
     if (overview.latestBackupAt) {
-        const source =
-            overview.latestSource === "managed" ? "Managed" : "Local";
+        const source = BACKUP_SOURCE_LABELS[overview.latestSource ?? "local"];
         latestBackupLabel = `${source} backup ${formatBackupAge(overview.latestBackupAt)}`;
         if (overview.latestSource === "local" && !localBackup?.isCurrent)
             latestBackupLabel += "; changes since backup";
@@ -388,7 +406,9 @@ export function BackupDialog({
                                     {latestBackupLabel}.{" "}
                                     {overview.needsReminder
                                         ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
-                                        : managedStatus.data?.enabled
+                                        : managedStatus.data?.enabled ||
+                                            overview.latestSource ===
+                                                "destination"
                                           ? "Automatic backups will keep running while the vault is open and unlocked."
                                           : !overview.isStale
                                             ? "Keep the downloaded file in a separate, secure location."
@@ -429,6 +449,10 @@ export function BackupDialog({
                                 </Button>
                             </CardContent>
                         </Card>
+
+                        <BackupDestinationsCard
+                            controller={backupDestinationsController}
+                        />
 
                         <ManagedBackupsSettingsCard
                             open={open}

@@ -38,6 +38,7 @@
         "@noble/hashes": "2.2.0",
         "@noble/post-quantum": "0.6.1",
         "@scure/bip39": "2.2.0",
+        "aws4fetch": "1.0.20",
         "jszip": "3.10.1",
         "libsodium-wrappers-sumo": "0.7.15",
         "neverthrow": "8.2.0",

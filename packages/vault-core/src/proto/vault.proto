@@ -149,7 +149,39 @@ message Vault {
     // Device-local: stripped wherever the vault leaves this device (linking,
     // backups, managed backups), never synced or exported.
     optional AgentApproverSettings AgentApprover = 14;
+    // S3-compatible buckets every device uploads encrypted backups to.
+    // Synced, and kept in backups and exports.
+    repeated BackupDestination BackupDestinations = 15;
 }
+
+//#region BackupDestinations
+message BackupDestination {
+    // ULID, also the folder the vault's backups go under.
+    string ID = 1;
+    string Name = 2;
+    // Origin of the S3 API, such as "https://s3.eu-central-1.amazonaws.com".
+    string Endpoint = 3;
+    string Region = 4;
+    string Bucket = 5;
+    // Empty, or a key prefix ending in "/".
+    string Prefix = 6;
+    // Address the bucket as <endpoint>/<bucket> instead of <bucket>.<host>.
+    bool PathStyle = 7;
+    string AccessKeyID = 8;
+    string SecretAccessKey = 9;
+    // Devices never delete their backups here, for keys without delete
+    // rights. Otherwise each device thins its own backups by age.
+    bool KeepAll = 10;
+    // Paused destinations get no uploads from any device.
+    bool Paused = 11;
+    int64 CreatedAtTimestamp = 12;
+
+    string Hash = 13;
+    int32 Version = 14;
+    int64 DateModifiedTimestamp = 15;
+    bool Deleted = 16;
+}
+//#endregion BackupDestinations
 
 //#region ConnectedAgents
 // A Linux machine running cryptex-agent. It holds no private keys and asks
@@ -372,6 +404,11 @@ message LinkedDevices {
     /** ML-KEM-768 keypair for encrypting sync/link sessions (one per vault installation). */
     string SyncKemPublicKey = 11;
     string SyncKemPrivateKey = 12;
+
+    /** Names this installation's folder in backup destinations. Never synced or backed up. */
+    string BackupDeviceID = 13;
+    /** Keys the local marker of what this installation last backed up. */
+    string BackupMarkerKey = 14;
 }
 
 message LinkedDevice {
@@ -563,6 +600,7 @@ message SyncHelloMessage {
     repeated VersionVector DirectoryVersionVectors = 2;
     repeated VersionVector ShareLinkVersionVectors = 3;
     repeated VersionVector ConnectedAgentVersionVectors = 4;
+    repeated VersionVector BackupDestinationVersionVectors = 5;
 }
 
 message SyncHelloEchoMessage {
@@ -570,6 +608,7 @@ message SyncHelloEchoMessage {
     repeated VersionVector DirectoryVersionVectors = 2;
     repeated VersionVector ShareLinkVersionVectors = 3;
     repeated VersionVector ConnectedAgentVersionVectors = 4;
+    repeated VersionVector BackupDestinationVersionVectors = 5;
 }
 
 enum SyncItemType {
@@ -577,6 +616,7 @@ enum SyncItemType {
     DirectoryItem = 1;
     ShareLinkItem = 2;
     ConnectedAgentItem = 3;
+    BackupDestinationItem = 4;
 }
 
 message SyncItemReference {
@@ -593,6 +633,7 @@ message SyncDataResponseMessage {
     repeated Directory Directories = 2;
     repeated ShareLink ShareLinks = 3;
     repeated ConnectedAgent ConnectedAgents = 4;
+    repeated BackupDestination BackupDestinations = 5;
 }
 //#endregion Synchronization Message
 

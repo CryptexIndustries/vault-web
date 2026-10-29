@@ -13,6 +13,7 @@ import {
     View,
     type ScrollView,
 } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import type { FlatList } from "react-native-gesture-handler";
 import {
     FlatList as SheetFlatList,
@@ -155,6 +156,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
         onDismissibleChange,
         onSheetVariantChange,
     } = props;
+    const { t } = useLingui();
     const window = useWindowDimensions();
     const [view, setView] = useState<SheetView>({ kind: "detail" });
     const currentOwner = useRef<{ open: boolean } | null>(null);
@@ -292,11 +294,11 @@ export function DeviceDetails(props: DeviceDetailsProps) {
         (id: string) =>
             go({
                 kind: "failure",
-                title: "Could not copy ID",
-                message: "Select the ID below to copy it manually.",
+                title: t`Could not copy ID`,
+                message: t`Select the ID below to copy it manually.`,
                 id,
             }),
-        [go],
+        [go, t],
     );
     const back = () => {
         if (busy) return;
@@ -369,12 +371,11 @@ export function DeviceDetails(props: DeviceDetailsProps) {
         (local: LinkedDevice) => {
             void run(() => onConnect(local.ID), {
                 kind: "failure",
-                title: "Could not connect",
-                message:
-                    "Check this connection's server settings and try again when both devices are online and unlocked.",
+                title: t`Could not connect`,
+                message: t`Check this connection's server settings and try again when both devices are online and unlocked.`,
             });
         },
-        [onConnect, run],
+        [onConnect, run, t],
     );
     const canUnlinkConnection = (relationship?: DeviceRelationship) => {
         if (!relationship) return false;
@@ -458,17 +459,16 @@ export function DeviceDetails(props: DeviceDetailsProps) {
         if (!draft.Name.trim()) {
             go({
                 kind: "failure",
-                title: "Device name is required",
-                message:
-                    "Enter a display name before saving these connection settings.",
+                title: t`Device name is required`,
+                message: t`Enter a display name before saving these connection settings.`,
             });
             return;
         }
         if (draft.SyncTimeout && (!Number.isInteger(period) || period < 1)) {
             go({
                 kind: "failure",
-                title: "Check the timeout",
-                message: "Use a whole number of seconds greater than 0.",
+                title: t`Check the timeout`,
+                message: t`Use a whole number of seconds greater than 0.`,
             });
             return;
         }
@@ -484,14 +484,13 @@ export function DeviceDetails(props: DeviceDetailsProps) {
             () => onSave(next),
             {
                 kind: "failure",
-                title: "Could not save settings",
-                message:
-                    "Your changes have been kept here. Return to settings and try saving again.",
+                title: t`Could not save settings`,
+                message: t`Your changes have been kept here. Return to settings and try saving again.`,
             },
             () => {
                 setDraft(null);
                 originalDraft.current = null;
-                onSuccess("Connection settings saved.");
+                onSuccess(t`Connection settings saved.`);
                 if (view.kind === "discard") history.current.pop();
                 const previous = history.current.pop();
                 restoreOffset.current = previous?.scroll ?? 0;
@@ -499,7 +498,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
             },
         );
     };
-    let title = "Device details";
+    let title = t`Device details`;
     let body: ReactNode = null;
     let footer: ReactNode = null;
 
@@ -539,7 +538,11 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                 />
             );
     } else if (view.kind === "detail" && edge) {
-        title = "Connection";
+        title = t({
+            message: "Connection",
+            comment:
+                "Title of the details sheet for a link between two devices",
+        });
         body = (
             <DeviceRelationshipOverview
                 edge={edge}
@@ -568,16 +571,23 @@ export function DeviceDetails(props: DeviceDetailsProps) {
             />
         );
     } else if (view.kind === "detail") {
-        const subject = selection.kind === "edge" ? "connection" : "device";
-        title = selection.kind === "edge" ? "Connection" : "Device details";
+        title =
+            selection.kind === "edge"
+                ? t({
+                      message: "Connection",
+                      comment:
+                          "Title of the details sheet for a link between two devices",
+                  })
+                : t`Device details`;
         body = (
             <Note>
-                This {subject} is no longer available. Close these details and
-                select another {subject}.
+                {selection.kind === "edge"
+                    ? t`This connection is no longer available. Close these details and select another connection.`
+                    : t`This device is no longer available. Close these details and select another device.`}
             </Note>
         );
     } else if (view.kind === "servers") {
-        title = "Connection servers";
+        title = t`Connection servers`;
         const local = relationshipById(view.relationshipId)?.localDevice;
         body = local ? (
             <DeviceServerDetails
@@ -587,11 +597,11 @@ export function DeviceDetails(props: DeviceDetailsProps) {
         ) : null;
         footer = (
             <Button variant="secondary" disabled={busy} onPress={back}>
-                Back to details
+                {t`Back to details`}
             </Button>
         );
     } else if (view.kind === "settings" && draft) {
-        title = "Name and sync settings";
+        title = t`Name and sync settings`;
         body = (
             <DeviceConnectionSettings
                 draft={draft}
@@ -610,7 +620,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     loading={working}
                     onPress={save}
                 >
-                    Save changes
+                    {t`Save changes`}
                 </Button>
                 <Button
                     testID="device-cancel-settings"
@@ -618,12 +628,15 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     disabled={busy}
                     onPress={requestBack}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </Button>
             </>
         );
     } else if (view.kind === "unlink") {
-        title = "Unlink";
+        title = t({
+            message: "Unlink",
+            comment: "Title of the sheet that unlinks a device or connection",
+        });
         const target = nodeById(view.nodeId);
         const relationship = relationshipById(view.relationshipId);
         const local = relationship?.localDevice;
@@ -687,8 +700,8 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                             () => {
                                 onSuccess(
                                     whole
-                                        ? "Device removed from Online Services."
-                                        : "Connection unlinked.",
+                                        ? t`Device removed from Online Services.`
+                                        : t`Connection unlinked.`,
                                 );
                                 onClose();
                             },
@@ -696,10 +709,10 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     }}
                 >
                     {whole
-                        ? "Remove from Online Services"
+                        ? t`Remove from Online Services`
                         : local && !LinkedDevices.isUsingOnlineServices(local)
-                          ? "Unlink from this vault"
-                          : "Unlink devices"}
+                          ? t`Unlink from this vault`
+                          : t`Unlink devices`}
                 </Button>
                 {!whole && local && relationship?.missingOnServer ? (
                     <Button
@@ -714,7 +727,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                             })
                         }
                     >
-                        Recovery options
+                        {t`Recovery options`}
                     </Button>
                 ) : null}
                 <Button
@@ -723,12 +736,12 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     disabled={busy}
                     onPress={back}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </Button>
             </>
         );
     } else if (view.kind === "choose-connection") {
-        title = "Choose a connection";
+        title = t`Choose a connection`;
         const target = nodeById(view.target.nodeId);
         body = target ? (
             <DeviceConnectionChoices
@@ -754,20 +767,20 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                 disabled={busy}
                 onPress={back}
             >
-                Cancel
+                {t`Cancel`}
             </Button>
         );
     } else if (view.kind === "recovery") {
         title =
             view.completed === "device-removed"
-                ? "Device removed"
+                ? t`Device removed`
                 : view.completed === "connection-unlinked"
-                  ? "Connection unlinked"
+                  ? t`Connection unlinked`
                   : view.failed
                     ? view.target.scope === "device"
-                        ? "Could not remove device"
-                        : "Could not unlink connection"
-                    : "Connection no longer registered";
+                        ? t`Could not remove device`
+                        : t`Could not unlink connection`
+                    : t`Connection no longer registered`;
         const relationship = relationshipById(view.target.relationshipId);
         const local = relationship?.localDevice ?? view.localDevice;
         const canForget =
@@ -792,7 +805,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                         disabled={busy}
                         onPress={back}
                     >
-                        Retry
+                        {t`Retry`}
                     </Button>
                 ) : null}
                 {canForget ? (
@@ -804,7 +817,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                             go({ ...view, kind: "forget", localDevice: local })
                         }
                     >
-                        Forget locally
+                        {t`Forget locally`}
                     </Button>
                 ) : null}
                 <Button
@@ -814,28 +827,26 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     onPress={view.completed ? onClose : back}
                 >
                     {view.completed === "device-removed"
-                        ? "Review saved connections"
+                        ? t`Review saved connections`
                         : view.completed
-                          ? "Close"
-                          : "Cancel"}
+                          ? t`Close`
+                          : t`Cancel`}
                 </Button>
             </>
         );
     } else if (view.kind === "forget") {
-        title = "Forget this connection?";
+        title = t`Forget this connection?`;
         const relationship = relationshipById(view.target.relationshipId);
         const local = relationship?.localDevice ?? view.localDevice;
         body = (
             <>
                 <Information
-                    label="Relationship ID"
-                    value={relationship?.syncId || "Not available"}
+                    label={t`Relationship ID`}
+                    value={relationship?.syncId || t`Not available`}
                     mono
                 />
                 <Text style={{ fontSize: 13, lineHeight: 21 }}>
-                    Remove only this vault's saved link and settings. Any Online
-                    Services relationship may remain. Vault contents remain on
-                    both devices.
+                    {t`Remove only this vault's saved link and settings. Any Online Services relationship may remain. Vault contents remain on both devices.`}
                 </Text>
             </>
         );
@@ -852,20 +863,19 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                             () => onUnlinkLocal(local, true),
                             {
                                 kind: "failure",
-                                title: "Could not forget connection",
-                                message:
-                                    "The saved link was kept. Try again after checking that this vault can save changes.",
+                                title: t`Could not forget connection`,
+                                message: t`The saved link was kept. Try again after checking that this vault can save changes.`,
                             },
                             () => {
                                 onSuccess(
-                                    "Saved connection forgotten locally.",
+                                    t`Saved connection forgotten locally.`,
                                 );
                                 onClose();
                             },
                         );
                     }}
                 >
-                    Forget locally
+                    {t`Forget locally`}
                 </Button>
                 <Button
                     testID="device-cancel-forget"
@@ -873,20 +883,20 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     disabled={busy}
                     onPress={back}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </Button>
             </>
         );
     } else if (view.kind === "discard") {
-        title = "Save connection settings?";
-        body = <Note>You have unsaved changes.</Note>;
+        title = t`Save connection settings?`;
+        body = <Note>{t`You have unsaved changes.`}</Note>;
         footer = (
             <>
                 <Button disabled={busy} loading={working} onPress={save}>
-                    Save changes
+                    {t`Save changes`}
                 </Button>
                 <Button variant="outline" disabled={busy} onPress={back}>
-                    Keep editing
+                    {t`Keep editing`}
                 </Button>
                 <Button
                     testID="device-discard-settings"
@@ -899,7 +909,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                         back();
                     }}
                 >
-                    Discard changes
+                    {t`Discard changes`}
                 </Button>
             </>
         );
@@ -911,7 +921,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                     {view.message}
                 </Text>
                 {view.id ? (
-                    <Information label="ID" value={view.id} mono />
+                    <Information label={t`ID`} value={view.id} mono />
                 ) : null}
             </>
         );
@@ -922,7 +932,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                 disabled={busy}
                 onPress={back}
             >
-                Back
+                {t`Back`}
             </Button>
         );
     }
@@ -950,7 +960,7 @@ export function DeviceDetails(props: DeviceDetailsProps) {
                 </UnlockedDialogTitle>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={overview ? "Close details" : "Back"}
+                    accessibilityLabel={overview ? t`Close details` : t`Back`}
                     testID={
                         overview ? "device-close-details" : "device-detail-back"
                     }

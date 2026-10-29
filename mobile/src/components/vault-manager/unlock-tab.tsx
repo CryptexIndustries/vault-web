@@ -8,6 +8,7 @@ import {
 import { Alert, Platform, Pressable, View, type TextInput } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSetAtom } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 import {
     ChevronDown,
     Fingerprint,
@@ -110,6 +111,7 @@ export function UnlockTab({
     restoredGuidance = false,
     onVaultDeleted,
 }: UnlockTabProps) {
+    const { t } = useLingui();
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
 
@@ -261,7 +263,7 @@ export function UnlockTab({
         if (!managedName.trim()) {
             setFieldError(
                 "managedName",
-                "Enter a name for this vault.",
+                t`Enter a name for this vault.`,
                 managedNameRef,
             );
             return;
@@ -275,24 +277,25 @@ export function UnlockTab({
             await selected.save(null, new Uint8Array(0));
             setManageOpen(false);
             await refresh();
-            onFeedback?.("Vault details updated.");
+            onFeedback?.(t`Vault details updated.`);
         } catch {
             selected.Name = previousName;
             selected.Description = previousDescription;
-            setManageError("Could not save these vault details. Try again.");
+            setManageError(t`Could not save these vault details. Try again.`);
         }
     };
 
     const deleteSelectedVault = () => {
         if (selected?.DBIndex == null) return;
         const id = selected.DBIndex;
+        const vaultName = selected.Name;
         Alert.alert(
-            "Delete vault",
-            `Permanently delete “${selected.Name}” from this device?`,
+            t`Delete vault`,
+            t`Permanently delete “${vaultName}” from this device?`,
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t`Cancel`, style: "cancel" },
                 {
-                    text: "Delete",
+                    text: t`Delete`,
                     style: "destructive",
                     onPress: () => {
                         void (async () => {
@@ -306,7 +309,7 @@ export function UnlockTab({
                             setManageOpen(false);
                             await refresh();
                             onVaultDeleted?.();
-                            onFeedback?.("Vault removed from this device.");
+                            onFeedback?.(t`Vault removed from this device.`);
                         })();
                     },
                 },
@@ -340,21 +343,21 @@ export function UnlockTab({
     const handleUnlock = async () => {
         setError("");
         if (!selected) {
-            setError("Select a vault.");
+            setError(t`Select a vault.`);
             return;
         }
         const next = {
             recovery:
                 useRecovery && !recoveryCode.trim()
-                    ? "Enter your vault recovery code."
+                    ? t`Enter your vault recovery code.`
                     : "",
             passphrase:
                 !useRecovery && !passphrase.trim()
-                    ? "Enter your master password."
+                    ? t`Enter your master password.`
                     : "",
             additionalKeyProtection:
                 selectedRequiresPassphrase && !additionalKeyProtection.trim()
-                    ? "Enter the generated protection phrase saved with this vault."
+                    ? t`Enter the generated protection phrase saved with this vault.`
                     : "",
         };
         setFieldErrors((current) => ({ ...current, ...next }));
@@ -371,7 +374,7 @@ export function UnlockTab({
         }
         if (!useRecovery && webauthnVault) {
             setError(
-                "This vault uses WebAuthn PRF. Unlock from desktop, or use recovery code to set a new password.",
+                t`This vault uses WebAuthn PRF. Unlock from desktop, or use recovery code to set a new password.`,
             );
             return;
         }
@@ -410,12 +413,11 @@ export function UnlockTab({
             if (useRecovery) {
                 setFieldError(
                     "recovery",
-                    "That recovery code could not unlock this vault. Check it and try again.",
+                    t`That recovery code could not unlock this vault. Check it and try again.`,
                     recoveryRef,
                 );
             } else if (selectedRequiresPassphrase) {
-                const message =
-                    "The password or protection phrase is incorrect. Check both and try again.";
+                const message = t`The password or protection phrase is incorrect. Check both and try again.`;
                 setFieldErrors((current) => ({
                     ...current,
                     passphrase: message,
@@ -425,7 +427,7 @@ export function UnlockTab({
             } else {
                 setFieldError(
                     "passphrase",
-                    "That password could not unlock this vault. Check it and try again.",
+                    t`That password could not unlock this vault. Check it and try again.`,
                     passphraseRef,
                 );
             }
@@ -468,12 +470,12 @@ export function UnlockTab({
         if (!pendingRecovery) return;
         setError("");
         const next = {
-            newPassword: newPassword ? "" : "Enter a new master password.",
+            newPassword: newPassword ? "" : t`Enter a new master password.`,
             confirmPassword: !confirmPassword
-                ? "Confirm your new master password."
+                ? t`Confirm your new master password.`
                 : newPassword === confirmPassword
                   ? ""
-                  : "Enter the same password again.",
+                  : t`Enter the same password again.`,
         };
         setFieldErrors((current) => ({ ...current, ...next }));
         const first = next.newPassword
@@ -486,7 +488,7 @@ export function UnlockTab({
             return;
         }
         if (factorChoice === "webauthn") {
-            setError("WebAuthn PRF is not available on mobile yet.");
+            setError(t`WebAuthn PRF is not available on mobile yet.`);
             return;
         }
 
@@ -504,7 +506,8 @@ export function UnlockTab({
                 ),
             });
             if (rekey.isErr()) {
-                setError(`Failed to set new password: ${rekey.error}`);
+                const reason = rekey.error;
+                setError(t`Failed to set new password: ${reason}`);
                 return;
             }
 
@@ -536,7 +539,7 @@ export function UnlockTab({
                 },
             );
             if (unlock.isErr()) {
-                setError("Password set, but unlock failed. Try Unlock tab.");
+                setError(t`Password set, but unlock failed. Try Unlock tab.`);
                 setPendingRecovery(null);
                 await refresh();
                 return;
@@ -557,7 +560,7 @@ export function UnlockTab({
             setPendingRecovery(null);
             finalizeUnlock(metadata, unlock.value.vault, unlock.value.dek);
         } catch {
-            setError("Failed to set new credentials.");
+            setError(t`Failed to set new credentials.`);
         } finally {
             setLoading(false);
         }
@@ -591,11 +594,11 @@ export function UnlockTab({
             const dek = await unlockWithSecureDek(selected.DBIndex);
             if (!isCurrentAttempt()) return;
             if (!dek) {
-                setError("Biometric unlock cancelled or unavailable.");
+                setError(t`Biometric unlock cancelled or unavailable.`);
                 return;
             }
             if (!isEnvelopeBlob(selected.Blob) || !selected.Blob.HeaderIV) {
-                setError("Vault format does not support biometric unlock.");
+                setError(t`Vault format does not support biometric unlock.`);
                 return;
             }
             const plainRes = await decryptWithDEK(
@@ -605,7 +608,7 @@ export function UnlockTab({
             );
             if (!isCurrentAttempt()) return;
             if (plainRes.isErr()) {
-                setError("Could not decrypt vault with stored key.");
+                setError(t`Could not decrypt vault with stored key.`);
                 return;
             }
             const vaultRaw = VaultUtilTypes.Vault.decode(plainRes.value);
@@ -638,14 +641,14 @@ export function UnlockTab({
                     await selected.save(vault, dek);
                 } catch {
                     if (!isCurrentAttempt()) return;
-                    setError("Unlocked, but failed to persist sync keys.");
+                    setError(t`Unlocked, but failed to persist sync keys.`);
                     return;
                 }
             }
             if (!isCurrentAttempt()) return;
             finalizeUnlock(selected, vault, dek);
         } catch {
-            if (isCurrentAttempt()) setError("Biometric unlock failed.");
+            if (isCurrentAttempt()) setError(t`Biometric unlock failed.`);
         } finally {
             if (biometricAttemptRef.current === attempt) setLoading(false);
         }
@@ -655,11 +658,13 @@ export function UnlockTab({
         return (
             <EmptyState
                 icon={Inbox}
-                title="No vaults yet"
-                description="Create a vault or restore a backup to get started."
+                title={t`No vaults yet`}
+                description={t`Create a vault or restore a backup to get started.`}
             />
         );
     }
+
+    const selectedName = selected?.Name ?? "";
 
     return (
         <View>
@@ -667,15 +672,15 @@ export function UnlockTab({
                 <InlineNotice
                     className="mb-4"
                     tone="success"
-                    message="Backup restored. Unlock it to continue."
+                    message={t`Backup restored. Unlock it to continue.`}
                 />
             ) : null}
             <Text className="mb-2.5 font-semibold text-[11px] uppercase tracking-[1.5px] text-muted-foreground">
-                On this device
+                {t`On this device`}
             </Text>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Selected vault ${selected?.Name ?? ""}. Choose another vault`}
+                accessibilityLabel={t`Selected vault ${selectedName}. Choose another vault`}
                 disabled={loading}
                 onPress={() => {
                     if (!loading) setVaultPickerOpen(true);
@@ -693,7 +698,7 @@ export function UnlockTab({
                         className="mt-0.5 text-xs text-muted-foreground"
                         numberOfLines={1}
                     >
-                        {selected?.Description || "Encrypted on this device"}
+                        {selected?.Description || t`Encrypted on this device`}
                     </Text>
                 </View>
                 <Icon
@@ -708,21 +713,21 @@ export function UnlockTab({
                     <InlineNotice
                         className="mb-4"
                         tone="warning"
-                        message={`This vault uses Argon2 memory ${selectedMemLimit} MiB. Unlock may use a lot of RAM. After unlock, rekey from Settings with 128 MiB if needed.`}
+                        message={t`This vault uses Argon2 memory ${selectedMemLimit} MiB. Unlock may use a lot of RAM. After unlock, rekey from Settings with 128 MiB if needed.`}
                     />
                 ) : null}
                 {webauthnVault ? (
                     <InlineNotice
                         className="mb-4"
                         tone="warning"
-                        message="This vault uses security-key protection that Android cannot use for password unlock. Use the vault recovery code here, link from a device where it opens, or open it on desktop."
+                        message={t`This vault uses security-key protection that Android cannot use for password unlock. Use the vault recovery code here, link from a device where it opens, or open it on desktop.`}
                     />
                 ) : null}
 
                 {useRecovery ? (
                     <View className="mb-[17px]">
                         <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Recovery code
+                            {t`Recovery code`}
                         </Label>
                         <Input
                             ref={recoveryRef}
@@ -736,8 +741,8 @@ export function UnlockTab({
                             secureTextEntry
                             autoCapitalize="none"
                             autoCorrect={false}
-                            placeholder="Recovery code"
-                            accessibilityLabel="Recovery code"
+                            placeholder={t`Recovery code`}
+                            accessibilityLabel={t`Recovery code`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5 font-mono text-sm"
                         />
                         <VaultEntryFieldError message={fieldErrors.recovery} />
@@ -746,7 +751,7 @@ export function UnlockTab({
                     <>
                         <View className="mb-[17px]">
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                Master password
+                                {t`Master password`}
                             </Label>
                             <Input
                                 ref={passphraseRef}
@@ -761,9 +766,9 @@ export function UnlockTab({
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 textContentType="password"
-                                placeholder="Enter master password"
+                                placeholder={t`Enter master password`}
                                 onSubmitEditing={() => void handleUnlock()}
-                                accessibilityLabel="Master password"
+                                accessibilityLabel={t`Master password`}
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -773,7 +778,7 @@ export function UnlockTab({
                         {selectedRequiresPassphrase ? (
                             <View className="mb-[17px]">
                                 <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                    Generated protection phrase
+                                    {t`Generated protection phrase`}
                                 </Label>
                                 <Input
                                     ref={additionalKeyProtectionRef}
@@ -793,10 +798,10 @@ export function UnlockTab({
                                     autoCorrect={false}
                                     placeholder={
                                         restoredGuidance
-                                            ? "Enter the phrase saved with this vault"
-                                            : "Enter the saved protection phrase"
+                                            ? t`Enter the phrase saved with this vault`
+                                            : t`Enter the saved protection phrase`
                                     }
-                                    accessibilityLabel="Generated protection phrase"
+                                    accessibilityLabel={t`Generated protection phrase`}
                                     className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                                 />
                                 <VaultEntryFieldError
@@ -822,7 +827,7 @@ export function UnlockTab({
                     onPress={() => void handleUnlock()}
                     testID="unlock-vault"
                 >
-                    {useRecovery ? "Continue with recovery" : "Unlock vault"}
+                    {useRecovery ? t`Continue with recovery` : t`Unlock vault`}
                 </VaultEntryAction>
 
                 {!useRecovery && biometricOk && secureDekEnrolled ? (
@@ -832,10 +837,10 @@ export function UnlockTab({
                         leading={Fingerprint}
                         showArrow={false}
                         loading={loading}
-                        accessibilityLabel="Unlock with biometrics"
+                        accessibilityLabel={t`Unlock with biometrics`}
                         onPress={() => void handleBiometric()}
                     >
-                        Use fingerprint
+                        {t`Use fingerprint`}
                     </VaultEntryAction>
                 ) : null}
 
@@ -844,8 +849,8 @@ export function UnlockTab({
                         className="mt-1.5"
                         accessibilityLabel={
                             useRecovery
-                                ? "Use password instead"
-                                : "Use recovery code"
+                                ? t`Use password instead`
+                                : t`Use recovery code`
                         }
                         onPress={() => {
                             const next = !useRecovery;
@@ -861,18 +866,18 @@ export function UnlockTab({
                         }}
                     >
                         {useRecovery
-                            ? "Use password instead"
-                            : "Use recovery code"}
+                            ? t`Use password instead`
+                            : t`Use recovery code`}
                     </VaultEntryTextButton>
                 ) : null}
 
                 {!useRecovery && biometricOk && !secureDekEnrolled ? (
                     <Text className="mt-1 text-center text-xs text-muted-foreground">
-                        Biometrics available. Enable in Settings after unlock.
+                        {t`Biometrics available. Enable in Settings after unlock.`}
                     </Text>
                 ) : null}
                 <VaultEntryAssurance>
-                    Only you hold the keys
+                    {t`Only you hold the keys`}
                 </VaultEntryAssurance>
             </View>
 
@@ -883,56 +888,60 @@ export function UnlockTab({
                 scroll
             >
                 <DialogHeader>
-                    <DialogTitle>Choose a vault</DialogTitle>
+                    <DialogTitle>{t`Choose a vault`}</DialogTitle>
                     <DialogDescription>
-                        Select a vault stored on this device.
+                        {t`Select a vault stored on this device.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="gap-2">
-                    {vaults.map((item) => (
-                        <Pressable
-                            key={String(item.DBIndex ?? item.Name)}
-                            accessibilityRole="button"
-                            accessibilityState={{
-                                selected: selectedId === item.DBIndex,
-                            }}
-                            accessibilityLabel={`Select vault ${item.Name}`}
-                            disabled={loading}
-                            onPress={() => {
-                                if (loading) return;
-                                biometricAttemptRef.current += 1;
-                                const nextSelectedId = item.DBIndex ?? null;
-                                if (nextSelectedId !== selectedId) {
-                                    setSecureDekEnrolled(false);
-                                }
-                                setSelectedId(nextSelectedId);
-                                setAdditionalKeyProtection("");
-                                setFieldErrors((current) => ({
-                                    ...current,
-                                    passphrase: "",
-                                    additionalKeyProtection: "",
-                                    recovery: "",
-                                }));
-                                setVaultPickerOpen(false);
-                            }}
-                            className={cn(
-                                "min-h-[64px] rounded-md border border-l-[3px] px-4 py-3",
-                                selectedId === item.DBIndex
-                                    ? "border-border border-l-primary bg-transparent"
-                                    : "border-border bg-transparent",
-                            )}
-                        >
-                            <Text className="font-medium text-foreground">
-                                {item.Name}
-                            </Text>
-                            <Text
-                                className="text-xs text-muted-foreground"
-                                numberOfLines={1}
+                    {vaults.map((item) => {
+                        const itemName = item.Name;
+                        return (
+                            <Pressable
+                                key={String(item.DBIndex ?? item.Name)}
+                                accessibilityRole="button"
+                                accessibilityState={{
+                                    selected: selectedId === item.DBIndex,
+                                }}
+                                accessibilityLabel={t`Select vault ${itemName}`}
+                                disabled={loading}
+                                onPress={() => {
+                                    if (loading) return;
+                                    biometricAttemptRef.current += 1;
+                                    const nextSelectedId = item.DBIndex ?? null;
+                                    if (nextSelectedId !== selectedId) {
+                                        setSecureDekEnrolled(false);
+                                    }
+                                    setSelectedId(nextSelectedId);
+                                    setAdditionalKeyProtection("");
+                                    setFieldErrors((current) => ({
+                                        ...current,
+                                        passphrase: "",
+                                        additionalKeyProtection: "",
+                                        recovery: "",
+                                    }));
+                                    setVaultPickerOpen(false);
+                                }}
+                                className={cn(
+                                    "min-h-[64px] rounded-md border border-l-[3px] px-4 py-3",
+                                    selectedId === item.DBIndex
+                                        ? "border-border border-l-primary bg-transparent"
+                                        : "border-border bg-transparent",
+                                )}
                             >
-                                {item.Description || "Encrypted on this device"}
-                            </Text>
-                        </Pressable>
-                    ))}
+                                <Text className="font-medium text-foreground">
+                                    {item.Name}
+                                </Text>
+                                <Text
+                                    className="text-xs text-muted-foreground"
+                                    numberOfLines={1}
+                                >
+                                    {item.Description ||
+                                        t`Encrypted on this device`}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
                 </View>
                 <DialogFooter>
                     <Button
@@ -944,7 +953,7 @@ export function UnlockTab({
                             openManager();
                         }}
                     >
-                        Edit selected vault
+                        {t`Edit selected vault`}
                     </Button>
                 </DialogFooter>
             </Dialog>
@@ -956,14 +965,19 @@ export function UnlockTab({
                 scroll
             >
                 <DialogHeader>
-                    <DialogTitle>Vault details</DialogTitle>
+                    <DialogTitle>{t`Vault details`}</DialogTitle>
                     <DialogDescription>
-                        Rename this local vault or remove it from this device.
+                        {t`Rename this local vault or remove it from this device.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="gap-3">
                     <View>
-                        <Label>Name</Label>
+                        <Label>
+                            {t({
+                                message: "Name",
+                                comment: "Vault name field label",
+                            })}
+                        </Label>
                         <Input
                             ref={managedNameRef}
                             value={managedName}
@@ -973,7 +987,7 @@ export function UnlockTab({
                                 setManageError("");
                             }}
                             invalid={!!fieldErrors.managedName}
-                            accessibilityLabel="Edit vault name"
+                            accessibilityLabel={t`Edit vault name`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError
@@ -981,14 +995,19 @@ export function UnlockTab({
                         />
                     </View>
                     <View>
-                        <Label>Description</Label>
+                        <Label>
+                            {t({
+                                message: "Description",
+                                comment: "Vault description field label",
+                            })}
+                        </Label>
                         <Input
                             value={managedDescription}
                             onChangeText={(value) => {
                                 setManagedDescription(value);
                                 setManageError("");
                             }}
-                            accessibilityLabel="Edit vault description"
+                            accessibilityLabel={t`Edit vault description`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                     </View>
@@ -1007,14 +1026,17 @@ export function UnlockTab({
                         showArrow={false}
                         onPress={() => void saveMetadata()}
                     >
-                        Save
+                        {t({
+                            message: "Save",
+                            comment: "Button: save vault details",
+                        })}
                     </VaultEntryAction>
                     <Button
                         className="h-[54px] min-h-[54px]"
                         variant="destructive"
                         onPress={deleteSelectedVault}
                     >
-                        Delete vault
+                        {t`Delete vault`}
                     </Button>
                 </DialogFooter>
             </Dialog>
@@ -1048,13 +1070,13 @@ export function UnlockTab({
                 <DialogHeader>
                     <DialogTitle>
                         {revealRecovery
-                            ? "Save your recovery material"
-                            : "Set new master password"}
+                            ? t`Save your recovery material`
+                            : t`Set new master password`}
                     </DialogTitle>
                     <DialogDescription>
                         {revealRecovery
-                            ? "Your vault was upgraded. These secrets are shown once; store them somewhere safe before continuing."
-                            : "Set a new master password and choose any additional key protection for this device."}
+                            ? t`Your vault was upgraded. These secrets are shown once; store them somewhere safe before continuing.`
+                            : t`Set a new master password and choose any additional key protection for this device.`}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -1062,24 +1084,24 @@ export function UnlockTab({
                     <View className="gap-3">
                         {revealRecovery ? (
                             <SecretReveal
-                                label="Recovery code"
+                                label={t`Recovery code`}
                                 value={revealRecovery}
-                                helper="Shown once. Write it down before continuing."
+                                helper={t`Shown once. Write it down before continuing.`}
                                 requireAck
                                 defaultRevealed
-                                ackLabel="I have written down the recovery code"
+                                ackLabel={t`I have written down the recovery code`}
                                 acknowledged={recoveryAck}
                                 onAcknowledgedChange={setRecoveryAck}
                             />
                         ) : null}
                         {revealProtectionPhrase ? (
                             <SecretReveal
-                                label="New generated protection phrase"
+                                label={t`New generated protection phrase`}
                                 value={revealProtectionPhrase}
-                                helper="Shown once. Write it down before continuing."
+                                helper={t`Shown once. Write it down before continuing.`}
                                 requireAck
                                 defaultRevealed
-                                ackLabel="I have written down the protection phrase"
+                                ackLabel={t`I have written down the protection phrase`}
                                 acknowledged={protectionPhraseAck}
                                 onAcknowledgedChange={setProtectionPhraseAck}
                             />
@@ -1093,14 +1115,14 @@ export function UnlockTab({
                                 }
                                 onPress={continueAfterPassphraseAck}
                             >
-                                Continue
+                                {t`Continue`}
                             </VaultEntryAction>
                         </DialogFooter>
                     </View>
                 ) : (
                     <View className="gap-3">
                         <View>
-                            <Label>New master password</Label>
+                            <Label>{t`New master password`}</Label>
                             <Input
                                 ref={newPasswordRef}
                                 value={newPassword}
@@ -1115,7 +1137,7 @@ export function UnlockTab({
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 textContentType="newPassword"
-                                accessibilityLabel="New master password"
+                                accessibilityLabel={t`New master password`}
                                 className="h-[54px] min-h-[54px]"
                             />
                             <VaultEntryFieldError
@@ -1126,7 +1148,7 @@ export function UnlockTab({
                             ) : null}
                         </View>
                         <View>
-                            <Label>Confirm password</Label>
+                            <Label>{t`Confirm password`}</Label>
                             <Input
                                 ref={confirmPasswordRef}
                                 value={confirmPassword}
@@ -1139,7 +1161,7 @@ export function UnlockTab({
                                 secureTextEntry
                                 autoCapitalize="none"
                                 autoCorrect={false}
-                                accessibilityLabel="Confirm new master password"
+                                accessibilityLabel={t`Confirm new master password`}
                                 className="h-[54px] min-h-[54px]"
                             />
                             <VaultEntryFieldError
@@ -1164,7 +1186,7 @@ export function UnlockTab({
                                 loading={loading}
                                 onPress={() => void handleRecoveryRekey()}
                             >
-                                Save &amp; unlock
+                                {t`Save & unlock`}
                             </VaultEntryAction>
                             <Button
                                 className="h-[54px] min-h-[54px]"
@@ -1172,7 +1194,7 @@ export function UnlockTab({
                                 disabled={loading}
                                 onPress={() => setPendingRecovery(null)}
                             >
-                                Cancel
+                                {t`Cancel`}
                             </Button>
                         </DialogFooter>
                     </View>

@@ -42,6 +42,11 @@ module.exports = {
             filePath: "./modules/cryptex-agent-service/android",
             reasons: ["customNativeSources"],
         },
+        {
+            type: "dir",
+            filePath: "./modules/cryptex-app-locale/android",
+            reasons: ["customNativeSources"],
+        },
         ...(process.env.CRYPTEX_DISTRIBUTION === "play"
             ? [
                   {

@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import { FlatList, Pressable, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import {
     Check,
     ChevronRight,
@@ -251,6 +252,7 @@ function KeySearch({
     query: string;
     onQuery: (query: string) => void;
 }) {
+    const { t } = useLingui();
     return (
         <View
             style={{
@@ -271,8 +273,8 @@ function KeySearch({
                 testID="agent-key-search"
                 value={query}
                 onChangeText={onQuery}
-                placeholder="Search keys"
-                accessibilityLabel="Search keys"
+                placeholder={t`Search keys`}
+                accessibilityLabel={t`Search keys`}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
@@ -282,7 +284,7 @@ function KeySearch({
             {query ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Clear search"
+                    accessibilityLabel={t`Clear search`}
                     onPress={() => onQuery("")}
                     style={{
                         width: 44,
@@ -324,9 +326,12 @@ export function KeyPickerList({
     labelStyle?: object;
     maxWidth: number;
 }) {
+    const { t } = useLingui();
     const [query, setQuery] = useState("");
     const shown = useMemo(() => filterAgentKeys(keys, query), [keys, query]);
     const all = allKeysSelected(selected, shown);
+    const selectedCount = selected.length;
+    const keyCount = keys.length;
     const toggle = useCallback(
         (id: string) =>
             onChange((current) =>
@@ -384,7 +389,11 @@ export function KeyPickerList({
                                             color: colors.muted,
                                         }}
                                     >
-                                        {`${selected.length} of ${keys.length}`}
+                                        {t({
+                                            message: `${selectedCount} of ${keyCount}`,
+                                            comment:
+                                                "Number of SSH keys selected out of all keys",
+                                        })}
                                     </Text>
                                     {keys.length > 1 ? (
                                         <Pressable
@@ -415,8 +424,8 @@ export function KeyPickerList({
                                                 }}
                                             >
                                                 {all
-                                                    ? "Clear all"
-                                                    : "Select all"}
+                                                    ? t`Clear all`
+                                                    : t`Select all`}
                                             </Text>
                                         </Pressable>
                                     ) : null}
@@ -438,7 +447,7 @@ export function KeyPickerList({
                             paddingVertical: 14,
                         }}
                     >
-                        No keys match.
+                        {t`No keys match.`}
                     </Text>
                 ) : null
             }

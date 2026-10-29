@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Copy } from "lucide-react-native";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     calculateTOTP,
@@ -17,6 +19,7 @@ type TotpFieldProps = {
 };
 
 export function TotpField({ credential, embedded = false }: TotpFieldProps) {
+    const { t } = useLingui();
     const [timeLeft, setTimeLeft] = useState(30);
     const [period, setPeriod] = useState(30);
     const [totpCode, setTotpCode] = useState("------");
@@ -82,7 +85,7 @@ export function TotpField({ credential, embedded = false }: TotpFieldProps) {
                             marginBottom: 10,
                         }}
                     >
-                        Verification code
+                        {t`Verification code`}
                     </Text>
                 ) : null}
                 <Text
@@ -98,9 +101,16 @@ export function TotpField({ credential, embedded = false }: TotpFieldProps) {
                 </Text>
                 <Text
                     style={{ fontSize: 11, marginTop: 6, color: colors.muted }}
-                    accessibilityLabel={`${timeLeft} seconds remaining`}
+                    accessibilityLabel={plural(timeLeft, {
+                        one: "# second remaining",
+                        other: "# seconds remaining",
+                    })}
                 >
-                    {timeLeft}s remaining
+                    {t({
+                        message: `${timeLeft}s remaining`,
+                        comment:
+                            "Short countdown until the verification code changes; s is seconds",
+                    })}
                 </Text>
                 <View
                     style={{
@@ -124,7 +134,7 @@ export function TotpField({ credential, embedded = false }: TotpFieldProps) {
             </View>
             <IconButton
                 icon={Copy}
-                label="Copy verification code"
+                label={t`Copy verification code`}
                 color={copied ? colors.primary : colors.muted}
                 onPress={() => void handleCopy()}
             />

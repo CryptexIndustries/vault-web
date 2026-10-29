@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, View } from "react-native";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { Check } from "lucide-react-native";
 import { Icon } from "@/components/ui/icon";
@@ -35,16 +37,20 @@ export function LinkActivityLog({
 }: {
     activity: LinkActivityEntry[];
 }) {
+    const { t } = useLingui();
     return (
         <AdvancedDisclosure
             ruled
-            title={`Activity log (${activity.length} event${activity.length === 1 ? "" : "s"})`}
-            description="Events reported by this linking attempt"
+            title={plural(activity.length, {
+                one: "Activity log (# event)",
+                other: "Activity log (# events)",
+            })}
+            description={t`Events reported by this linking attempt`}
         >
             <View className="border-y border-border">
                 {activity.length === 0 ? (
                     <Text className="py-3 font-mono text-xs text-muted-foreground">
-                        Waiting for the first event…
+                        {t`Waiting for the first event…`}
                     </Text>
                 ) : (
                     activity.map((entry) => (
@@ -307,7 +313,7 @@ export function LinkingProgress({
     onCancel,
     onRetry,
     onUseNewInvitation,
-    failureTitle = "The received vault has not been saved.",
+    failureTitle,
 }: {
     items: LinkProgressItem[];
     status: string;
@@ -320,7 +326,12 @@ export function LinkingProgress({
     onUseNewInvitation?: () => void;
     failureTitle?: string;
 }) {
+    const { t } = useLingui();
     const secondsLeft = useSecondsLeft(failure ? null : deadline);
+    const time =
+        secondsLeft !== null
+            ? `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`
+            : "";
     return (
         <View className="gap-3">
             <View
@@ -336,12 +347,15 @@ export function LinkingProgress({
                         className="ml-2 text-xs text-muted-foreground"
                         style={{ fontVariant: ["tabular-nums"] }}
                     >
-                        {`${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")} left`}
+                        {t({
+                            message: `${time} left`,
+                            comment: "Countdown in minutes:seconds",
+                        })}
                     </Text>
                 ) : null}
             </View>
 
-            <View accessibilityLabel="Linking progress">
+            <View accessibilityLabel={t`Linking progress`}>
                 {items.map((item, index) => (
                     <LinkingTimelineRow
                         key={item.key}
@@ -355,9 +369,10 @@ export function LinkingProgress({
             {failure ? (
                 <View className="gap-3 border-l-2 border-primary bg-secondary px-4 py-3">
                     <Text className="font-semibold text-foreground">
-                        {failureTitle}
+                        {failureTitle ??
+                            t`The received vault has not been saved.`}
                     </Text>
-                    <AdvancedDisclosure ruled title="Inspect error">
+                    <AdvancedDisclosure ruled title={t`Inspect error`}>
                         <Text
                             selectable
                             className="font-mono text-xs leading-5 text-primary"
@@ -366,11 +381,11 @@ export function LinkingProgress({
                         </Text>
                     </AdvancedDisclosure>
                     <VaultEntryAction onPress={onRetry}>
-                        Try again
+                        {t`Try again`}
                     </VaultEntryAction>
                     {onUseNewInvitation ? (
                         <Button variant="outline" onPress={onUseNewInvitation}>
-                            Use a new invitation
+                            {t`Use a new invitation`}
                         </Button>
                     ) : null}
                 </View>
@@ -380,7 +395,7 @@ export function LinkingProgress({
 
             {!failure ? (
                 <Button variant="secondary" onPress={onCancel}>
-                    Cancel linking
+                    {t`Cancel linking`}
                 </Button>
             ) : null}
         </View>

@@ -1,4 +1,5 @@
 import { Alert, Linking } from "react-native";
+import { t } from "@lingui/core/macro";
 
 import { normalizeCredentialUrl } from "@cryptex-industries/vault-core/credential-url";
 
@@ -8,19 +9,23 @@ import { normalizeCredentialUrl } from "@cryptex-industries/vault-core/credentia
 export function openCredentialUrl(rawUrl?: string | null): void {
     const urlString = normalizeCredentialUrl(rawUrl);
     if (!urlString) {
-        Alert.alert("Invalid URL", "Credential URL is invalid.");
+        Alert.alert(t`Invalid URL`, t`Credential URL is invalid.`);
         return;
     }
 
-    Alert.alert("Open external site", `You are about to visit "${urlString}"`, [
-        { text: "Cancel", style: "cancel" },
-        {
-            text: "Open URL",
-            onPress: () => {
-                void Linking.openURL(urlString).catch(() => {
-                    Alert.alert("Error", "Could not open this URL.");
-                });
+    Alert.alert(
+        t`Open external site`,
+        t`You are about to visit "${urlString}"`,
+        [
+            { text: t`Cancel`, style: "cancel" },
+            {
+                text: t`Open URL`,
+                onPress: () => {
+                    void Linking.openURL(urlString).catch(() => {
+                        Alert.alert(t`Error`, t`Could not open this URL.`);
+                    });
+                },
             },
-        },
-    ]);
+        ],
+    );
 }

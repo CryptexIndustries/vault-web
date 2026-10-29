@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cryptex_agent_requests_channel">SSH zahtjevi</string>
+    <string name="cryptex_agent_service_channel">Status SSH agenta</string>
+    <string name="cryptex_agent_request_title">SSH zahtjev: %1$s</string>
+    <string name="cryptex_agent_request_locked">Otključaj trezor za pregled zahtjeva</string>
+    <string name="cryptex_agent_request_unlocked">Dodirni za pregled</string>
+    <string name="cryptex_agent_request_public_title">Potrebno odobrenje</string>
+    <string name="cryptex_agent_request_review">Pregledaj</string>
+    <string name="cryptex_agent_request_deny">Odbij</string>
+    <string name="cryptex_agent_unknown_agent">nepoznati agent</string>
+    <string name="cryptex_agent_service_title">Spremno za SSH zahtjeve</string>
+    <string name="cryptex_agent_service_text">Povezani agenti mogu od ovog telefona tražiti potpis</string>
+</resources>

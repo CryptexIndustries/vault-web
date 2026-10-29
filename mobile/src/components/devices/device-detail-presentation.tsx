@@ -7,6 +7,8 @@ import {
     type ReactNode,
 } from "react";
 import { Pressable, View } from "react-native";
+import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ChevronRight,
     Copy,
@@ -63,22 +65,48 @@ export function liveLabel(
     local: LinkedDevice | undefined,
     status?: DeviceConnectionStatus,
 ) {
-    if (!local) return "Status unknown";
-    if (status?.webRTCStatus === WebRTCStatus.Connected) return "Connected";
+    if (!local)
+        return t({
+            message: "Status unknown",
+            comment: "Live connection status of a linked device",
+        });
+    if (status?.webRTCStatus === WebRTCStatus.Connected)
+        return t({
+            message: "Connected",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.webRTCStatus === WebRTCStatus.Failed)
-        return "Connection failed";
+        return t({
+            message: "Connection failed",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Failed)
-        return "Signaling failed";
+        return t({
+            message: "Signaling failed",
+            comment: "Live connection status of a linked device",
+        });
     if (
         status?.webRTCStatus === WebRTCStatus.Connecting ||
         status?.signalingServerStatus === SignalingStatus.Connecting
     )
-        return "Connecting…";
+        return t({
+            message: "Connecting…",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Unavailable)
-        return "Signaling unavailable";
+        return t({
+            message: "Signaling unavailable",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Connected)
-        return "Ready to connect";
-    return "Disconnected";
+        return t({
+            message: "Ready to connect",
+            comment: "Live connection status of a linked device",
+        });
+    return t({
+        message: "Disconnected",
+        comment: "Live connection status of a linked device",
+    });
 }
 
 export function Note({ children }: { children: ReactNode }) {
@@ -176,6 +204,7 @@ export function CopyIdButton({
     onCopyError: (id: string) => void;
     accent?: boolean;
 }) {
+    const { t } = useLingui();
     const [copied, setCopied] = useState(false);
     const request = useRef(0);
     useLayoutEffect(() => {
@@ -192,7 +221,7 @@ export function CopyIdButton({
     }, [copied]);
     return (
         <MiniAction
-            label={copied ? "Copied" : "Copy ID"}
+            label={copied ? t`Copied` : t`Copy ID`}
             testID={testID}
             disabled={pending}
             accent={accent}
@@ -231,6 +260,7 @@ export function DeviceSyncButton({
     working?: boolean;
     onConnect: (device: LinkedDevice) => void;
 }) {
+    const { t } = useLingui();
     const connecting =
         status?.webRTCStatus === WebRTCStatus.Connecting ||
         status?.signalingServerStatus === SignalingStatus.Connecting;
@@ -267,12 +297,15 @@ export function DeviceSyncButton({
                     }}
                 >
                     {connecting
-                        ? "Connecting…"
+                        ? t`Connecting…`
                         : connected
-                          ? "Sync now"
+                          ? t`Sync now`
                           : status?.webRTCStatus === WebRTCStatus.Failed
-                            ? "Retry connection"
-                            : "Connect"}
+                            ? t`Retry connection`
+                            : t({
+                                  message: "Connect",
+                                  comment: "Button: connect to a linked device",
+                              })}
                 </Text>
             </View>
         </Button>
@@ -288,6 +321,7 @@ export function DeviceUnlinkButton({
     pending: boolean;
     onPress: () => void;
 }) {
+    const { t } = useLingui();
     return (
         <DeviceSheetButton
             testID={testID}
@@ -300,7 +334,10 @@ export function DeviceUnlinkButton({
             >
                 <Unlink size={16} color={colors.primary} />
                 <Text style={{ color: colors.primary, fontSize: 12 }}>
-                    Unlink
+                    {t({
+                        message: "Unlink",
+                        comment: "Button: unlink a device",
+                    })}
                 </Text>
             </View>
         </DeviceSheetButton>
@@ -326,6 +363,7 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
     onOpen: (relationship: DeviceRelationship) => void;
     onUnlink?: (target: DeviceNode, relationship: DeviceRelationship) => void;
 }) {
+    const { t } = useLingui();
     const peer = map.nodes.find(
         (node) =>
             node.id ===
@@ -334,11 +372,16 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
                 : relationship.fromDeviceId),
     );
     const local = relationship.localDevice;
+    const peerName = peer?.displayName;
     return (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open connection to ${peer?.displayName ?? "device"}`}
+                accessibilityLabel={
+                    peerName
+                        ? t`Open connection to ${peerName}`
+                        : t`Open connection to device`
+                }
                 testID={`device-connection-${relationship.id}`}
                 disabled={pending}
                 onPress={() => onOpen(relationship)}
@@ -370,7 +413,7 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
                             fontWeight: "500",
                         }}
                     >
-                        {peer?.displayName ?? "Device unavailable"}
+                        {peerName ?? t`Device unavailable`}
                     </Text>
                     <Text
                         style={{
@@ -392,7 +435,7 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
                         }}
                     >
                         {relationship.custom
-                            ? "Custom signaling"
+                            ? t`Custom signaling`
                             : "Online Services"}
                     </Text>
                     {selected !== undefined ? (
@@ -410,7 +453,17 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
                 </View>
                 {selected !== undefined ? (
                     <Text style={{ color: colors.primary, fontSize: 11 }}>
-                        {selected ? "Selected" : "Choose"}
+                        {selected
+                            ? t({
+                                  message: "Selected",
+                                  comment:
+                                      "The connection chosen for unlinking",
+                              })
+                            : t({
+                                  message: "Choose",
+                                  comment:
+                                      "Button: choose this connection for unlinking",
+                              })}
                     </Text>
                 ) : !onUnlink ? (
                     <ChevronRight size={15} color={colors.muted} />
@@ -419,7 +472,11 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
             {onUnlink ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Unlink connection to ${peer?.displayName ?? "device"}`}
+                    accessibilityLabel={
+                        peerName
+                            ? t`Unlink connection to ${peerName}`
+                            : t`Unlink connection to device`
+                    }
                     testID={`device-unlink-connection-${relationship.id}`}
                     disabled={pending}
                     onPress={() => {
@@ -438,7 +495,10 @@ export const DeviceConnectionRow = memo(function DeviceConnectionRow({
                 >
                     <Unlink size={12} color={colors.primary} />
                     <Text style={{ color: colors.primary, fontSize: 12 }}>
-                        Unlink
+                        {t({
+                            message: "Unlink",
+                            comment: "Button: unlink a device",
+                        })}
                     </Text>
                 </Pressable>
             ) : null}

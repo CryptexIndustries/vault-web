@@ -84,6 +84,12 @@
                 }
             ],
             "expo-font",
+            [
+                "expo-localization",
+                {
+                    "supportedLocales": ["en", "hr"]
+                }
+            ],
             "./plugins/with-splash-wordmark",
             [
                 "expo-camera",

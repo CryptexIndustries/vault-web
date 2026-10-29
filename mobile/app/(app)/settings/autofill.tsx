@@ -3,6 +3,7 @@ import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useLingui } from "@lingui/react/macro";
 import {
     Accessibility,
     Globe,
@@ -78,6 +79,9 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export default function AutofillSettingsScreen() {
+    const { t } = useLingui();
+    const on = t({ message: "On", comment: "Setting status: enabled" });
+    const off = t({ message: "Off", comment: "Setting status: disabled" });
     const [suggestionsOpen, setSuggestionsOpen] = useState(false);
     const [pane, setPane] = useState<Pane>("root");
     const [enabled, setEnabled] = useState(false);
@@ -113,7 +117,7 @@ export default function AutofillSettingsScreen() {
     }, [refresh]);
 
     return (
-        <UnlockedTaskScreen title="Autofill">
+        <UnlockedTaskScreen title={t`Autofill`}>
             <Dialog
                 open={suggestionsOpen}
                 onOpenChange={setSuggestionsOpen}
@@ -122,19 +126,19 @@ export default function AutofillSettingsScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle>
-                        Suggestion display
+                        {t`Suggestion display`}
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 {[
                     {
                         value: true,
-                        label: "Above keyboard",
-                        hint: "Uses the keyboard suggestion strip when supported.",
+                        label: t`Above keyboard`,
+                        hint: t`Uses the keyboard suggestion strip when supported.`,
                     },
                     {
                         value: false,
-                        label: "Popup / dropdown",
-                        hint: "Shows suggestions next to the login field.",
+                        label: t`Popup / dropdown`,
+                        hint: t`Shows suggestions next to the login field.`,
                     },
                 ].map((option) => (
                     <Pressable
@@ -205,46 +209,46 @@ export default function AutofillSettingsScreen() {
             </Dialog>
             <>
                 <Intro
-                    title="Fill from your vault"
-                    body="Use your saved passwords and passkeys in apps and browsers."
+                    title={t`Fill from your vault`}
+                    body={t`Use your saved passwords and passkeys in apps and browsers.`}
                 />
-                <SectionLabel>Android integration</SectionLabel>
+                <SectionLabel>{t`Android integration`}</SectionLabel>
                 <UnlockedMenuRow
                     icon={KeyRound}
-                    title="Password autofill"
+                    title={t`Password autofill`}
                     subtitle={
                         enabled
-                            ? "Cryptex Vault is selected"
-                            : "Select Cryptex Vault in Android settings"
+                            ? t`Cryptex Vault is selected`
+                            : t`Select Cryptex Vault in Android settings`
                     }
-                    value={enabled ? "On" : "Off"}
+                    value={enabled ? on : off}
                     onPress={() => androidCredentials.openAutofillSettings()}
                 />
                 <UnlockedMenuRow
                     icon={Globe}
-                    title="Browser integrations"
-                    subtitle="Use browser-protected autofill where available"
+                    title={t`Browser integrations`}
+                    subtitle={t`Use browser-protected autofill where available`}
                     onPress={() => setPane("browsers")}
                 />
                 <UnlockedMenuRow
                     icon={Shield}
-                    title="Passkey provider"
+                    title={t`Passkey provider`}
                     subtitle={
                         credentialProviderAvailable
-                            ? "Create and use passkeys on Android 14+"
-                            : "Requires Android 14 or newer"
+                            ? t`Create and use passkeys on Android 14+`
+                            : t`Requires Android 14 or newer`
                     }
                     onPress={() =>
                         androidCredentials.openCredentialProviderSettings()
                     }
                 />
-                <SectionLabel>Preferences</SectionLabel>
+                <SectionLabel>{t`Preferences`}</SectionLabel>
                 <UnlockedMenuRow
                     icon={Settings2}
-                    title="Suggestion display"
-                    subtitle="Choose where suggestions appear"
+                    title={t`Suggestion display`}
+                    subtitle={t`Choose where suggestions appear`}
                     value={
-                        inlineEnabled ? "Above keyboard" : "Popup / dropdown"
+                        inlineEnabled ? t`Above keyboard` : t`Popup / dropdown`
                     }
                     onPress={() => setSuggestionsOpen(true)}
                 />
@@ -260,7 +264,7 @@ export default function AutofillSettingsScreen() {
                 >
                     <View style={{ flex: 1, paddingRight: 12 }}>
                         <UnlockedText style={{ fontSize: 14 }}>
-                            Copy verification codes
+                            {t`Copy verification codes`}
                         </UnlockedText>
                         <UnlockedText
                             style={{
@@ -270,8 +274,7 @@ export default function AutofillSettingsScreen() {
                                 marginTop: 5,
                             }}
                         >
-                            Copy the current code after autofill. It clears
-                            after 30 seconds.
+                            {t`Copy the current code after autofill. It clears after 30 seconds.`}
                         </UnlockedText>
                     </View>
                     <Switch
@@ -280,15 +283,21 @@ export default function AutofillSettingsScreen() {
                             setAutoCopyTotp(value);
                             void saveAutoCopyTotp(value);
                         }}
-                        accessibilityLabel="Copy verification codes after autofill"
+                        accessibilityLabel={t`Copy verification codes after autofill`}
                     />
                 </View>
-                <SectionLabel>Optional</SectionLabel>
+                <SectionLabel>
+                    {t({
+                        message: "Optional",
+                        comment:
+                            "Section heading for optional autofill features",
+                    })}
+                </SectionLabel>
                 <UnlockedMenuRow
                     icon={Accessibility}
-                    title="Accessibility fallback"
-                    subtitle="For apps that do not support Android autofill"
-                    value={accessibilityEnabled ? "On" : "Off"}
+                    title={t`Accessibility fallback`}
+                    subtitle={t`For apps that do not support Android autofill`}
+                    value={accessibilityEnabled ? on : off}
                     onPress={() => setPane("accessibility")}
                 />
             </>
@@ -301,8 +310,8 @@ export default function AutofillSettingsScreen() {
                 <DialogHeader>
                     <UnlockedDialogTitle>
                         {pane === "browsers"
-                            ? "Browser integrations"
-                            : "Accessibility fallback"}
+                            ? t`Browser integrations`
+                            : t`Accessibility fallback`}
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 {pane === "browsers" ? (
@@ -314,10 +323,7 @@ export default function AutofillSettingsScreen() {
                                 lineHeight: 20,
                             }}
                         >
-                            Use Android password autofill first. Some browsers
-                            also need their own switch to use another password
-                            manager. Accessibility filling is a separate
-                            fallback.
+                            {t`Use Android password autofill first. Some browsers also need their own switch to use another password manager. Accessibility filling is a separate fallback.`}
                         </UnlockedText>
                         {browsers.length ? (
                             browsers.map((browser) => (
@@ -325,8 +331,8 @@ export default function AutofillSettingsScreen() {
                                     key={browser.packageName}
                                     icon={Globe}
                                     title={browser.label}
-                                    subtitle="Use another autofill service"
-                                    value={browser.enabled ? "On" : "Off"}
+                                    subtitle={t`Use another autofill service`}
+                                    value={browser.enabled ? on : off}
                                     onPress={() =>
                                         androidCredentials.openBrowserAutofillSettings(
                                             browser.packageName,
@@ -342,9 +348,7 @@ export default function AutofillSettingsScreen() {
                                     lineHeight: 20,
                                 }}
                             >
-                                Installed browsers use Android’s selected
-                                service directly. No separate browser setting
-                                was found.
+                                {t`Installed browsers use Android’s selected service directly. No separate browser setting was found.`}
                             </UnlockedText>
                         )}
                         <View
@@ -362,8 +366,7 @@ export default function AutofillSettingsScreen() {
                                     lineHeight: 18,
                                 }}
                             >
-                                Other browsers may use Android’s selected
-                                service directly, without a separate setting.
+                                {t`Other browsers may use Android’s selected service directly, without a separate setting.`}
                             </UnlockedText>
                         </View>
                     </>
@@ -376,8 +379,7 @@ export default function AutofillSettingsScreen() {
                                 lineHeight: 20,
                             }}
                         >
-                            An optional Cryptex Vault button can appear on login
-                            fields where Android autofill is unavailable.
+                            {t`An optional Cryptex Vault button can appear on login fields where Android autofill is unavailable.`}
                         </UnlockedText>
                         <View
                             style={{
@@ -394,24 +396,21 @@ export default function AutofillSettingsScreen() {
                                     lineHeight: 18,
                                 }}
                             >
-                                Android gives accessibility services broad
-                                access to on-screen controls. In a browser, an
-                                embedded or hidden frame may receive a login
-                                even when the address bar shows another site.
-                                Enable this only if you need it. Every browser
-                                fill asks for another confirmation, but this
-                                cannot verify who owns the field.
+                                {t`Android gives accessibility services broad access to on-screen controls. In a browser, an embedded or hidden frame may receive a login even when the address bar shows another site. Enable this only if you need it. Every browser fill asks for another confirmation, but this cannot verify who owns the field.`}
                             </UnlockedText>
                         </View>
                         {[
                             [
-                                "Field labels",
-                                "Used to offer the Cryptex button",
+                                t`Field labels`,
+                                t`Used to offer the Cryptex button`,
                             ],
-                            ["Form values", "Read after you choose Save login"],
                             [
-                                "Vault secrets",
-                                "Released after you choose Autofill login",
+                                t`Form values`,
+                                t`Read after you choose Save login`,
+                            ],
+                            [
+                                t`Vault secrets`,
+                                t`Released after you choose Autofill login`,
                             ],
                         ].map(([label, value]) => (
                             <View
@@ -447,8 +446,7 @@ export default function AutofillSettingsScreen() {
                             </View>
                         ))}
                         <UnlockedText style={{ fontSize: 13, lineHeight: 19 }}>
-                            Nothing this service reads is sent off your phone.
-                            Logins you save go into your encrypted vault.
+                            {t`Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault.`}
                         </UnlockedText>
                         <View
                             style={{
@@ -465,9 +463,7 @@ export default function AutofillSettingsScreen() {
                                     lineHeight: 18,
                                 }}
                             >
-                                If Android hides a password field, enter the
-                                password again inside Cryptex Vault. You can
-                                turn this service off in Android settings.
+                                {t`If Android hides a password field, enter the password again inside Cryptex Vault. You can turn this service off in Android settings.`}
                             </UnlockedText>
                         </View>
                         {/* Google Play requires an explicit choice before the service can be turned on. */}
@@ -478,8 +474,8 @@ export default function AutofillSettingsScreen() {
                             }
                         >
                             {accessibilityEnabled
-                                ? "Review accessibility access"
-                                : "Agree and continue"}
+                                ? t`Review accessibility access`
+                                : t`Agree and continue`}
                         </UnlockedButton>
                         {accessibilityEnabled ? null : (
                             <UnlockedButton
@@ -487,7 +483,7 @@ export default function AutofillSettingsScreen() {
                                 style={{ marginTop: 8 }}
                                 onPress={() => setPane("root")}
                             >
-                                Not now
+                                {t`Not now`}
                             </UnlockedButton>
                         )}
                     </>

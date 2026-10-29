@@ -1,3 +1,5 @@
+import { t } from "@lingui/core/macro";
+
 type InvitationAccess = {
     usesOnlineServices: boolean;
     hasSession: boolean;
@@ -17,16 +19,16 @@ export function invitationAccessError({
 }: InvitationAccess): string | null {
     if (!usesOnlineServices) return null;
     if (!hasSession || !permissions) {
-        return "Sign in and refresh your account before creating an Online Services invitation.";
+        return t`Sign in and refresh your account before creating an Online Services invitation.`;
     }
     if (!permissions.root) {
-        return "Use a root device to create an Online Services invitation. Custom connections are still available.";
+        return t`Use a root device to create an Online Services invitation. Custom connections are still available.`;
     }
     if (!permissions.canLink) {
-        return "Online Services linking is unavailable. Check your plan and linked-device limit in Account.";
+        return t`Online Services linking is unavailable. Check your plan and linked-device limit in Account.`;
     }
     if (makeRoot && !permissions.canPromoteDevices) {
-        return "Your account does not allow granting root access to another device.";
+        return t`Your account does not allow granting root access to another device.`;
     }
     return null;
 }

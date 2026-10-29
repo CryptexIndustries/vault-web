@@ -3,6 +3,9 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSetAtom } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { listVaults } from "@/app_lib/vault-utils/storage";
 import { VaultEntryHeader } from "@/components/vault-entry-ui";
@@ -24,18 +27,21 @@ type VaultManagerProps = {
     restoredGuidance?: boolean;
 };
 
-const tabCopy: Record<VaultManagerTab, { title: string; subtitle: string }> = {
+const tabCopy: Record<
+    VaultManagerTab,
+    { title: MessageDescriptor; subtitle: MessageDescriptor }
+> = {
     unlock: {
-        title: "Unlock vault",
-        subtitle: "Unlock a vault saved on this device.",
+        title: msg`Unlock vault`,
+        subtitle: msg`Unlock a vault saved on this device.`,
     },
     create: {
-        title: "Create vault",
-        subtitle: "Create an encrypted vault. No account required.",
+        title: msg`Create vault`,
+        subtitle: msg`Create an encrypted vault. No account required.`,
     },
     restore: {
-        title: "Restore vault",
-        subtitle: "Restore an encrypted Cryptex Vault backup.",
+        title: msg`Restore vault`,
+        subtitle: msg`Restore an encrypted Cryptex Vault backup.`,
     },
 };
 
@@ -45,6 +51,7 @@ export function VaultManager({
     returnTo,
     restoredGuidance = false,
 }: VaultManagerProps) {
+    const { t } = useLingui();
     const { width, height } = useBreakpoint();
     const [ready, setReady] = useState(false);
     const setSnackbar = useSetAtom(lockedSnackbarAtom);
@@ -100,8 +107,8 @@ export function VaultManager({
                 style={{ maxWidth: horizontal ? 760 : 460 }}
             >
                 <VaultEntryHeader
-                    title={copy.title}
-                    subtitle={copy.subtitle}
+                    title={t(copy.title)}
+                    subtitle={t(copy.subtitle)}
                     showBack={tab !== "unlock"}
                     onBack={() => router.replace("/(locked)/unlock" as never)}
                     className={cn(horizontal && "mr-8 w-[280px]")}
@@ -117,7 +124,7 @@ export function VaultManager({
                         <View className="items-center gap-3 py-10">
                             <ActivityIndicator color={colors.primary} />
                             <Text className="text-sm text-muted-foreground">
-                                Loading vaults…
+                                {t`Loading vaults…`}
                             </Text>
                         </View>
                     ) : (

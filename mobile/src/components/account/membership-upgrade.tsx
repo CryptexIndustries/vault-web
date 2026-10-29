@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import { t as translate } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -46,6 +48,7 @@ export function MembershipUpgrade({
     trialEligible = false,
     initialTier = "premiumMonthly",
 }: MembershipUpgradeProps) {
+    const { t } = useLingui();
     const play = isGooglePlayBuild();
     const mounted = useRef(true);
     const feedbackLifetime = useRef(onMessage);
@@ -89,9 +92,9 @@ export function MembershipUpgrade({
                 if (!current) return;
                 setPricesUnavailable(true);
                 onMessage(
-                    "Could not load Google Play prices. Please try again.",
+                    translate`Could not load Google Play prices. Please try again.`,
                     {
-                        label: "Retry prices",
+                        label: translate`Retry prices`,
                         onPress: () => {
                             if (current && mounted.current)
                                 setReload((value) => value + 1);
@@ -115,23 +118,24 @@ export function MembershipUpgrade({
                       price: plan.price,
                       caption:
                           plan.tier === "premiumMonthly"
-                              ? "Billed monthly"
-                              : "Billed yearly",
+                              ? t`Billed monthly`
+                              : t`Billed yearly`,
                   },
               ]) ?? [],
           )
         : {
               premiumMonthly: {
                   price: `€${currentPriceList.monthly.price}`,
-                  caption: "Billed monthly",
+                  caption: t`Billed monthly`,
               },
               premiumYearly: {
                   price: `€${currentPriceList.yearly.price}`,
-                  caption: `Save €${savings} a year`,
+                  caption: t`Save €${savings} a year`,
               },
           };
     const trial = play ? !!selectedPlan?.trial : trialEligible;
     const fullPrice = intervalPlans[tier]?.price;
+    const planPrice = selectedPlan?.price;
     const disabled = busy || refreshing;
     const submit = async (checking = false) => {
         if (
@@ -150,7 +154,7 @@ export function MembershipUpgrade({
         const isCurrent = () =>
             mounted.current && feedbackLifetime.current === onMessage;
         const recovery = {
-            label: checking ? "Check status" : "Retry",
+            label: checking ? t`Check status` : t`Retry`,
             onPress: () => {
                 if (isCurrent()) return retryBilling.current(checking);
             },
@@ -194,8 +198,8 @@ export function MembershipUpgrade({
             if (isCurrent())
                 onMessage(
                     play
-                        ? "Could not complete billing. Please try again."
-                        : "Could not open checkout. Please try again.",
+                        ? t`Could not complete billing. Please try again.`
+                        : t`Could not open checkout. Please try again.`,
                     recovery,
                 );
         } finally {
@@ -208,8 +212,7 @@ export function MembershipUpgrade({
     return (
         <View style={{ gap: 22 }}>
             <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>
-                Your vault stays yours. We run the supporting infrastructure and
-                store your encrypted backups.
+                {t`Your vault stays yours. We run the supporting infrastructure and store your encrypted backups.`}
             </Text>
             <BillingIntervalSelector
                 value={tier}
@@ -217,7 +220,13 @@ export function MembershipUpgrade({
                 disabled={disabled || pending}
                 plans={intervalPlans}
                 pricePlaceholder={
-                    pricesUnavailable ? "Unavailable" : "Loading…"
+                    pricesUnavailable
+                        ? t({
+                              message: "Unavailable",
+                              comment:
+                                  "Shown in place of a price that could not load",
+                          })
+                        : t`Loading…`
                 }
             />
             {pending ? (
@@ -244,16 +253,16 @@ export function MembershipUpgrade({
                         }
                     >
                         {onContinue
-                            ? "Continue"
+                            ? t`Continue`
                             : trial
-                              ? "Start 14-day free trial"
+                              ? t`Start 14-day free trial`
                               : play && pricesUnavailable
-                                ? "Retry prices"
+                                ? t`Retry prices`
                                 : play && !plans
-                                  ? "Loading prices…"
+                                  ? t`Loading prices…`
                                   : tier === "premiumYearly"
-                                    ? "Continue with yearly"
-                                    : "Continue with monthly"}
+                                    ? t`Continue with yearly`
+                                    : t`Continue with monthly`}
                     </Button>
                     {trial && fullPrice ? (
                         <Text
@@ -264,7 +273,13 @@ export function MembershipUpgrade({
                                 textAlign: "center",
                             }}
                         >
-                            {`Free for 14 days, then ${fullPrice} every ${tier === "premiumMonthly" ? "month" : "year"}. You're charged when the trial ends unless you cancel before then${play ? " in Google Play Subscriptions" : ""}. If you cancel during the trial, you keep access until it ends and pay nothing.`}
+                            {tier === "premiumMonthly"
+                                ? play
+                                    ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                    : t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                : play
+                                  ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                  : t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`}
                         </Text>
                     ) : null}
                     {onContinue || !play || selectedPlan ? (
@@ -277,10 +292,10 @@ export function MembershipUpgrade({
                             }}
                         >
                             {onContinue
-                                ? "No email required. Save your Recovery Kit before payment."
+                                ? t`No email required. Save your Recovery Kit before payment.`
                                 : play
-                                  ? "Checkout opens in Google Play."
-                                  : "VAT included. Checkout opens in your browser."}
+                                  ? t`Checkout opens in Google Play.`
+                                  : t`VAT included. Checkout opens in your browser.`}
                         </Text>
                     ) : null}
                     {selectedPlan && !trial ? (
@@ -292,7 +307,9 @@ export function MembershipUpgrade({
                                 textAlign: "center",
                             }}
                         >
-                            {`${selectedPlan.price} charged every ${tier === "premiumMonthly" ? "month" : "year"}. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
+                            {tier === "premiumMonthly"
+                                ? t`${planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`
+                                : t`${planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
                         </Text>
                     ) : null}
                     {!canUpgrade && !refreshing ? (
@@ -303,15 +320,14 @@ export function MembershipUpgrade({
                                 lineHeight: 18,
                             }}
                         >
-                            An upgrade is available for connected free accounts.
+                            {t`An upgrade is available for connected free accounts.`}
                         </Text>
                     ) : null}
                 </View>
             )}
             <MembershipBenefits upgrading />
             <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>
-                New to Online Services? Start with monthly billing before
-                committing to a year.
+                {t`New to Online Services? Start with monthly billing before committing to a year.`}
             </Text>
         </View>
     );

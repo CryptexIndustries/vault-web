@@ -23,7 +23,7 @@ export function buildDeviceRelationshipMap(
     topology: DeviceTopology | undefined,
     localDevices: LinkedDevice[],
     currentServerId?: string | null,
-    options: { topologyVerified?: boolean; currentRoot?: boolean } = {},
+    options: Parameters<typeof buildSharedMap>[3] = {},
 ): DeviceRelationshipMap {
     const accountMap = buildSharedMap(
         topology,
@@ -42,7 +42,7 @@ export function buildDeviceRelationshipMap(
         accountMap.currentDeviceId.startsWith("account:")
             ? accountMap.currentDeviceId.slice("account:".length)
             : undefined,
-        { currentRoot: options.currentRoot },
+        { currentRoot: options.currentRoot, names: options.names },
     );
     const createdAt = new Map(
         topology?.relationships.map((relationship) => [

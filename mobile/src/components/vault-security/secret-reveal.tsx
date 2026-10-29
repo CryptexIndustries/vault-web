@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { Button } from "@/components/ui/button";
@@ -35,13 +36,15 @@ export function SecretReveal({
     value,
     helper,
     requireAck = false,
-    ackLabel = "I have written this down",
+    ackLabel: ackLabelProp,
     acknowledged = false,
     onAcknowledgedChange,
     defaultRevealed = false,
     alwaysShowAcknowledgement = false,
     flat = false,
 }: SecretRevealProps) {
+    const { t } = useLingui();
+    const ackLabel = ackLabelProp ?? t`I have written this down`;
     const [revealed, setRevealed] = useState(defaultRevealed);
 
     useEffect(() => {
@@ -65,7 +68,7 @@ export function SecretReveal({
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={
-                            revealed ? `Hide ${label}` : `Reveal ${label}`
+                            revealed ? t`Hide ${label}` : t`Reveal ${label}`
                         }
                         onPress={() => setRevealed((current) => !current)}
                         style={{
@@ -75,13 +78,13 @@ export function SecretReveal({
                         }}
                     >
                         <UnlockedText style={{ fontSize: 13 }}>
-                            {revealed ? "Hide" : "Reveal"}
+                            {revealed ? t`Hide` : t`Reveal`}
                         </UnlockedText>
                     </Pressable>
                     {revealed ? (
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={`Copy ${label}`}
+                            accessibilityLabel={t`Copy ${label}`}
                             onPress={() => void copySecretToClipboard(value)}
                             style={{
                                 minHeight: 32,
@@ -90,7 +93,7 @@ export function SecretReveal({
                             }}
                         >
                             <UnlockedText style={{ fontSize: 13 }}>
-                                Copy
+                                {t`Copy`}
                             </UnlockedText>
                         </Pressable>
                     ) : null}
@@ -149,19 +152,19 @@ export function SecretReveal({
                         variant="ghost"
                         onPress={() => setRevealed((v) => !v)}
                         accessibilityLabel={
-                            revealed ? `Hide ${label}` : `Reveal ${label}`
+                            revealed ? t`Hide ${label}` : t`Reveal ${label}`
                         }
                     >
-                        {revealed ? "Hide" : "Reveal"}
+                        {revealed ? t`Hide` : t`Reveal`}
                     </Button>
                     {revealed ? (
                         <Button
                             size="sm"
                             variant="ghost"
                             onPress={() => void copySecretToClipboard(value)}
-                            accessibilityLabel={`Copy ${label}`}
+                            accessibilityLabel={t`Copy ${label}`}
                         >
-                            Copy
+                            {t`Copy`}
                         </Button>
                     ) : null}
                 </View>

@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { err, ok, type Result } from "neverthrow";
@@ -9,8 +10,8 @@ import {
 import { androidCredentials } from "@/utils/android-credentials";
 import { getVaultLockEpoch } from "@/utils/vault-lock-epoch";
 
-export const MISSING_VAULT_SECRET_ERROR =
-    "Vault data encryption key is missing. Please unlock your vault again.";
+export const missingVaultSecretError = () =>
+    t`Vault data encryption key is missing. Please unlock your vault again.`;
 export type VaultSessionError = "VAULT_DEK_NOT_FOUND" | "VAULT_SAVE_FAILED";
 
 let activeVaultDEK: CryptoKey | null = null;

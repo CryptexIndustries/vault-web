@@ -13,6 +13,9 @@ import { router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { useAtomValue } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     Check,
     ChevronDown,
@@ -55,6 +58,7 @@ import { PasswordStrengthMeter } from "@/components/vault/password-strength-mete
 import { PasswordGeneratorDialog } from "@/components/vault/password-generator";
 import { colors } from "@/theme";
 import { cn } from "@/lib/utils";
+import { credentialFormIssueText } from "@/utils/credential-form-messages";
 import {
     Dialog,
     DialogDescription,
@@ -103,51 +107,65 @@ type CredentialFormProps = {
 
 const FIELD_TYPE_OPTIONS: Array<{
     value: CustomFieldType;
-    label: string;
+    label: MessageDescriptor;
 }> = [
-    { value: CustomFieldType.Text, label: "Text" },
-    { value: CustomFieldType.MaskedText, label: "Hidden" },
-    { value: CustomFieldType.Boolean, label: "Bool" },
-    { value: CustomFieldType.Date, label: "Date" },
+    {
+        value: CustomFieldType.Text,
+        label: msg({ message: "Text", comment: "Custom field type" }),
+    },
+    {
+        value: CustomFieldType.MaskedText,
+        label: msg({ message: "Hidden", comment: "Custom field type" }),
+    },
+    {
+        value: CustomFieldType.Boolean,
+        label: msg({
+            message: "Bool",
+            comment: "Custom field type: on/off switch",
+        }),
+    },
+    {
+        value: CustomFieldType.Date,
+        label: msg({ message: "Date", comment: "Custom field type" }),
+    },
 ];
 
 const TOTP_ALGO_OPTIONS: Array<{ value: TOTPAlgorithm; label: string }> = [
-    { value: TOTPAlgorithm.SHA1, label: "SHA1" },
-    { value: TOTPAlgorithm.SHA256, label: "SHA256" },
-    { value: TOTPAlgorithm.SHA512, label: "SHA512" },
+    { value: TOTPAlgorithm.SHA1, label: "SHA1" }, // i18n-ignore: algorithm name
+    { value: TOTPAlgorithm.SHA256, label: "SHA256" }, // i18n-ignore: algorithm name
+    { value: TOTPAlgorithm.SHA512, label: "SHA512" }, // i18n-ignore: algorithm name
 ];
 
 const URL_MATCH_MODES: Array<{
     value: CredentialURLMatchMode;
-    label: string;
-    description: string;
+    label: MessageDescriptor;
+    description: MessageDescriptor;
     example: string;
 }> = [
     {
         value: CredentialURLMatchMode.ExactHost,
-        label: "This host only",
-        description: "Offer this item on this hostname, on any page.",
+        label: msg`This host only`,
+        description: msg`Offer this item on this hostname, on any page.`,
         example: "accounts.example.com",
     },
     {
         value: CredentialURLMatchMode.Domain,
-        label: "Related domains",
-        description:
-            "Include the base domain and its subdomains when they share one account.",
+        label: msg`Related domains`,
+        description: msg`Include the base domain and its subdomains when they share one account.`,
         example: "example.com, mail.example.com",
     },
     {
         value: CredentialURLMatchMode.Wildcard,
-        label: "Custom pattern",
-        description: "Choose specific hostnames or paths using * and **.",
+        label: msg`Custom pattern`,
+        description: msg`Choose specific hostnames or paths using * and **.`,
         example: "*.example.com → shop.example.com",
     },
 ];
 
-function matchingLabel(mode: CredentialURLMatchMode): string {
+function matchingLabel(mode: CredentialURLMatchMode): MessageDescriptor {
     return (
         URL_MATCH_MODES.find((option) => option.value === mode)?.label ??
-        "This host only"
+        URL_MATCH_MODES[0]!.label
     );
 }
 
@@ -158,10 +176,12 @@ function MatchingTrigger({
     mode: CredentialURLMatchMode;
     onPress: () => void;
 }) {
+    const { t } = useLingui();
+    const label = t(matchingLabel(mode));
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Website matching, ${matchingLabel(mode)}`}
+            accessibilityLabel={t`Website matching, ${label}`}
             onPress={onPress}
             style={{
                 minHeight: 48,
@@ -172,14 +192,17 @@ function MatchingTrigger({
             }}
         >
             <Shield size={16} color={colors.primary} />
-            <Text style={{ flex: 1, fontSize: 12 }}>{matchingLabel(mode)}</Text>
+            <Text style={{ flex: 1, fontSize: 12 }}>{label}</Text>
             <ChevronRight size={16} color={colors.muted} />
         </Pressable>
     );
 }
 
-function nextFieldTypeLabel(type: CustomFieldType): string {
-    return FIELD_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? "Text";
+function nextFieldTypeLabel(type: CustomFieldType): MessageDescriptor {
+    return (
+        FIELD_TYPE_OPTIONS.find((o) => o.value === type)?.label ??
+        FIELD_TYPE_OPTIONS[0]!.label
+    );
 }
 
 function booleanFieldValue(value: string): "true" | "false" {
@@ -193,6 +216,7 @@ function isAndroidAppTarget(value: string): boolean {
 }
 
 export function CredentialForm(props: CredentialFormProps) {
+    const { t } = useLingui();
     const credentials = useAtomValue(vaultCredentialsAtom);
     const existing = useMemo(
         () =>
@@ -208,8 +232,8 @@ export function CredentialForm(props: CredentialFormProps) {
 
     if (props.credentialId && !existing) {
         return (
-            <UnlockedTaskScreen title="Item not found">
-                <Button onPress={() => router.back()}>Back</Button>
+            <UnlockedTaskScreen title={t`Item not found`}>
+                <Button onPress={() => router.back()}>{t`Back`}</Button>
             </UnlockedTaskScreen>
         );
     }
@@ -248,6 +272,7 @@ function CredentialFormEditor({
     notice,
     requirePassword = false,
 }: CredentialFormProps & { existing: VaultCredential | null }) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const vault = useAtomValue(unlockedVaultAtom);
     const [openedRevision] = useState(() =>
@@ -356,6 +381,11 @@ function CredentialFormEditor({
     );
 
     const markDirty = () => setDirty(true);
+    const digitCount = Number(totpDigits);
+    const periodSeconds = Number(totpPeriod);
+    const algorithmName = TOTP_ALGO_OPTIONS.find(
+        (option) => option.value === totpAlgorithm,
+    )?.label;
 
     const addCustomField = () => {
         markDirty();
@@ -404,7 +434,7 @@ function CredentialFormEditor({
             setTotpImportError("");
             setTotpScanning(false);
         } catch {
-            setTotpImportError("This does not contain a valid TOTP URI.");
+            setTotpImportError(t`This does not contain a valid TOTP URI.`);
         }
     };
 
@@ -441,7 +471,7 @@ function CredentialFormEditor({
         const normalized = totpSecret.replace(/\s+/g, "").toUpperCase();
         if (!/^[A-Z2-7]{8,}={0,6}$/.test(normalized)) {
             setTotpImportError(
-                "Enter a setup key using letters A–Z and digits 2–7.",
+                t`Enter a setup key using letters A–Z and digits 2–7.`,
             );
             return;
         }
@@ -471,11 +501,11 @@ function CredentialFormEditor({
     const handleSave = async () => {
         if (saving.current) return;
         if (!name.trim()) {
-            setError("Name is required.");
+            setError(t`Name is required.`);
             return;
         }
         if (requirePassword && !password) {
-            setError("Password is required.");
+            setError(t`Password is required.`);
             return;
         }
         const initialGateFailure = beforeSave?.() ?? null;
@@ -536,7 +566,8 @@ function CredentialFormEditor({
             saving.current = false;
             setLoading(false);
             setError(
-                formResult.error.issues[0]?.message ?? "Invalid credential.",
+                credentialFormIssueText(formResult.error.issues[0]) ??
+                    t`Invalid credential.`,
             );
             return;
         }
@@ -569,8 +600,7 @@ function CredentialFormEditor({
                     (existingCredential.Version !== openedRevision.version ||
                         existingCredential.Hash !== openedRevision.hash)
                 ) {
-                    serializedGateFailure =
-                        "This item changed while you were editing. Your edits are still here. Cancel editing and reopen the item before saving.";
+                    serializedGateFailure = t`This item changed while you were editing. Your edits are still here. Cancel editing and reopen the item before saving.`;
                     throw new Error("CREDENTIAL_EDIT_CONFLICT");
                 }
                 const saved = existingCredential
@@ -596,12 +626,12 @@ function CredentialFormEditor({
                 setError(serializedGateFailure);
             } else if (onSaveError) {
                 onSaveError(
-                    "The vault update could not be saved. Your changes are still in the editor.",
+                    t`The vault update could not be saved. Your changes are still in the editor.`,
                     result.error,
                     () => void handleSave(),
                 );
             } else {
-                setError("Failed to save credential.");
+                setError(t`Failed to save credential.`);
             }
             return;
         }
@@ -626,33 +656,33 @@ function CredentialFormEditor({
             return;
         }
         confirm({
-            title: "Discard changes?",
-            description: "Your unsaved changes will be lost.",
-            cancelLabel: "Keep editing",
-            confirmLabel: "Discard",
+            title: t`Discard changes?`,
+            description: t`Your unsaved changes will be lost.`,
+            cancelLabel: t`Keep editing`,
+            confirmLabel: t`Discard`,
             onConfirm: () => {
                 if (saving.current) return;
                 if (onCancel) onCancel();
                 else router.back();
             },
         });
-    }, [confirm, dirty, onCancel]);
+    }, [confirm, dirty, onCancel, t]);
 
     return (
         <UnlockedTaskScreen
-            title={existing ? "Edit item" : "Add item"}
-            backLabel="Cancel editing"
+            title={existing ? t`Edit item` : t`Add item`}
+            backLabel={t`Cancel editing`}
             onBack={requestCancel}
             footer={
                 <Button
                     className="h-[54px] min-h-[54px]"
                     textClassName="text-[#111520]"
                     loading={loading}
-                    loadingLabel="Saving…"
+                    loadingLabel={t`Saving…`}
                     onPress={() => void handleSave()}
                     testID="credential-submit"
                 >
-                    Save item
+                    {t`Save item`}
                 </Button>
             }
         >
@@ -662,7 +692,8 @@ function CredentialFormEditor({
                 ) : null}
                 <View>
                     <Label>
-                        Name <Text className="text-destructive">*</Text>
+                        {t({ message: "Name", comment: "Item name field" })}{" "}
+                        <Text className="text-destructive">*</Text>
                     </Label>
                     <Input
                         value={name}
@@ -670,14 +701,14 @@ function CredentialFormEditor({
                             markDirty();
                             setName(v);
                         }}
-                        placeholder="e.g., GitHub"
-                        accessibilityLabel="Credential name"
+                        placeholder={t`e.g., GitHub`}
+                        accessibilityLabel={t`Credential name`}
                         autoCapitalize="words"
                     />
                 </View>
 
                 <View>
-                    <Label>Username or email</Label>
+                    <Label>{t`Username or email`}</Label>
                     <Input
                         value={username}
                         onChangeText={(v) => {
@@ -687,12 +718,12 @@ function CredentialFormEditor({
                         autoCapitalize="none"
                         autoCorrect={false}
                         textContentType="username"
-                        accessibilityLabel="Credential username"
+                        accessibilityLabel={t`Credential username`}
                     />
                 </View>
 
                 <View>
-                    <Label>Password</Label>
+                    <Label>{t`Password`}</Label>
                     <Input
                         value={password}
                         onChangeText={(v) => {
@@ -706,9 +737,9 @@ function CredentialFormEditor({
                         autoCapitalize="none"
                         autoCorrect={false}
                         textContentType="password"
-                        accessibilityLabel="Password"
+                        accessibilityLabel={t`Password`}
                         accessibilityValue={{
-                            text: "Hidden. Show to hear value.",
+                            text: t`Hidden. Show to hear value.`,
                         }}
                         importantForAutofill="no"
                     />
@@ -717,12 +748,12 @@ function CredentialFormEditor({
 
                 <View className="flex-row items-center justify-between">
                     <Text className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Websites
+                        {t`Websites`}
                     </Text>
                     <Button
                         size="sm"
                         variant="ghost"
-                        accessibilityLabel="Add website"
+                        accessibilityLabel={t`Add website`}
                         onPress={() => {
                             markDirty();
                             setAdditionalURLs((current) => [
@@ -736,14 +767,19 @@ function CredentialFormEditor({
                         }}
                     >
                         <Plus size={18} color={colors.primary} />
-                        <Text className="text-xs text-primary">Add</Text>
+                        <Text className="text-xs text-primary">
+                            {t({
+                                message: "Add",
+                                comment: "Button: add a row",
+                            })}
+                        </Text>
                     </Button>
                 </View>
                 <View className="rounded-lg border border-border bg-secondary p-3">
                     <Label>
                         {isAndroidAppTarget(url)
-                            ? "Android app"
-                            : "Primary website"}
+                            ? t`Android app`
+                            : t`Primary website`}
                     </Label>
                     <Input
                         value={url}
@@ -764,12 +800,12 @@ function CredentialFormEditor({
                                 ? "androidapp://com.example.app"
                                 : "https://example.com"
                         }
-                        accessibilityLabel="Primary website"
+                        accessibilityLabel={t`Primary website`}
                         testID="credential-website-url"
                     />
                     {isAndroidAppTarget(url) ? (
                         <Text className="mt-2 text-xs text-muted-foreground">
-                            Exact app match
+                            {t`Exact app match`}
                         </Text>
                     ) : (
                         <MatchingTrigger
@@ -781,6 +817,7 @@ function CredentialFormEditor({
 
                 {additionalURLs.map((rule, index) => {
                     const appTarget = isAndroidAppTarget(rule.URL);
+                    const targetNumber = index + 2;
                     return (
                         <View
                             key={rule.ID}
@@ -789,12 +826,12 @@ function CredentialFormEditor({
                             <View className="flex-row items-center justify-between">
                                 <Label>
                                     {appTarget
-                                        ? "Android app"
-                                        : "Additional website"}
+                                        ? t`Android app`
+                                        : t`Additional website`}
                                 </Label>
                                 <IconButton
                                     icon={Trash2}
-                                    label={`Remove autofill target ${index + 2}`}
+                                    label={t`Remove autofill target ${targetNumber}`}
                                     onPress={() => {
                                         markDirty();
                                         setAdditionalURLs((current) =>
@@ -834,12 +871,12 @@ function CredentialFormEditor({
                                         ? "androidapp://com.example.app"
                                         : "https://accounts.example.com"
                                 }
-                                accessibilityLabel={`Autofill target ${index + 2}`}
+                                accessibilityLabel={t`Autofill target ${targetNumber}`}
                                 testID={`credential-website-url-${index + 2}`}
                             />
                             {appTarget ? (
                                 <Text className="text-xs text-muted-foreground">
-                                    Exact app match
+                                    {t`Exact app match`}
                                 </Text>
                             ) : (
                                 <MatchingTrigger
@@ -852,10 +889,10 @@ function CredentialFormEditor({
                 })}
 
                 <View>
-                    <Label>Directory</Label>
+                    <Label>{t`Directory`}</Label>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Choose directory"
+                        accessibilityLabel={t`Choose directory`}
                         onPress={() => setDirectoryPickerOpen(true)}
                         style={{
                             minHeight: 54,
@@ -871,7 +908,7 @@ function CredentialFormEditor({
                     >
                         <Text>
                             {directories.find((item) => item.ID === directoryId)
-                                ?.Name || "No directory"}
+                                ?.Name || t`No directory`}
                         </Text>
                         <ChevronRight size={18} color={colors.muted} />
                     </Pressable>
@@ -883,10 +920,10 @@ function CredentialFormEditor({
                     <View className="mb-3 flex-row items-center justify-between">
                         <View>
                             <Text className="font-medium text-xs uppercase tracking-wider text-muted-foreground">
-                                Authenticator (TOTP)
+                                {t`Authenticator (TOTP)`}
                             </Text>
                             <Text className="mt-1 text-xs text-muted-foreground">
-                                Save verification codes with this item.
+                                {t`Save verification codes with this item.`}
                             </Text>
                         </View>
                         {totpEnabled && totpSecret ? (
@@ -895,7 +932,7 @@ function CredentialFormEditor({
                                 variant="ghost"
                                 onPress={() => openTotpEditor()}
                             >
-                                Edit
+                                {t`Edit`}
                             </Button>
                         ) : null}
                     </View>
@@ -904,7 +941,10 @@ function CredentialFormEditor({
                             <View className="mb-2 flex-row items-center gap-2">
                                 <Shield size={16} color={colors.success} />
                                 <Text className="flex-1 text-xs text-success">
-                                    Configured
+                                    {t({
+                                        message: "Configured",
+                                        comment: "Authenticator status",
+                                    })}
                                 </Text>
                                 {totpLabel ? (
                                     <Text className="text-xs text-muted-foreground">
@@ -931,23 +971,22 @@ function CredentialFormEditor({
                                 }
                             />
                             <Text className="text-[11px] text-muted-foreground">
-                                {totpDigits} digits, {totpPeriod} seconds,{" "}
-                                {
-                                    TOTP_ALGO_OPTIONS.find(
-                                        (option) =>
-                                            option.value === totpAlgorithm,
-                                    )?.label
-                                }
+                                {t`${plural(digitCount, {
+                                    one: "# digit",
+                                    other: "# digits",
+                                })}, ${plural(periodSeconds, {
+                                    one: "# second",
+                                    other: "# seconds",
+                                })}, ${algorithmName}`}
                             </Text>
                             <Button
                                 variant="destructive"
                                 onPress={() =>
                                     confirm({
-                                        title: "Remove authenticator?",
-                                        description:
-                                            "This removes the key from this item when you save. It does not turn off two-step verification on the website.",
-                                        cancelLabel: "Keep authenticator",
-                                        confirmLabel: "Remove from item",
+                                        title: t`Remove authenticator?`,
+                                        description: t`This removes the key from this item when you save. It does not turn off two-step verification on the website.`,
+                                        cancelLabel: t`Keep authenticator`,
+                                        confirmLabel: t`Remove from item`,
                                         onConfirm: () => {
                                             markDirty();
                                             setTotpEnabled(false);
@@ -956,7 +995,7 @@ function CredentialFormEditor({
                                     })
                                 }
                             >
-                                Remove authenticator
+                                {t`Remove authenticator`}
                             </Button>
                         </View>
                     ) : (
@@ -968,7 +1007,7 @@ function CredentialFormEditor({
                             >
                                 <ScanLine size={16} color={colors.foreground} />
                                 <Text className="text-sm text-secondary-foreground">
-                                    Scan QR code
+                                    {t`Scan QR code`}
                                 </Text>
                             </Button>
                             <Button
@@ -976,7 +1015,7 @@ function CredentialFormEditor({
                                 variant="secondary"
                                 onPress={() => openTotpEditor()}
                             >
-                                Enter key
+                                {t`Enter key`}
                             </Button>
                         </View>
                     )}
@@ -988,160 +1027,193 @@ function CredentialFormEditor({
                     <View className="mb-3 flex-row items-center justify-between">
                         <View>
                             <Text className="font-medium text-sm text-foreground">
-                                Custom Fields
+                                {t`Custom Fields`}
                             </Text>
                             <Text className="text-xs text-muted-foreground">
-                                Text, Hidden, Bool, Date
+                                {t({
+                                    message: "Text, Hidden, Bool, Date",
+                                    comment:
+                                        "The custom field types; keep in sync with their names",
+                                })}
                             </Text>
                         </View>
                         <Button
                             size="sm"
                             variant="ghost"
-                            accessibilityLabel="Add custom field"
+                            accessibilityLabel={t`Add custom field`}
                             onPress={addCustomField}
                         >
                             <Plus size={18} color={colors.primary} />
-                            <Text className="text-xs text-primary">Add</Text>
+                            <Text className="text-xs text-primary">
+                                {t({
+                                    message: "Add",
+                                    comment: "Button: add a row",
+                                })}
+                            </Text>
                         </Button>
                     </View>
 
                     {customFields.length === 0 ? (
                         <View className="items-center rounded-lg border border-dashed border-border py-6">
                             <Text className="text-sm text-muted-foreground">
-                                No custom fields yet
+                                {t`No custom fields yet`}
                             </Text>
                         </View>
                     ) : (
                         <View className="gap-3">
-                            {customFields.map((field, index) => (
-                                <View
-                                    key={field.ID}
-                                    className="rounded-lg border border-border bg-secondary/40 p-3"
-                                >
-                                    <View className="mb-2 flex-row items-center gap-2">
-                                        <Input
-                                            className="min-h-10 flex-1"
-                                            value={field.Name}
-                                            onChangeText={(v) =>
-                                                updateCustomField(index, {
-                                                    Name: v,
-                                                })
-                                            }
-                                            placeholder="Field name"
-                                            accessibilityLabel={`Custom field ${index + 1} name`}
-                                        />
-                                        <IconButton
-                                            icon={Trash2}
-                                            label="Remove custom field"
-                                            color={colors.muted}
-                                            onPress={() =>
-                                                removeCustomField(index)
-                                            }
-                                        />
-                                    </View>
-                                    {field.Type === CustomFieldType.Boolean ? (
-                                        <View className="min-h-[44px] flex-row items-center justify-between">
-                                            <Text className="text-sm text-foreground">
-                                                Enabled
-                                            </Text>
-                                            <Switch
-                                                value={
-                                                    booleanFieldValue(
-                                                        field.Value,
-                                                    ) === "true"
-                                                }
-                                                onValueChange={(v) =>
+                            {customFields.map((field, index) => {
+                                const fieldNumber = index + 1;
+                                const fieldName = field.Name || t`Field`;
+                                const typeLabel = t(
+                                    nextFieldTypeLabel(field.Type),
+                                );
+                                return (
+                                    <View
+                                        key={field.ID}
+                                        className="rounded-lg border border-border bg-secondary/40 p-3"
+                                    >
+                                        <View className="mb-2 flex-row items-center gap-2">
+                                            <Input
+                                                className="min-h-10 flex-1"
+                                                value={field.Name}
+                                                onChangeText={(v) =>
                                                     updateCustomField(index, {
-                                                        Value: v
-                                                            ? "true"
-                                                            : "false",
+                                                        Name: v,
                                                     })
                                                 }
-                                                accessibilityLabel={`${field.Name || "Field"} boolean value`}
+                                                placeholder={t`Field name`}
+                                                accessibilityLabel={t`Custom field ${fieldNumber} name`}
+                                            />
+                                            <IconButton
+                                                icon={Trash2}
+                                                label={t`Remove custom field`}
+                                                color={colors.muted}
+                                                onPress={() =>
+                                                    removeCustomField(index)
+                                                }
                                             />
                                         </View>
-                                    ) : (
-                                        <Input
-                                            value={field.Value}
-                                            onChangeText={(v) =>
-                                                updateCustomField(index, {
-                                                    Value: v,
-                                                })
-                                            }
-                                            placeholder={
-                                                field.Type ===
-                                                CustomFieldType.Date
-                                                    ? "YYYY-MM-DD"
-                                                    : "Value"
-                                            }
-                                            secureTextEntry={
-                                                field.Type ===
-                                                CustomFieldType.MaskedText
-                                            }
-                                            multiline={
-                                                field.Type ===
-                                                CustomFieldType.Text
-                                            }
-                                            textAlignVertical="top"
-                                            className={cn(
-                                                (field.Type ===
-                                                    CustomFieldType.Text ||
+                                        {field.Type ===
+                                        CustomFieldType.Boolean ? (
+                                            <View className="min-h-[44px] flex-row items-center justify-between">
+                                                <Text className="text-sm text-foreground">
+                                                    {t({
+                                                        message: "Enabled",
+                                                        comment:
+                                                            "Value of an on/off custom field",
+                                                    })}
+                                                </Text>
+                                                <Switch
+                                                    value={
+                                                        booleanFieldValue(
+                                                            field.Value,
+                                                        ) === "true"
+                                                    }
+                                                    onValueChange={(v) =>
+                                                        updateCustomField(
+                                                            index,
+                                                            {
+                                                                Value: v
+                                                                    ? "true"
+                                                                    : "false",
+                                                            },
+                                                        )
+                                                    }
+                                                    accessibilityLabel={t`${fieldName} boolean value`}
+                                                />
+                                            </View>
+                                        ) : (
+                                            <Input
+                                                value={field.Value}
+                                                onChangeText={(v) =>
+                                                    updateCustomField(index, {
+                                                        Value: v,
+                                                    })
+                                                }
+                                                placeholder={
                                                     field.Type ===
-                                                        CustomFieldType.MaskedText) &&
-                                                    "min-h-20",
-                                            )}
-                                            accessibilityLabel={`${field.Name || "Field"} value`}
-                                            accessibilityValue={
-                                                field.Type ===
-                                                CustomFieldType.MaskedText
-                                                    ? {
-                                                          text: "Hidden. Secure field.",
-                                                      }
-                                                    : undefined
+                                                    CustomFieldType.Date
+                                                        ? t({
+                                                              message:
+                                                                  "YYYY-MM-DD",
+                                                              comment:
+                                                                  "Date format hint; the value is stored as typed",
+                                                          })
+                                                        : t`Value`
+                                                }
+                                                secureTextEntry={
+                                                    field.Type ===
+                                                    CustomFieldType.MaskedText
+                                                }
+                                                multiline={
+                                                    field.Type ===
+                                                    CustomFieldType.Text
+                                                }
+                                                textAlignVertical="top"
+                                                className={cn(
+                                                    (field.Type ===
+                                                        CustomFieldType.Text ||
+                                                        field.Type ===
+                                                            CustomFieldType.MaskedText) &&
+                                                        "min-h-20",
+                                                )}
+                                                accessibilityLabel={t`${fieldName} value`}
+                                                accessibilityValue={
+                                                    field.Type ===
+                                                    CustomFieldType.MaskedText
+                                                        ? {
+                                                              text: t`Hidden. Secure field.`,
+                                                          }
+                                                        : undefined
+                                                }
+                                                importantForAutofill="no"
+                                            />
+                                        )}
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            accessibilityLabel={t`Change field type, ${typeLabel}`}
+                                            onPress={() =>
+                                                setFieldTypeTarget(index)
                                             }
-                                            importantForAutofill="no"
-                                        />
-                                    )}
-                                    <Pressable
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`Change field type, ${nextFieldTypeLabel(field.Type)}`}
-                                        onPress={() =>
-                                            setFieldTypeTarget(index)
-                                        }
-                                        style={{
-                                            minHeight: 48,
-                                            marginTop: 8,
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                        }}
-                                    >
-                                        <Text
                                             style={{
-                                                color: colors.muted,
-                                                fontSize: 12,
-                                            }}
-                                        >
-                                            Type
-                                        </Text>
-                                        <View
-                                            style={{
+                                                minHeight: 48,
+                                                marginTop: 8,
                                                 flexDirection: "row",
                                                 alignItems: "center",
-                                                gap: 8,
+                                                justifyContent: "space-between",
                                             }}
                                         >
-                                            <Text style={{ fontSize: 12 }}>
-                                                {nextFieldTypeLabel(field.Type)}
+                                            <Text
+                                                style={{
+                                                    color: colors.muted,
+                                                    fontSize: 12,
+                                                }}
+                                            >
+                                                {t({
+                                                    message: "Type",
+                                                    comment:
+                                                        "Custom field type row",
+                                                })}
                                             </Text>
-                                            <ChevronRight
-                                                size={16}
-                                                color={colors.muted}
-                                            />
-                                        </View>
-                                    </Pressable>
-                                </View>
-                            ))}
+                                            <View
+                                                style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 12 }}>
+                                                    {typeLabel}
+                                                </Text>
+                                                <ChevronRight
+                                                    size={16}
+                                                    color={colors.muted}
+                                                />
+                                            </View>
+                                        </Pressable>
+                                    </View>
+                                );
+                            })}
                         </View>
                     )}
                 </View>
@@ -1154,7 +1226,7 @@ function CredentialFormEditor({
                     className="min-h-[54px] flex-row items-center"
                 >
                     <Text className="flex-1 text-sm text-foreground">
-                        More details
+                        {t`More details`}
                     </Text>
                     {moreDetailsOpen ? (
                         <ChevronDown size={18} color={colors.muted} />
@@ -1165,23 +1237,27 @@ function CredentialFormEditor({
                 {moreDetailsOpen ? (
                     <View className="gap-4">
                         <View>
-                            <Label>Tags</Label>
+                            <Label>{t`Tags`}</Label>
                             <Input
                                 value={tagsText}
                                 onChangeText={(value) => {
                                     markDirty();
                                     setTagsText(value);
                                 }}
-                                placeholder="work, personal"
+                                placeholder={t`work, personal`}
                                 autoCapitalize="none"
                             />
                             <Text className="mt-1 text-xs text-muted-foreground">
-                                Comma-separated. Search with
-                                tag:&quot;work&quot;.
+                                {t({
+                                    message:
+                                        'Comma-separated. Search with tag:"work".',
+                                    comment:
+                                        "tag: is search syntax; keep it as typed",
+                                })}
                             </Text>
                         </View>
                         <View>
-                            <Label>Notes</Label>
+                            <Label>{t`Notes`}</Label>
                             <Input
                                 value={notes}
                                 onChangeText={(value) => {
@@ -1209,7 +1285,7 @@ function CredentialFormEditor({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Field type</DialogTitle>
+                    <DialogTitle>{t`Field type`}</DialogTitle>
                 </DialogHeader>
                 {FIELD_TYPE_OPTIONS.map((option) => (
                     <Pressable
@@ -1231,7 +1307,7 @@ function CredentialFormEditor({
                             borderBottomColor: colors.border,
                         }}
                     >
-                        <Text>{option.label}</Text>
+                        <Text>{t(option.label)}</Text>
                         {fieldTypeTarget !== null &&
                         customFields[fieldTypeTarget]?.Type === option.value ? (
                             <Check size={20} color={colors.primary} />
@@ -1246,9 +1322,9 @@ function CredentialFormEditor({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Choose directory</DialogTitle>
+                    <DialogTitle>{t`Choose directory`}</DialogTitle>
                 </DialogHeader>
-                {[{ ID: "", Name: "No directory" }, ...directories].map(
+                {[{ ID: "", Name: t`No directory` }, ...directories].map(
                     (directory) => (
                         <Pressable
                             key={directory.ID}
@@ -1285,18 +1361,18 @@ function CredentialFormEditor({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Website matching</DialogTitle>
+                    <DialogTitle>{t`Website matching`}</DialogTitle>
                     <DialogDescription>
-                        Choose when Cryptex Vault should offer this item.
+                        {t`Choose when Cryptex Vault should offer this item.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="rounded-md border border-border bg-background px-3 py-3">
                     <Text className="font-mono text-xs text-muted-foreground">
                         {matchingTarget === "primary"
-                            ? url || "This website"
+                            ? url || t`This website`
                             : additionalURLs.find(
                                   (item) => item.ID === matchingTarget,
-                              )?.URL || "This website"}
+                              )?.URL || t`This website`}
                     </Text>
                 </View>
                 <View className="gap-2">
@@ -1308,6 +1384,7 @@ function CredentialFormEditor({
                                       (item) => item.ID === matchingTarget,
                                   )?.MatchMode;
                         const selected = currentMode === option.value;
+                        const example = option.example;
                         return (
                             <Pressable
                                 key={option.value}
@@ -1335,13 +1412,13 @@ function CredentialFormEditor({
                                 </View>
                                 <View className="min-w-0 flex-1">
                                     <Text className="font-medium text-[15px] text-foreground">
-                                        {option.label}
+                                        {t(option.label)}
                                     </Text>
                                     <Text className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                                        {option.description}
+                                        {t(option.description)}
                                     </Text>
                                     <Text className="mt-2 font-mono text-[11px] leading-4 text-muted-foreground">
-                                        Example: {option.example}
+                                        {t`Example: ${example}`}
                                     </Text>
                                 </View>
                                 <View
@@ -1374,12 +1451,11 @@ function CredentialFormEditor({
                 <DialogHeader>
                     <DialogTitle>
                         {totpSnapshot?.enabled
-                            ? "Edit authenticator"
-                            : "Set up authenticator"}
+                            ? t`Edit authenticator`
+                            : t`Set up authenticator`}
                     </DialogTitle>
                     <DialogDescription>
-                        Scan the account QR code or enter its setup key. Changes
-                        stay in this item draft until Save item.
+                        {t`Scan the account QR code or enter its setup key. Changes stay in this item draft until Save item.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="flex-row gap-2">
@@ -1394,7 +1470,7 @@ function CredentialFormEditor({
                     >
                         <ScanLine size={16} color={colors.foreground} />
                         <Text className="text-sm text-secondary-foreground">
-                            {totpScanning ? "Enter key" : "Scan QR code"}
+                            {totpScanning ? t`Enter key` : t`Scan QR code`}
                         </Text>
                     </Button>
                     <Button
@@ -1405,7 +1481,7 @@ function CredentialFormEditor({
                             void Clipboard.getStringAsync().then(importTOTP);
                         }}
                     >
-                        Paste URI
+                        {t`Paste URI`}
                     </Button>
                 </View>
                 {totpEditorOpen && totpScanning && cameraPermission?.granted ? (
@@ -1423,7 +1499,7 @@ function CredentialFormEditor({
                             onBarcodeScanned={({ data }) => importTOTP(data)}
                             onMountError={() =>
                                 setTotpImportError(
-                                    "The camera could not start. Try again or enter the setup key.",
+                                    t`The camera could not start. Try again or enter the setup key.`,
                                 )
                             }
                         />
@@ -1434,13 +1510,13 @@ function CredentialFormEditor({
                 !cameraPermission.granted ? (
                     <InlineNotice
                         tone="warning"
-                        message="Camera permission is needed to scan. You can enter the setup key manually."
+                        message={t`Camera permission is needed to scan. You can enter the setup key manually.`}
                     />
                 ) : null}
                 {!totpScanning ? (
                     <>
                         <View>
-                            <Label>Setup key</Label>
+                            <Label>{t`Setup key`}</Label>
                             <Input
                                 value={totpSecret}
                                 onChangeText={(value) => {
@@ -1452,18 +1528,18 @@ function CredentialFormEditor({
                                 className="h-[54px]"
                                 autoCapitalize="characters"
                                 autoCorrect={false}
-                                placeholder="Enter the key from your account"
-                                accessibilityLabel="TOTP setup key"
+                                placeholder={t`Enter the key from your account`}
+                                accessibilityLabel={t`TOTP setup key`}
                                 testID="credential-totp-secret"
                                 importantForAutofill="no"
                             />
                         </View>
                         <View>
-                            <Label>Label (optional)</Label>
+                            <Label>{t`Label (optional)`}</Label>
                             <Input
                                 value={totpLabel}
                                 onChangeText={setTotpLabel}
-                                placeholder="e.g. Google personal"
+                                placeholder={t`e.g. Google personal`}
                             />
                         </View>
                         <Pressable
@@ -1475,7 +1551,7 @@ function CredentialFormEditor({
                             className="min-h-[54px] flex-row items-center border-t border-border"
                         >
                             <Text className="flex-1 text-sm text-foreground">
-                                Advanced settings
+                                {t`Advanced settings`}
                             </Text>
                             <ChevronRight
                                 size={18}
@@ -1495,7 +1571,7 @@ function CredentialFormEditor({
                             <View className="gap-3">
                                 <View className="flex-row gap-3">
                                     <View className="flex-1">
-                                        <Label>Period (seconds)</Label>
+                                        <Label>{t`Period (seconds)`}</Label>
                                         <Input
                                             value={totpPeriod}
                                             onChangeText={(value) =>
@@ -1507,7 +1583,7 @@ function CredentialFormEditor({
                                         />
                                     </View>
                                     <View className="flex-1">
-                                        <Label>Digits</Label>
+                                        <Label>{t`Digits`}</Label>
                                         <Input
                                             value={totpDigits}
                                             onChangeText={(value) =>
@@ -1520,7 +1596,7 @@ function CredentialFormEditor({
                                     </View>
                                 </View>
                                 <View>
-                                    <Label>Algorithm</Label>
+                                    <Label>{t`Algorithm`}</Label>
                                     <View className="flex-row gap-2">
                                         {TOTP_ALGO_OPTIONS.map((option) => (
                                             <Button
@@ -1557,11 +1633,11 @@ function CredentialFormEditor({
                             textClassName="text-[#111520]"
                             onPress={applyTotpEditor}
                         >
-                            Apply setup
+                            {t`Apply setup`}
                         </Button>
                     ) : null}
                     <Button variant="ghost" onPress={cancelTotpEditor}>
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                 </DialogFooter>
             </Dialog>

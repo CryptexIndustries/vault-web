@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Pressable, View, type ViewProps } from "react-native";
 import { ChevronDown, ChevronRight, Minus, Plus } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -15,7 +16,7 @@ type AdvancedDisclosureProps = ViewProps & {
 };
 
 function AdvancedDisclosure({
-    title = "Advanced",
+    title: titleProp,
     description,
     defaultOpen = false,
     className,
@@ -23,6 +24,13 @@ function AdvancedDisclosure({
     children,
     ...props
 }: AdvancedDisclosureProps) {
+    const { t } = useLingui();
+    const title =
+        titleProp ??
+        t({
+            message: "Advanced",
+            comment: "Expandable section of extra options",
+        });
     const [open, setOpen] = React.useState(defaultOpen);
     return (
         <View className={cn("gap-2", className)} {...props}>
@@ -30,7 +38,9 @@ function AdvancedDisclosure({
                 onPress={() => setOpen((v) => !v)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
-                accessibilityLabel={`${title}. ${open ? "Collapse" : "Expand"}`}
+                accessibilityLabel={
+                    open ? t`${title}. Collapse` : t`${title}. Expand`
+                }
                 className={cn(
                     "min-h-[44px] flex-row items-center justify-between border border-border",
                     ruled

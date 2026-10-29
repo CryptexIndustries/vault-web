@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Platform, Pressable, View } from "react-native";
 import { X } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
@@ -69,6 +70,7 @@ export function Snackbar({
     /** Distance from the bottom edge; screens without a tab bar add the safe-area inset. */
     bottomOffset?: number;
 }) {
+    const { t } = useLingui();
     useEffect(() => {
         if (!feedback) return;
         // Android's live region handles its announcement. iOS needs an explicit one.
@@ -166,7 +168,7 @@ export function Snackbar({
                 </View>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Dismiss message"
+                    accessibilityLabel={t`Dismiss message`}
                     onPress={onDismiss}
                     style={{
                         minWidth: 48,

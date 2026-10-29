@@ -1,5 +1,8 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ChevronRight,
     FileKey,
@@ -18,20 +21,20 @@ export type NewItemType = "login" | "ssh-key";
 
 const ITEM_TYPES: Array<{
     type: NewItemType;
-    title: string;
-    subtitle: string;
+    title: MessageDescriptor;
+    subtitle: MessageDescriptor;
     icon: LucideIcon;
 }> = [
     {
         type: "login",
-        title: "Login",
-        subtitle: "Username, password and websites",
+        title: msg({ message: "Login", comment: "Vault item type" }),
+        subtitle: msg`Username, password and websites`,
         icon: RectangleEllipsis,
     },
     {
         type: "ssh-key",
-        title: "SSH key",
-        subtitle: "Generate a new key or add one you use",
+        title: msg`SSH key`,
+        subtitle: msg`Generate a new key or add one you use`,
         icon: FileKey,
     },
 ];
@@ -54,17 +57,23 @@ export function AddItemSheet({
     onOpenChange: (open: boolean) => void;
     directoryId: string;
 }) {
+    const { t } = useLingui();
+    const itemTypes = ITEM_TYPES.map((item) => ({
+        ...item,
+        title: t(item.title),
+        subtitle: t(item.subtitle),
+    }));
     return (
         <Dialog open={open} onOpenChange={onOpenChange} placement="bottom">
             <DialogHeader>
-                <DialogTitle>Add item</DialogTitle>
+                <DialogTitle>{t`Add item`}</DialogTitle>
             </DialogHeader>
-            {ITEM_TYPES.map(({ type, title, subtitle, icon: Icon }) => (
+            {itemTypes.map(({ type, title, subtitle, icon: Icon }) => (
                 <Pressable
                     key={type}
                     testID={`add-item-${type}`}
                     accessibilityRole="button"
-                    accessibilityLabel={`${title}, ${subtitle}`}
+                    accessibilityLabel={t`${title}, ${subtitle}`}
                     android_ripple={{ color: colors.border }}
                     onPress={() => {
                         onOpenChange(false);

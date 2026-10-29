@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -14,10 +15,10 @@ import { shareSecretFile } from "@/utils/secret-share";
 import { writeSecretTempFile } from "@/utils/secret-temp-files";
 
 import {
-    buildRecoveryKitCopyText,
     buildRecoveryKitPrintHtml,
     splitRecoveryPhrase,
 } from "@ui/lib/recovery-kit-utils";
+import { recoveryKitCopyText, recoveryKitPrintText } from "./recovery-kit-text";
 import type { RecoveryKitData } from "./types";
 
 type RecoveryKitDialogProps = {
@@ -35,6 +36,7 @@ export function RecoveryKitDialog({
     continueToPayment = false,
     completionDisabled = false,
 }: RecoveryKitDialogProps) {
+    const { t } = useLingui();
     const [acknowledged, setAcknowledged] = useState(false);
     const [savedActionTaken, setSavedActionTaken] = useState(false);
     const [phraseRevealed, setPhraseRevealed] = useState(true);
@@ -59,13 +61,13 @@ export function RecoveryKitDialog({
     const handleCopyAll = async () => {
         if (!kit) return;
         const ok = await copySecretToClipboard(
-            buildRecoveryKitCopyText(kit.userId, kit.recoveryPhrase),
+            recoveryKitCopyText(kit.userId, kit.recoveryPhrase),
         );
         if (ok) {
             markSaved();
-            setStatus({ tone: "success", text: "Recovery Kit copied." });
+            setStatus({ tone: "success", text: t`Recovery Kit copied.` });
         } else {
-            setStatus({ tone: "error", text: "Could not copy Recovery Kit." });
+            setStatus({ tone: "error", text: t`Could not copy Recovery Kit.` });
         }
     };
 
@@ -83,13 +85,14 @@ export function RecoveryKitDialog({
                         buildRecoveryKitPrintHtml(
                             kit.userId,
                             kit.recoveryPhrase,
+                            recoveryKitPrintText(),
                         ),
                         FileSystem.EncodingType.UTF8,
                     ),
                 {
                     isCurrent: release.current,
                     mimeType: "text/html",
-                    dialogTitle: "Save Recovery Kit",
+                    dialogTitle: t`Save Recovery Kit`,
                     UTI: "public.html",
                 },
             );
@@ -97,20 +100,20 @@ export function RecoveryKitDialog({
             if (shared === "unavailable") {
                 setStatus({
                     tone: "error",
-                    text: "Sharing is not available on this device.",
+                    text: t`Sharing is not available on this device.`,
                 });
                 return;
             }
             markSaved();
             setStatus({
                 tone: "success",
-                text: "Share sheet opened. Save the kit offline.",
+                text: t`Share sheet opened. Save the kit offline.`,
             });
         } catch {
             if (release.current())
                 setStatus({
                     tone: "error",
-                    text: "Could not share Recovery Kit.",
+                    text: t`Could not share Recovery Kit.`,
                 });
         }
     };
@@ -126,7 +129,10 @@ export function RecoveryKitDialog({
                 <View className="mb-2">
                     <View className="mb-3 flex-row justify-between">
                         <Text className="text-[10px] uppercase tracking-[1.3px] text-muted-foreground">
-                            Save kit
+                            {t({
+                                message: "Save kit",
+                                comment: "Step label above the Recovery Kit",
+                            })}
                         </Text>
                         <Text className="text-[10px] tracking-[1.3px] text-muted-foreground">
                             02 / 02
@@ -142,17 +148,18 @@ export function RecoveryKitDialog({
             <View className="border-b border-border pb-5">
                 {!continueToPayment ? (
                     <Text className="font-medium text-xl text-foreground">
-                        Save your Recovery Kit
+                        {t`Save your Recovery Kit`}
                     </Text>
                 ) : null}
                 <Text className="mt-1 text-sm leading-5 text-muted-foreground">
-                    Keep both parts together in a safe place. This phrase is
-                    shown only during setup.
+                    {t`Keep both parts together in a safe place. This phrase is shown only during setup.`}
                 </Text>
             </View>
 
             <View className="min-h-[52px] flex-row items-center justify-between gap-4 border-b border-border">
-                <Text className="text-sm text-muted-foreground">User ID</Text>
+                <Text className="text-sm text-muted-foreground">
+                    {t`User ID`}
+                </Text>
                 <Text
                     selectable
                     className="flex-1 text-right font-mono text-xs text-foreground"
@@ -192,31 +199,30 @@ export function RecoveryKitDialog({
                 variant="outline"
                 onPress={() => setPhraseRevealed((value) => !value)}
             >
-                {phraseRevealed ? "Hide phrase" : "Reveal recovery phrase"}
+                {phraseRevealed ? t`Hide phrase` : t`Reveal recovery phrase`}
             </Button>
             <Button variant="outline" onPress={() => void handleCopyAll()}>
-                Copy Recovery Kit
+                {t`Copy Recovery Kit`}
             </Button>
             <Button variant="outline" onPress={() => void handleShareKit()}>
-                Save printable kit
+                {t`Save printable kit`}
             </Button>
 
             <View className="border-l-2 border-muted pl-3">
                 <Text className="text-xs leading-5 text-muted-foreground">
-                    This kit recovers your online account. Keep the vault
-                    recovery code separately for recovering the encrypted vault.
+                    {t`This kit recovers your online account. Keep the vault recovery code separately for recovering the encrypted vault.`}
                 </Text>
             </View>
             {!continueToPayment ? (
                 <Checkbox
                     checked={acknowledged}
                     onCheckedChange={setAcknowledged}
-                    label="I saved my User ID and all 24 words."
+                    label={t`I saved my User ID and all 24 words.`}
                 />
             ) : null}
             {!savedActionTaken ? (
                 <Text className="text-xs text-muted-foreground">
-                    Copy or save the Recovery Kit before continuing.
+                    {t`Copy or save the Recovery Kit before continuing.`}
                 </Text>
             ) : null}
             {status?.tone === "error" ? (
@@ -234,8 +240,11 @@ export function RecoveryKitDialog({
                 onPress={onComplete}
             >
                 {continueToPayment
-                    ? "I've saved my kit. Continue to payment"
-                    : "Finish"}
+                    ? t`I've saved my kit. Continue to payment`
+                    : t({
+                          message: "Finish",
+                          comment: "Button: done saving the Recovery Kit",
+                      })}
             </Button>
         </View>
     );

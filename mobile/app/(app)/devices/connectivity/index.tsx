@@ -3,6 +3,7 @@ import { View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 
 import { AUTO_CONNECT_KEY } from "@/components/sync-controller-provider";
 import { ConnectivityPanel } from "@/components/devices/connectivity-panel";
@@ -18,6 +19,7 @@ import { unlockedVaultAtom } from "@/utils/atoms";
 import { colors } from "@/theme";
 
 export default function ConnectivityScreen() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const [autoConnect, setAutoConnect] = useState(false);
 
@@ -33,7 +35,7 @@ export default function ConnectivityScreen() {
     };
 
     return (
-        <UnlockedTaskScreen title="Connection settings">
+        <UnlockedTaskScreen title={t`Connection settings`}>
             <View
                 style={{
                     paddingBottom: 22,
@@ -50,7 +52,7 @@ export default function ConnectivityScreen() {
                         letterSpacing: -0.5,
                     }}
                 >
-                    Sync connection
+                    {t`Sync connection`}
                 </Text>
                 <Text
                     style={{
@@ -60,7 +62,7 @@ export default function ConnectivityScreen() {
                         marginTop: 6,
                     }}
                 >
-                    Choose how your devices find and connect to each other.
+                    {t`Choose how your devices find and connect to each other.`}
                 </Text>
             </View>
             <View
@@ -73,7 +75,9 @@ export default function ConnectivityScreen() {
                 }}
             >
                 <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14 }}>Auto-connect devices</Text>
+                    <Text style={{ fontSize: 14 }}>
+                        {t`Auto-connect devices`}
+                    </Text>
                     <Text
                         style={{
                             color: colors.muted,
@@ -81,13 +85,13 @@ export default function ConnectivityScreen() {
                             marginTop: 5,
                         }}
                     >
-                        Connect reachable devices while this app is open.
+                        {t`Connect reachable devices while this app is open.`}
                     </Text>
                 </View>
                 <Switch
                     value={autoConnect}
                     onValueChange={(value) => void toggleAutoConnect(value)}
-                    accessibilityLabel="Auto-connect devices"
+                    accessibilityLabel={t`Auto-connect devices`}
                 />
             </View>
             <ConnectivityPanel
@@ -106,13 +110,13 @@ export default function ConnectivityScreen() {
                 }}
             />
             <Text className="mb-1 mt-6 text-[10px] uppercase tracking-[1.1px] text-muted-foreground">
-                SSH agents
+                {t`SSH agents`}
             </Text>
             <UnlockedMenuRow
                 testID="agent-relay-settings"
                 icon={SquareTerminal}
-                title="Agent relays"
-                subtitle="How connected agents reach this phone"
+                title={t`Agent relays`}
+                subtitle={t`How connected agents reach this phone`}
                 onPress={() =>
                     router.push("/(app)/devices/connectivity/agent-relay")
                 }
@@ -120,8 +124,8 @@ export default function ConnectivityScreen() {
             {agentService.available ? (
                 <UnlockedMenuRow
                     icon={BatteryCharging}
-                    title="Battery settings"
-                    subtitle="Let Cryptex Vault run in the background so agents can reach it"
+                    title={t`Battery settings`}
+                    subtitle={t`Let Cryptex Vault run in the background so agents can reach it`}
                     onPress={() => agentService.openBatterySettings()}
                 />
             ) : null}

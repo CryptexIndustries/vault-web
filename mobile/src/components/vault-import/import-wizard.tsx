@@ -1,15 +1,22 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     applyImportToVault,
-    getImportErrorMessage,
     ImportSourceLabels,
     ImportSources,
     type ImportResult,
     type ImportSource,
 } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import { persistVaultMutation } from "@/utils/vault-mutations";
+import {
+    importErrorText,
+    importNoticeDetail,
+    importNoticeHeading,
+} from "@/components/vault-import/import-messages";
 import { parseMobileImportFile } from "@/utils/mobile-import-file";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -23,16 +30,16 @@ import { InlineNotice } from "@/components/inline-notice";
 import { cn } from "@/lib/utils";
 import { colors } from "@/theme";
 
-const sourceGuidance: Record<ImportSource, string> = {
-    "cryptex-json": "Cryptex cleartext JSON export (.json)",
-    "bitwarden-json": "Bitwarden JSON export (.json)",
-    "onepassword-csv": "1Password CSV export (.csv)",
-    "onepassword-1pux": "1Password 1PUX / unencrypted archive (.1pux)",
-    "keepass-xml": "KeePass XML export (.xml)",
-    "keepass-csv": "KeePass CSV export (.csv)",
-    "lastpass-csv": "LastPass CSV export (.csv)",
-    "chrome-csv": "Chrome passwords CSV (.csv)",
-    "firefox-csv": "Firefox passwords CSV (.csv)",
+const sourceGuidance: Record<ImportSource, MessageDescriptor> = {
+    "cryptex-json": msg`Cryptex cleartext JSON export (.json)`,
+    "bitwarden-json": msg`Bitwarden JSON export (.json)`,
+    "onepassword-csv": msg`1Password CSV export (.csv)`,
+    "onepassword-1pux": msg`1Password 1PUX / unencrypted archive (.1pux)`,
+    "keepass-xml": msg`KeePass XML export (.xml)`,
+    "keepass-csv": msg`KeePass CSV export (.csv)`,
+    "lastpass-csv": msg`LastPass CSV export (.csv)`,
+    "chrome-csv": msg`Chrome passwords CSV (.csv)`,
+    "firefox-csv": msg`Firefox passwords CSV (.csv)`,
 };
 
 type Props = {
@@ -72,6 +79,7 @@ export function ImportWizard({
     onStepChange,
     unlocked = false,
 }: Props) {
+    const { t } = useLingui();
     const [internalStep, setInternalStep] = useState<1 | 2 | 3>(1);
     const step = controlledStep ?? internalStep;
     const setStep = (next: 1 | 2 | 3) => {
@@ -88,6 +96,9 @@ export function ImportWizard({
     const WizardButton = unlocked ? UnlockedButton : Button;
     const ConfirmationCheckbox = unlocked ? UnlockedCheckbox : Checkbox;
     const Copy = unlocked ? UnlockedText : Text;
+    const sourceLabel = ImportSourceLabels[source];
+    const loginCount = result?.credentials.length ?? 0;
+    const guidance = t(sourceGuidance[source]);
     const confirmationNotices =
         result?.notices.filter((notice) => notice.requiresConfirmation) ?? [];
 
@@ -125,7 +136,7 @@ export function ImportWizard({
             setResult(parsed);
             setStep(3);
         } catch (parseError) {
-            setError(getImportErrorMessage(parseError));
+            setError(importErrorText(parseError));
         } finally {
             setBusy(false);
         }
@@ -141,7 +152,10 @@ export function ImportWizard({
                 await reset();
                 onComplete?.(
                     message ??
-                        `Ready to import ${result.credentials.length} credentials when the vault is created.`,
+                        plural(loginCount, {
+                            one: "Ready to import # credential when the vault is created.",
+                            other: "Ready to import # credentials when the vault is created.",
+                        }),
                 );
                 return;
             }
@@ -153,22 +167,28 @@ export function ImportWizard({
                 },
             );
             if (mutationResult.isErr()) {
-                setError(`Import failed: ${mutationResult.error}`);
+                const code = mutationResult.error;
+                setError(t`Import failed: ${code}`);
                 return;
             }
             const applied = mutationResult.value;
-            const message =
-                `Imported ${applied.importedCredentials} credentials` +
-                (applied.importedDirectories
-                    ? ` and ${applied.importedDirectories} directories`
-                    : "") +
-                (result.notices.length
-                    ? ` (${result.notices.length} import notices)`
-                    : "");
+            const credentialCount = applied.importedCredentials;
+            const directoryCount = applied.importedDirectories;
+            const noticeCount = result.notices.length;
+            const message = directoryCount
+                ? noticeCount
+                    ? t`Imported ${plural(credentialCount, { one: "# credential", other: "# credentials" })} and ${plural(directoryCount, { one: "# directory", other: "# directories" })} (${plural(noticeCount, { one: "# import notice", other: "# import notices" })})`
+                    : t`Imported ${plural(credentialCount, { one: "# credential", other: "# credentials" })} and ${plural(directoryCount, { one: "# directory", other: "# directories" })}`
+                : noticeCount
+                  ? t`Imported ${plural(credentialCount, { one: "# credential", other: "# credentials" })} (${plural(noticeCount, { one: "# import notice", other: "# import notices" })})`
+                  : plural(credentialCount, {
+                        one: "Imported # credential",
+                        other: "Imported # credentials",
+                    });
             await reset();
             onComplete?.(message);
         } catch {
-            setError("Import failed while applying changes.");
+            setError(t`Import failed while applying changes.`);
         } finally {
             setBusy(false);
         }
@@ -179,7 +199,7 @@ export function ImportWizard({
             {!unlocked ? (
                 <InlineNotice
                     tone="warning"
-                    message="Export files contain readable secrets. Import on a trusted device, then delete the export file."
+                    message={t`Export files contain readable secrets. Import on a trusted device, then delete the export file.`}
                 />
             ) : null}
 
@@ -188,10 +208,20 @@ export function ImportWizard({
                     <View className="mb-3 flex-row justify-between">
                         <Copy className="text-[10px] uppercase tracking-[1.3px] text-muted-foreground">
                             {step === 1
-                                ? "Source"
+                                ? t({
+                                      message: "Source",
+                                      comment:
+                                          "Import step: where the data comes from",
+                                  })
                                 : step === 2
-                                  ? "File"
-                                  : "Review"}
+                                  ? t({
+                                        message: "File",
+                                        comment: "Import step",
+                                    })
+                                  : t({
+                                        message: "Review",
+                                        comment: "Import step",
+                                    })}
                         </Copy>
                         <Copy className="text-[10px] tracking-[1.3px] text-muted-foreground">
                             {String(step).padStart(2, "0")} / 03
@@ -208,12 +238,11 @@ export function ImportWizard({
                 </View>
             ) : (
                 <Copy className="text-xs text-muted-foreground">
-                    Step {step} of 3.{" "}
                     {step === 1
-                        ? "Choose source"
+                        ? t`Step ${step} of 3. Choose source`
                         : step === 2
-                          ? "Select file"
-                          : "Confirm import"}
+                          ? t`Step ${step} of 3. Select file`
+                          : t`Step ${step} of 3. Confirm import`}
                 </Copy>
             )}
 
@@ -221,7 +250,7 @@ export function ImportWizard({
                 <View className="gap-3">
                     {!unlocked ? (
                         <Copy className="font-medium text-sm text-muted-foreground">
-                            Import source
+                            {t`Import source`}
                         </Copy>
                     ) : null}
                     <View
@@ -285,14 +314,14 @@ export function ImportWizard({
                     </View>
                     {!unlocked ? (
                         <Copy className="text-xs text-muted-foreground">
-                            {sourceGuidance[source]}
+                            {guidance}
                         </Copy>
                     ) : null}
                     <WizardButton
                         className={unlocked ? "min-h-[54px]" : "min-h-[44px]"}
                         onPress={() => setStep(2)}
                     >
-                        Continue
+                        {t`Continue`}
                     </WizardButton>
                 </View>
             ) : null}
@@ -314,8 +343,8 @@ export function ImportWizard({
                             }
                         >
                             {unlocked
-                                ? `Import from ${ImportSourceLabels[source]}`
-                                : `Selected source: ${ImportSourceLabels[source]}`}
+                                ? t`Import from ${sourceLabel}`
+                                : t`Selected source: ${sourceLabel}`}
                         </Copy>
                         <Copy
                             className={
@@ -324,8 +353,7 @@ export function ImportWizard({
                                     : "text-xs leading-5 text-muted-foreground"
                             }
                         >
-                            Choose an exported file from your password manager.{" "}
-                            {sourceGuidance[source]}
+                            {t`Choose an exported file from your password manager. ${guidance}`}
                         </Copy>
                     </View>
                     <WizardButton
@@ -333,11 +361,11 @@ export function ImportWizard({
                         loading={busy}
                         onPress={() => void handlePick()}
                     >
-                        Choose import file
+                        {t`Choose import file`}
                     </WizardButton>
                     {fileName ? (
                         <Copy className="text-xs text-muted-foreground">
-                            Selected: {fileName}
+                            {t`Selected: ${fileName}`}
                         </Copy>
                     ) : null}
                 </View>
@@ -349,25 +377,30 @@ export function ImportWizard({
                         <>
                             <View className="mb-[6px] border-b border-border pb-[22px]">
                                 <Copy className="mt-[10px] font-medium text-[22px] text-foreground">
-                                    Ready to import
+                                    {t`Ready to import`}
                                 </Copy>
                                 <Copy className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                                    Review what will be added before changing
-                                    your vault.
+                                    {t`Review what will be added before changing your vault.`}
                                 </Copy>
                             </View>
                             {[
-                                ["File", fileName || "Selected import file"],
                                 [
-                                    "New logins",
+                                    t({
+                                        message: "File",
+                                        comment: "Import review row",
+                                    }),
+                                    fileName || t`Selected import file`,
+                                ],
+                                [
+                                    t`New logins`,
                                     String(result.credentials.length),
                                 ],
                                 [
-                                    "New directories",
+                                    t`New directories`,
                                     String(result.directories.length),
                                 ],
                                 [
-                                    "Items not added",
+                                    t`Items not added`,
                                     String(result.skippedItems),
                                 ],
                             ].map(([label, value]) => (
@@ -388,7 +421,7 @@ export function ImportWizard({
                         <View className="flex-row gap-3 rounded-md border border-border bg-secondary/40 p-3">
                             <View className="flex-1">
                                 <Text className="text-xs text-muted-foreground">
-                                    Items
+                                    {t`Items`}
                                 </Text>
                                 <Text className="font-semibold text-base text-foreground">
                                     {result.credentials.length}
@@ -396,7 +429,7 @@ export function ImportWizard({
                             </View>
                             <View className="flex-1">
                                 <Text className="text-xs text-muted-foreground">
-                                    Directories
+                                    {t`Directories`}
                                 </Text>
                                 <Text className="font-semibold text-base text-foreground">
                                     {result.directories.length}
@@ -404,7 +437,11 @@ export function ImportWizard({
                             </View>
                             <View className="flex-1">
                                 <Text className="text-xs text-muted-foreground">
-                                    Skipped
+                                    {t({
+                                        message: "Skipped",
+                                        comment:
+                                            "Count of import items not added",
+                                    })}
                                 </Text>
                                 <Text className="font-semibold text-base text-foreground">
                                     {result.skippedItems}
@@ -416,34 +453,37 @@ export function ImportWizard({
                     {result.notices.length > 0 ? (
                         <View className="gap-2">
                             <Copy className="font-medium text-sm text-foreground">
-                                Before you import
+                                {t`Before you import`}
                             </Copy>
-                            {result.notices.map((notice) => (
-                                <View
-                                    key={notice.code}
-                                    className="gap-1 rounded-md border border-border bg-secondary/40 p-3"
-                                >
-                                    <Copy className="font-medium text-sm text-foreground">
-                                        {notice.count} {notice.title}
-                                    </Copy>
-                                    {notice.detail ? (
-                                        <Copy className="text-xs leading-5 text-muted-foreground">
-                                            {notice.detail}
+                            {result.notices.map((notice) => {
+                                const detail = importNoticeDetail(notice);
+                                const names = notice.itemNames
+                                    .slice(0, 5)
+                                    .join(", ");
+                                const more = notice.itemNames.length - 5;
+                                return (
+                                    <View
+                                        key={notice.code}
+                                        className="gap-1 rounded-md border border-border bg-secondary/40 p-3"
+                                    >
+                                        <Copy className="font-medium text-sm text-foreground">
+                                            {importNoticeHeading(notice)}
                                         </Copy>
-                                    ) : null}
-                                    {notice.itemNames.length > 0 ? (
-                                        <Copy className="text-xs leading-5 text-muted-foreground">
-                                            Affected:{" "}
-                                            {notice.itemNames
-                                                .slice(0, 5)
-                                                .join(", ")}
-                                            {notice.itemNames.length > 5
-                                                ? ` and ${notice.itemNames.length - 5} more`
-                                                : ""}
-                                        </Copy>
-                                    ) : null}
-                                </View>
-                            ))}
+                                        {detail ? (
+                                            <Copy className="text-xs leading-5 text-muted-foreground">
+                                                {detail}
+                                            </Copy>
+                                        ) : null}
+                                        {notice.itemNames.length > 0 ? (
+                                            <Copy className="text-xs leading-5 text-muted-foreground">
+                                                {more > 0
+                                                    ? t`Affected: ${names} and ${more} more`
+                                                    : t`Affected: ${names}`}
+                                            </Copy>
+                                        ) : null}
+                                    </View>
+                                );
+                            })}
                         </View>
                     ) : null}
 
@@ -451,15 +491,14 @@ export function ImportWizard({
                         <ConfirmationCheckbox
                             checked={acceptedUnsupportedData}
                             onCheckedChange={setAcceptedUnsupportedData}
-                            label="I understand that the items and information listed above will be skipped or saved differently."
+                            label={t`I understand that the items and information listed above will be skipped or saved differently.`}
                         />
                     ) : null}
 
                     {unlocked ? (
                         <View className="my-5 border-l-2 border-muted pl-[13px]">
                             <Copy className="text-xs leading-[18px] text-muted-foreground">
-                                Existing items remain. This import cannot be
-                                undone automatically.
+                                {t`Existing items remain. This import cannot be undone automatically.`}
                             </Copy>
                         </View>
                     ) : (
@@ -467,8 +506,8 @@ export function ImportWizard({
                             tone="info"
                             message={
                                 onApply
-                                    ? "Confirm to stage these items. Nothing is added until you create the vault."
-                                    : "Confirm to merge these items into your vault. This cannot be undone automatically."
+                                    ? t`Confirm to stage these items. Nothing is added until you create the vault.`
+                                    : t`Confirm to merge these items into your vault. This cannot be undone automatically.`
                             }
                         />
                     )}
@@ -487,8 +526,11 @@ export function ImportWizard({
                         onPress={() => void handleConfirm()}
                     >
                         {onApply
-                            ? "Stage import"
-                            : `Import ${result.credentials.length} login${result.credentials.length === 1 ? "" : "s"}`}
+                            ? t`Stage import`
+                            : plural(loginCount, {
+                                  one: "Import # login",
+                                  other: "Import # logins",
+                              })}
                     </WizardButton>
                     {!unlocked ? (
                         <WizardButton
@@ -496,7 +538,7 @@ export function ImportWizard({
                             disabled={busy}
                             onPress={() => void reset()}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </WizardButton>
                     ) : null}
                 </View>

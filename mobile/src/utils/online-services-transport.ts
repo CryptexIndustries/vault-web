@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { httpBatchLink } from "@trpc/client";
 import type { VersionedRouter } from "@cryptex-industries/api-contract";
 import { buildTrpcUrl } from "@cryptex-industries/api-contract";
@@ -37,7 +38,7 @@ export function onlineServicesLinks(headers: Headers) {
             fetch: (input, init) => {
                 if (!isCloudServicesEnabled()) {
                     return Promise.reject(
-                        new Error("Online Services are disabled."),
+                        new Error(t`Online Services are disabled.`),
                     );
                 }
                 return fetchWithTimeout(input, init);

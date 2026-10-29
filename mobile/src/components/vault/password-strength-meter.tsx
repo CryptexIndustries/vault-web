@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { View } from "react-native";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     isWeakPasswordScore,
-    PASSWORD_STRENGTH_LABELS,
     scorePassword,
 } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { Text } from "@/components/ui/text";
@@ -18,6 +19,14 @@ const SCORE_COLORS = [
     "#16a34a",
 ] as const;
 
+const PASSWORD_STRENGTH_LABELS = [
+    msg`Very weak`,
+    msg({ message: "Weak", context: "password strength" }),
+    msg`Fair`,
+    msg`Strong`,
+    msg`Very strong`,
+];
+
 type PasswordStrengthMeterProps = {
     password: string;
     showSuggestions?: boolean;
@@ -31,9 +40,13 @@ export function PasswordStrengthMeter({
     className,
     compact = false,
 }: PasswordStrengthMeterProps) {
+    const { t } = useLingui();
     const result = useMemo(() => scorePassword(password), [password]);
 
     if (compact) {
+        const strength = result
+            ? t(PASSWORD_STRENGTH_LABELS[result.score])
+            : undefined;
         return (
             <View
                 className={cn(
@@ -42,9 +55,9 @@ export function PasswordStrengthMeter({
                 )}
                 accessibilityLiveRegion="polite"
                 accessibilityLabel={
-                    result
-                        ? `Password strength: ${PASSWORD_STRENGTH_LABELS[result.score]}`
-                        : "Password strength"
+                    strength
+                        ? t`Password strength: ${strength}`
+                        : t`Password strength`
                 }
             >
                 <View
@@ -63,8 +76,9 @@ export function PasswordStrengthMeter({
 
     const { score, feedback } = result;
     const weak = isWeakPasswordScore(score);
-    const label =
-        PASSWORD_STRENGTH_LABELS[score] ?? PASSWORD_STRENGTH_LABELS[0];
+    const label = t(
+        PASSWORD_STRENGTH_LABELS[score] ?? PASSWORD_STRENGTH_LABELS[0],
+    );
     const warning = feedback.warning?.trim();
     const suggestions = feedback.suggestions
         .map((item) => item.trim())
@@ -74,7 +88,7 @@ export function PasswordStrengthMeter({
         <View
             className={cn("mt-2 gap-1.5", className)}
             accessibilityLiveRegion="polite"
-            accessibilityLabel={`Password strength: ${label}`}
+            accessibilityLabel={t`Password strength: ${label}`}
         >
             <View className="flex-row items-center gap-2">
                 <View className="h-1.5 flex-1 flex-row gap-1">
@@ -100,8 +114,7 @@ export function PasswordStrengthMeter({
             </View>
             {weak ? (
                 <Text className="text-xs leading-4 text-destructive">
-                    This password may be easy to guess offline if someone
-                    obtains your vault backup or sync data.
+                    {t`This password may be easy to guess offline if someone obtains your vault backup or sync data.`}
                 </Text>
             ) : null}
             {warning && showSuggestions ? (

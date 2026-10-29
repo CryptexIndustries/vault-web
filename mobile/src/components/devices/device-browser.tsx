@@ -6,6 +6,8 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { plural, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { ChevronRight, Clock3, Plus, RotateCw } from "lucide-react-native";
 import {
     SignalingStatus,
@@ -80,24 +82,54 @@ export function deviceLiveStatus(
     device: LinkedDevice | undefined,
     statuses: DeviceConnectionStatuses,
 ) {
-    if (!device) return "Status unknown";
+    if (!device)
+        return t({
+            message: "Status unknown",
+            comment: "Live connection status of a linked device",
+        });
     const status = statuses[device.ID];
-    if (status?.webRTCStatus === WebRTCStatus.Connected) return "Connected";
+    if (status?.webRTCStatus === WebRTCStatus.Connected)
+        return t({
+            message: "Connected",
+            comment: "Live connection status of a linked device",
+        });
     if (
         status?.webRTCStatus === WebRTCStatus.Failed ||
         status?.signalingServerStatus === SignalingStatus.Failed
     )
         return status.signalingServerStatus === SignalingStatus.Failed
-            ? "Signaling failed"
-            : "Connection failed";
-    if (status?.webRTCStatus === WebRTCStatus.Connecting) return "Connecting…";
+            ? t({
+                  message: "Signaling failed",
+                  comment: "Live connection status of a linked device",
+              })
+            : t({
+                  message: "Connection failed",
+                  comment: "Live connection status of a linked device",
+              });
+    if (status?.webRTCStatus === WebRTCStatus.Connecting)
+        return t({
+            message: "Connecting…",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Connecting)
-        return "Connecting to signaling…";
+        return t({
+            message: "Connecting to signaling…",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Unavailable)
-        return "Signaling unavailable";
+        return t({
+            message: "Signaling unavailable",
+            comment: "Live connection status of a linked device",
+        });
     if (status?.signalingServerStatus === SignalingStatus.Connected)
-        return "Ready to connect";
-    return "Disconnected";
+        return t({
+            message: "Ready to connect",
+            comment: "Live connection status of a linked device",
+        });
+    return t({
+        message: "Disconnected",
+        comment: "Live connection status of a linked device",
+    });
 }
 
 function deviceLastSync(
@@ -105,9 +137,9 @@ function deviceLastSync(
     statuses: DeviceConnectionStatuses,
 ) {
     const value = statuses[device.ID]?.lastSync ?? device.LastSync;
-    if (!value) return "Never synced";
+    if (!value) return null;
     const date = new Date(value);
-    if (!Number.isFinite(date.getTime())) return "Never synced";
+    if (!Number.isFinite(date.getTime())) return null;
     return formatDeviceDateTime(date, true);
 }
 
@@ -149,6 +181,7 @@ const DeviceRow = memo(function DeviceRow({
     onPress: () => void;
     onConnect: (device: LinkedDevice) => void;
 }) {
+    const { t } = useLingui();
     const local = primaryLocalDevice(node, statuses);
     const connected =
         !!local && statuses[local.ID]?.webRTCStatus === WebRTCStatus.Connected;
@@ -158,13 +191,19 @@ const DeviceRow = memo(function DeviceRow({
         (edge) => edge.fromDeviceId === node.id || edge.toDeviceId === node.id,
     ).length;
     const label = node.current
-        ? "This device"
+        ? t`This device`
         : local
           ? deviceLiveStatus(local, statuses)
           : relationCount
-            ? "No local link"
-            : "No recorded links";
-    const syncTime = local ? deviceLastSync(local, statuses) : "";
+            ? t`No local link`
+            : t`No recorded links`;
+    const syncTime = local ? deviceLastSync(local, statuses) : null;
+    const name = node.displayName;
+    const lastSeen = formatDeviceDateTime(node.lastSeen);
+    const seen = node.lastSeen ? formatDeviceActivity(node.lastSeen) : null;
+    const lastSuccessfulSync = local
+        ? formatDeviceDateTime(statuses[local.ID]?.lastSync ?? local.LastSync)
+        : "";
     return (
         <View
             style={{
@@ -178,7 +217,11 @@ const DeviceRow = memo(function DeviceRow({
             <Pressable
                 testID={`device-row-${node.serverId ?? node.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${node.displayName}, ${node.root ? "root device, " : ""}${label}`}
+                accessibilityLabel={
+                    node.root
+                        ? t`${name}, root device, ${label}`
+                        : `${name}, ${label}`
+                }
                 disabled={pending}
                 onPress={onPress}
                 style={{
@@ -233,7 +276,11 @@ const DeviceRow = memo(function DeviceRow({
                                     paddingVertical: 1,
                                 }}
                             >
-                                Root
+                                {t({
+                                    message: "Root",
+                                    comment:
+                                        "Badge on a device with root access",
+                                })}
                             </Text>
                         ) : null}
                     </View>
@@ -247,7 +294,13 @@ const DeviceRow = memo(function DeviceRow({
                     <Pressable
                         testID={`device-row-action-${node.id}`}
                         accessibilityRole="button"
-                        accessibilityLabel={`${busy ? "Connecting to" : connected ? "Sync" : "Connect"} ${node.displayName}`}
+                        accessibilityLabel={
+                            busy
+                                ? t`Connecting to ${name}`
+                                : connected
+                                  ? t`Sync ${name}`
+                                  : t`Connect ${name}`
+                        }
                         accessibilityState={{ disabled: pending || busy, busy }}
                         disabled={pending || busy}
                         onPress={() => onConnect(local)}
@@ -282,12 +335,28 @@ const DeviceRow = memo(function DeviceRow({
                                     : colors.muted,
                             }}
                         >
-                            {busy ? "Wait" : connected ? "Sync" : "Connect"}
+                            {busy
+                                ? t({
+                                      message: "Wait",
+                                      comment:
+                                          "Short button label while a device connects",
+                                  })
+                                : connected
+                                  ? t({
+                                        message: "Sync",
+                                        comment:
+                                            "Short button: sync with a device",
+                                    })
+                                  : t({
+                                        message: "Connect",
+                                        comment:
+                                            "Short button: connect to a device",
+                                    })}
                         </Text>
                     </Pressable>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Open ${node.displayName} details`}
+                        accessibilityLabel={t`Open ${name} details`}
                         disabled={pending}
                         onPress={onPress}
                         style={{
@@ -326,7 +395,7 @@ const DeviceRow = memo(function DeviceRow({
                     >
                         <Clock3 size={12} color={colors.muted} opacity={0.7} />
                         <Text
-                            accessibilityLabel={`Last seen by Online Services: ${formatDeviceDateTime(node.lastSeen)}`}
+                            accessibilityLabel={t`Last seen by Online Services: ${lastSeen}`}
                             numberOfLines={1}
                             style={{
                                 flexShrink: 1,
@@ -335,9 +404,7 @@ const DeviceRow = memo(function DeviceRow({
                                 color: colors.muted,
                             }}
                         >
-                            {node.lastSeen
-                                ? `Seen ${formatDeviceActivity(node.lastSeen)}`
-                                : "Seen unavailable"}
+                            {seen ? t`Seen ${seen}` : t`Seen unavailable`}
                         </Text>
                     </View>
                 ) : null}
@@ -356,7 +423,7 @@ const DeviceRow = memo(function DeviceRow({
                             opacity={0.7}
                         />
                         <Text
-                            accessibilityLabel={`Last successful sync: ${formatDeviceDateTime(statuses[local.ID]?.lastSync ?? local.LastSync)}`}
+                            accessibilityLabel={t`Last successful sync: ${lastSuccessfulSync}`}
                             numberOfLines={1}
                             style={{
                                 flexShrink: 1,
@@ -365,9 +432,7 @@ const DeviceRow = memo(function DeviceRow({
                                 color: colors.muted,
                             }}
                         >
-                            {syncTime === "Never synced"
-                                ? syncTime
-                                : `Synced ${syncTime}`}
+                            {syncTime ? t`Synced ${syncTime}` : t`Never synced`}
                         </Text>
                     </View>
                 ) : null}
@@ -401,6 +466,7 @@ export function DeviceList({
     /** More sections below the devices, such as connected agents. */
     footer?: ReactElement;
 }) {
+    const { t } = useLingui();
     const listRef = useRef<FlatList<DeviceNode>>(null);
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -409,7 +475,7 @@ export function DeviceList({
         <FlatList
             ref={listRef}
             testID="device-list"
-            accessibilityLabel="Devices"
+            accessibilityLabel={t`Devices`}
             data={nodes}
             keyExtractor={(node) => node.id}
             extraData={{ statuses, pending }}
@@ -447,7 +513,7 @@ export function DeviceList({
                         paddingVertical: 35,
                     }}
                 >
-                    No matching devices. Try an ID or a saved name.
+                    {t`No matching devices. Try an ID or a saved name.`}
                 </Text>
             }
         />
@@ -469,6 +535,7 @@ export function DeviceSelectionSummary({
     onDetails: () => void;
     onConnect: (device: LinkedDevice) => void;
 }) {
+    const { t } = useLingui();
     const { fontScale } = useWindowDimensions();
     const edge =
         selection.kind === "edge"
@@ -498,8 +565,13 @@ export function DeviceSelectionSummary({
     const subtitle = edge
         ? deviceLiveStatus(local, statuses)
         : node.current || !local
-          ? `${count} recorded connection${count === 1 ? "" : "s"}`
+          ? plural(count, {
+                one: "# recorded connection",
+                other: "# recorded connections",
+            })
           : deviceLiveStatus(local, statuses);
+    const name = node.displayName;
+    const lastSync = local ? deviceLastSync(local, statuses) : null;
     return (
         <View
             style={{
@@ -527,7 +599,7 @@ export function DeviceSelectionSummary({
                 <Pressable
                     testID="device-selection-details"
                     accessibilityRole="button"
-                    accessibilityLabel="Open selected details"
+                    accessibilityLabel={t`Open selected details`}
                     disabled={pending}
                     onPress={onDetails}
                     style={{
@@ -554,8 +626,7 @@ export function DeviceSelectionSummary({
                                 fontWeight: "500",
                             }}
                         >
-                            {edge ? "Connection to " : ""}
-                            {node.displayName}
+                            {edge ? t`Connection to ${name}` : name}
                         </Text>
                         <Text
                             numberOfLines={1}
@@ -578,7 +649,9 @@ export function DeviceSelectionSummary({
                                     color: colors.muted,
                                 }}
                             >
-                                Last sync {deviceLastSync(local, statuses)}
+                                {lastSync
+                                    ? t`Last sync ${lastSync}`
+                                    : t`Never synced`}
                             </Text>
                         ) : null}
                     </View>
@@ -591,7 +664,9 @@ export function DeviceSelectionSummary({
                         <Pressable
                             testID="device-selection-action"
                             accessibilityRole="button"
-                            accessibilityLabel={`${connected ? "Sync" : "Connect"} ${node.displayName}`}
+                            accessibilityLabel={
+                                connected ? t`Sync ${name}` : t`Connect ${name}`
+                            }
                             disabled={pending || busy}
                             onPress={() => onConnect(local)}
                             style={{
@@ -622,12 +697,28 @@ export function DeviceSelectionSummary({
                                         : colors.muted,
                                 }}
                             >
-                                {busy ? "Wait" : connected ? "Sync" : "Connect"}
+                                {busy
+                                    ? t({
+                                          message: "Wait",
+                                          comment:
+                                              "Short button label while a device connects",
+                                      })
+                                    : connected
+                                      ? t({
+                                            message: "Sync",
+                                            comment:
+                                                "Short button: sync with a device",
+                                        })
+                                      : t({
+                                            message: "Connect",
+                                            comment:
+                                                "Short button: connect to a device",
+                                        })}
                             </Text>
                         </Pressable>
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel="Open selected details"
+                            accessibilityLabel={t`Open selected details`}
                             disabled={pending}
                             onPress={onDetails}
                             style={{

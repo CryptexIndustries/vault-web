@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import type {
     DeviceNode,
     DeviceRelationshipMap,
@@ -36,6 +37,7 @@ export const DeviceMapAccessibility = memo(function DeviceMapAccessibility({
     selection: DeviceSelection | null;
     onSelect: (next: DeviceSelection) => void;
 }) {
+    const { t } = useLingui();
     if (!enabled) return null;
     const frame = (point: MapPoint, size: number) => {
         const x = point.x * camera.scale + camera.x;
@@ -80,12 +82,16 @@ export const DeviceMapAccessibility = memo(function DeviceMapAccessibility({
                 const to = map.nodes.find(
                     (node) => node.id === relationship.toDeviceId,
                 )?.displayName;
+                const status = deviceLiveStatus(
+                    relationship.localDevice,
+                    statuses,
+                );
                 return (
                     <Pressable
                         key={edge.id}
                         testID={`device-map-edge-${edge.id}`}
                         accessibilityRole="button"
-                        accessibilityLabel={`Connection between ${from} and ${to}: ${deviceLiveStatus(relationship.localDevice, statuses)}`}
+                        accessibilityLabel={t`Connection between ${from} and ${to}: ${status}`}
                         accessibilityState={{
                             selected:
                                 selection?.kind === "edge" &&
@@ -101,12 +107,17 @@ export const DeviceMapAccessibility = memo(function DeviceMapAccessibility({
                 if (!point) return null;
                 const style = frame(point, Math.max(44, 60 * camera.scale));
                 if (!style) return null;
+                const name = node.displayName;
                 return (
                     <Pressable
                         key={node.id}
                         testID={`device-map-node-${node.id}`}
                         accessibilityRole="button"
-                        accessibilityLabel={`Select ${node.displayName}${node.root ? ", root device" : ""}`}
+                        accessibilityLabel={
+                            node.root
+                                ? t`Select ${name}, root device`
+                                : t`Select ${name}`
+                        }
                         accessibilityState={{
                             selected:
                                 selection?.kind === "node" &&

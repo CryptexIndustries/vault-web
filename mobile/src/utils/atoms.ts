@@ -2,6 +2,7 @@
  * Vault and Online Services state stored in Jotai atoms.
  * Keep this store compatible with the shared vault mutation coordinator.
  */
+import { t } from "@lingui/core/macro";
 import { atom, createStore } from "jotai";
 import { focusAtom } from "jotai-optics";
 import { selectAtom } from "jotai/utils";
@@ -44,19 +45,27 @@ export type OnlineServicesAuthenticationStatus = {
     statusDescription: string;
 };
 
-const ONLINE_SERVICES_AUTH_STATUS_LABELS: Record<
-    OnlineServicesAuthenticationState,
-    string
-> = {
-    CONNECTED: "Signed in",
-    CONNECTING: "Signing in...",
-    DISCONNECTED: "Disconnected",
-    FAILED: "Unknown failure occurred",
+export const onlineServicesAuthStatusLabel = (
+    status: OnlineServicesAuthenticationState,
+): string => {
+    switch (status) {
+        case "CONNECTED":
+            return t`Signed in`;
+        case "CONNECTING":
+            return t`Signing in...`;
+        case "DISCONNECTED":
+            return t({
+                message: "Disconnected",
+                comment: "Online Services sign-in status",
+            });
+        case "FAILED":
+            return t`Unknown failure occurred`;
+    }
 };
 
 const createOnlineServicesAuthenticationStatus = (
     status: OnlineServicesAuthenticationState,
-    statusDescription = ONLINE_SERVICES_AUTH_STATUS_LABELS[status],
+    statusDescription = onlineServicesAuthStatusLabel(status),
 ): OnlineServicesAuthenticationStatus => ({
     status,
     statusDescription,
@@ -72,7 +81,7 @@ export const onlineServicesAuthenticationStatus = {
     failed: (error?: string): OnlineServicesAuthenticationStatus =>
         createOnlineServicesAuthenticationStatus(
             "FAILED",
-            error ?? ONLINE_SERVICES_AUTH_STATUS_LABELS.FAILED,
+            error ?? onlineServicesAuthStatusLabel("FAILED"),
         ),
 };
 
@@ -93,7 +102,7 @@ export const linkedDevicesAtom = focusAtom(unlockedVaultAtom, (baseAtom) =>
 );
 
 export const getUnlockedVault = () => {
-    if (isAutoLockDue()) throw new Error("Vault session expired.");
+    if (isAutoLockDue()) throw new Error(t`Vault session expired.`);
     return vaultStore.get(unlockedVaultAtom);
 };
 

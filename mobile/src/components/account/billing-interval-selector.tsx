@@ -1,5 +1,6 @@
 import { Pressable, View, useWindowDimensions } from "react-native";
 import { Check } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
 import type { CheckoutTier } from "@/app_lib/online-services-billing";
 import { colors } from "@/theme";
@@ -9,20 +10,21 @@ export function BillingIntervalSelector({
     onChange,
     disabled,
     plans,
-    pricePlaceholder = "Loading…",
+    pricePlaceholder,
 }: {
     value: CheckoutTier;
     onChange: (tier: CheckoutTier) => void;
     disabled: boolean;
     plans: Partial<Record<CheckoutTier, { price: string; caption?: string }>>;
-    pricePlaceholder?: string;
+    pricePlaceholder: string;
 }) {
+    const { t } = useLingui();
     const { fontScale, width } = useWindowDimensions();
     const stacked = width < 360 || fontScale > 1.3;
     return (
         <View
             accessibilityRole="radiogroup"
-            accessibilityLabel="Billing interval"
+            accessibilityLabel={t`Billing interval`}
             style={{
                 flexDirection: "row",
                 flexWrap: "wrap",
@@ -39,8 +41,13 @@ export function BillingIntervalSelector({
                 const annual = tier === "premiumYearly";
                 const price = plans[tier]?.price;
                 const caption = plans[tier]?.caption;
-                const period = annual ? "year" : "month";
-                const label = `${annual ? "Yearly" : "Monthly"}, ${price ? `${price} per ${period}` : pricePlaceholder}`;
+                const label = annual
+                    ? price
+                        ? t`Yearly, ${price} per year`
+                        : t`Yearly, ${pricePlaceholder}`
+                    : price
+                      ? t`Monthly, ${price} per month`
+                      : t`Monthly, ${pricePlaceholder}`;
                 return (
                     <Pressable
                         key={tier}
@@ -86,7 +93,7 @@ export function BillingIntervalSelector({
                                         : colors.muted,
                                 }}
                             >
-                                {annual ? "Yearly" : "Monthly"}
+                                {annual ? t`Yearly` : t`Monthly`}
                             </Text>
                             <View
                                 style={{
@@ -128,7 +135,18 @@ export function BillingIntervalSelector({
                                         color: colors.muted,
                                     }}
                                 >
-                                    {` / ${period}`}
+                                    {" "}
+                                    {annual
+                                        ? t({
+                                              message: "/ year",
+                                              comment:
+                                                  "Suffix after the yearly price",
+                                          })
+                                        : t({
+                                              message: "/ month",
+                                              comment:
+                                                  "Suffix after the monthly price",
+                                          })}
                                 </Text>
                             ) : null}
                         </Text>

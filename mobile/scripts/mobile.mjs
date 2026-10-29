@@ -42,7 +42,7 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
-  pnpm mobile:check [-- lint | types | unit | cli | export]
+  pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
   pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
   pnpm mobile:install [-- --profile production|preprod] [--arch <abi>] --device <serial> [apk]
@@ -335,12 +335,17 @@ export function runMobile(
     }
     if (command === "check") {
         const selection = args.shift();
-        const checks = ["lint", "types", "unit", "cli", "export"];
+        const checks = ["lint", "i18n", "types", "unit", "cli", "export"];
         if (selection && !checks.includes(selection))
             throw new Error(`Unknown check: ${selection}`);
         if (selection !== "unit") rejectArguments();
         for (const check of selection ? [selection] : checks) {
             if (check === "lint") exec(["oxlint"]);
+            if (check === "i18n") {
+                execute(process.execPath, ["scripts/check-i18n-literals.mjs"]);
+                exec(["lingui", "check", "sync"]);
+                exec(["lingui", "check", "missing", "--locale", "hr"]);
+            }
             if (check === "types") {
                 // The worker bundles aren't tracked; their imports need the files.
                 execute(process.execPath, ["scripts/build-workers.cjs"]);

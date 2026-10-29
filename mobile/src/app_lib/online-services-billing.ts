@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { Linking, Platform } from "react-native";
+import { t } from "@lingui/core/macro";
 import type { trpc } from "@/utils/trpc";
 import * as stripe from "./stripe-billing";
 
@@ -86,14 +87,14 @@ export async function openBillingManagement(
         } catch {
             return {
                 ok: false,
-                message: "Could not open Google Play subscriptions.",
+                message: t`Could not open Google Play subscriptions.`,
             } as const;
         }
     }
     if (management === "stripe") return stripe.openCustomerPortalExternal();
     return {
         ok: false,
-        message: "This subscription cannot be managed from this app.",
+        message: t`This subscription cannot be managed from this app.`,
     } as const;
 }
 export async function loadStorePlans(trialEligible: boolean) {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cryptex_accessibility_description">Prikazuje zaseban gumb za automatsko popunjavanje i spremanje na poljima za prijavu kada aplikacija ili preglednik ne podržava automatsko popunjavanje sustava Android. Čitljive vrijednosti obrasca provjeravaju se tek kada odabereš Spremi pristupne podatke; lozinke koje štiti Android treba ponovno unijeti u aplikaciji Cryptex Vault.</string>
+    <string name="cryptex_accessibility_open_fallback">Otvori zamjensko popunjavanje aplikacije %1$s</string>
+    <string name="cryptex_accessibility_fill_title">Popuni pristupne podatke</string>
+    <string name="cryptex_accessibility_fill_subtitle">Odaberi spremljene pristupne podatke iz trezora</string>
+    <string name="cryptex_accessibility_save_title">Spremi pristupne podatke</string>
+    <string name="cryptex_accessibility_save_subtitle">Pročitaj obrazac i pregledaj ga u aplikaciji Cryptex Vault</string>
+    <string name="cryptex_accessibility_choose_action">Odaberi radnju za %1$s.</string>
+    <string name="cryptex_accessibility_dismiss">Sakrij za ovaj posjet</string>
+    <string name="cryptex_accessibility_passwords_mismatch">Polja za lozinku se ne podudaraju.</string>
+    <string name="cryptex_accessibility_fill_failed">Cryptex Vault ne može popuniti ovaj obrazac. Pokušaj standardno automatsko popunjavanje.</string>
+    <string name="cryptex_accessibility_fill_partial">Neka polja nisu popunjena. Provjeri obrazac.</string>
+</resources>

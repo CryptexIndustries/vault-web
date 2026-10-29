@@ -16,6 +16,9 @@ import {
 import { Alert, Pressable, ScrollView, SectionList, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ArrowDown,
     ArrowUpDown,
@@ -60,11 +63,14 @@ import { colors } from "@/theme";
 /** A directory ID, or all items, items without a directory, or SSH keys. */
 type DirectoryFilter = "all" | "root" | typeof SSH_KEYS_FILTER | string;
 
-const SORT_OPTIONS: Array<{ value: CredentialSort; label: string }> = [
-    { value: "modified-desc", label: "Recently modified" },
-    { value: "modified-asc", label: "Oldest first" },
-    { value: "name-asc", label: "Name A–Z" },
-    { value: "name-desc", label: "Name Z–A" },
+const SORT_OPTIONS: Array<{
+    value: CredentialSort;
+    label: MessageDescriptor;
+}> = [
+    { value: "modified-desc", label: msg`Recently modified` },
+    { value: "modified-asc", label: msg`Oldest first` },
+    { value: "name-asc", label: msg`Name A–Z` },
+    { value: "name-desc", label: msg`Name Z–A` },
 ];
 
 function initials(name: string): string {
@@ -88,6 +94,7 @@ function newItemDirectoryId(filter: DirectoryFilter): string {
 export function VaultHomeScreen({
     selectedId: selectedIdProp,
 }: { selectedId?: string | null } = {}) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const params = useLocalSearchParams<{ directoryId?: string }>();
     const vault = useAtomValue(unlockedVaultAtom);
@@ -177,7 +184,7 @@ export function VaultHomeScreen({
             else grouped.set(item.DirectoryID, [item]);
         }
         return [
-            { id: "", name: "No directory" },
+            { id: "", name: t`No directory` },
             ...directories.map((entry) => ({ id: entry.ID, name: entry.Name })),
         ]
             .map((entry) => ({
@@ -186,7 +193,7 @@ export function VaultHomeScreen({
                 data: grouped.get(entry.id) ?? [],
             }))
             .filter((entry) => entry.data.length);
-    }, [directories, visible]);
+    }, [directories, visible, t]);
     const selectedCredential = useMemo(
         () =>
             selectedId
@@ -197,13 +204,13 @@ export function VaultHomeScreen({
     );
     const filterLabel =
         filter === "all"
-            ? "All items"
+            ? t`All items`
             : filter === "root"
-              ? "No directory"
+              ? t`No directory`
               : filter === SSH_KEYS_FILTER
-                ? "SSH keys"
+                ? t`SSH keys`
                 : (directories.find((item) => item.ID === filter)?.Name ??
-                  "Directory");
+                  t`Directory`);
     const sshFilter = filter === SSH_KEYS_FILTER;
 
     const addCredential = () =>
@@ -223,6 +230,7 @@ export function VaultHomeScreen({
     );
 
     const selectionMode = selectedIDs.size > 0;
+    const selectedCount = selectedIDs.size;
     // A share link holds one item, and passkeys are never shared.
     const shareableSelection = useMemo(() => {
         if (selectedIDs.size !== 1) return null;
@@ -239,12 +247,13 @@ export function VaultHomeScreen({
         [selectionMode, isTablet, toggleSelected],
     );
 
-    const deleteItem = (credential: VaultCredential) =>
-        confirm({
-            title: "Delete this item?",
-            description: `Remove “${credential.Name || "Untitled"}” from your vault?`,
-            cancelLabel: "Keep item",
-            confirmLabel: "Delete item",
+    const deleteItem = (credential: VaultCredential) => {
+        const name = credential.Name || t`Untitled`;
+        return confirm({
+            title: t`Delete this item?`,
+            description: t`Remove “${name}” from your vault?`,
+            cancelLabel: t`Keep item`,
+            confirmLabel: t`Delete item`,
             onConfirm: () =>
                 void persistVaultMutation(
                     "credential.delete",
@@ -263,7 +272,7 @@ export function VaultHomeScreen({
                     },
                 ).then((result) => {
                     if (result.isErr())
-                        return Alert.alert("Error", "Failed to delete item.");
+                        return Alert.alert(t`Error`, t`Failed to delete item.`);
                     setSelectedId(null);
                     setSelectedIDs((current) => {
                         const next = new Set(current);
@@ -272,7 +281,9 @@ export function VaultHomeScreen({
                     });
                 }),
         });
+    };
 
+    const moveCount = moveIDs.length;
     const move = async (targetId: string) => {
         if (!moveIDs.length) return;
         const result = await persistVaultMutation(
@@ -292,7 +303,8 @@ export function VaultHomeScreen({
                 return { vault: updated, result: undefined };
             },
         );
-        if (result.isErr()) return Alert.alert("Error", "Failed to move item.");
+        if (result.isErr())
+            return Alert.alert(t`Error`, t`Failed to move item.`);
         setMoveIDs([]);
         setSelectedIDs(new Set());
     };
@@ -316,7 +328,7 @@ export function VaultHomeScreen({
         <View style={{ paddingTop: 12 }}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Search your vault"
+                accessibilityLabel={t`Search your vault`}
                 onPress={() =>
                     router.push("/(app)/(tabs)/vault/search" as never)
                 }
@@ -334,7 +346,7 @@ export function VaultHomeScreen({
             >
                 <Search size={21} color={colors.muted} strokeWidth={1.7} />
                 <UnlockedText style={{ color: colors.muted, fontSize: 14 }}>
-                    Search your vault
+                    {t`Search your vault`}
                 </UnlockedText>
             </Pressable>
             <View
@@ -346,7 +358,7 @@ export function VaultHomeScreen({
             >
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Filter items, ${filterLabel}`}
+                    accessibilityLabel={t`Filter items, ${filterLabel}`}
                     onPress={() => setFilterOpen(true)}
                     style={{
                         minHeight: 48,
@@ -375,7 +387,7 @@ export function VaultHomeScreen({
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Manage directories"
+                    accessibilityLabel={t`Manage directories`}
                     onPress={() => router.push("/(app)/directories" as never)}
                     style={{
                         width: 48,
@@ -388,7 +400,7 @@ export function VaultHomeScreen({
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Sort items"
+                    accessibilityLabel={t`Sort items`}
                     onPress={() => setSortOpen(true)}
                     style={{
                         width: 48,
@@ -420,7 +432,7 @@ export function VaultHomeScreen({
                     }}
                 >
                     <UnlockedText style={{ flex: 1, fontSize: 13 }}>
-                        {selectedIDs.size} selected
+                        {t`${selectedCount} selected`}
                     </UnlockedText>
                     <Button
                         size="sm"
@@ -431,7 +443,10 @@ export function VaultHomeScreen({
                             )
                         }
                     >
-                        All
+                        {t({
+                            message: "All",
+                            comment: "Button: select all items",
+                        })}
                     </Button>
                     {shareableSelection ? (
                         <Button
@@ -445,7 +460,10 @@ export function VaultHomeScreen({
                                 });
                             }}
                         >
-                            Share
+                            {t({
+                                message: "Share",
+                                comment: "Button: share the selected item",
+                            })}
                         </Button>
                     ) : null}
                     <Button
@@ -453,14 +471,21 @@ export function VaultHomeScreen({
                         variant="ghost"
                         onPress={() => setMoveIDs(Array.from(selectedIDs))}
                     >
-                        Move
+                        {t({
+                            message: "Move",
+                            comment:
+                                "Button: move selected items to a directory",
+                        })}
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
                         onPress={() => setSelectedIDs(new Set())}
                     >
-                        Clear
+                        {t({
+                            message: "Clear",
+                            comment: "Button: clear the selection",
+                        })}
                     </Button>
                 </View>
             ) : null}
@@ -489,10 +514,10 @@ export function VaultHomeScreen({
                 }}
             >
                 {sshFilter
-                    ? "No SSH keys yet."
+                    ? t`No SSH keys yet.`
                     : activeCredentials.length
-                      ? "This directory is empty."
-                      : "Your vault starts here."}
+                      ? t`This directory is empty.`
+                      : t`Your vault starts here.`}
             </UnlockedText>
             {activeCredentials.length || sshFilter ? (
                 <UnlockedText
@@ -506,8 +531,8 @@ export function VaultHomeScreen({
                     }}
                 >
                     {sshFilter
-                        ? "Generate a new key or add one you already use."
-                        : "Add a credential here, or move one from its item menu."}
+                        ? t`Generate a new key or add one you already use.`
+                        : t`Add a credential here, or move one from its item menu.`}
                 </UnlockedText>
             ) : null}
             <Button
@@ -516,10 +541,10 @@ export function VaultHomeScreen({
                 onPress={addCredential}
             >
                 {sshFilter
-                    ? "Add SSH key"
+                    ? t`Add SSH key`
                     : activeCredentials.length
-                      ? "Add item here"
-                      : "Add your first item"}
+                      ? t`Add item here`
+                      : t`Add your first item`}
             </Button>
             {!activeCredentials.length && !sshFilter ? (
                 <Button
@@ -527,7 +552,7 @@ export function VaultHomeScreen({
                     className="mt-2 w-full"
                     onPress={() => router.push("/(app)/settings/import-export")}
                 >
-                    Import passwords
+                    {t`Import passwords`}
                 </Button>
             ) : null}
         </View>
@@ -660,14 +685,16 @@ export function VaultHomeScreen({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Move to directory</DialogTitle>
+                    <DialogTitle>{t`Move to directory`}</DialogTitle>
                     <DialogDescription>
-                        Choose a destination for {moveIDs.length} item
-                        {moveIDs.length === 1 ? "" : "s"}.
+                        {plural(moveCount, {
+                            one: "Choose a destination for # item.",
+                            other: "Choose a destination for # items.",
+                        })}
                     </DialogDescription>
                 </DialogHeader>
                 <DirectoryChoice
-                    label="No directory"
+                    label={t`No directory`}
                     onPress={() => void move("")}
                 />
                 {directories.map((directory) => (
@@ -720,20 +747,21 @@ function DirectoryFilterSheet({
     counts: Record<string, number>;
     directories: Array<{ ID: string; Name: string }>;
 }) {
+    const { t } = useLingui();
     const options = [
         {
             id: "all" as DirectoryFilter,
-            name: "All items",
+            name: t`All items`,
             count: counts.all ?? 0,
         },
         {
             id: SSH_KEYS_FILTER as DirectoryFilter,
-            name: "SSH keys",
+            name: t`SSH keys`,
             count: counts[SSH_KEYS_FILTER] ?? 0,
         },
         {
             id: "root" as DirectoryFilter,
-            name: "No directory",
+            name: t`No directory`,
             count: counts.root ?? 0,
         },
         ...directories.map((item) => ({
@@ -745,7 +773,7 @@ function DirectoryFilterSheet({
     return (
         <Dialog open={open} onOpenChange={onOpenChange} placement="bottom">
             <DialogHeader>
-                <DialogTitle>Filter items</DialogTitle>
+                <DialogTitle>{t`Filter items`}</DialogTitle>
             </DialogHeader>
             {options.map((item) => (
                 <Pressable
@@ -823,7 +851,7 @@ function DirectoryFilterSheet({
                     router.push("/(app)/directories" as never);
                 }}
             >
-                Manage directories
+                {t`Manage directories`}
             </Button>
         </Dialog>
     );
@@ -840,6 +868,7 @@ function SortSheet({
     sort: CredentialSort;
     setSort: (sort: CredentialSort) => void;
 }) {
+    const { t } = useLingui();
     return (
         <Dialog
             open={open}
@@ -848,7 +877,7 @@ function SortSheet({
             modal={false}
         >
             <DialogHeader>
-                <DialogTitle>Sort items</DialogTitle>
+                <DialogTitle>{t`Sort items`}</DialogTitle>
             </DialogHeader>
             {SORT_OPTIONS.map((option) => (
                 <Pressable
@@ -887,7 +916,7 @@ function SortSheet({
                             fontSize: 14,
                         }}
                     >
-                        {option.label}
+                        {t(option.label)}
                     </UnlockedText>
                     {sort === option.value ? (
                         <Check size={18} color={colors.primary} />
@@ -909,12 +938,15 @@ const VaultRow = memo(function VaultRow({
     onSelect: (item: VaultCredential) => void;
     onLongPress: (id: string) => void;
 }) {
+    const { t } = useLingui();
     const sshKey = isSSHKeyItem(item);
+    const passkeyUser = item.Passkey?.UserDisplayName || item.Passkey?.UserName;
     const secondary = sshKey
         ? sshKeySummary(item)
         : item.Type === ItemType.Passkey && item.Passkey
-          ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
-          : item.Username || (item.Notes ? "Secure note" : "No username");
+          ? t`Passkey: ${passkeyUser}`
+          : item.Username || (item.Notes ? t`Secure note` : t`No username`);
+    const name = item.Name || t`Untitled`;
     return (
         <View
             style={{
@@ -927,8 +959,8 @@ const VaultRow = memo(function VaultRow({
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${item.Name || "Untitled"}, ${secondary}`}
-                accessibilityHint="Opens item details. Hold to select."
+                accessibilityLabel={t`${name}, ${secondary}`}
+                accessibilityHint={t`Opens item details. Hold to select.`}
                 onPress={() => onSelect(item)}
                 onLongPress={() => onLongPress(item.ID)}
                 android_ripple={{ color: colors.border }}
@@ -997,7 +1029,7 @@ const VaultRow = memo(function VaultRow({
                                 fontWeight: "600",
                             }}
                         >
-                            {item.Name || "Untitled"}
+                            {name}
                         </UnlockedText>
                         {item.TOTP?.Secret ? (
                             <Key size={12} color={colors.primary} />
@@ -1018,7 +1050,11 @@ const VaultRow = memo(function VaultRow({
             {sshKey && item.SSHKey ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Copy ${item.Name || "item"} public key`}
+                    accessibilityLabel={
+                        item.Name
+                            ? t`Copy ${name} public key`
+                            : t`Copy item public key`
+                    }
                     onPress={() =>
                         void copyTextToClipboard(sshPublicKeyLine(item.SSHKey!))
                     }
@@ -1035,7 +1071,11 @@ const VaultRow = memo(function VaultRow({
             ) : item.Password ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Copy ${item.Name || "item"} password`}
+                    accessibilityLabel={
+                        item.Name
+                            ? t`Copy ${name} password`
+                            : t`Copy item password`
+                    }
                     onPress={() => void copySecretToClipboard(item.Password)}
                     android_ripple={{ color: colors.border }}
                     style={{
@@ -1050,7 +1090,9 @@ const VaultRow = memo(function VaultRow({
             ) : (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`View ${item.Name || "item"}`}
+                    accessibilityLabel={
+                        item.Name ? t`View ${name}` : t`View item`
+                    }
                     onPress={() => onSelect(item)}
                     android_ripple={{ color: colors.border }}
                     style={{

@@ -2,6 +2,8 @@ import { useUnlockedConfirmation } from "@/components/unlocked/confirmation-shee
 import { useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
+import { i18n } from "@lingui/core";
+import { useLingui } from "@lingui/react/macro";
 import { Archive, Cloud, KeyRound } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { writeSecretTempFile } from "@/utils/secret-temp-files";
@@ -27,7 +29,11 @@ import { colors } from "@/theme";
 function formatBytes(bytes: number) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KiB`;
-    return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+    const size = (bytes / 1024 ** 2).toLocaleString(i18n.locale, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    });
+    return `${size} MiB`;
 }
 
 export function BackupCenterScreen({
@@ -35,6 +41,7 @@ export function BackupCenterScreen({
 }: {
     view?: "center" | "history";
 }) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const utils = trpcReact.useUtils();
     const status = trpcReact.v1.backup.status.useQuery();
@@ -73,12 +80,12 @@ export function BackupCenterScreen({
             managedBackupCoordinator.setEnabled(true);
             await managedBackupCoordinator.backupNow();
             await refresh();
-            setMessage("Managed encrypted backups enabled.");
+            setMessage(t`Managed encrypted backups enabled.`);
         } catch (error) {
             setMessage(
                 error instanceof Error
                     ? error.message
-                    : "Could not enable backups.",
+                    : t`Could not enable backups.`,
             );
         } finally {
             setBusy(false);
@@ -92,12 +99,12 @@ export function BackupCenterScreen({
             await disable.mutateAsync();
             managedBackupCoordinator.setEnabled(false);
             await refresh();
-            setMessage("Automatic backups paused. Existing history remains.");
+            setMessage(t`Automatic backups paused. Existing history remains.`);
         } catch (error) {
             setMessage(
                 error instanceof Error
                     ? error.message
-                    : "Could not pause automatic backups.",
+                    : t`Could not pause automatic backups.`,
             );
         } finally {
             setBusy(false);
@@ -110,10 +117,10 @@ export function BackupCenterScreen({
         try {
             await managedBackupCoordinator.backupNow();
             await refresh();
-            setMessage("Encrypted backup uploaded.");
+            setMessage(t`Encrypted backup uploaded.`);
         } catch (error) {
             setMessage(
-                error instanceof Error ? error.message : "Backup failed.",
+                error instanceof Error ? error.message : t`Backup failed.`,
             );
         } finally {
             setBusy(false);
@@ -141,12 +148,12 @@ export function BackupCenterScreen({
                     mimeType: "application/octet-stream",
                 },
             );
-            if (shared === "shared") setMessage("Encrypted backup ready.");
+            if (shared === "shared") setMessage(t`Encrypted backup ready.`);
             else if (shared === "unavailable")
-                setMessage("Sharing is unavailable on this device.");
+                setMessage(t`Sharing is unavailable on this device.`);
         } catch (error) {
             setMessage(
-                error instanceof Error ? error.message : "Download failed.",
+                error instanceof Error ? error.message : t`Download failed.`,
             );
         } finally {
             setBusy(false);
@@ -166,21 +173,21 @@ export function BackupCenterScreen({
 
     const confirmDelete = (snapshotId: string) =>
         confirm({
-            title: "Delete backup",
-            description: "Permanently delete this encrypted backup?",
-            cancelLabel: "Cancel",
-            confirmLabel: "Delete",
+            title: t`Delete backup`,
+            description: t`Permanently delete this encrypted backup?`,
+            cancelLabel: t`Cancel`,
+            confirmLabel: t`Delete`,
             onConfirm: () => {
                 setMessage("");
                 void remove
                     .mutateAsync({ snapshotId })
                     .then(refresh)
-                    .then(() => setMessage("Backup deleted."))
+                    .then(() => setMessage(t`Backup deleted.`))
                     .catch((error: unknown) =>
                         setMessage(
                             error instanceof Error
                                 ? error.message
-                                : "Could not delete backup.",
+                                : t`Could not delete backup.`,
                         ),
                     );
             },
@@ -188,22 +195,21 @@ export function BackupCenterScreen({
 
     const confirmDeleteAll = () =>
         confirm({
-            title: "Delete all backups",
-            description:
-                "Permanently delete every managed backup for this vault?",
-            cancelLabel: "Cancel",
-            confirmLabel: "Delete all",
+            title: t`Delete all backups`,
+            description: t`Permanently delete every managed backup for this vault?`,
+            cancelLabel: t`Cancel`,
+            confirmLabel: t`Delete all`,
             onConfirm: () => {
                 setMessage("");
                 void removeAll
                     .mutateAsync()
                     .then(refresh)
-                    .then(() => setMessage("All backups deleted."))
+                    .then(() => setMessage(t`All backups deleted.`))
                     .catch((error: unknown) =>
                         setMessage(
                             error instanceof Error
                                 ? error.message
-                                : "Could not delete backups.",
+                                : t`Could not delete backups.`,
                         ),
                     );
             },
@@ -211,7 +217,7 @@ export function BackupCenterScreen({
 
     if (view === "history") {
         return (
-            <UnlockedTaskScreen title="Backup history">
+            <UnlockedTaskScreen title={t`Backup history`}>
                 {historyItems.length ? (
                     <>
                         <View
@@ -230,7 +236,7 @@ export function BackupCenterScreen({
                                     marginBottom: 6,
                                 }}
                             >
-                                Encrypted snapshots
+                                {t`Encrypted snapshots`}
                             </UnlockedText>
                             <UnlockedText
                                 style={{
@@ -239,8 +245,7 @@ export function BackupCenterScreen({
                                     color: colors.muted,
                                 }}
                             >
-                                Download a snapshot to restore it, or remove
-                                copies you no longer need.
+                                {t`Download a snapshot to restore it, or remove copies you no longer need.`}
                             </UnlockedText>
                         </View>
                         {historyItems.map((snapshot) => (
@@ -249,7 +254,7 @@ export function BackupCenterScreen({
                                 icon={Archive}
                                 title={new Date(
                                     snapshot.createdAt,
-                                ).toLocaleString(undefined, {
+                                ).toLocaleString(i18n.locale, {
                                     month: "long",
                                     day: "numeric",
                                     hour: "2-digit",
@@ -269,7 +274,7 @@ export function BackupCenterScreen({
                                     loading={history.isFetchingNextPage}
                                     onPress={() => void history.fetchNextPage()}
                                 >
-                                    Load older backups
+                                    {t`Load older backups`}
                                 </Button>
                             ) : null}
                             <Button
@@ -277,19 +282,19 @@ export function BackupCenterScreen({
                                 disabled={busy || removeAll.isPending}
                                 onPress={confirmDeleteAll}
                             >
-                                Delete all backups
+                                {t`Delete all backups`}
                             </Button>
                         </View>
                     </>
                 ) : history.isLoading ? (
                     <InlineNotice
                         tone="loading"
-                        message="Loading saved backups…"
+                        message={t`Loading saved backups…`}
                     />
                 ) : history.isError ? (
                     <InlineNotice
                         tone="error"
-                        message="Saved backups could not be loaded."
+                        message={t`Saved backups could not be loaded.`}
                     />
                 ) : (
                     <>
@@ -307,7 +312,7 @@ export function BackupCenterScreen({
                                     marginBottom: 10,
                                 }}
                             >
-                                No managed backups
+                                {t`No managed backups`}
                             </UnlockedText>
                             <UnlockedText
                                 style={{
@@ -316,7 +321,7 @@ export function BackupCenterScreen({
                                     color: colors.muted,
                                 }}
                             >
-                                Your next managed backup will appear here.
+                                {t`Your next managed backup will appear here.`}
                             </UnlockedText>
                         </View>
                         <Button
@@ -324,7 +329,7 @@ export function BackupCenterScreen({
                             loading={busy}
                             onPress={() => void backupNow()}
                         >
-                            Back up now
+                            {t`Back up now`}
                         </Button>
                     </>
                 )}
@@ -339,7 +344,7 @@ export function BackupCenterScreen({
                 >
                     <DialogHeader>
                         <UnlockedDialogTitle>
-                            Encrypted snapshot
+                            {t`Encrypted snapshot`}
                         </UnlockedDialogTitle>
                     </DialogHeader>
                     {selectedSnapshot ? (
@@ -347,14 +352,29 @@ export function BackupCenterScreen({
                             <View>
                                 {[
                                     [
-                                        "Created",
+                                        t({
+                                            message: "Created",
+                                            comment:
+                                                "Backup detail row: creation time",
+                                        }),
                                         new Date(
                                             selectedSnapshot.createdAt,
-                                        ).toLocaleString(),
+                                        ).toLocaleString(i18n.locale),
                                     ],
-                                    ["Source", selectedSnapshot.sourceLabel],
                                     [
-                                        "Size",
+                                        t({
+                                            message: "Source",
+                                            comment:
+                                                "Backup detail row: device that made the backup",
+                                        }),
+                                        selectedSnapshot.sourceLabel,
+                                    ],
+                                    [
+                                        t({
+                                            message: "Size",
+                                            comment:
+                                                "Backup detail row: file size",
+                                        }),
                                         formatBytes(
                                             selectedSnapshot.byteLength,
                                         ),
@@ -400,7 +420,7 @@ export function BackupCenterScreen({
                                         void download(selectedSnapshot.id)
                                     }
                                 >
-                                    Download backup
+                                    {t`Download backup`}
                                 </Button>
                                 <Button
                                     variant="destructive"
@@ -410,7 +430,7 @@ export function BackupCenterScreen({
                                         confirmDelete(selectedSnapshot.id);
                                     }}
                                 >
-                                    Delete backup
+                                    {t`Delete backup`}
                                 </Button>
                             </View>
                         </>
@@ -427,7 +447,7 @@ export function BackupCenterScreen({
     }
 
     return (
-        <UnlockedTaskScreen title="Backup Center">
+        <UnlockedTaskScreen title={t`Backup Center`}>
             <View
                 style={{
                     paddingBottom: 22,
@@ -439,11 +459,10 @@ export function BackupCenterScreen({
                 <UnlockedText
                     style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}
                 >
-                    Your backups
+                    {t`Your backups`}
                 </UnlockedText>
                 <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                    Keep a recent encrypted copy and your recovery code
-                    available.
+                    {t`Keep a recent encrypted copy and your recovery code available.`}
                 </UnlockedText>
             </View>
             <View
@@ -457,7 +476,7 @@ export function BackupCenterScreen({
                 }}
             >
                 <UnlockedText style={{ fontSize: 13, color: colors.muted }}>
-                    Latest managed backup
+                    {t`Latest managed backup`}
                 </UnlockedText>
                 <UnlockedText
                     style={{
@@ -467,18 +486,24 @@ export function BackupCenterScreen({
                     }}
                 >
                     {historyItems[0]
-                        ? new Date(historyItems[0].createdAt).toLocaleString()
+                        ? new Date(historyItems[0].createdAt).toLocaleString(
+                              i18n.locale,
+                          )
                         : status.isLoading || history.isLoading
-                          ? "Checking…"
+                          ? t`Checking…`
                           : status.isError || history.isError
-                            ? "Unavailable"
-                            : "No managed backup yet"}
+                            ? t({
+                                  message: "Unavailable",
+                                  comment:
+                                      "Latest managed backup could not be loaded",
+                              })
+                            : t`No managed backup yet`}
                 </UnlockedText>
             </View>
             <UnlockedMenuRow
                 icon={Archive}
-                title="Create local backup"
-                subtitle="Export an encrypted .cryx file"
+                title={t`Create local backup`}
+                subtitle={t`Export an encrypted .cryx file`}
                 onPress={() =>
                     router.push({
                         pathname: "/(app)/settings/import-export",
@@ -488,8 +513,8 @@ export function BackupCenterScreen({
             />
             <UnlockedMenuRow
                 icon={KeyRound}
-                title="Vault recovery code"
-                subtitle="Review recovery and replace your code"
+                title={t`Vault recovery code`}
+                subtitle={t`Review recovery and replace your code`}
                 onPress={() =>
                     router.push({
                         pathname: "/(app)/settings/security/action",
@@ -500,22 +525,22 @@ export function BackupCenterScreen({
             {status.isLoading ? (
                 <InlineNotice
                     tone="loading"
-                    message="Checking managed backup status…"
+                    message={t`Checking managed backup status…`}
                 />
             ) : status.isError ? (
                 <InlineNotice
                     tone="error"
-                    message="Managed backup status is unavailable."
+                    message={t`Managed backup status is unavailable.`}
                 />
             ) : !status.data?.storageConfigured ? (
                 <InlineNotice
                     tone="info"
-                    message="Managed backup storage is not configured by this service."
+                    message={t`Managed backup storage is not configured by this service.`}
                 />
             ) : !entitled ? (
                 <InlineNotice
                     tone="info"
-                    message="Managed backups require an eligible subscription. Open Membership in Account to upgrade."
+                    message={t`Managed backups require an eligible subscription. Open Membership in Account to upgrade.`}
                 />
             ) : (
                 <View className="mb-0">
@@ -529,15 +554,15 @@ export function BackupCenterScreen({
                             textTransform: "uppercase",
                         }}
                     >
-                        Managed backups
+                        {t`Managed backups`}
                     </UnlockedText>
                     <View className="min-h-[70px] flex-row items-center justify-between gap-3 border-b border-border">
                         <View className="flex-1">
                             <UnlockedText className="text-sm text-foreground">
-                                Automatic backups
+                                {t`Automatic backups`}
                             </UnlockedText>
                             <UnlockedText className="mt-1 text-xs text-muted-foreground">
-                                Store encrypted snapshots using Online Services.
+                                {t`Store encrypted snapshots using Online Services.`}
                             </UnlockedText>
                         </View>
                         <Switch
@@ -548,7 +573,7 @@ export function BackupCenterScreen({
                                     ? enableBackups()
                                     : pauseBackups())
                             }
-                            accessibilityLabel="Automatic managed backups"
+                            accessibilityLabel={t`Automatic managed backups`}
                         />
                     </View>
                 </View>
@@ -558,8 +583,8 @@ export function BackupCenterScreen({
             {status.data?.storageConfigured && entitled ? (
                 <UnlockedMenuRow
                     icon={Cloud}
-                    title="Backup history"
-                    subtitle="Download or remove saved snapshots"
+                    title={t`Backup history`}
+                    subtitle={t`Download or remove saved snapshots`}
                     onPress={() => {
                         setMessage("");
                         router.push("/(app)/settings/backup-center/history");
@@ -573,7 +598,7 @@ export function BackupCenterScreen({
                     loading={busy}
                     onPress={() => void backupNow()}
                 >
-                    Back up now
+                    {t`Back up now`}
                 </Button>
             ) : null}
         </UnlockedTaskScreen>

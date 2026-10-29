@@ -13,6 +13,9 @@ import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import * as FileSystem from "expo-file-system/legacy";
 import { writeSecretTempFile } from "@/utils/secret-temp-files";
 import { useSecretRelease } from "@/utils/secret-release";
@@ -83,7 +86,7 @@ import {
     getVaultDEKFromSession,
     getVaultSessionGeneration,
     isSameActiveVaultSession,
-    MISSING_VAULT_SECRET_ERROR,
+    missingVaultSecretError,
 } from "@/utils/vault-session";
 import { onlineServicesLog, signalingLog } from "@/utils/logging";
 import { trpcReact } from "@/utils/trpc";
@@ -118,8 +121,8 @@ import { Switch } from "@/components/ui/switch";
 import { DialogDescription } from "@/components/ui/dialog";
 import { colors } from "@/theme";
 
-const MISSING_SYNC_SIGNING_KEY_ERROR =
-    "Vault sync keys are missing. Lock and unlock the vault, then try linking again.";
+const missingSyncSigningKeyError = () =>
+    t`Vault sync keys are missing. Lock and unlock the vault, then try linking again.`;
 
 type LinkInvitation = {
     syncId: string;
@@ -133,31 +136,35 @@ type LinkInvitation = {
 
 type TransferPhase = "idle" | "active" | "success" | "error";
 
-const SEND_PROGRESS: Array<{ key: string; title: string; detail: string }> = [
+const SEND_PROGRESS: Array<{
+    key: string;
+    title: MessageDescriptor;
+    detail: MessageDescriptor;
+}> = [
     {
         key: "waiting",
-        title: "Wait for the other device",
-        detail: "Open the invitation there and enter the verification words.",
+        title: msg`Wait for the other device`,
+        detail: msg`Open the invitation there and enter the verification words.`,
     },
     {
         key: "connection",
-        title: "Open a private connection",
-        detail: "Negotiating the direct WebRTC connection.",
+        title: msg`Open a private connection`,
+        detail: msg`Negotiating the direct WebRTC connection.`,
     },
     {
         key: "authentication",
-        title: "Authenticate the receiving device",
-        detail: "Checking the verification words and exchanging sync keys.",
+        title: msg`Authenticate the receiving device`,
+        detail: msg`Checking the verification words and exchanging sync keys.`,
     },
     {
         key: "transfer",
-        title: "Send your vault",
-        detail: "Encrypting and sending the vault over the private connection.",
+        title: msg`Send your vault`,
+        detail: msg`Encrypting and sending the vault over the private connection.`,
     },
     {
         key: "save",
-        title: "Save the device link",
-        detail: "Recording the new device in this vault.",
+        title: msg`Save the device link`,
+        detail: msg`Recording the new device in this vault.`,
     },
 ];
 const STEP = {
@@ -172,7 +179,11 @@ const KEEP_AWAKE_TAG = "link-send";
 type LinkFlow = "prepare" | "connection" | "transfer";
 
 function LinkSteps({ current }: { current: 0 | 1 }) {
-    const labels = ["Prepare", "Transfer"];
+    const { t } = useLingui();
+    const labels = [
+        t({ message: "Prepare", comment: "Step 1 of linking a device" }),
+        t({ message: "Transfer", comment: "Step 2 of linking a device" }),
+    ];
     return (
         <View className="mb-6">
             <View className="mb-3 flex-row justify-between">
@@ -300,7 +311,7 @@ function requireLocalSyncKeyBundle(
         !linkedDevices.SyncKemPublicKey ||
         !linkedDevices.SyncKemPrivateKey
     ) {
-        throw new Error(MISSING_SYNC_SIGNING_KEY_ERROR);
+        throw new Error(missingSyncSigningKeyError());
     }
     return buildSyncKeyBundle(
         linkedDevices.SyncSigningPublicKey,
@@ -326,6 +337,7 @@ function asUint8Array(data: unknown): Uint8Array {
 }
 
 export default function LinkSendScreen() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
@@ -357,7 +369,13 @@ export default function LinkSendScreen() {
     const [qrFrames, setQrFrames] = useState<string[]>([]);
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
     const [invitation, setInvitation] = useState<LinkInvitation | null>(null);
-    const [deviceName, setDeviceName] = useState("My Device");
+    const [deviceName, setDeviceName] = useState(() =>
+        t({
+            message: "My Device",
+            comment:
+                "Default name for the device being linked; the user can edit it",
+        }),
+    );
     const [makeRoot, setMakeRoot] = useState(false);
     const [busy, setBusy] = useState(false);
     const [transferPhase, setTransferPhase] = useState<TransferPhase>("idle");
@@ -472,7 +490,7 @@ export default function LinkSendScreen() {
                 completedInvitations.current.add(deviceId);
             } catch (rollbackError) {
                 notify(
-                    "Invitation cleanup failed. Review the pending device in Devices before linking again.",
+                    t`Invitation cleanup failed. Review the pending device in Devices before linking again.`,
                 );
                 onlineServicesLog.error(
                     "Failed to roll back linked device registration",
@@ -550,7 +568,7 @@ export default function LinkSendScreen() {
             // retry needs a new one.
             if (invitation?.peerOnlineServicesDeviceId) setInvitation(null);
             showTransferFailure(
-                "Linking stopped while the app was in the background.",
+                t`Linking stopped while the app was in the background.`,
             );
             setBusy(false);
         });
@@ -590,18 +608,18 @@ export default function LinkSendScreen() {
         setBusy(true);
         setTransferPhase("idle");
         resetTransferProgress();
-        setStatus("Preparing sync keys…");
+        setStatus(t`Preparing sync keys…`);
         let registeredPeerDeviceId: string | null = null;
         let created: LinkInvitation | null = null;
         try {
             if (!deviceName.trim() || deviceName.trim().length > 150) {
                 throw new Error(
-                    "Enter a device name between 1 and 150 characters.",
+                    t`Enter a device name between 1 and 150 characters.`,
                 );
             }
             if (!selectionsValid) {
                 throw new Error(
-                    "Select a valid signaling server and ICE (STUN and/or TURN) configuration.",
+                    t`Select a valid signaling server and ICE (STUN and/or TURN) configuration.`,
                 );
             }
 
@@ -616,7 +634,7 @@ export default function LinkSendScreen() {
                 await ensureFreshOnlineServicesSession();
                 if (!hasOnlineServicesSession()) {
                     throw new Error(
-                        "Sign in to Online Services on Account before creating an Online Services invitation.",
+                        t`Sign in to Online Services on Account before creating an Online Services invitation.`,
                     );
                 }
                 const entitlement = onlineServicesStore.get(
@@ -635,7 +653,7 @@ export default function LinkSendScreen() {
             ) {
                 if (!hasCustomSignaling || !hasCustomIce) {
                     throw new Error(
-                        "Configure custom connectivity on Devices, or bind Online Services on Account.",
+                        t`Configure custom connectivity on Devices, or bind Online Services on Account.`,
                     );
                 }
             }
@@ -656,18 +674,18 @@ export default function LinkSendScreen() {
                 },
             );
             if (syncKeyResult.isErr()) {
-                throw new Error("Failed to prepare sync keys.");
+                throw new Error(t`Failed to prepare sync keys.`);
             }
             const linked = syncKeyResult.value;
             if (!linked.SyncSigningPublicKey || !linked.SyncKemPublicKey) {
-                throw new Error("Sync public keys missing after generation.");
+                throw new Error(t`Sync public keys missing after generation.`);
             }
 
             let syncId = ulid();
             let linkedPeerOnlineServices: OnlineServices | undefined;
 
             if (wantsOs && vault.OnlineServices) {
-                setStatus("Registering peer device with Online Services…");
+                setStatus(t`Registering peer device with Online Services…`);
                 const { publicKey, privateKey } = await generateKeyPair();
                 // Some native WebCrypto implementations export padded base64
                 // coordinates. Normalize them to the JWK-required base64url
@@ -682,7 +700,7 @@ export default function LinkSendScreen() {
                 syncId = ret.syncId;
                 registeredPeerDeviceId = ret.deviceId;
                 if (makeRoot) {
-                    setStatus("Granting root access to the linked device…");
+                    setStatus(t`Granting root access to the linked device…`);
                     await setRootMut.mutateAsync({
                         id: ret.deviceId,
                         root: true,
@@ -712,7 +730,7 @@ export default function LinkSendScreen() {
                           (server) => server.ID === signalingServerID,
                       ) ?? null);
 
-            setStatus("Encrypting link package…");
+            setStatus(t`Encrypting link package…`);
             const { linkingPackage, mnemonic: words } =
                 await LinkingPackage.createNewPackage({
                     SyncID: syncId,
@@ -730,7 +748,9 @@ export default function LinkSendScreen() {
                 !isSameActiveVaultSession(sessionGeneration) ||
                 AppState.currentState !== "active"
             ) {
-                throw new Error("Vault session expired. Unlock and try again.");
+                throw new Error(
+                    t`Vault session expired. Unlock and try again.`,
+                );
             }
 
             created = {
@@ -749,7 +769,7 @@ export default function LinkSendScreen() {
             const message =
                 e instanceof Error
                     ? e.message
-                    : "Failed to create link package.";
+                    : t`Failed to create link package.`;
             // A retry from the transfer screen reports in its step list.
             if (flow === "transfer") showTransferFailure(message);
             else notify(message);
@@ -769,21 +789,21 @@ export default function LinkSendScreen() {
             !isSameActiveVaultSession(sessionGeneration) ||
             !appActiveForTransfer()
         ) {
-            notify("Vault session expired. Unlock and try again.");
+            notify(t`Vault session expired. Unlock and try again.`);
             return;
         }
         if (!current) return;
         const cleanDeviceName = deviceName.trim();
         if (!cleanDeviceName) {
-            notify("Device name cannot be empty.");
+            notify(t`Device name cannot be empty.`);
             return;
         }
         if (cleanDeviceName.length > 150) {
-            notify("Device name cannot be longer than 150 characters.");
+            notify(t`Device name cannot be longer than 150 characters.`);
             return;
         }
         if (!vaultMetadata) {
-            notify("Vault metadata is unavailable.");
+            notify(t`Vault metadata is unavailable.`);
             return;
         }
         if (transferActiveRef.current) return;
@@ -826,17 +846,17 @@ export default function LinkSendScreen() {
                     !appActiveForTransfer()
                 ) {
                     throw new Error(
-                        "Vault session expired. Unlock and try again.",
+                        t`Vault session expired. Unlock and try again.`,
                     );
                 }
                 if (!hasOnlineServicesSession()) {
                     throw new Error(
-                        "Online Services session unavailable. Sign in on Account, then retry live transfer.",
+                        t`Online Services session unavailable. Sign in on Account, then retry live transfer.`,
                     );
                 }
             }
 
-            setProgress("Opening private connection…");
+            setProgress(t`Opening private connection…`);
             const webRTConnection = await Synchronization.initWebRTC(
                 stunServers,
                 turnServers,
@@ -848,7 +868,9 @@ export default function LinkSendScreen() {
                 !appActiveForTransfer()
             ) {
                 webRTConnection.close();
-                throw new Error("Vault session expired. Unlock and try again.");
+                throw new Error(
+                    t`Vault session expired. Unlock and try again.`,
+                );
             }
             const webRTCDataChannel =
                 webRTConnection.createDataChannel("linking");
@@ -911,7 +933,7 @@ export default function LinkSendScreen() {
                     webRTConnection.connectionState === "connected"
                 )
                     return;
-                void failActiveLinking("Failed to generate ICE candidates.");
+                void failActiveLinking(t`Failed to generate ICE candidates.`);
             });
 
             const reportSignalingFailure = (message: string) => {
@@ -933,7 +955,7 @@ export default function LinkSendScreen() {
                     !signalingChannelReadyRef.current
                 ) {
                     reportSignalingFailure(
-                        "Timed out connecting to the signaling server.",
+                        t`Timed out connecting to the signaling server.`,
                     );
                 }
             }, 30_000);
@@ -946,7 +968,7 @@ export default function LinkSendScreen() {
                 if (webRTConnection.connectionState === "connected") {
                     iceCandidateDiscovery?.cancel();
                     setProgress(
-                        "Private connection established. Closing signaling…",
+                        t`Private connection established. Closing signaling…`,
                     );
                     signalingServerConnection.disconnect();
                     signalingServerConnection.unbind();
@@ -956,7 +978,7 @@ export default function LinkSendScreen() {
                 ) {
                     if (!vaultTransferSentRef.current) {
                         void failActiveLinking(
-                            "Private connection lost before vault transfer completed.",
+                            t`Private connection lost before vault transfer completed.`,
                         );
                     }
                 }
@@ -984,11 +1006,11 @@ export default function LinkSendScreen() {
                     if (macValid) {
                         remoteKeyBundleRef.current = message.ReceiverKeyBundle;
                         setProgress(
-                            "Receiver authenticated. Post-quantum sync key received.",
+                            t`Receiver authenticated. Post-quantum sync key received.`,
                         );
                     }
                 } catch {
-                    setProgress("Ignored malformed link key message.");
+                    setProgress(t`Ignored malformed link key message.`);
                 }
             };
 
@@ -1001,13 +1023,13 @@ export default function LinkSendScreen() {
                     return;
                 iceCandidateDiscovery?.cancel();
                 setProgress(
-                    "Private channel open. Authenticating the receiving device…",
+                    t`Private channel open. Authenticating the receiving device…`,
                     STEP.authentication,
                 );
 
                 const vaultSecret = getVaultDEKFromSession();
                 if (vaultSecret.isErr()) {
-                    void failActiveLinking(MISSING_VAULT_SECRET_ERROR);
+                    void failActiveLinking(missingVaultSecretError());
                     return;
                 }
 
@@ -1020,14 +1042,14 @@ export default function LinkSendScreen() {
                     void failActiveLinking(
                         e instanceof Error
                             ? e.message
-                            : MISSING_SYNC_SIGNING_KEY_ERROR,
+                            : missingSyncSigningKeyError(),
                     );
                     return;
                 }
 
                 try {
                     setProgress(
-                        "Exchanging authenticated post-quantum sync keys…",
+                        t`Exchanging authenticated post-quantum sync keys…`,
                     );
                     const senderNonce = createNonce();
                     const senderMac = await createLinkMac(
@@ -1053,7 +1075,7 @@ export default function LinkSendScreen() {
                         ),
                     );
                     setProgress(
-                        "Waiting for receiver to prove it knows the mnemonic…",
+                        t`Waiting for receiver to prove it knows the mnemonic…`,
                     );
 
                     const waitStartedAt = Date.now();
@@ -1067,13 +1089,13 @@ export default function LinkSendScreen() {
                     const remoteKeyBundle = remoteKeyBundleRef.current;
                     if (!remoteKeyBundle) {
                         void failActiveLinking(
-                            "Timed out waiting for authenticated remote sync keys.",
+                            t`Timed out waiting for authenticated remote sync keys.`,
                         );
                         return;
                     }
-                    setProgress("Quantum-safe sync keys exchanged.");
+                    setProgress(t`Quantum-safe sync keys exchanged.`);
 
-                    setProgress("Preparing vault package…", STEP.transfer);
+                    setProgress(t`Preparing vault package…`, STEP.transfer);
                     const exportedVault = packageForLinking(
                         vault,
                         syncId,
@@ -1087,7 +1109,7 @@ export default function LinkSendScreen() {
                         vaultMetadata.exportForLinking(exportedVault);
 
                     setProgress(
-                        "Encrypting vault for the authenticated receiver…",
+                        t`Encrypting vault for the authenticated receiver…`,
                     );
                     const { kemCiphertext, sharedSecret } = encapsulateSyncKem(
                         remoteKeyBundle.SyncKemPublicKey,
@@ -1119,7 +1141,7 @@ export default function LinkSendScreen() {
                     )
                         return;
 
-                    setProgress("Sending encrypted vault transfer…");
+                    setProgress(t`Sending encrypted vault transfer…`);
                     webRTCDataChannel.send(
                         toArrayBuffer(
                             VaultUtilTypes.LinkVaultTransfer.encode({
@@ -1131,7 +1153,7 @@ export default function LinkSendScreen() {
                         ),
                     );
                     vaultTransferSentRef.current = true;
-                    setProgress("Encrypted vault transfer sent.", STEP.save);
+                    setProgress(t`Encrypted vault transfer sent.`, STEP.save);
 
                     const saveLinkedDeviceResult = await persistVaultMutation(
                         "vault.configuration",
@@ -1158,7 +1180,7 @@ export default function LinkSendScreen() {
                         },
                     );
                     if (saveLinkedDeviceResult.isErr()) {
-                        throw new Error("Failed to persist linked device.");
+                        throw new Error(t`Failed to persist linked device.`);
                     }
 
                     transferActiveRef.current = false;
@@ -1175,20 +1197,20 @@ export default function LinkSendScreen() {
                     // Keep the data channel alive after send. The receiver
                     // closes it after processing; navigating away also runs
                     // the normal unmount teardown.
-                    setProgress("Transfer sent. Device link saved.");
+                    setProgress(t`Transfer sent. Device link saved.`);
                     setBusy(false);
                 } catch (e) {
                     void failActiveLinking(
                         e instanceof Error
                             ? e.message
-                            : "Failed during vault transfer.",
+                            : t`Failed during vault transfer.`,
                     );
                 }
             };
 
             webRTCDataChannel.onerror = () => {
                 if (vaultTransferSentRef.current) return;
-                void failActiveLinking("Failed to send vault data.");
+                void failActiveLinking(t`Failed to send vault data.`);
             };
             webRTCDataChannel.onclose = () => {
                 iceCandidateDiscovery?.cancel();
@@ -1198,7 +1220,7 @@ export default function LinkSendScreen() {
                 }
                 webRTConnection.close();
                 if (transferActiveRef.current) {
-                    void failActiveLinking("Private channel closed early.");
+                    void failActiveLinking(t`Private channel closed early.`);
                 }
             };
 
@@ -1227,15 +1249,15 @@ export default function LinkSendScreen() {
                 }) => {
                     switch (state.current) {
                         case "connecting":
-                            setProgress("Connecting to signaling server…");
+                            setProgress(t`Connecting to signaling server…`);
                             break;
                         case "connected":
-                            setProgress("Connected to signaling server.");
+                            setProgress(t`Connected to signaling server.`);
                             break;
                         case "failed":
                         case "unavailable":
                             reportSignalingFailure(
-                                "Could not connect to the signaling server. Check your connection settings.",
+                                t`Could not connect to the signaling server. Check your connection settings.`,
                             );
                             break;
                         case "disconnected":
@@ -1247,7 +1269,7 @@ export default function LinkSendScreen() {
                                 break;
                             }
                             reportSignalingFailure(
-                                "Lost connection to the signaling server before pairing completed.",
+                                t`Lost connection to the signaling server before pairing completed.`,
                             );
                             break;
                     }
@@ -1262,7 +1284,7 @@ export default function LinkSendScreen() {
                         { channelName, syncId, error: err },
                     );
                     reportSignalingFailure(
-                        "Error while setting up private connection.",
+                        t`Error while setting up private connection.`,
                     );
                 },
             );
@@ -1279,7 +1301,7 @@ export default function LinkSendScreen() {
                         },
                     );
                     reportSignalingFailure(
-                        "Failed to join the signaling channel. Check server credentials and network access.",
+                        t`Failed to join the signaling channel. Check server credentials and network access.`,
                     );
                 },
             );
@@ -1287,13 +1309,13 @@ export default function LinkSendScreen() {
             wsChannel.bind("pusher:subscription_succeeded", () => {
                 signalingChannelReadyRef.current = true;
                 clearSignalingSetupTimeout();
-                setProgress("Waiting for other device…");
+                setProgress(t`Waiting for other device…`);
                 setBusy(false);
             });
 
             wsChannel.bind("pusher:member_added", async () => {
                 setProgress(
-                    "Other device found. Creating private connection…",
+                    t`Other device found. Creating private connection…`,
                     STEP.connection,
                 );
                 const offer = await webRTConnection.createOffer();
@@ -1328,7 +1350,7 @@ export default function LinkSendScreen() {
             showTransferFailure(
                 e instanceof Error
                     ? e.message
-                    : "Failed to start live transfer.",
+                    : t`Failed to start live transfer.`,
                 e instanceof Error ? `${e.name}: ${e.message}` : String(e),
             );
             setBusy(false);
@@ -1343,13 +1365,13 @@ export default function LinkSendScreen() {
         const isCurrent = () =>
             release.current() && AppState.currentState === "active";
         if (!isCurrent()) {
-            notify("Vault session expired. Unlock and try again.");
+            notify(t`Vault session expired. Unlock and try again.`);
             return;
         }
         if (!invitation?.packageB64) return;
         const parsed = LinkingPackage.fromBase64(invitation.packageB64);
         if (parsed.isErr()) {
-            notify("Invalid package data.");
+            notify(t`Invalid package data.`);
             return;
         }
         try {
@@ -1368,13 +1390,13 @@ export default function LinkSendScreen() {
                         externalHandoffRef.current = true;
                     },
                     mimeType: "application/octet-stream",
-                    dialogTitle: "Share Cryptex link package",
+                    dialogTitle: t`Share Cryptex link package`,
                 },
             );
             if (shared === "unavailable")
-                notify("Sharing is not available on this device.");
+                notify(t`Sharing is not available on this device.`);
         } catch {
-            notify("Could not share the link package.");
+            notify(t`Could not share the link package.`);
         } finally {
             // Some share sheets never leave the active state; don't keep the
             // exemption around for an unrelated trip to the background.
@@ -1386,7 +1408,7 @@ export default function LinkSendScreen() {
     const copyInvitation = async () => {
         if (!invitation?.packageB64) return;
         if (!(await copyTextToClipboard(invitation.packageB64))) {
-            notify("Could not copy the invitation.");
+            notify(t`Could not copy the invitation.`);
             return;
         }
         // The user is about to paste it into another app.
@@ -1402,7 +1424,7 @@ export default function LinkSendScreen() {
             await syncOnlineServicesRemoteConfiguration();
         } catch {
             notify(
-                "Could not refresh your account. Check your connection and try again.",
+                t`Could not refresh your account. Check your connection and try again.`,
             );
         } finally {
             setRefreshingAccess(false);
@@ -1420,7 +1442,7 @@ export default function LinkSendScreen() {
 
     const focused = useIsFocused();
     const title =
-        flow === "transfer" ? "Share invitation" : "Send an invitation";
+        flow === "transfer" ? t`Share invitation` : t`Send an invitation`;
     const invitationError = invitationAccessError({
         usesOnlineServices,
         hasSession,
@@ -1441,7 +1463,7 @@ export default function LinkSendScreen() {
             setFlow("prepare");
             if (announce)
                 notify(
-                    "Linking cancelled. The invitation can no longer be used.",
+                    t`Linking cancelled. The invitation can no longer be used.`,
                 );
         } finally {
             setBusy(false);
@@ -1516,17 +1538,26 @@ export default function LinkSendScreen() {
     const fullscreenQrSize = Math.min(windowWidth, windowHeight) - 48;
 
     const connectionNeedsAttention = !selectionsValid || !!invitationError;
+    const onlineServicesName = t({
+        message: "Online Services",
+        comment: "Product name of the hosted Cryptex service",
+    });
     const connectionRow = (
         <UnlockedMenuRow
             icon={Settings2}
-            title="Advanced connection"
-            subtitle="Servers and root access for this invitation"
+            title={t`Advanced connection`}
+            subtitle={t`Servers and root access for this invitation`}
             value={
                 signalingServerID === ONLINE_SERVICES_SELECTION_ID
-                    ? "Online Services"
+                    ? onlineServicesName
                     : vault.LinkedDevices.SignalingServers.find(
                           (server) => server.ID === signalingServerID,
-                      )?.Name || "Custom"
+                      )?.Name ||
+                      t({
+                          message: "Custom",
+                          comment:
+                              "Connection setting value: the user's own signaling server",
+                      })
             }
             onPress={() => setFlow("connection")}
         />
@@ -1540,7 +1571,9 @@ export default function LinkSendScreen() {
 
     const progressItems: LinkProgressItem[] = SEND_PROGRESS.map(
         (item, index) => ({
-            ...item,
+            key: item.key,
+            title: t(item.title),
+            detail: t(item.detail),
             state:
                 transferPhase === "success" || index < sendStep
                     ? "completed"
@@ -1554,6 +1587,9 @@ export default function LinkSendScreen() {
     const showInvitation =
         !!invitation && !failure && sendStep === STEP.waiting;
     const qrValue = qrFrames[activeFrameIndex];
+    const frameNumber = activeFrameIndex + 1;
+    const frameCount = qrFrames.length;
+    const linkedName = deviceName.trim();
 
     return (
         <View style={{ flex: 1 }}>
@@ -1568,21 +1604,21 @@ export default function LinkSendScreen() {
                     <View>
                         <LinkSteps current={0} />
                         <View className="my-5">
-                            <UnlockedLabel>Receiving device name</UnlockedLabel>
+                            <UnlockedLabel>
+                                {t`Receiving device name`}
+                            </UnlockedLabel>
                             <UnlockedInput
                                 value={deviceName}
                                 onChangeText={setDeviceName}
                                 autoCapitalize="words"
-                                placeholder="e.g. Laptop"
-                                accessibilityLabel="Receiving device name"
+                                placeholder={t`e.g. Laptop`}
+                                accessibilityLabel={t`Receiving device name`}
                                 maxLength={150}
                             />
                         </View>
                         <View className="mb-5 border-l-2 border-muted pl-[13px]">
                             <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                                Keep both devices online. The invitation gives
-                                the other device a way to request an encrypted
-                                vault transfer.
+                                {t`Keep both devices online. The invitation gives the other device a way to request an encrypted vault transfer.`}
                             </UnlockedText>
                         </View>
                         {connectionNeedsAttention ? connectionRow : null}
@@ -1596,7 +1632,7 @@ export default function LinkSendScreen() {
                             }
                             onPress={() => void createInvitation()}
                         >
-                            Create invitation
+                            {t`Create invitation`}
                         </UnlockedButton>
                         {invitationError ? (
                             <View>
@@ -1614,7 +1650,7 @@ export default function LinkSendScreen() {
                                                 void refreshAccountAccess()
                                             }
                                         >
-                                            Refresh
+                                            {t`Refresh`}
                                         </UnlockedButton>
                                     ) : null}
                                     {needsAccountVisit ? (
@@ -1627,7 +1663,7 @@ export default function LinkSendScreen() {
                                                 )
                                             }
                                         >
-                                            Open Account
+                                            {t`Open Account`}
                                         </UnlockedButton>
                                     ) : null}
                                 </View>
@@ -1649,35 +1685,35 @@ export default function LinkSendScreen() {
                 >
                     <DialogHeader>
                         <UnlockedDialogTitle>
-                            Invitation connection
+                            {t`Invitation connection`}
                         </UnlockedDialogTitle>
                     </DialogHeader>
                     <View>
-                        <InvitationHeader title="Connect the two devices">
-                            Only the services selected here are included in the
-                            invitation.
-                            {hasSession ? " Online Services is ready." : ""}
+                        <InvitationHeader title={t`Connect the two devices`}>
+                            {hasSession
+                                ? t`Only the services selected here are included in the invitation. Online Services is ready.`
+                                : t`Only the services selected here are included in the invitation.`}
                         </InvitationHeader>
                         <RadioRow
-                            title="Online Services"
+                            title={onlineServicesName}
                             subtitle={
                                 hasSession
-                                    ? "Use your signed-in account connection."
-                                    : "Reconnect your account before using this option."
+                                    ? t`Use your signed-in account connection.`
+                                    : t`Reconnect your account before using this option.`
                             }
                             selected={connectionMode === "online"}
                             disabled={!cloudEnabled || !boundOs}
                             onPress={selectOnlineServices}
                         />
                         <RadioRow
-                            title="Custom servers"
-                            subtitle="Requires signaling and an ICE path; STUN or TURN can provide the connection."
+                            title={t`Custom servers`}
+                            subtitle={t`Requires signaling and an ICE path; STUN or TURN can provide the connection.`}
                             selected={connectionMode === "custom"}
                             onPress={selectCustomServers}
                         />
                         {vault.LinkedDevices.SignalingServers.length ? (
                             <>
-                                <SectionLabel>Signaling server</SectionLabel>
+                                <SectionLabel>{t`Signaling server`}</SectionLabel>
                                 {vault.LinkedDevices.SignalingServers.map(
                                     (server) => (
                                         <RadioRow
@@ -1696,12 +1732,13 @@ export default function LinkSendScreen() {
                         ) : null}
                         {vault.LinkedDevices.STUNServers.length ||
                         vault.LinkedDevices.TURNServers.length ? (
-                            <SectionLabel>Connection paths</SectionLabel>
+                            <SectionLabel>{t`Connection paths`}</SectionLabel>
                         ) : null}
                         {vault.LinkedDevices.STUNServers.map((server) => (
                             <SwitchRow
                                 key={server.ID}
                                 title={server.Name || server.Host}
+                                // i18n-ignore: protocol name
                                 subtitle="STUN"
                                 value={stunServerIDs.includes(server.ID)}
                                 onValueChange={() =>
@@ -1715,6 +1752,7 @@ export default function LinkSendScreen() {
                             <SwitchRow
                                 key={server.ID}
                                 title={server.Name || server.Host}
+                                // i18n-ignore: protocol name
                                 subtitle="TURN"
                                 value={turnServerIDs.includes(server.ID)}
                                 onValueChange={() =>
@@ -1727,14 +1765,14 @@ export default function LinkSendScreen() {
                         {!hasCustomSignaling && !hasCustomIce ? (
                             <View className="my-5 border-l-2 border-muted pl-[13px]">
                                 <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                                    No custom servers are configured yet.
+                                    {t`No custom servers are configured yet.`}
                                 </UnlockedText>
                             </View>
                         ) : null}
                         <UnlockedMenuRow
                             icon={Settings2}
-                            title="Manage custom servers"
-                            subtitle="Add STUN, TURN, or signaling services"
+                            title={t`Manage custom servers`}
+                            subtitle={t`Add STUN, TURN, or signaling services`}
                             onPress={() =>
                                 router.push("/(app)/devices/connectivity")
                             }
@@ -1742,12 +1780,12 @@ export default function LinkSendScreen() {
                         {!selectionsValid ? (
                             <InlineNotice
                                 tone="warning"
-                                message="Select signaling plus at least one STUN or TURN connection path."
+                                message={t`Select signaling plus at least one STUN or TURN connection path.`}
                             />
                         ) : null}
                         <SwitchRow
-                            title="Make linked device root"
-                            subtitle="Root devices can manage account devices, recovery, and account deletion."
+                            title={t`Make linked device root`}
+                            subtitle={t`Root devices can manage account devices, recovery, and account deletion.`}
                             value={usesOnlineServices && makeRoot}
                             onValueChange={setMakeRoot}
                             disabled={
@@ -1762,7 +1800,7 @@ export default function LinkSendScreen() {
                             disabled={!selectionsValid}
                             onPress={() => setFlow("prepare")}
                         >
-                            Use selected connection
+                            {t`Use selected connection`}
                         </UnlockedButton>
                     </View>
                 </Dialog>
@@ -1772,21 +1810,21 @@ export default function LinkSendScreen() {
                         <LinkSteps current={1} />
                         {transferPhase === "success" ? (
                             <LinkResult
-                                title="Device linked"
-                                description={`${deviceName.trim()} received your vault and can now sync with this device.`}
+                                title={t`Device linked`}
+                                description={t`${linkedName} received your vault and can now sync with this device.`}
                                 rows={[
                                     {
-                                        label: "Linked device",
-                                        value: deviceName.trim(),
+                                        label: t`Linked device`,
+                                        value: linkedName,
                                     },
                                     {
-                                        label: "Connection",
+                                        label: t`Connection`,
                                         value: usesOnlineServices
-                                            ? "Online Services"
-                                            : "Custom servers",
+                                            ? onlineServicesName
+                                            : t`Custom servers`,
                                     },
                                 ]}
-                                actionLabel="Back to Devices"
+                                actionLabel={t`Back to Devices`}
                                 onAction={() =>
                                     router.dismissTo("/(app)/(tabs)/devices")
                                 }
@@ -1795,15 +1833,14 @@ export default function LinkSendScreen() {
                             <>
                                 {showInvitation ? (
                                     <>
-                                        <InvitationHeader title="Open on your other device">
-                                            In Cryptex Vault on the other
-                                            device, choose Use invitation, scan
-                                            this code, and enter the
-                                            verification words.
+                                        <InvitationHeader
+                                            title={t`Open on your other device`}
+                                        >
+                                            {t`In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words.`}
                                         </InvitationHeader>
                                         <Pressable
                                             accessibilityRole="button"
-                                            accessibilityLabel="Show QR code full screen"
+                                            accessibilityLabel={t`Show QR code full screen`}
                                             disabled={!qrValue}
                                             onPress={() =>
                                                 setQrFullscreen(true)
@@ -1818,14 +1855,13 @@ export default function LinkSendScreen() {
                                                     />
                                                 ) : (
                                                     <UnlockedText className="text-xs text-[#5b6274]">
-                                                        Preparing QR code…
+                                                        {t`Preparing QR code…`}
                                                     </UnlockedText>
                                                 )}
                                             </View>
                                             {qrFrames.length > 1 ? (
                                                 <UnlockedText className="mt-3 text-xs text-muted-foreground">
-                                                    Part {activeFrameIndex + 1}{" "}
-                                                    of {qrFrames.length}
+                                                    {t`Part ${frameNumber} of ${frameCount}`}
                                                 </UnlockedText>
                                             ) : null}
                                             <View className="mt-2 flex-row items-center gap-2">
@@ -1834,17 +1870,17 @@ export default function LinkSendScreen() {
                                                     color={colors.muted}
                                                 />
                                                 <UnlockedText className="text-xs text-muted-foreground">
-                                                    Tap to enlarge
+                                                    {t`Tap to enlarge`}
                                                 </UnlockedText>
                                             </View>
                                         </Pressable>
                                         <View className="rounded-md border border-border bg-secondary/40 p-3">
                                             <UnlockedText className="mb-2 text-xs text-muted-foreground">
-                                                Verification words
+                                                {t`Verification words`}
                                             </UnlockedText>
                                             <UnlockedText
                                                 selectable
-                                                accessibilityLabel="Verification words"
+                                                accessibilityLabel={t`Verification words`}
                                                 className="font-mono text-sm leading-6 text-foreground"
                                             >
                                                 {invitation.mnemonic}
@@ -1858,7 +1894,7 @@ export default function LinkSendScreen() {
                                                     void sharePackageFile()
                                                 }
                                             >
-                                                Share file
+                                                {t`Share file`}
                                             </UnlockedButton>
                                             <UnlockedButton
                                                 className="flex-1"
@@ -1868,18 +1904,18 @@ export default function LinkSendScreen() {
                                                 }
                                             >
                                                 {copied
-                                                    ? "Copied"
-                                                    : "Copy invitation"}
+                                                    ? t`Copied`
+                                                    : t`Copy invitation`}
                                             </UnlockedButton>
                                         </View>
                                     </>
                                 ) : null}
                                 <LinkingProgress
                                     items={progressItems}
-                                    status={status || "Preparing invitation…"}
+                                    status={status || t`Preparing invitation…`}
                                     activity={activity}
                                     failure={failure}
-                                    failureTitle="Your vault was not sent."
+                                    failureTitle={t`Your vault was not sent.`}
                                     onCancel={() => void leaveTransfer(true)}
                                     onRetry={retryTransfer}
                                 />
@@ -1894,23 +1930,24 @@ export default function LinkSendScreen() {
                     placement="bottom"
                 >
                     <DialogHeader>
-                        <UnlockedDialogTitle>Stop linking?</UnlockedDialogTitle>
+                        <UnlockedDialogTitle>
+                            {t`Stop linking?`}
+                        </UnlockedDialogTitle>
                         <DialogDescription>
-                            The other device will not be able to use this
-                            invitation. You can create a new one at any time.
+                            {t`The other device will not be able to use this invitation. You can create a new one at any time.`}
                         </DialogDescription>
                     </DialogHeader>
                     <UnlockedButton
                         variant="secondary"
                         onPress={() => setStopDialogOpen(false)}
                     >
-                        Keep linking
+                        {t`Keep linking`}
                     </UnlockedButton>
                     <UnlockedButton
                         variant="destructive"
                         onPress={() => void leaveTransfer(true)}
                     >
-                        Stop linking
+                        {t`Stop linking`}
                     </UnlockedButton>
                 </Dialog>
             </Screen>
@@ -1922,7 +1959,7 @@ export default function LinkSendScreen() {
             {qrFullscreen && qrValue ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Close full-screen QR code"
+                    accessibilityLabel={t`Close full-screen QR code`}
                     onPress={() => setQrFullscreen(false)}
                     style={{
                         position: "absolute",
@@ -1944,7 +1981,7 @@ export default function LinkSendScreen() {
                             <UnlockedText
                                 style={{ color: "#111520", fontSize: 14 }}
                             >
-                                Part {activeFrameIndex + 1} of {qrFrames.length}
+                                {t`Part ${frameNumber} of ${frameCount}`}
                             </UnlockedText>
                         ) : null}
                         <View
@@ -1958,7 +1995,7 @@ export default function LinkSendScreen() {
                             <UnlockedText
                                 style={{ color: "#5b6274", fontSize: 13 }}
                             >
-                                Tap anywhere to close
+                                {t`Tap anywhere to close`}
                             </UnlockedText>
                         </View>
                     </View>

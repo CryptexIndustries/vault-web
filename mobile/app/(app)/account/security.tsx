@@ -1,6 +1,7 @@
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
+import { useLingui } from "@lingui/react/macro";
 
 import { AccountSecurity } from "@/components/account/account-security";
 import { useAccountController } from "@/components/account/account-controller";
@@ -11,6 +12,7 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 
 export default function AccountSecurityScreen() {
+    const { t } = useLingui();
     const account = useAccountController();
     usePreventRemove(
         account.mutationBusy ||
@@ -18,14 +20,14 @@ export default function AccountSecurityScreen() {
             account.rotateRecoveryPending,
         () => {
             Alert.alert(
-                "Account update in progress",
-                "Wait for the account update to finish before leaving this screen.",
+                t`Account update in progress`,
+                t`Wait for the account update to finish before leaving this screen.`,
             );
         },
     );
 
     return (
-        <UnlockedScreen scroll taskTitle="Recovery & access">
+        <UnlockedScreen scroll taskTitle={t`Recovery & access`}>
             {account.bound ? (
                 <AccountSecurity
                     isRoot={account.isRoot}
@@ -51,7 +53,7 @@ export default function AccountSecurityScreen() {
                 />
             ) : (
                 <Text className="text-sm leading-5 text-muted-foreground">
-                    This vault is no longer connected to Online Services.
+                    {t`This vault is no longer connected to Online Services.`}
                 </Text>
             )}
             {account.message ? (

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AccessibilityInfo, AppState, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useLingui } from "@lingui/react/macro";
 import {
     cancelAnimation,
     Easing,
@@ -71,6 +72,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
     onReady?: () => void;
     onSelect: (selection: DeviceSelection | null) => void;
 }) {
+    const { t } = useLingui();
     const fonts = useMemo(createDeviceMapFonts, []);
     const initialReducedMotion = useReducedMotion();
     const [reducedMotion, setReducedMotion] = useState(initialReducedMotion);
@@ -360,14 +362,14 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                                           ? `${node.displayName.slice(0, 21)}…`
                                           : node.displayName,
                                   ).width,
-                                  fonts.status.measureText("No recorded links")
+                                  fonts.status.measureText(t`No recorded links`)
                                       .width,
                               ),
                           },
                       ]
                     : [];
             }),
-        [nodes, layout.positions, fonts, map.relationships],
+        [nodes, layout.positions, fonts, map.relationships, t],
     );
     const hitEdges = useMemo(
         () =>
@@ -465,7 +467,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                             color: colors.muted,
                         }}
                     >
-                        Select a device to explore
+                        {t`Select a device to explore`}
                     </Text>
                 ) : null}
                 {!nodes.length ? (
@@ -480,7 +482,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                             color: colors.muted,
                         }}
                     >
-                        No matching devices
+                        {t`No matching devices`}
                     </Text>
                 ) : null}
                 <View
@@ -497,7 +499,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                 >
                     <MapControl
                         id="zoom-in"
-                        label="Zoom in"
+                        label={t`Zoom in`}
                         disabled={transform.scale >= MAX_ZOOM}
                         onPress={() => zoomBy(1.25)}
                     >
@@ -505,7 +507,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                     </MapControl>
                     <MapControl
                         id="zoom-out"
-                        label="Zoom out"
+                        label={t`Zoom out`}
                         disabled={transform.scale <= MIN_ZOOM}
                         onPress={() => zoomBy(0.8)}
                     >
@@ -513,7 +515,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                     </MapControl>
                     <MapControl
                         id="fit"
-                        label="Fit all visible devices"
+                        label={t`Fit all visible devices`}
                         onPress={() => {
                             onSelect(null);
                             fit();
@@ -527,11 +529,17 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                     </MapControl>
                     <MapControl
                         id="legend"
-                        label="Map legend"
+                        label={t`Map legend`}
                         onPress={() => setLegendOpen(true)}
                     >
                         <MoreHorizontal size={18} color={colors.foreground} />
-                        <Text style={{ fontSize: 9 }}>Legend</Text>
+                        <Text style={{ fontSize: 9 }}>
+                            {t({
+                                message: "Legend",
+                                comment:
+                                    "Short label on the device map button that opens the legend",
+                            })}
+                        </Text>
                     </MapControl>
                 </View>
             </View>
@@ -552,11 +560,11 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                     }}
                 >
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        Reading the map
+                        {t`Reading the map`}
                     </UnlockedDialogTitle>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Close map legend"
+                        accessibilityLabel={t`Close map legend`}
                         onPress={() => setLegendOpen(false)}
                         hitSlop={1}
                         style={{
@@ -570,24 +578,40 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                     </Pressable>
                 </View>
                 <LegendEntry
-                    title="Connected"
-                    explanation="Moving dashes show an active connection from this device, not a sync or transfer in progress."
+                    title={t({
+                        message: "Connected",
+                        comment:
+                            "Device map legend entry for a connection line",
+                    })}
+                    explanation={t`Moving dashes show an active connection from this device, not a sync or transfer in progress.`}
                     color={colors.success}
                 />
                 <LegendEntry
-                    title="Disconnected"
-                    explanation="A saved local link that is currently offline."
+                    title={t({
+                        message: "Disconnected",
+                        comment:
+                            "Device map legend entry for a connection line",
+                    })}
+                    explanation={t`A saved local link that is currently offline.`}
                     color={colors.muted}
                 />
                 <LegendEntry
-                    title="Status unknown"
-                    explanation="A recorded relationship whose live connection status is unavailable here."
+                    title={t({
+                        message: "Status unknown",
+                        comment:
+                            "Device map legend entry for a connection line",
+                    })}
+                    explanation={t`A recorded relationship whose live connection status is unavailable here.`}
                     color={colors.muted}
                     dashed
                 />
                 <LegendEntry
-                    title="Custom signaling"
-                    explanation="This link uses a custom signaling server. STUN and TURN may still use Online Services."
+                    title={t({
+                        message: "Custom signaling",
+                        comment:
+                            "Device map legend entry for a connection line",
+                    })}
+                    explanation={t`This link uses a custom signaling server. STUN and TURN may still use Online Services.`}
                     color="#b193ff"
                     diamond
                 />
@@ -603,7 +627,7 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                 >
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 13 }}>
-                            Animate active connections
+                            {t`Animate active connections`}
                         </Text>
                         {reducedMotion ? (
                             <Text
@@ -614,14 +638,14 @@ export const DeviceNetwork = memo(function DeviceNetwork({
                                     lineHeight: 17,
                                 }}
                             >
-                                Reduced motion is enabled on this device.
+                                {t`Reduced motion is enabled on this device.`}
                             </Text>
                         ) : null}
                     </View>
                     <Pressable
                         testID="device-map-animation"
                         accessibilityRole="switch"
-                        accessibilityLabel="Animate active connections"
+                        accessibilityLabel={t`Animate active connections`}
                         accessibilityState={{
                             checked: animate && !reducedMotion,
                             disabled: reducedMotion,

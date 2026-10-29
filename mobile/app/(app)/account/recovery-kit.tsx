@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
+import { useLingui } from "@lingui/react/macro";
 
 import { useAccountController } from "@/components/account/account-controller";
 import { RecoveryKitDialog } from "@/components/account/recovery-kit-dialog";
@@ -9,6 +10,7 @@ import { InlineNotice } from "@/components/inline-notice";
 import { UnlockedScreen } from "@/components/unlocked/unlocked-ui";
 
 export default function AccountRecoveryKitScreen() {
+    const { t } = useLingui();
     const { auto } = useLocalSearchParams<{ auto?: string }>();
     const account = useAccountController();
     const { genRecoveryPending, handleGenerateRecovery, recoveryKit } = account;
@@ -52,8 +54,8 @@ export default function AccountRecoveryKitScreen() {
             (auto === "1" && !account.message));
     usePreventRemove(guardNavigation, () => {
         Alert.alert(
-            "Save your Recovery Kit",
-            "Copy or save the kit and finish this step before leaving.",
+            t`Save your Recovery Kit`,
+            t`Copy or save the kit and finish this step before leaving.`,
         );
     });
 
@@ -74,7 +76,7 @@ export default function AccountRecoveryKitScreen() {
     };
 
     return (
-        <UnlockedScreen scroll taskTitle="Account Recovery Kit">
+        <UnlockedScreen scroll taskTitle={t`Account Recovery Kit`}>
             {recoveryKit ? (
                 <RecoveryKitDialog open kit={recoveryKit} onComplete={finish} />
             ) : genRecoveryPending ||
@@ -82,14 +84,14 @@ export default function AccountRecoveryKitScreen() {
               (auto === "1" && !account.message) ? (
                 <InlineNotice
                     tone="loading"
-                    message="Creating your Recovery Kit…"
+                    message={t`Creating your Recovery Kit…`}
                 />
             ) : (
                 <InlineNotice
                     tone={account.message?.tone ?? "info"}
                     message={
                         account.message?.text ??
-                        "No Recovery Kit is available to display."
+                        t`No Recovery Kit is available to display.`
                     }
                 />
             )}

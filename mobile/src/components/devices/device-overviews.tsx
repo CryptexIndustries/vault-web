@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import {
     ChevronDown,
     ChevronRight,
@@ -71,6 +72,7 @@ export const DeviceOverview = memo(function DeviceOverview({
     onToggleRoot: (node: DeviceNode) => void;
     onUnlink: (node: DeviceNode, relationship: DeviceRelationship) => void;
 }) {
+    const { t } = useLingui();
     const statusFor = (local?: LinkedDevice) =>
         local ? connectionStatuses[local.ID] : undefined;
     const lastSyncFor = (local: LinkedDevice) =>
@@ -146,7 +148,11 @@ export const DeviceOverview = memo(function DeviceOverview({
                                         fontSize: 10,
                                     }}
                                 >
-                                    Root
+                                    {t({
+                                        message: "Root",
+                                        comment:
+                                            "Badge on a device with root access",
+                                    })}
                                 </Text>
                             </View>
                         ) : null}
@@ -168,10 +174,10 @@ export const DeviceOverview = memo(function DeviceOverview({
                         }}
                     >
                         {node.current
-                            ? "Current device"
+                            ? t`Current device`
                             : node.localDevices.length
-                              ? "Saved in this vault"
-                              : "Registered with Online Services"}
+                              ? t`Saved in this vault`
+                              : t`Registered with Online Services`}
                     </Text>
                 </View>
             </View>
@@ -186,7 +192,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                 {node.serverId ? (
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, lineHeight: 17 }}>
-                            Last seen
+                            {t`Last seen`}
                         </Text>
                         <Text
                             style={{
@@ -196,6 +202,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                                 marginTop: 4,
                             }}
                         >
+                            {/* i18n-ignore: product name */}
                             Online Services
                         </Text>
                         <Text
@@ -224,7 +231,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                         }}
                     >
                         <Text style={{ fontSize: 12, lineHeight: 17 }}>
-                            Last sync
+                            {t`Last sync`}
                         </Text>
                         <Text
                             style={{
@@ -234,7 +241,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                                 marginTop: 4,
                             }}
                         >
-                            With this device
+                            {t`With this device`}
                         </Text>
                         <Text
                             testID="device-last-sync"
@@ -247,8 +254,8 @@ export const DeviceOverview = memo(function DeviceOverview({
                             {localLinks.length
                                 ? latest
                                     ? formatDeviceActivity(latest)
-                                    : "Never synced"
-                                : "Unavailable in this vault"}
+                                    : t`Never synced`
+                                : t`Unavailable in this vault`}
                         </Text>
                     </View>
                 ) : null}
@@ -284,7 +291,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                             color: colors.muted,
                         }}
                     >
-                        Connections{" "}
+                        {t`Connections`}{" "}
                         <Text
                             style={{
                                 fontSize: 10,
@@ -297,7 +304,11 @@ export const DeviceOverview = memo(function DeviceOverview({
                         </Text>
                     </Text>
                     <MiniAction
-                        label="Explore"
+                        label={t({
+                            message: "Explore",
+                            comment:
+                                "Button: show this device's connections on the map",
+                        })}
                         testID="device-explore-connections"
                         disabled={busy}
                         onPress={() => onExplore(node.id)}
@@ -323,7 +334,7 @@ export const DeviceOverview = memo(function DeviceOverview({
                     ))}
                 {!connections.length ? (
                     <View style={{ paddingTop: 8, paddingBottom: 15 }}>
-                        <Note>No recorded connections to other devices.</Note>
+                        <Note>{t`No recorded connections to other devices.`}</Note>
                     </View>
                 ) : null}
             </View>
@@ -356,6 +367,7 @@ export function DeviceAccountAccess({
     canPromote: boolean;
     onToggleRoot: (node: DeviceNode) => void;
 }) {
+    const { t } = useLingui();
     const canManageRoot = isRoot && canPromote && map.topologyVerified;
     const lastRoot = node.root && map.rootCount <= 1;
     return (
@@ -370,14 +382,14 @@ export function DeviceAccountAccess({
                             color: colors.muted,
                         }}
                     >
-                        Account access
+                        {t`Account access`}
                     </Text>
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={
                             node.root
-                                ? "Remove root access"
-                                : "Allow root access"
+                                ? t`Remove root access`
+                                : t`Allow root access`
                         }
                         testID="device-toggle-root"
                         disabled={busy || !canManageRoot || lastRoot}
@@ -392,14 +404,24 @@ export function DeviceAccountAccess({
                     >
                         <Shield size={19} color={colors.muted} />
                         <View style={{ flex: 1, gap: 5 }}>
-                            <Text style={{ fontSize: 13 }}>Root access</Text>
+                            <Text style={{ fontSize: 13 }}>
+                                {t`Root access`}
+                            </Text>
                             <Text
                                 style={{
                                     fontSize: 11,
                                     color: colors.muted,
                                 }}
                             >
-                                {node.root ? "Granted" : "Not granted"}
+                                {node.root
+                                    ? t({
+                                          message: "Granted",
+                                          comment: "Root access status",
+                                      })
+                                    : t({
+                                          message: "Not granted",
+                                          comment: "Root access status",
+                                      })}
                             </Text>
                         </View>
                         {canManageRoot && !lastRoot ? (
@@ -416,13 +438,13 @@ export function DeviceAccountAccess({
                             }}
                         >
                             {lastRoot
-                                ? "This is the last root device. Keep at least one root on the account."
+                                ? t`This is the last root device. Keep at least one root on the account.`
                                 : !isRoot
-                                  ? "Manage root access from a root device."
+                                  ? t`Manage root access from a root device.`
                                   : !map.topologyVerified
-                                    ? "Refresh account data before changing access."
+                                    ? t`Refresh account data before changing access.`
                                     : !canPromote
-                                      ? "Root changes are restricted on this account."
+                                      ? t`Root changes are restricted on this account.`
                                       : ""}
                         </Text>
                     ) : null}
@@ -454,13 +476,14 @@ export const DeviceRelationshipOverview = memo(
         onSettings: (relationship: DeviceRelationship) => void;
         onServers: (relationship: DeviceRelationship) => void;
     }) {
+        const { t } = useLingui();
         const statusFor = (local?: LinkedDevice) =>
             local ? connectionStatuses[local.ID] : undefined;
         const nodeById = (id: string) =>
             map.nodes.find((entry) => entry.id === id);
         const syncLabel = (local: LinkedDevice) => {
             const lastSync = statusFor(local)?.lastSync ?? local.LastSync;
-            return lastSync ? dateTime(lastSync) : "Never synced";
+            return lastSync ? dateTime(lastSync) : t`Never synced`;
         };
         const local = edge.localDevice;
         const status = statusFor(local);
@@ -512,7 +535,7 @@ export const DeviceRelationshipOverview = memo(
                             color: colors.muted,
                         }}
                     >
-                        {edge.custom ? "Custom signaling" : "Online Services"}
+                        {edge.custom ? t`Custom signaling` : "Online Services"}
                     </Text>
                 </View>
                 <View style={{ marginBottom: 18, position: "relative" }}>
@@ -528,11 +551,16 @@ export const DeviceRelationshipOverview = memo(
                     />
                     {[edge.fromDeviceId, edge.toDeviceId].map((id, index) => {
                         const endpoint = nodeById(id);
+                        const name = endpoint?.displayName;
                         return (
                             <Pressable
                                 key={`${id}:${index}`}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Open ${endpoint?.displayName ?? "device"} details`}
+                                accessibilityLabel={
+                                    name
+                                        ? t`Open ${name} details`
+                                        : t`Open device details`
+                                }
                                 disabled={busy}
                                 onPress={() => onChoose({ kind: "node", id })}
                                 style={{
@@ -561,8 +589,7 @@ export const DeviceRelationshipOverview = memo(
                                             fontWeight: "500",
                                         }}
                                     >
-                                        {endpoint?.displayName ??
-                                            "Device unavailable"}
+                                        {name ?? t`Device unavailable`}
                                     </Text>
                                     <Text
                                         style={{
@@ -572,10 +599,10 @@ export const DeviceRelationshipOverview = memo(
                                         }}
                                     >
                                         {endpoint?.current
-                                            ? "Current session"
+                                            ? t`Current session`
                                             : endpoint?.localDevices.length
-                                              ? "Saved in this vault"
-                                              : "Account device"}
+                                              ? t`Saved in this vault`
+                                              : t`Account device`}
                                     </Text>
                                 </View>
                                 <ChevronRight size={16} color={colors.muted} />
@@ -587,7 +614,7 @@ export const DeviceRelationshipOverview = memo(
                     <>
                         <View style={{ gap: 6, marginBottom: 17 }}>
                             <Text style={{ fontSize: 11, color: colors.muted }}>
-                                Last successful sync
+                                {t`Last successful sync`}
                             </Text>
                             <Text style={{ fontSize: 13 }}>
                                 {syncLabel(local)}
@@ -614,7 +641,7 @@ export const DeviceRelationshipOverview = memo(
                             <Pressable
                                 accessibilityRole="button"
                                 testID="device-sync-settings"
-                                accessibilityLabel="Sync settings"
+                                accessibilityLabel={t`Sync settings`}
                                 disabled={busy}
                                 onPress={() => onSettings(edge)}
                                 style={{
@@ -626,14 +653,14 @@ export const DeviceRelationshipOverview = memo(
                             >
                                 <Settings2 size={18} color={colors.muted} />
                                 <Text style={{ flex: 1, fontSize: 13 }}>
-                                    Sync settings
+                                    {t`Sync settings`}
                                 </Text>
                                 <ChevronRight size={15} color={colors.muted} />
                             </Pressable>
                             <Pressable
                                 accessibilityRole="button"
                                 testID="device-servers"
-                                accessibilityLabel="Servers"
+                                accessibilityLabel={t`Servers`}
                                 disabled={busy}
                                 onPress={() => onServers(edge)}
                                 style={{
@@ -645,7 +672,7 @@ export const DeviceRelationshipOverview = memo(
                             >
                                 <Server size={18} color={colors.muted} />
                                 <Text style={{ flex: 1, fontSize: 13 }}>
-                                    Servers
+                                    {t`Servers`}
                                 </Text>
                                 <ChevronRight size={15} color={colors.muted} />
                             </Pressable>
@@ -660,15 +687,13 @@ export const DeviceRelationshipOverview = memo(
                             marginBottom: 20,
                         }}
                     >
-                        This account relation has no saved link in this vault.
-                        Open either device above to inspect it. Live status and
-                        sync controls are unavailable here.
+                        {t`This account relation has no saved link in this vault. Open either device above to inspect it. Live status and sync controls are unavailable here.`}
                     </Text>
                 )}
                 <View style={{ marginBottom: 14 }}>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Link information"
+                        accessibilityLabel={t`Link information`}
                         accessibilityState={{ expanded: informationOpen }}
                         testID="device-link-information"
                         onPress={() => setInformationOpen(!informationOpen)}
@@ -685,7 +710,7 @@ export const DeviceRelationshipOverview = memo(
                                 color: colors.muted,
                             }}
                         >
-                            Link information
+                            {t`Link information`}
                         </Text>
                         <ChevronDown
                             size={15}
@@ -700,29 +725,33 @@ export const DeviceRelationshipOverview = memo(
                     {informationOpen ? (
                         <View style={{ paddingBottom: 8 }}>
                             <Information
-                                label="Recorded in"
+                                label={t`Recorded in`}
                                 value={
                                     edge.recordedOnServer
                                         ? local
-                                            ? "Online Services and this vault"
+                                            ? t`Online Services and this vault`
                                             : "Online Services"
-                                        : "This vault"
+                                        : t`This vault`
                                 }
                             />
                             {edge.recordedOnServer ? (
                                 <Information
-                                    label="Created"
+                                    label={t({
+                                        message: "Created",
+                                        comment:
+                                            "Date the account relationship was created",
+                                    })}
                                     value={dateTime(edge.createdAt)}
                                 />
                             ) : local ? (
                                 <Information
-                                    label="Linked locally"
+                                    label={t`Linked locally`}
                                     value={dateTime(local.LinkedAtTimestamp)}
                                 />
                             ) : null}
                             <Information
-                                label="Relationship ID"
-                                value={edge.syncId || "Not available"}
+                                label={t`Relationship ID`}
+                                value={edge.syncId || t`Not available`}
                                 mono
                             />
                             {edge.syncId ? (

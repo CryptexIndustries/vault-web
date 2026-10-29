@@ -45,7 +45,9 @@ class CryptexAutofillService : AutofillService() {
     }
     val handle = PendingCredentialRequests.register(pending)
 
-    val presentation = providerPresentation("Open ${cryptexProviderName()}")
+    val presentation = providerPresentation(
+      appLocalized().getString(R.string.cryptex_credentials_autofill_open, cryptexProviderName()),
+    )
     val authentication = credentialRequestPendingIntent(pending, handle)
     val inlinePresentation = buildInlinePresentation(request, authentication)
     val dataset = Dataset.Builder(presentation).apply {
@@ -172,11 +174,14 @@ class CryptexAutofillService : AutofillService() {
       val brandIcon = Icon.createWithResource(this, R.drawable.ic_cryptex_brand).apply {
         if (Build.VERSION.SDK_INT >= 29) setTintBlendMode(BlendMode.DST)
       }
+      val strings = appLocalized()
       val content = InlineSuggestionUi.newContentBuilder(authentication)
         .setStartIcon(brandIcon)
         .setTitle(cryptexProviderName())
-        .setSubtitle("Select a login")
-        .setContentDescription("Open ${cryptexProviderName()} login suggestions")
+        .setSubtitle(strings.getString(R.string.cryptex_credentials_autofill_subtitle))
+        .setContentDescription(
+          strings.getString(R.string.cryptex_credentials_autofill_description, cryptexProviderName()),
+        )
         .build()
       InlinePresentation(content.slice, spec, false)
     }

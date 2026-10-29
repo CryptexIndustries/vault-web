@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Copy, Eye, EyeOff, ExternalLink } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { IconButton } from "@/components/icon-button";
 import {
@@ -45,6 +46,7 @@ export function CopyableField({
     onCopyFailed,
     status,
 }: CopyableFieldProps) {
+    const { t } = useLingui();
     const [revealed, setRevealed] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -63,14 +65,14 @@ export function CopyableField({
                     {status === "loading" ? (
                         <View
                             className="flex-row items-center gap-2"
-                            accessibilityLabel={`${label}. Loading.`}
+                            accessibilityLabel={t`${label}. Loading.`}
                         >
                             <ActivityIndicator
                                 size="small"
                                 color={colors.muted}
                             />
                             <Text className="text-sm text-muted-foreground">
-                                Loading…
+                                {t`Loading…`}
                             </Text>
                         </View>
                     ) : (
@@ -89,9 +91,13 @@ export function CopyableField({
                             size="sm"
                             variant="secondary"
                             onPress={status.onRetry}
-                            accessibilityLabel={`Try loading ${label} again`}
+                            accessibilityLabel={t({
+                                message: `Try loading ${label} again`,
+                                comment:
+                                    "Field name such as Password or Username",
+                            })}
                         >
-                            Try again
+                            {t`Try again`}
                         </Button>
                     )}
                 </View>
@@ -138,7 +144,7 @@ export function CopyableField({
                     numberOfLines={hiddenFromA11y ? 1 : numberOfLines}
                     accessibilityLabel={
                         hiddenFromA11y
-                            ? `${label}. Hidden. Reveal to hear value.`
+                            ? t`${label}. Hidden. Reveal to hear value.`
                             : undefined
                     }
                     importantForAccessibility={
@@ -152,7 +158,19 @@ export function CopyableField({
                 {secret ? (
                     <IconButton
                         icon={revealed ? EyeOff : Eye}
-                        label={revealed ? `Hide ${label}` : `Reveal ${label}`}
+                        label={
+                            revealed
+                                ? t({
+                                      message: `Hide ${label}`,
+                                      comment:
+                                          "Field name such as Password or Username",
+                                  })
+                                : t({
+                                      message: `Reveal ${label}`,
+                                      comment:
+                                          "Field name such as Password or Username",
+                                  })
+                        }
                         onPress={() => setRevealed((v) => !v)}
                     />
                 ) : null}
@@ -160,13 +178,19 @@ export function CopyableField({
                 {onOpenUrl ? (
                     <IconButton
                         icon={ExternalLink}
-                        label={`Open ${label}`}
+                        label={t({
+                            message: `Open ${label}`,
+                            comment: "Field name such as Password or Username",
+                        })}
                         onPress={onOpenUrl}
                     />
                 ) : null}
                 <IconButton
                     icon={Copy}
-                    label={`Copy ${label}`}
+                    label={t({
+                        message: `Copy ${label}`,
+                        comment: "Field name such as Password or Username",
+                    })}
                     color={copied ? colors.primary : colors.muted}
                     onPress={() => void handleCopy()}
                 />

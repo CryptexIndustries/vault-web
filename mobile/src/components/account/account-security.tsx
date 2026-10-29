@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { KeyRound, LogOut, Trash2 } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedMenuRow,
@@ -32,6 +33,7 @@ export function AccountSecurity({
     onRemoveLocalBinding,
     onDeleteAccount,
 }: AccountSecurityProps) {
+    const { t } = useLingui();
     return (
         <View>
             <View
@@ -61,8 +63,11 @@ export function AccountSecurity({
                     />
                     <UnlockedText style={{ color: colors.muted, fontSize: 11 }}>
                         {recoveryPhraseAlreadyOnServer
-                            ? "Recovery Kit saved"
-                            : "Setup needed"}
+                            ? t`Recovery Kit saved`
+                            : t({
+                                  message: "Setup needed",
+                                  comment: "Status: no Recovery Kit yet",
+                              })}
                     </UnlockedText>
                 </View>
                 <UnlockedText
@@ -73,7 +78,7 @@ export function AccountSecurity({
                         letterSpacing: -0.5,
                     }}
                 >
-                    Account recovery
+                    {t`Account recovery`}
                 </UnlockedText>
                 <UnlockedText
                     style={{
@@ -84,21 +89,21 @@ export function AccountSecurity({
                     }}
                 >
                     {recoveryPhraseAlreadyOnServer
-                        ? "A Recovery Kit is set up for this account."
-                        : "Create a Recovery Kit to restore access if you lose your devices."}
+                        ? t`A Recovery Kit is set up for this account.`
+                        : t`Create a Recovery Kit to restore access if you lose your devices.`}
                 </UnlockedText>
             </View>
             <UnlockedMenuRow
                 icon={KeyRound}
                 title={
                     recoveryPhraseAlreadyOnServer
-                        ? "Replace Recovery Kit"
-                        : "Create Recovery Kit"
+                        ? t`Replace Recovery Kit`
+                        : t`Create Recovery Kit`
                 }
                 subtitle={
                     recoveryPhraseAlreadyOnServer
-                        ? "Invalidate the old kit and save a new one"
-                        : "Save your User ID and recovery phrase"
+                        ? t`Invalidate the old kit and save a new one`
+                        : t`Save your User ID and recovery phrase`
                 }
                 onPress={() => {
                     if (
@@ -122,12 +127,12 @@ export function AccountSecurity({
                     textTransform: "uppercase",
                 }}
             >
-                Access on this device
+                {t`Access on this device`}
             </UnlockedText>
             <UnlockedMenuRow
                 icon={LogOut}
-                title="Disconnect this device"
-                subtitle="Forget this vault’s saved Online Services access"
+                title={t`Disconnect this device`}
+                subtitle={t`Forget this vault’s saved Online Services access`}
                 onPress={() => {
                     if (onlineServicesBound && !busy) onRemoveLocalBinding();
                 }}
@@ -142,13 +147,13 @@ export function AccountSecurity({
                     textTransform: "uppercase",
                 }}
             >
-                Account management
+                {t`Account management`}
             </UnlockedText>
             <UnlockedMenuRow
                 destructive
                 icon={Trash2}
-                title="Delete online account"
-                subtitle="Permanently remove the server account"
+                title={t`Delete online account`}
+                subtitle={t`Permanently remove the server account`}
                 onPress={() => {
                     if (isRoot && !busy) onDeleteAccount();
                 }}
@@ -162,8 +167,7 @@ export function AccountSecurity({
                         marginTop: 16,
                     }}
                 >
-                    Recovery Kit changes and account deletion require an
-                    administrator device.
+                    {t`Recovery Kit changes and account deletion require an administrator device.`}
                 </UnlockedText>
             ) : null}
         </View>

@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     AlignLeft,
     Copy,
@@ -41,6 +43,7 @@ import { colors } from "@/theme";
 const searchInputStyle = { fontFamily: "sans-serif" };
 
 export default function VaultSearchScreen() {
+    const { t } = useLingui();
     const credentials = useAtomValue(vaultCredentialsAtom);
     const [query, setQuery] = useState("");
     const inputRef = useRef<TextInput>(null);
@@ -76,10 +79,12 @@ export default function VaultSearchScreen() {
         [active, query],
     );
 
+    const resultCount = results.length;
+
     const suggestionsPopup =
         suggestions.length > 0 ? (
             <View
-                accessibilityLabel="Search fields"
+                accessibilityLabel={t`Search fields`}
                 style={{
                     position: "absolute",
                     top: 84,
@@ -113,16 +118,36 @@ export default function VaultSearchScreen() {
                                   : AlignLeft;
                         const label =
                             field === "name"
-                                ? "Name"
+                                ? t({
+                                      message: "Name",
+                                      comment: "Search field: item name",
+                                  })
                                 : field === "tag"
-                                  ? "Tag"
-                                  : "Note";
+                                  ? t({
+                                        message: "Tag",
+                                        comment: "Search field: item tag",
+                                    })
+                                  : t({
+                                        message: "Note",
+                                        comment: "Search field: item notes",
+                                    });
+                        const searchByLabel =
+                            field === "name"
+                                ? t`Search by name`
+                                : field === "tag"
+                                  ? t`Search by tag`
+                                  : t`Search by note`;
+                        const keyword = `${field}:`;
                         return (
                             <Pressable
                                 key={field}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Search by ${field}`}
-                                accessibilityHint={`Insert ${field}: into the search`}
+                                accessibilityLabel={searchByLabel}
+                                accessibilityHint={t({
+                                    message: `Insert ${keyword} into the search`,
+                                    comment:
+                                        "keyword is search syntax such as name: and stays as typed",
+                                })}
                                 onPress={() => applyField(field)}
                                 android_ripple={{ color: colors.border }}
                                 style={{
@@ -198,8 +223,12 @@ export default function VaultSearchScreen() {
                         if (suggestions[0]) applyField(suggestions[0]);
                         else inputRef.current?.blur();
                     }}
-                    placeholder="Search… try name: tag: or note:"
-                    accessibilityLabel="Search your vault"
+                    placeholder={t({
+                        message: "Search… try name: tag: or note:",
+                        comment:
+                            "name:, tag: and note: are search syntax; keep them as typed",
+                    })}
+                    accessibilityLabel={t`Search your vault`}
                     autoCapitalize="none"
                     autoCorrect={false}
                     className="min-h-12 flex-1 border-0 bg-transparent px-0"
@@ -208,7 +237,7 @@ export default function VaultSearchScreen() {
                 {query ? (
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Clear search"
+                        accessibilityLabel={t`Clear search`}
                         onPress={() => {
                             changeQuery("");
                             inputRef.current?.focus();
@@ -233,8 +262,10 @@ export default function VaultSearchScreen() {
                     marginVertical: 10,
                 }}
             >
-                {results.length} result{results.length === 1 ? "" : "s"} across
-                your vault
+                {plural(resultCount, {
+                    one: "# result across your vault",
+                    other: "# results across your vault",
+                })}
             </UnlockedText>
         </View>
     );
@@ -244,7 +275,7 @@ export default function VaultSearchScreen() {
             edges={["top", "left", "right", "bottom"]}
             style={{ flex: 1, backgroundColor: colors.background }}
         >
-            <UnlockedTaskHeader title="Search" />
+            <UnlockedTaskHeader title={t`Search`} />
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -289,7 +320,7 @@ export default function VaultSearchScreen() {
                                         marginTop: 25,
                                     }}
                                 >
-                                    No matching items.
+                                    {t`No matching items.`}
                                 </UnlockedText>
                                 <UnlockedText
                                     style={{
@@ -300,8 +331,7 @@ export default function VaultSearchScreen() {
                                         marginTop: 12,
                                     }}
                                 >
-                                    Try a different name, username, tag, or
-                                    note.
+                                    {t`Try a different name, username, tag, or note.`}
                                 </UnlockedText>
                             </View>
                         ) : null
@@ -328,12 +358,15 @@ const SearchResult = memo(function SearchResult({
 }: {
     item: VaultCredential;
 }) {
+    const { t } = useLingui();
     const sshKey = isSSHKeyItem(item);
+    const passkeyUser = item.Passkey?.UserDisplayName || item.Passkey?.UserName;
     const secondary = sshKey
         ? sshKeySummary(item)
         : item.Type === ItemType.Passkey && item.Passkey
-          ? `Passkey: ${item.Passkey.UserDisplayName || item.Passkey.UserName}`
-          : item.Username || "No username";
+          ? t`Passkey: ${passkeyUser}`
+          : item.Username || t`No username`;
+    const name = item.Name || t`Untitled`;
     return (
         <View
             key={item.ID}
@@ -347,7 +380,7 @@ const SearchResult = memo(function SearchResult({
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${item.Name || "Untitled"}, ${secondary}`}
+                accessibilityLabel={t`${name}, ${secondary}`}
                 onPress={() => router.push(`/(app)/(tabs)/vault/${item.ID}`)}
                 style={{
                     minHeight: 72,
@@ -393,7 +426,7 @@ const SearchResult = memo(function SearchResult({
                             fontWeight: "600",
                         }}
                     >
-                        {item.Name || "Untitled"}
+                        {name}
                     </UnlockedText>
                     <UnlockedText
                         numberOfLines={1}
@@ -410,7 +443,11 @@ const SearchResult = memo(function SearchResult({
             {sshKey && item.SSHKey ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Copy ${item.Name || "item"} public key`}
+                    accessibilityLabel={
+                        item.Name
+                            ? t`Copy ${name} public key`
+                            : t`Copy item public key`
+                    }
                     onPress={() =>
                         void copyTextToClipboard(sshPublicKeyLine(item.SSHKey!))
                     }
@@ -426,7 +463,11 @@ const SearchResult = memo(function SearchResult({
             ) : item.Password ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Copy ${item.Name || "item"} password`}
+                    accessibilityLabel={
+                        item.Name
+                            ? t`Copy ${name} password`
+                            : t`Copy item password`
+                    }
                     onPress={() => void copySecretToClipboard(item.Password)}
                     style={{
                         width: 48,

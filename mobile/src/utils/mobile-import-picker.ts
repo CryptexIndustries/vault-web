@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
@@ -27,7 +28,7 @@ export async function readPickedImportFile(
         if (size != null && size > MAX_IMPORT_FILE_BYTES) {
             throw new ImportFileError(
                 "IMPORT_FILE_TOO_LARGE",
-                "This file is larger than the 1 GB import limit.",
+                t`This file is larger than the 1 GB import limit.`,
             );
         }
 

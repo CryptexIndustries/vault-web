@@ -263,7 +263,7 @@ class CryptexCredentialProviderService : CredentialProviderService() {
       callback.onResult(
         BeginGetCredentialResponse.Builder().addAuthenticationAction(
           AuthenticationAction(
-            "Unlock ${cryptexProviderName()}",
+            getString(R.string.cryptex_credentials_provider_unlock, cryptexProviderName()),
             openCredentialRequest(this, "provider-unlock"),
           ),
         ).build(),

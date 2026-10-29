@@ -7,6 +7,9 @@ import {
     View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ArrowUpDown,
     ChevronRight,
@@ -44,12 +47,15 @@ type SecurityFindingRow = SecurityFindingIdentity & {
 
 const SORT_CYCLE: FindingSort[] = ["risk", "name", "strength", "reuse", "age"];
 
-const SORT_LABELS: Record<FindingSort, string> = {
-    risk: "Risk",
-    name: "Name",
-    strength: "Strength",
-    reuse: "Reuse",
-    age: "Age",
+const SORT_LABELS: Record<FindingSort, MessageDescriptor> = {
+    risk: msg({ message: "Risk", comment: "Security findings sort order" }),
+    name: msg({ message: "Name", comment: "Security findings sort order" }),
+    strength: msg({
+        message: "Strength",
+        comment: "Security findings sort order",
+    }),
+    reuse: msg({ message: "Reuse", comment: "Security findings sort order" }),
+    age: msg({ message: "Age", comment: "Security findings sort order" }),
 };
 
 function buildFindingRows(
@@ -112,11 +118,31 @@ function matchesCategory(
     }
 }
 
-function formatPasswordAge(days: number): string {
+function describePasswordAge(days: number): string {
     const years = Math.floor(days / 365);
     const months = Math.min(11, Math.floor((days % 365) / 30));
-    if (years === 0) return `${months}m`;
-    return months > 0 ? `${years}y ${months}m` : `${years}y`;
+    if (years === 0)
+        return t({
+            message: `Changed ${months}m ago`,
+            comment: "m is short for months",
+        });
+    return months > 0
+        ? t({
+              message: `Changed ${years}y ${months}m ago`,
+              comment: "y is short for years, m for months",
+          })
+        : t({
+              message: `Changed ${years}y ago`,
+              comment: "y is short for years",
+          });
+}
+
+function describeStrength(score: WeakPasswordFinding["score"]): string {
+    return score === 0
+        ? t`Very weak password`
+        : score === 1
+          ? t`Weak password`
+          : t`Fair password`;
 }
 
 function readFilter(value: string | string[] | undefined): FindingFilter {
@@ -135,6 +161,7 @@ export function SecurityReportScreen({
 }: {
     view?: "report" | "findings";
 }) {
+    const { t } = useLingui();
     const params = useLocalSearchParams<{ filter?: string | string[] }>();
     const findings = view === "findings";
     const { analysis, progress, running, error, refresh } = useSecurityReport();
@@ -203,33 +230,42 @@ export function SecurityReportScreen({
     }> = [
         {
             value: "reused",
-            label: "Reused passwords",
-            short: "Reused",
-            hint: `Across ${analysis?.reuseGroups.length ?? 0} shared password groups`,
+            label: t`Reused passwords`,
+            short: t({ message: "Reused", comment: "Short filter tab label" }),
+            hint: plural(analysis?.reuseGroups.length ?? 0, {
+                one: "Across # shared password group",
+                other: "Across # shared password groups",
+            }),
         },
         {
             value: "critical",
-            label: "Critically weak",
-            short: "Critical",
-            hint: "Easy to guess. Change these first.",
+            label: t`Critically weak`,
+            short: t({
+                message: "Critical",
+                comment: "Short filter tab label",
+            }),
+            hint: t`Easy to guess. Change these first.`,
         },
         {
             value: "weak",
-            label: "Weak passwords",
-            short: "Weak",
-            hint: "Could be stronger",
+            label: t`Weak passwords`,
+            short: t({ message: "Weak", comment: "Short filter tab label" }),
+            hint: t`Could be stronger`,
         },
         {
             value: "old",
-            label: "Old passwords",
-            short: "Old",
-            hint: "Last changed a year or more ago",
+            label: t`Old passwords`,
+            short: t({ message: "Old", comment: "Short filter tab label" }),
+            hint: t`Last changed a year or more ago`,
         },
         {
             value: "ssh",
-            label: "Weak SSH keys",
-            short: "SSH keys",
-            hint: "RSA keys under 3072 bits",
+            label: t`Weak SSH keys`,
+            short: t({
+                message: "SSH keys",
+                comment: "Short filter tab label",
+            }),
+            hint: t`RSA keys under 3072 bits`,
         },
     ];
     const counts = {
@@ -241,6 +277,9 @@ export function SecurityReportScreen({
         ssh: rows.filter((row) => matchesCategory(row, "ssh")).length,
     };
     const urgentCount = rows.filter(isCriticalFinding).length;
+    const processed = progress.processed;
+    const total = progress.total;
+    const sortLabel = t(SORT_LABELS[sort]);
     const openFindings = (category: FindingFilter) => {
         if (!findings) {
             router.push({
@@ -271,26 +310,29 @@ export function SecurityReportScreen({
         return Array.from(groups.values()).flat();
     }, [filter, filteredRows]);
     const renderFinding = (row: SecurityFindingRow) => {
+        const keyLabel = row.sshKey?.keyLabel;
         const reasons = [
             row.reuseCount > 1
-                ? `Reused across ${row.reuseCount} accounts`
+                ? plural(row.reuseCount, {
+                      one: "Reused across # account",
+                      other: "Reused across # accounts",
+                  })
                 : "",
-            row.strength ? `${row.strength.strengthLabel} password` : "",
+            row.strength ? describeStrength(row.strength.score) : "",
             row.passwordAgeDays != null
-                ? `Changed ${formatPasswordAge(row.passwordAgeDays)} ago`
+                ? describePasswordAge(row.passwordAgeDays)
                 : "",
-            row.sshKey
-                ? `${row.sshKey.keyLabel} key, too short to stay secure`
-                : "",
+            row.sshKey ? t`${keyLabel} key, too short to stay secure` : "",
         ]
             .filter(Boolean)
             .join("; ");
         const RowIcon = row.sshKey ? FileKey : KeyRound;
+        const name = row.name || t`Untitled`;
         return (
             <Pressable
                 key={row.credentialId}
                 accessibilityRole="button"
-                accessibilityLabel={`${row.name || "Untitled"}. ${reasons}. Open credential.`}
+                accessibilityLabel={t`${name}. ${reasons}. Open credential.`}
                 android_ripple={{ color: colors.border }}
                 onPress={() =>
                     router.push({
@@ -327,7 +369,7 @@ export function SecurityReportScreen({
                     />
                     <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={{ fontSize: 14, fontWeight: "500" }}>
-                            {row.name || "Untitled"}
+                            {name}
                         </Text>
                         {row.username || row.domain ? (
                             <Text
@@ -363,7 +405,7 @@ export function SecurityReportScreen({
     return (
         <UnlockedTaskScreen
             scroll={false}
-            title={findings ? "Security findings" : "Security report"}
+            title={findings ? t`Security findings` : t`Security report`}
         >
             <FlatList<SecurityFindingRow>
                 key={findings ? "findings" : "dashboard"}
@@ -394,10 +436,15 @@ export function SecurityReportScreen({
                                     marginTop: 16,
                                 }}
                             >
-                                Same password used by {item.reuseCount} accounts
                                 {search.trim()
-                                    ? " (showing search matches)"
-                                    : ""}
+                                    ? plural(item.reuseCount, {
+                                          one: "Same password used by # account (showing search matches)",
+                                          other: "Same password used by # accounts (showing search matches)",
+                                      })
+                                    : plural(item.reuseCount, {
+                                          one: "Same password used by # account",
+                                          other: "Same password used by # accounts",
+                                      })}
                             </Text>
                         ) : null}
                         {renderFinding(item)}
@@ -421,8 +468,8 @@ export function SecurityReportScreen({
                                 }}
                             >
                                 {findings
-                                    ? "Review your findings"
-                                    : "Password health"}
+                                    ? t`Review your findings`
+                                    : t`Password health`}
                             </Text>
                             <Text
                                 style={{
@@ -433,8 +480,8 @@ export function SecurityReportScreen({
                                 }}
                             >
                                 {findings
-                                    ? "Open a credential to review its password and make changes."
-                                    : "A clear overview, then the passwords worth your attention."}
+                                    ? t`Open a credential to review its password and make changes.`
+                                    : t`A clear overview, then the passwords worth your attention.`}
                             </Text>
                         </View>
                         {running ? (
@@ -460,10 +507,10 @@ export function SecurityReportScreen({
                                         }}
                                     >
                                         {analysis
-                                            ? "Updating report…"
-                                            : "Analyzing passwords…"}{" "}
+                                            ? t`Updating report…`
+                                            : t`Analyzing passwords…`}{" "}
                                         {progress.total > 0
-                                            ? `${progress.processed} of ${progress.total} checked`
+                                            ? t`${processed} of ${total} checked`
                                             : ""}
                                     </Text>
                                 </View>
@@ -498,8 +545,8 @@ export function SecurityReportScreen({
                                 }}
                             >
                                 {analysis
-                                    ? "Report could not be updated. Previous results are still shown."
-                                    : "Could not analyze this vault. Try again."}
+                                    ? t`Report could not be updated. Previous results are still shown.`
+                                    : t`Could not analyze this vault. Try again.`}
                             </Text>
                         ) : null}
 
@@ -518,7 +565,7 @@ export function SecurityReportScreen({
                                                     fontWeight: "500",
                                                 }}
                                             >
-                                                No passwords to check
+                                                {t`No passwords to check`}
                                             </Text>
                                             <Text
                                                 style={{
@@ -527,8 +574,7 @@ export function SecurityReportScreen({
                                                     lineHeight: 20,
                                                 }}
                                             >
-                                                Add a password to a credential
-                                                to include it in this report.
+                                                {t`Add a password to a credential to include it in this report.`}
                                             </Text>
                                         </>
                                     ) : rows.length === 0 ? (
@@ -543,7 +589,7 @@ export function SecurityReportScreen({
                                                     fontWeight: "500",
                                                 }}
                                             >
-                                                No issues found
+                                                {t`No issues found`}
                                             </Text>
                                             <Text
                                                 style={{
@@ -552,9 +598,7 @@ export function SecurityReportScreen({
                                                     lineHeight: 20,
                                                 }}
                                             >
-                                                No weak, reused, or old
-                                                passwords were found by these
-                                                checks.
+                                                {t`No weak, reused, or old passwords were found by these checks.`}
                                             </Text>
                                         </>
                                     ) : (
@@ -578,11 +622,10 @@ export function SecurityReportScreen({
                                                     fontWeight: "500",
                                                 }}
                                             >
-                                                credential
-                                                {rows.length === 1
-                                                    ? ""
-                                                    : "s"}{" "}
-                                                to review
+                                                {plural(rows.length, {
+                                                    one: "credential to review",
+                                                    other: "credentials to review",
+                                                })}
                                             </Text>
                                             <Text
                                                 style={{
@@ -592,12 +635,15 @@ export function SecurityReportScreen({
                                                 }}
                                             >
                                                 {urgentCount
-                                                    ? `${urgentCount} with reused or critically weak passwords. Start there.`
+                                                    ? plural(urgentCount, {
+                                                          one: "# with reused or critically weak passwords. Start there.",
+                                                          other: "# with reused or critically weak passwords. Start there.",
+                                                      })
                                                     : counts.weak
-                                                      ? "Focus on making weak passwords stronger."
+                                                      ? t`Focus on making weak passwords stronger.`
                                                       : counts.ssh
-                                                        ? "Replace weak SSH keys with new Ed25519 keys."
-                                                        : "Only age reminders remain. Review whether changes are needed."}
+                                                        ? t`Replace weak SSH keys with new Ed25519 keys.`
+                                                        : t`Only age reminders remain. Review whether changes are needed.`}
                                             </Text>
                                         </>
                                     )}
@@ -608,8 +654,10 @@ export function SecurityReportScreen({
                                             marginTop: 4,
                                         }}
                                     >
-                                        {analysis.analyzedCount} items checked
-                                        on this device
+                                        {plural(analysis.analyzedCount, {
+                                            one: "# item checked on this device",
+                                            other: "# items checked on this device",
+                                        })}
                                     </Text>
                                 </View>
                                 {analysis.analyzedCount > 0 ? (
@@ -710,8 +758,7 @@ export function SecurityReportScreen({
                                                 marginTop: 12,
                                             }}
                                         >
-                                            A credential can appear in more than
-                                            one category.
+                                            {t`A credential can appear in more than one category.`}
                                         </Text>
                                         {rows.length > 0 ? (
                                             <Button
@@ -720,7 +767,7 @@ export function SecurityReportScreen({
                                                     openFindings("all")
                                                 }
                                             >
-                                                View all findings
+                                                {t`View all findings`}
                                             </Button>
                                         ) : null}
                                     </>
@@ -735,7 +782,14 @@ export function SecurityReportScreen({
                                     contentContainerStyle={{ gap: 20 }}
                                 >
                                     {[
-                                        { value: "all" as const, short: "All" },
+                                        {
+                                            value: "all" as const,
+                                            short: t({
+                                                message: "All",
+                                                comment:
+                                                    "Short filter tab label: all findings",
+                                            }),
+                                        },
                                         ...categories,
                                     ].map((category) => (
                                         <Pressable
@@ -777,19 +831,19 @@ export function SecurityReportScreen({
                                         </Pressable>
                                     ))}
                                 </ScrollView>
-                                <Label>Filter findings</Label>
+                                <Label>{t`Filter findings`}</Label>
                                 <Input
                                     value={search}
                                     onChangeText={setSearch}
-                                    placeholder="Name, username, or website"
+                                    placeholder={t`Name, username, or website`}
                                     autoCapitalize="none"
                                     autoCorrect={false}
-                                    accessibilityLabel="Filter security findings"
+                                    accessibilityLabel={t`Filter security findings`}
                                 />
                                 <Button
                                     variant="ghost"
                                     className="mt-3 flex-row justify-between gap-3 rounded-none border-b border-border px-0"
-                                    accessibilityLabel={`Sort by ${SORT_LABELS[sort]}`}
+                                    accessibilityLabel={t`Sort by ${sortLabel}`}
                                     onPress={() =>
                                         setSort(
                                             SORT_CYCLE[
@@ -804,7 +858,7 @@ export function SecurityReportScreen({
                                         color={colors.muted}
                                     />
                                     <Text style={{ flex: 1, fontSize: 13 }}>
-                                        Change sort
+                                        {t`Change sort`}
                                     </Text>
                                     <Text
                                         style={{
@@ -812,7 +866,7 @@ export function SecurityReportScreen({
                                             fontSize: 12,
                                         }}
                                     >
-                                        {SORT_LABELS[sort]}
+                                        {sortLabel}
                                     </Text>
                                 </Button>
                                 <Text
@@ -823,8 +877,10 @@ export function SecurityReportScreen({
                                         marginBottom: 6,
                                     }}
                                 >
-                                    {filteredRows.length} credential
-                                    {filteredRows.length === 1 ? "" : "s"}
+                                    {plural(filteredRows.length, {
+                                        one: "# credential",
+                                        other: "# credentials",
+                                    })}
                                 </Text>
                                 {filteredRows.length === 0 ? (
                                     <View
@@ -838,15 +894,15 @@ export function SecurityReportScreen({
                                             }}
                                         >
                                             {search.trim()
-                                                ? "No findings match your search."
-                                                : "No findings in this category."}
+                                                ? t`No findings match your search.`
+                                                : t`No findings in this category.`}
                                         </Text>
                                         {search.trim() ? (
                                             <Button
                                                 variant="outline"
                                                 onPress={() => setSearch("")}
                                             >
-                                                Clear search
+                                                {t`Clear search`}
                                             </Button>
                                         ) : null}
                                     </View>
@@ -872,10 +928,7 @@ export function SecurityReportScreen({
                                     lineHeight: 18,
                                 }}
                             >
-                                Checks password strength, reuse, and age, and
-                                SSH key sizes. Data breaches are not checked.
-                                Age alone does not mean a password is
-                                compromised.
+                                {t`Checks password strength, reuse, and age, and SSH key sizes. Data breaches are not checked. Age alone does not mean a password is compromised.`}
                             </Text>
                         </View>
                         <Button
@@ -884,7 +937,7 @@ export function SecurityReportScreen({
                             loading={running}
                             onPress={refresh}
                         >
-                            {error ? "Try again" : "Refresh report"}
+                            {error ? t`Try again` : t`Refresh report`}
                         </Button>
                     </>
                 }

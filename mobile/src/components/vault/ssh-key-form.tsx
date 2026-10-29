@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 import {
     Check,
     ChevronDown,
@@ -43,6 +44,8 @@ import { joinTags, tagsToDisplay } from "@/utils/credential-search";
 import { loadSSHKeyModule } from "@/utils/ssh-keys";
 import { createSSHKeyTaskRunner } from "@/utils/ssh-key-worker";
 import { pickSSHKeyFile, SSHKeyFileError } from "@/utils/ssh-key-files";
+import { sshKeyErrorText } from "@/utils/ssh-key-messages";
+import { credentialFormIssueText } from "@/utils/credential-form-messages";
 import { useUnlockedSnackbar } from "@/components/unlocked/unlocked-snackbar";
 import { Separator } from "@/components/ui/separator";
 import { InlineNotice } from "@/components/inline-notice";
@@ -74,12 +77,13 @@ function SourceRow({
     onPress: () => void;
     testID: string;
 }) {
+    const { t } = useLingui();
     return (
         <Pressable
             testID={testID}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
-            accessibilityLabel={`${title}, ${subtitle}`}
+            accessibilityLabel={t`${title}, ${subtitle}`}
             android_ripple={{ color: colors.border }}
             onPress={onPress}
             style={{
@@ -137,14 +141,27 @@ function KeyFacts({
     showPublicKey?: boolean;
     testID?: string;
 }) {
+    const { t } = useLingui();
     const info = describeSSHKey(data);
     const rows = [
-        { label: "Type", value: info?.label ?? "Unknown" },
-        { label: "Fingerprint", value: info?.fingerprint ?? "Unknown" },
+        {
+            kind: "type",
+            label: t({
+                message: "Type",
+                comment: "SSH key algorithm, such as Ed25519",
+            }),
+            value: info?.label ?? t`Unknown`,
+        },
+        {
+            kind: "fingerprint",
+            label: t`Fingerprint`,
+            value: info?.fingerprint ?? t`Unknown`,
+        },
         ...(showPublicKey
             ? [
                   {
-                      label: "Public key",
+                      kind: "public-key",
+                      label: t`Public key`,
                       value: sshPublicKeyLine({
                           PublicKey: data.PublicKey,
                           Comment: comment,
@@ -167,7 +184,7 @@ function KeyFacts({
         >
             {rows.map((row, index) => (
                 <View
-                    key={row.label}
+                    key={row.kind}
                     style={{
                         paddingVertical: 10,
                         borderTopWidth: index ? 1 : 0,
@@ -179,13 +196,13 @@ function KeyFacts({
                     </Text>
                     <Text
                         selectable
-                        numberOfLines={row.label === "Public key" ? 4 : 2}
+                        numberOfLines={row.kind === "public-key" ? 4 : 2}
                         style={{
                             marginTop: 4,
                             fontSize: 12,
                             lineHeight: 18,
                             fontFamily:
-                                row.label === "Type" ? undefined : MONOSPACE,
+                                row.kind === "type" ? undefined : MONOSPACE,
                         }}
                     >
                         {row.value}
@@ -201,6 +218,7 @@ export function SSHKeyForm({
     existing,
     initialDirectoryId = "",
 }: SSHKeyFormProps) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const showSnackbar = useUnlockedSnackbar();
     const vault = useAtomValue(unlockedVaultAtom);
@@ -214,7 +232,7 @@ export function SSHKeyForm({
 
     const [source, setSource] = useState<KeySource>("generate");
     const [generated, setGenerated] = useState<SSHKeyData | null>(null);
-    const [generateError, setGenerateError] = useState("");
+    const [generateError, setGenerateError] = useState(false);
 
     const [keyText, setKeyText] = useState("");
     const [publicKeyFile, setPublicKeyFile] = useState<{
@@ -307,8 +325,7 @@ export function SSHKeyForm({
                 if (active) setGenerated(sshKeys.generateSSHKey(""));
             })
             .catch(() => {
-                if (active)
-                    setGenerateError("A new key could not be generated.");
+                if (active) setGenerateError(true);
             });
         return () => {
             active = false;
@@ -340,7 +357,8 @@ export function SSHKeyForm({
                 return;
             }
             setImported(null);
-            const { code, message } = result;
+            const { code } = result;
+            const message = sshKeyErrorText(result);
             if (code === "passphrase-required") {
                 settled.current = { text, publicKey };
                 setNeedsPassphrase(true);
@@ -423,6 +441,7 @@ export function SSHKeyForm({
     );
 
     const showPassphrase = needsPassphrase && !imported;
+    const publicKeyFileName = publicKeyFile?.name;
     useEffect(() => {
         if (!showPassphrase) return;
         requestAnimationFrame(() => scrollToNode(passphraseBlock.current, 48));
@@ -475,7 +494,7 @@ export function SSHKeyForm({
             const message =
                 pickError instanceof SSHKeyFileError
                     ? pickError.message
-                    : "The file could not be opened.";
+                    : t`The file could not be opened.`;
             if (kind === "private") setImportError(message);
             else showSnackbar(message);
         }
@@ -484,7 +503,7 @@ export function SSHKeyForm({
     const unlock = () => {
         if (importBusyRef.current === "unlocking") return;
         if (!passphrase) {
-            setPassphraseError("Enter the passphrase for this key.");
+            setPassphraseError(t`Enter the passphrase for this key.`);
             return;
         }
         setPassphraseError("");
@@ -495,7 +514,7 @@ export function SSHKeyForm({
         if (saving.current) return;
         if (importBusyRef.current) return;
         if (!name.trim()) {
-            setError("Name is required.");
+            setError(t`Name is required.`);
             return;
         }
         const key = existing
@@ -506,10 +525,10 @@ export function SSHKeyForm({
         if (!key) {
             setError(
                 source === "generate"
-                    ? "The new key isn't ready yet."
+                    ? t`The new key isn't ready yet.`
                     : needsPassphrase
-                      ? "Unlock the key with its passphrase first."
-                      : "Paste a private key or choose a key file.",
+                      ? t`Unlock the key with its passphrase first.`
+                      : t`Paste a private key or choose a key file.`,
             );
             return;
         }
@@ -541,7 +560,10 @@ export function SSHKeyForm({
         if (!formResult.success) {
             saving.current = false;
             setLoading(false);
-            setError(formResult.error.issues[0]?.message ?? "Invalid SSH key.");
+            setError(
+                credentialFormIssueText(formResult.error.issues[0]) ??
+                    t`Invalid SSH key.`,
+            );
             return;
         }
         const form = formResult.data;
@@ -587,8 +609,8 @@ export function SSHKeyForm({
         if (result.isErr()) {
             setError(
                 conflict
-                    ? "This item changed while you were editing. Your edits are still here. Cancel editing and reopen the item before saving."
-                    : "Failed to save SSH key.",
+                    ? t`This item changed while you were editing. Your edits are still here. Cancel editing and reopen the item before saving.`
+                    : t`Failed to save SSH key.`,
             );
             return;
         }
@@ -607,32 +629,32 @@ export function SSHKeyForm({
             return;
         }
         confirm({
-            title: "Discard changes?",
-            description: "Your unsaved changes will be lost.",
-            cancelLabel: "Keep editing",
-            confirmLabel: "Discard",
+            title: t`Discard changes?`,
+            description: t`Your unsaved changes will be lost.`,
+            cancelLabel: t`Keep editing`,
+            confirmLabel: t`Discard`,
             onConfirm: () => {
                 if (!saving.current) router.back();
             },
         });
-    }, [confirm, dirty]);
+    }, [confirm, dirty, t]);
 
     return (
         <UnlockedTaskScreen
-            title={existing ? "Edit SSH key" : "Add SSH key"}
-            backLabel="Cancel editing"
+            title={existing ? t`Edit SSH key` : t`Add SSH key`}
+            backLabel={t`Cancel editing`}
             onBack={requestCancel}
             footer={
                 <Button
                     className="h-[54px] min-h-[54px]"
                     textClassName="text-[#111520]"
                     loading={loading}
-                    loadingLabel="Saving…"
+                    loadingLabel={t`Saving…`}
                     disabled={!!importBusy}
                     onPress={() => void handleSave()}
                     testID="ssh-key-submit"
                 >
-                    Save item
+                    {t`Save item`}
                 </Button>
             }
         >
@@ -645,8 +667,7 @@ export function SSHKeyForm({
                             showPublicKey
                         />
                         <Text className="text-xs text-muted-foreground">
-                            The key itself can't be changed. To use a different
-                            key, add a new SSH key item.
+                            {t`The key itself can't be changed. To use a different key, add a new SSH key item.`}
                         </Text>
                     </View>
                 ) : (
@@ -660,15 +681,15 @@ export function SSHKeyForm({
                         >
                             <SourceRow
                                 testID="ssh-key-source-generate"
-                                title="Generate a new key"
-                                subtitle="Ed25519, the recommended type"
+                                title={t`Generate a new key`}
+                                subtitle={t`Ed25519, the recommended type`}
                                 selected={source === "generate"}
                                 onPress={() => changeSource("generate")}
                             />
                             <SourceRow
                                 testID="ssh-key-source-import"
-                                title="Use an existing key"
-                                subtitle="Paste it or choose the key file"
+                                title={t`Use an existing key`}
+                                subtitle={t`Paste it or choose the key file`}
                                 selected={source === "import"}
                                 onPress={() => changeSource("import")}
                             />
@@ -685,18 +706,18 @@ export function SSHKeyForm({
                                 ) : generateError ? (
                                     <InlineNotice
                                         tone="error"
-                                        message={generateError}
+                                        message={t`A new key could not be generated.`}
                                     />
                                 ) : (
                                     <InlineNotice
                                         tone="loading"
-                                        message="Generating a key…"
+                                        message={t`Generating a key…`}
                                     />
                                 )
                             ) : (
                                 <>
                                     <View>
-                                        <Label>Private key</Label>
+                                        <Label>{t`Private key`}</Label>
                                         <Input
                                             value={keyText}
                                             onChangeText={(value) =>
@@ -711,8 +732,9 @@ export function SSHKeyForm({
                                             autoCorrect={false}
                                             spellCheck={false}
                                             importantForAutofill="no"
+                                            // i18n-ignore: key file header
                                             placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                                            accessibilityLabel="Private key"
+                                            accessibilityLabel={t`Private key`}
                                             testID="ssh-key-private-key"
                                             style={{
                                                 minHeight: 150,
@@ -728,8 +750,8 @@ export function SSHKeyForm({
                                             tone="loading"
                                             message={
                                                 unlocking
-                                                    ? "Unlocking…"
-                                                    : "Checking key…"
+                                                    ? t`Unlocking…`
+                                                    : t`Checking key…`
                                             }
                                             testID="ssh-key-import-busy"
                                         />
@@ -745,7 +767,7 @@ export function SSHKeyForm({
                                         <Button
                                             className="flex-1"
                                             variant="secondary"
-                                            accessibilityLabel="Choose key file"
+                                            accessibilityLabel={t`Choose key file`}
                                             onPress={() =>
                                                 void chooseFile("private")
                                             }
@@ -755,13 +777,13 @@ export function SSHKeyForm({
                                                 color={colors.foreground}
                                             />
                                             <Text className="text-sm text-secondary-foreground">
-                                                Choose file
+                                                {t`Choose file`}
                                             </Text>
                                         </Button>
                                         <Button
                                             className="flex-1"
                                             variant="secondary"
-                                            accessibilityLabel="Add .pub file"
+                                            accessibilityLabel={t`Add .pub file`}
                                             // Changing it would restart the unlock.
                                             disabled={unlocking}
                                             onPress={() =>
@@ -773,7 +795,7 @@ export function SSHKeyForm({
                                                 color={colors.foreground}
                                             />
                                             <Text className="text-sm text-secondary-foreground">
-                                                Add .pub file
+                                                {t`Add .pub file`}
                                             </Text>
                                         </Button>
                                     </View>
@@ -783,12 +805,11 @@ export function SSHKeyForm({
                                                 numberOfLines={1}
                                                 className="flex-1 text-xs text-muted-foreground"
                                             >
-                                                Public key from{" "}
-                                                {publicKeyFile.name}
+                                                {t`Public key from ${publicKeyFileName}`}
                                             </Text>
                                             <Pressable
                                                 accessibilityRole="button"
-                                                accessibilityLabel="Remove .pub file"
+                                                accessibilityLabel={t`Remove .pub file`}
                                                 disabled={unlocking}
                                                 onPress={() =>
                                                     changePublicKeyFile(null)
@@ -814,7 +835,12 @@ export function SSHKeyForm({
                                             className="gap-3"
                                         >
                                             <View>
-                                                <Label>Passphrase</Label>
+                                                <Label>
+                                                    {t({
+                                                        message: "Passphrase",
+                                                        context: "SSH key",
+                                                    })}
+                                                </Label>
                                                 <Input
                                                     value={passphrase}
                                                     onChangeText={(value) => {
@@ -830,12 +856,11 @@ export function SSHKeyForm({
                                                     editable={!unlocking}
                                                     returnKeyType="go"
                                                     onSubmitEditing={unlock}
-                                                    accessibilityLabel="Key passphrase"
+                                                    accessibilityLabel={t`Key passphrase`}
                                                     testID="ssh-key-passphrase"
                                                 />
                                                 <Text className="mt-1 text-xs text-muted-foreground">
-                                                    Only used to open the key.
-                                                    It isn't saved.
+                                                    {t`Only used to open the key. It isn't saved.`}
                                                 </Text>
                                             </View>
                                             {passphraseError ? (
@@ -848,10 +873,10 @@ export function SSHKeyForm({
                                             <Button
                                                 variant="secondary"
                                                 loading={unlocking}
-                                                loadingLabel="Unlocking…"
+                                                loadingLabel={t`Unlocking…`}
                                                 onPress={unlock}
                                             >
-                                                Unlock
+                                                {t`Unlock`}
                                             </Button>
                                         </View>
                                     ) : null}
@@ -875,7 +900,8 @@ export function SSHKeyForm({
 
                 <View>
                     <Label>
-                        Name <Text className="text-destructive">*</Text>
+                        {t({ message: "Name", comment: "Item name field" })}{" "}
+                        <Text className="text-destructive">*</Text>
                     </Label>
                     <Input
                         value={name}
@@ -883,32 +909,37 @@ export function SSHKeyForm({
                             markDirty();
                             setName(value);
                         }}
-                        placeholder="e.g., Work laptop"
-                        accessibilityLabel="SSH key name"
+                        placeholder={t`e.g., Work laptop`}
+                        accessibilityLabel={t`SSH key name`}
                         autoCapitalize="sentences"
                     />
                 </View>
 
                 <View>
-                    <Label>Comment</Label>
+                    <Label>
+                        {t({
+                            message: "Comment",
+                            comment: "SSH key comment field",
+                        })}
+                    </Label>
                     <Input
                         value={comment}
                         onChangeText={setComment}
-                        placeholder="e.g., you@laptop"
-                        accessibilityLabel="SSH key comment"
+                        placeholder={t`e.g., you@laptop`}
+                        accessibilityLabel={t`SSH key comment`}
                         autoCapitalize="none"
                         autoCorrect={false}
                     />
                     <Text className="mt-1 text-xs text-muted-foreground">
-                        Added to the end of the public key.
+                        {t`Added to the end of the public key.`}
                     </Text>
                 </View>
 
                 <View>
-                    <Label>Directory</Label>
+                    <Label>{t`Directory`}</Label>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Choose directory"
+                        accessibilityLabel={t`Choose directory`}
                         onPress={() => setDirectoryPickerOpen(true)}
                         style={{
                             minHeight: 54,
@@ -924,7 +955,7 @@ export function SSHKeyForm({
                     >
                         <Text>
                             {directories.find((item) => item.ID === directoryId)
-                                ?.Name || "No directory"}
+                                ?.Name || t`No directory`}
                         </Text>
                         <ChevronRight size={18} color={colors.muted} />
                     </Pressable>
@@ -938,7 +969,7 @@ export function SSHKeyForm({
                     className="min-h-[54px] flex-row items-center"
                 >
                     <Text className="flex-1 text-sm text-foreground">
-                        More details
+                        {t`More details`}
                     </Text>
                     {moreDetailsOpen ? (
                         <ChevronDown size={18} color={colors.muted} />
@@ -949,23 +980,27 @@ export function SSHKeyForm({
                 {moreDetailsOpen ? (
                     <View className="gap-4">
                         <View>
-                            <Label>Tags</Label>
+                            <Label>{t`Tags`}</Label>
                             <Input
                                 value={tagsText}
                                 onChangeText={(value) => {
                                     markDirty();
                                     setTagsText(value);
                                 }}
-                                placeholder="work, personal"
+                                placeholder={t`work, personal`}
                                 autoCapitalize="none"
                             />
                             <Text className="mt-1 text-xs text-muted-foreground">
-                                Comma-separated. Search with
-                                tag:&quot;work&quot;.
+                                {t({
+                                    message:
+                                        'Comma-separated. Search with tag:"work".',
+                                    comment:
+                                        "tag: is search syntax; keep it as typed",
+                                })}
                             </Text>
                         </View>
                         <View>
-                            <Label>Notes</Label>
+                            <Label>{t`Notes`}</Label>
                             <Input
                                 value={notes}
                                 onChangeText={(value) => {
@@ -991,9 +1026,9 @@ export function SSHKeyForm({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Choose directory</DialogTitle>
+                    <DialogTitle>{t`Choose directory`}</DialogTitle>
                 </DialogHeader>
-                {[{ ID: "", Name: "No directory" }, ...directories].map(
+                {[{ ID: "", Name: t`No directory` }, ...directories].map(
                     (directory) => (
                         <Pressable
                             key={directory.ID}

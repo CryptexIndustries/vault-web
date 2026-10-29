@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLingui } from "@lingui/react/macro";
 import { Linking, View } from "react-native";
 import Constants from "expo-constants";
 import { getBuildDetails } from "@/lib/build-details";
@@ -34,6 +35,7 @@ export function AboutSheet({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const { t } = useLingui();
     const [licenseOpen, setLicenseOpen] = useState(false);
     const details = getBuildDetails(
         Constants.expoConfig,
@@ -53,7 +55,7 @@ export function AboutSheet({
         >
             <DialogHeader>
                 <UnlockedDialogTitle>
-                    {licenseOpen ? "License" : "About"}
+                    {licenseOpen ? t`License` : t`About`}
                 </UnlockedDialogTitle>
             </DialogHeader>
             {licenseOpen ? (
@@ -74,6 +76,7 @@ export function AboutSheet({
                                 marginBottom: 6,
                             }}
                         >
+                            {/* i18n-ignore: license identifier */}
                             AGPL-3.0-only
                         </UnlockedText>
                         <UnlockedText
@@ -83,8 +86,7 @@ export function AboutSheet({
                                 lineHeight: 20,
                             }}
                         >
-                            Cryptex Vault is free software licensed under the
-                            GNU Affero General Public License, version 3.
+                            {t`Cryptex Vault is free software licensed under the GNU Affero General Public License, version 3.`}
                         </UnlockedText>
                     </View>
                     <View
@@ -102,8 +104,7 @@ export function AboutSheet({
                                 color: colors.muted,
                             }}
                         >
-                            See LICENSE.md in the repository for the full
-                            license text.
+                            {t`See LICENSE.md in the repository for the full license text.`}
                         </UnlockedText>
                     </View>
                     <Button
@@ -115,13 +116,13 @@ export function AboutSheet({
                             )
                         }
                     >
-                        View full license
+                        {t`View full license`}
                     </Button>
                     <Button
                         variant="ghost"
                         onPress={() => setLicenseOpen(false)}
                     >
-                        Back to About
+                        {t`Back to About`}
                     </Button>
                 </>
             ) : (
@@ -141,6 +142,7 @@ export function AboutSheet({
                                 marginTop: 10,
                             }}
                         >
+                            {/* i18n-ignore: product name */}
                             Cryptex Vault
                         </UnlockedText>
                         <UnlockedText
@@ -150,19 +152,36 @@ export function AboutSheet({
                                 marginTop: 6,
                             }}
                         >
-                            Version {version}
-                            {build ? ` (${build})` : ""} on Android
+                            {build
+                                ? t`Version ${version} (${build}) on Android`
+                                : t`Version ${version} on Android`}
                         </UnlockedText>
                     </View>
                     <View style={{ marginTop: 18, gap: 5 }}>
                         {[
                             [
-                                "Profile",
+                                t({
+                                    message: "Profile",
+                                    comment: "Build detail label in About",
+                                }),
                                 `${details.profile} / ${details.distribution}`,
                             ],
-                            ["Source revision", details.revision],
-                            ["Runtime", details.runtime],
-                            ["Update", details.update],
+                            [t`Source revision`, details.revision],
+                            [
+                                t({
+                                    message: "Runtime",
+                                    comment: "Build detail label in About",
+                                }),
+                                details.runtime,
+                            ],
+                            [
+                                t({
+                                    message: "Update",
+                                    comment:
+                                        "Build detail label in About: the installed over-the-air update",
+                                }),
+                                details.update,
+                            ],
                             ["OTA", `${details.ota} / ${details.channel}`],
                         ].map(([label, value]) => (
                             <UnlockedText
@@ -184,12 +203,16 @@ export function AboutSheet({
                             textTransform: "uppercase",
                         }}
                     >
-                        Project
+                        {t({
+                            message: "Project",
+                            comment: "Section label in About",
+                        })}
                     </UnlockedText>
                     {details.distribution !== "play" ? (
                         <UnlockedMenuRow
                             icon={Globe}
-                            title="Website"
+                            title={t`Website`}
+                            // i18n-ignore: domain name
                             subtitle="cryptex-vault.com"
                             onPress={() =>
                                 void Linking.openURL(
@@ -200,8 +223,8 @@ export function AboutSheet({
                     ) : null}
                     <UnlockedMenuRow
                         icon={Code2}
-                        title="Source code"
-                        subtitle="View the project repository"
+                        title={t`Source code`}
+                        subtitle={t`View the project repository`}
                         onPress={() =>
                             void Linking.openURL(
                                 "https://github.com/CryptexIndustries/vault-web",
@@ -210,8 +233,8 @@ export function AboutSheet({
                     />
                     <UnlockedMenuRow
                         icon={CircleHelp}
-                        title="Report an issue"
-                        subtitle="Open the issue tracker"
+                        title={t`Report an issue`}
+                        subtitle={t`Open the issue tracker`}
                         onPress={() =>
                             void Linking.openURL(
                                 "https://github.com/CryptexIndustries/vault-web/issues",
@@ -220,8 +243,8 @@ export function AboutSheet({
                     />
                     <UnlockedMenuRow
                         icon={ShieldCheck}
-                        title="Privacy policy"
-                        subtitle="How your data is handled"
+                        title={t`Privacy policy`}
+                        subtitle={t`How your data is handled`}
                         onPress={() =>
                             void Linking.openURL(
                                 "https://www.cryptex-vault.com/privacy",
@@ -230,7 +253,8 @@ export function AboutSheet({
                     />
                     <UnlockedMenuRow
                         icon={Info}
-                        title="License"
+                        title={t`License`}
+                        // i18n-ignore: license identifier
                         subtitle="AGPL-3.0-only"
                         onPress={() => setLicenseOpen(true)}
                     />

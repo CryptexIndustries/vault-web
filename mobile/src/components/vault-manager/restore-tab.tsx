@@ -3,6 +3,7 @@ import { Pressable, View, type TextInput } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Check, CloudDownload, FileUp } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { useLingui } from "@lingui/react/macro";
 
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/vault-utils/encryption";
@@ -40,8 +41,10 @@ type RestoreTabProps = {
 };
 
 export function RestoreTab({ onRestored }: RestoreTabProps) {
+    const { t, i18n } = useLingui();
+    const extension = BACKUP_FILE_EXTENSION;
     const [source, setSource] = useState<"file" | "managed">("file");
-    const [name, setName] = useState("Restored vault");
+    const [name, setName] = useState(() => t`Restored vault`);
     const [description, setDescription] = useState("");
     const [fileName, setFileName] = useState<string | null>(null);
     const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
@@ -132,30 +135,30 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             case AdditionalKeyProtectionKind.WEBAUTHN_PRF:
                 setBackupGuidanceTone("warning");
                 setBackupGuidance(
-                    "This backup uses security-key protection that Android cannot open with a password. Restore it only if you have the vault recovery code, or link from a device where it already opens.",
+                    t`This backup uses security-key protection that Android cannot open with a password. Restore it only if you have the vault recovery code, or link from a device where it already opens.`,
                 );
                 break;
             case AdditionalKeyProtectionKind.PROTECTION_PHRASE_128:
             case AdditionalKeyProtectionKind.PROTECTION_PHRASE_256:
                 setBackupGuidanceTone("info");
                 setBackupGuidance(
-                    "After restore, unlock with the existing master password and generated protection phrase. You can also use the vault recovery code.",
+                    t`After restore, unlock with the existing master password and generated protection phrase. You can also use the vault recovery code.`,
                 );
                 break;
             default:
                 setBackupGuidanceTone("info");
                 setBackupGuidance(
-                    "After restore, unlock with the existing master password. You can also use the vault recovery code.",
+                    t`After restore, unlock with the existing master password. You can also use the vault recovery code.`,
                 );
         }
     };
 
     const startCloudRecovery = async () => {
         const next = {
-            cloudUserId: cloudUserId.trim() ? "" : "Enter your user ID.",
+            cloudUserId: cloudUserId.trim() ? "" : t`Enter your user ID.`,
             cloudRecoveryPhrase: cloudRecoveryPhrase.trim()
                 ? ""
-                : "Enter your Recovery Kit phrase.",
+                : t`Enter your Recovery Kit phrase.`,
         };
         setFieldErrors((current) => ({ ...current, ...next }));
         if (next.cloudUserId) {
@@ -191,11 +194,11 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             setRecoverySession(sessionToken);
             setSnapshots(allSnapshots);
             if (allSnapshots.length === 0)
-                showError("No managed backups are available.", "managed");
+                showError(t`No managed backups are available.`, "managed");
         } catch {
             setCloudRecoveryPhrase("");
             showError(
-                "Could not open managed recovery. Check the Recovery Kit.",
+                t`Could not open managed recovery. Check the Recovery Kit.`,
                 "managed",
             );
         } finally {
@@ -211,12 +214,12 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                 recoverySession,
                 snapshotId,
             );
-            selectBackup(
-                result.bytes,
-                `Managed backup from ${new Date(result.snapshot.createdAt).toLocaleString()}`,
-            );
+            const createdAt = new Date(
+                result.snapshot.createdAt,
+            ).toLocaleString(i18n.locale);
+            selectBackup(result.bytes, t`Managed backup from ${createdAt}`);
         } catch {
-            showError("Managed backup download failed.", "managed");
+            showError(t`Managed backup download failed.`, "managed");
         } finally {
             setLoading(false);
         }
@@ -238,10 +241,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                 !asset.name.toLowerCase().endsWith(`.${BACKUP_FILE_EXTENSION}`)
             ) {
                 await deleteAppOwnedTempFile(asset.uri);
-                showError(
-                    `Choose a file ending in .${BACKUP_FILE_EXTENSION}.`,
-                    "file",
-                );
+                showError(t`Choose a file ending in .${extension}.`, "file");
                 return;
             }
 
@@ -252,7 +252,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             setFileName(null);
             setBackupGuidance("");
             showError(
-                "This file is not a readable Cryptex Vault backup.",
+                t`This file is not a readable Cryptex Vault backup.`,
                 "file",
             );
         }
@@ -263,7 +263,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
         if (!name.trim()) {
             setFieldErrors((current) => ({
                 ...current,
-                name: "Enter a name for the restored vault.",
+                name: t`Enter a name for the restored vault.`,
             }));
             requestAnimationFrame(() => nameRef.current?.focus());
             return;
@@ -271,8 +271,8 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
         if (!fileBytes) {
             showError(
                 source === "file"
-                    ? `Choose a .${BACKUP_FILE_EXTENSION} backup file.`
-                    : "Find and select a managed backup.",
+                    ? t`Choose a .${extension} backup file.`
+                    : t`Find and select a managed backup.`,
                 source,
             );
             return;
@@ -290,7 +290,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             onRestored?.();
         } catch {
             showError(
-                "Failed to restore vault. The backup may be corrupt.",
+                t`Failed to restore vault. The backup may be corrupt.`,
                 "restore",
             );
         } finally {
@@ -301,27 +301,35 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
     return (
         <View>
             <VaultEntrySteps
-                labels={["Select source", "Save locally", "Unlock"]}
+                labels={[
+                    t({
+                        message: "Select source",
+                        comment: "Restore vault step",
+                    }),
+                    t({
+                        message: "Save locally",
+                        comment: "Restore vault step",
+                    }),
+                    t({ message: "Unlock", comment: "Restore vault step" }),
+                ]}
                 current={success ? 1 : 0}
             />
             <Label className="mb-2 text-xs font-normal text-muted-foreground">
-                Backup source
+                {t`Backup source`}
             </Label>
             <View className="mb-4 gap-2" accessibilityRole="radiogroup">
                 {(
                     [
                         {
                             id: "file",
-                            title: "Backup file",
-                            description:
-                                "Choose a .cryx file from your device.",
+                            title: t`Backup file`,
+                            description: t`Choose a .cryx file from your device.`,
                             icon: FileUp,
                         },
                         {
                             id: "managed",
-                            title: "Managed backup",
-                            description:
-                                "Retrieve a backup stored with Cryptex Vault.",
+                            title: t`Managed backup`,
+                            description: t`Retrieve a backup stored with Cryptex Vault.`,
                             icon: CloudDownload,
                         },
                     ] as const
@@ -389,8 +397,8 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                         onPress={() => void pickFile()}
                         accessibilityLabel={
                             fileName
-                                ? `Replace selected backup file ${fileName}`
-                                : `Choose .${BACKUP_FILE_EXTENSION} backup file`
+                                ? t`Replace selected backup file ${fileName}`
+                                : t`Choose .${extension} backup file`
                         }
                     >
                         <View className="items-center gap-2">
@@ -400,12 +408,12 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                 className="text-primary"
                             />
                             <Text className="font-semibold text-sm text-foreground">
-                                {fileName || "Choose backup file"}
+                                {fileName || t`Choose backup file`}
                             </Text>
                             <Text className="text-xs text-muted-foreground">
                                 {fileName
-                                    ? "Backup ready. Tap to replace"
-                                    : `Cryptex Vault backup (.${BACKUP_FILE_EXTENSION})`}
+                                    ? t`Backup ready. Tap to replace`
+                                    : t`Cryptex Vault backup (.${extension})`}
                             </Text>
                         </View>
                     </Button>
@@ -427,9 +435,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                 <View>
                     <View className="gap-2 rounded-lg border border-border p-3">
                         <Text className="text-xs text-muted-foreground">
-                            Your Recovery Kit phrase retrieves managed backups.
-                            It is different from the vault recovery code used to
-                            unlock one.
+                            {t`Your Recovery Kit phrase retrieves managed backups. It is different from the vault recovery code used to unlock one.`}
                         </Text>
                         <Input
                             ref={cloudUserIdRef}
@@ -442,9 +448,9 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                 }));
                             }}
                             invalid={!!fieldErrors.cloudUserId}
-                            placeholder="User ID"
+                            placeholder={t`User ID`}
                             autoCapitalize="none"
-                            accessibilityLabel="Managed backup user ID"
+                            accessibilityLabel={t`Managed backup user ID`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError
@@ -462,10 +468,10 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                             }}
                             invalid={!!fieldErrors.cloudRecoveryPhrase}
                             revealButtonHeight={54}
-                            placeholder="Recovery Kit phrase"
+                            placeholder={t`Recovery Kit phrase`}
                             secureTextEntry
                             autoCapitalize="none"
-                            accessibilityLabel="Managed backup Recovery Kit phrase"
+                            accessibilityLabel={t`Managed backup Recovery Kit phrase`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError
@@ -476,7 +482,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                             loading={loading}
                             onPress={() => void startCloudRecovery()}
                         >
-                            Find managed backups
+                            {t`Find managed backups`}
                         </Button>
                         {error && errorContext === "managed" ? (
                             <View ref={managedErrorRef} collapsable={false}>
@@ -497,7 +503,9 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                     void chooseCloudSnapshot(snapshot.id)
                                 }
                             >
-                                {new Date(snapshot.createdAt).toLocaleString()}{" "}
+                                {new Date(snapshot.createdAt).toLocaleString(
+                                    i18n.locale,
+                                )}{" "}
                                 ({snapshot.sourceLabel})
                             </Button>
                         ))}
@@ -512,7 +520,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                                 {fileName}
                             </Text>
                             <Text className="mt-1 text-xs text-muted-foreground">
-                                Backup ready to restore
+                                {t`Backup ready to restore`}
                             </Text>
                         </View>
                     ) : null}
@@ -527,14 +535,13 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                 />
             ) : (
                 <VaultEntryNotice className="my-[19px]">
-                    Your backup stays encrypted. After restoring, unlock it with
-                    its existing credentials or vault recovery code.
+                    {t`Your backup stays encrypted. After restoring, unlock it with its existing credentials or vault recovery code.`}
                 </VaultEntryNotice>
             )}
 
             <View className="mb-[17px]">
                 <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                    Vault name on this device
+                    {t`Vault name on this device`}
                 </Label>
                 <Input
                     ref={nameRef}
@@ -547,7 +554,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                         }));
                     }}
                     invalid={!!fieldErrors.name}
-                    accessibilityLabel="Restored vault name"
+                    accessibilityLabel={t`Restored vault name`}
                     className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                 />
                 <VaultEntryFieldError message={fieldErrors.name} />
@@ -555,18 +562,18 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
 
             <AdvancedDisclosure
                 ruled
-                title="Add a description"
+                title={t`Add a description`}
                 className="mt-[18px]"
             >
                 <View className="mt-1">
                     <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                        Description (optional)
+                        {t`Description (optional)`}
                     </Label>
                     <Input
                         value={description}
                         onChangeText={setDescription}
-                        placeholder="Optional"
-                        accessibilityLabel="Vault description, optional"
+                        placeholder={t`Optional`}
+                        accessibilityLabel={t`Vault description, optional`}
                         className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                     />
                 </View>
@@ -584,7 +591,7 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
             {success ? (
                 <InlineNotice
                     tone="success"
-                    message="Backup restored. Unlock it to continue."
+                    message={t`Backup restored. Unlock it to continue.`}
                 />
             ) : null}
 
@@ -595,10 +602,10 @@ export function RestoreTab({ onRestored }: RestoreTabProps) {
                 onPress={() => void handleRestore()}
                 disabled={success || !fileBytes}
             >
-                Restore vault
+                {t`Restore vault`}
             </VaultEntryAction>
             <VaultEntryAssurance className="mb-2">
-                Your backup stays encrypted until you unlock it
+                {t`Your backup stays encrypted until you unlock it`}
             </VaultEntryAssurance>
             {turnstileDialog}
         </View>

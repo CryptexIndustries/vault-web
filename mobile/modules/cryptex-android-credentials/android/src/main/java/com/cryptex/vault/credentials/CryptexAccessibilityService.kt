@@ -163,7 +163,7 @@ class CryptexAccessibilityService : AccessibilityService() {
     if (overlayButton != null) return
     val button = Button(this).apply {
       text = cryptexProviderName()
-      contentDescription = "Open ${cryptexProviderName()} autofill fallback"
+      contentDescription = appLocalized().getString(R.string.cryptex_accessibility_open_fallback, cryptexProviderName())
       isAllCaps = false
       setTextColor(android.graphics.Color.parseColor("#FCF8EC"))
       setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -210,6 +210,7 @@ class CryptexAccessibilityService : AccessibilityService() {
       return
     }
     val density = resources.displayMetrics.density
+    val strings = appLocalized()
     val content = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       setPadding((20 * density).toInt(), (8 * density).toInt(), (20 * density).toInt(), 0)
@@ -237,20 +238,26 @@ class CryptexAccessibilityService : AccessibilityService() {
       setOnClickListener { onPress() }
     }
     lateinit var dialog: AlertDialog
-    content.addView(action("Autofill login", "Choose a saved login from your vault") {
+    content.addView(action(
+      strings.getString(R.string.cryptex_accessibility_fill_title),
+      strings.getString(R.string.cryptex_accessibility_fill_subtitle),
+    ) {
       dialog.dismiss()
       handler.postDelayed({ beginFillRequest(target) }, 100L)
     })
-    content.addView(action("Save login", "Read the form and review it in Cryptex Vault") {
+    content.addView(action(
+      strings.getString(R.string.cryptex_accessibility_save_title),
+      strings.getString(R.string.cryptex_accessibility_save_subtitle),
+    ) {
       dialog.dismiss()
       handler.postDelayed({ beginSaveRequest(target) }, 100L)
     })
     dialog = AlertDialog.Builder(this)
       .setIcon(R.drawable.ic_cryptex_brand)
       .setTitle(cryptexProviderName())
-      .setMessage("Choose an action for ${target.displayLabel()}.")
+      .setMessage(strings.getString(R.string.cryptex_accessibility_choose_action, target.displayLabel()))
       .setView(content)
-      .setNegativeButton("Dismiss for this visit") { _, _ ->
+      .setNegativeButton(strings.getString(R.string.cryptex_accessibility_dismiss)) { _, _ ->
         suppressedTarget = SuppressedAccessibilityTarget(
           target,
           android.os.SystemClock.elapsedRealtime() + 5 * 60_000L,
@@ -352,7 +359,7 @@ class CryptexAccessibilityService : AccessibilityService() {
       .filterNot(String::looksRedacted)
       .distinct()
     if (passwordValues.size > 1) {
-      Toast.makeText(this, "The password fields do not match.", Toast.LENGTH_LONG).show()
+      Toast.makeText(this, appLocalized().getString(R.string.cryptex_accessibility_passwords_mismatch), Toast.LENGTH_LONG).show()
       return
     }
     val password = candidatePasswordFields.asReversed().asSequence()
@@ -431,7 +438,7 @@ class CryptexAccessibilityService : AccessibilityService() {
     }
     handler.postAtTime({
       if (pendingFill === expected) {
-        Toast.makeText(this, "Cryptex Vault couldn't fill this form. Try standard autofill.", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, appLocalized().getString(R.string.cryptex_accessibility_fill_failed), Toast.LENGTH_LONG).show()
         cancelRequestInternal(expected.session.request.id)
       }
     }, expected, start + 3_000L)
@@ -476,7 +483,7 @@ class CryptexAccessibilityService : AccessibilityService() {
     if (filledAny) {
       cancelRequestInternal(fill.session.request.id)
       if (failedAny) {
-        Toast.makeText(this, "Some fields could not be filled. Check the form.", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, appLocalized().getString(R.string.cryptex_accessibility_fill_partial), Toast.LENGTH_LONG).show()
       }
     }
   }

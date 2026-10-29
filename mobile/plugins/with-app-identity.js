@@ -9,24 +9,32 @@ const xmlEscape = (value) =>
         .replaceAll("<", "&lt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&apos;");
+const resources = (strings) =>
+    `<resources>\n` +
+    strings
+        .map(
+            ([name, value, translatable = true]) =>
+                `    <string name="${name}"${translatable ? "" : ' translatable="false"'}>${xmlEscape(value)}</string>`,
+        )
+        .join("\n") +
+    "\n</resources>\n";
 function identityResources(profile) {
-    return (
-        `<resources>\n` +
+    return resources([
+        ["cryptex_app_scheme", profile.scheme, false],
+        ["cryptex_provider_name", profile.displayName, false],
         [
-            ["cryptex_app_scheme", profile.scheme],
-            ["cryptex_provider_name", profile.displayName],
-            [
-                "cryptex_accessibility_service_name",
-                `${profile.displayName} autofill fallback`,
-            ],
-        ]
-            .map(
-                ([name, value]) =>
-                    `    <string name="${name}">${xmlEscape(value)}</string>`,
-            )
-            .join("\n") +
-        "\n</resources>\n"
-    );
+            "cryptex_accessibility_service_name",
+            `${profile.displayName} autofill fallback`,
+        ],
+    ]);
+}
+function croatianIdentityResources(profile) {
+    return resources([
+        [
+            "cryptex_accessibility_service_name",
+            `${profile.displayName}: zamjensko popunjavanje`,
+        ],
+    ]);
 }
 async function applyAndroidIdentity(
     mod,
@@ -40,11 +48,16 @@ async function applyAndroidIdentity(
         mod.modRequest.platformProjectRoot,
         "app/src/main/res",
     );
-    await mkdir(path.join(resourceRoot, "values"), { recursive: true });
-    await writeFile(
-        path.join(resourceRoot, "values/cryptex_identity.xml"),
-        identityResources(profile),
-    );
+    for (const [directory, render] of [
+        ["values", identityResources],
+        ["values-hr", croatianIdentityResources],
+    ]) {
+        await mkdir(path.join(resourceRoot, directory), { recursive: true });
+        await writeFile(
+            path.join(resourceRoot, directory, "cryptex_identity.xml"),
+            render(profile),
+        );
+    }
     await mkdir(path.join(resourceRoot, "xml"), { recursive: true });
     for (const name of [
         "cryptex_autofill_service",

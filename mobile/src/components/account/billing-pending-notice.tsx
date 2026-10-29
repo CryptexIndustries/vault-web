@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -9,19 +10,20 @@ import { colors } from "@/theme";
 export function BillingPendingNotice({
     busy = false,
     onCheckStatus,
-    message = "Confirming your subscription…",
+    message,
 }: {
     busy?: boolean;
     message?: string;
     onCheckStatus: () => void;
 }) {
+    const { t } = useLingui();
     return (
         <View style={{ gap: 12 }}>
             <Text
                 accessibilityLiveRegion="polite"
                 style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}
             >
-                {message}
+                {message ?? t`Confirming your subscription…`}
             </Text>
             <Button
                 variant="outline"
@@ -29,7 +31,7 @@ export function BillingPendingNotice({
                 disabled={busy}
                 onPress={onCheckStatus}
             >
-                Check status
+                {t`Check status`}
             </Button>
         </View>
     );

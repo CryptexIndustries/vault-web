@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { iceServerURL } from "@cryptex-industries/vault-core/synchronization-utils";
 
 import { RTCPeerConnection } from "@/lib/webrtc";
@@ -46,18 +47,17 @@ export async function testIceServer(
                   ok: true,
                   message:
                       type === "turn"
-                          ? "TURN relay allocation succeeded."
-                          : "STUN connection test passed.",
+                          ? t`TURN relay allocation succeeded.`
+                          : t`STUN connection test passed.`,
               }
             : {
                   ok: false,
-                  message:
-                      "No response from this server. Check its address, credentials, and your connection.",
+                  message: t`No response from this server. Check its address, credentials, and your connection.`,
               };
     } catch {
         return {
             ok: false,
-            message: "Could not test this server. Check its configuration.",
+            message: t`Could not test this server. Check its configuration.`,
         };
     } finally {
         clearTimeout(timer);

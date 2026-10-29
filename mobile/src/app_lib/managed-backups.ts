@@ -1,4 +1,5 @@
 import { trpc } from "@/utils/trpc";
+import { t } from "@lingui/core/macro";
 import * as FileSystem from "expo-file-system/legacy";
 import {
     deleteAppOwnedTempFile,
@@ -75,7 +76,7 @@ export async function createEncryptedBackupBytes(
     metadata: VaultMetadata,
     dek: CryptoKey,
 ) {
-    if (!metadata.Blob) throw new Error("Vault is unavailable.");
+    if (!metadata.Blob) throw new Error(t`Vault is unavailable.`);
     return serializeVault(vault, metadata.Blob, dek);
 }
 
@@ -85,8 +86,10 @@ async function transfer(url: string, init: RequestInit) {
         credentials: "omit",
         cache: "no-store",
     });
-    if (!response.ok)
-        throw new Error(`Backup transfer failed (${response.status}).`);
+    if (!response.ok) {
+        const status = response.status;
+        throw new Error(t`Backup transfer failed (${status}).`);
+    }
     return response;
 }
 
@@ -131,7 +134,7 @@ async function downloadVerifiedBackup(
 ) {
     const expectedSize = result.snapshot.byteLength;
     if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
-        throw new Error("Backup integrity check failed.");
+        throw new Error(t`Backup integrity check failed.`);
     }
     const uri = await writeSecretTempFile(
         "cryx",
@@ -158,12 +161,12 @@ async function downloadVerifiedBackup(
                     progress.totalBytesWritten > expectedSize ||
                     progress.totalBytesExpectedToWrite > expectedSize
                 ) {
-                    cancel(new Error("Backup integrity check failed."));
+                    cancel(new Error(t`Backup integrity check failed.`));
                 }
             },
         );
         const timeout = setTimeout(
-            () => cancel(new Error("Backup transfer timed out.")),
+            () => cancel(new Error(t`Backup transfer timed out.`)),
             15_000,
         );
         let download: FileSystem.FileSystemDownloadResult | undefined;
@@ -179,15 +182,16 @@ async function downloadVerifiedBackup(
             await task.cancelAsync().catch(() => undefined);
         }
         if (transferError) throw transferError;
-        if (!download) throw new Error("Backup transfer was cancelled.");
+        if (!download) throw new Error(t`Backup transfer was cancelled.`);
         if (download.status < 200 || download.status >= 300) {
-            throw new Error(`Backup transfer failed (${download.status}).`);
+            const status = download.status;
+            throw new Error(t`Backup transfer failed (${status}).`);
         }
         // Progress cancellation is asynchronous. Check the completed native file
         // before allocating a JavaScript string or decoding its bytes.
         const info = await FileSystem.getInfoAsync(uri);
         if (!info.exists || info.isDirectory || info.size !== expectedSize) {
-            throw new Error("Backup integrity check failed.");
+            throw new Error(t`Backup integrity check failed.`);
         }
         const bytes = base64ToUint8(
             await FileSystem.readAsStringAsync(uri, {
@@ -198,7 +202,7 @@ async function downloadVerifiedBackup(
             bytes.byteLength !== expectedSize ||
             (await sha256Base64Url(bytes)) !== result.snapshot.checksumSha256
         ) {
-            throw new Error("Backup integrity check failed.");
+            throw new Error(t`Backup integrity check failed.`);
         }
         return { snapshot: result.snapshot, bytes };
     } finally {

@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import { trpc } from "@/utils/trpc";
 import type {
     PurchasesStoreProduct,
@@ -64,7 +65,7 @@ function configuration() {
         plans.premiumMonthly.join(":") === plans.premiumYearly.join(":")
     ) {
         throw new BillingError(
-            "Google Play billing is not configured. Please update the app.",
+            t`Google Play billing is not configured. Please update the app.`,
         );
     }
     return { apiKey, plans };
@@ -82,7 +83,7 @@ function captureSession() {
         (session.sessionExpiresAt ?? 0) <= Date.now()
     ) {
         throw new BillingError(
-            "Connect your account and unlock your vault before using Google Play billing.",
+            t`Connect your account and unlock your vault before using Google Play billing.`,
         );
     }
     return { generation, userId, deviceId: session.deviceId, authEpoch };
@@ -96,7 +97,7 @@ function assertSession(session: ReturnType<typeof captureSession>) {
         current.authEpoch !== session.authEpoch
     ) {
         throw new BillingError(
-            "Your account changed. Reopen Membership before using Google Play billing.",
+            t`Your account changed. Reopen Membership before using Google Play billing.`,
         );
     }
 }
@@ -109,12 +110,12 @@ async function prepare(
     assertSession(session);
     if (!customer.enabled || !customer.appUserId.trim()) {
         throw new BillingError(
-            "Google Play billing is unavailable for this account.",
+            t`Google Play billing is unavailable for this account.`,
         );
     }
     if (purchasing && !customer.canPurchase) {
         throw new BillingError(
-            "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership.",
+            t`This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership.`,
         );
     }
     sdk ??= (await import("react-native-purchases")).default;
@@ -176,7 +177,7 @@ function selectOption(
     );
     if (!isExpectedOption(option, tier, false)) {
         throw new BillingError(
-            "The selected Google Play subscription is unavailable. Please try again later.",
+            t`The selected Google Play subscription is unavailable. Please try again later.`,
         );
     }
     return { option, trial: false };
@@ -206,22 +207,20 @@ function failure(error: unknown): BillingResult {
         return {
             ok: false,
             canceled: true,
-            message: "Purchase canceled. Your membership has not changed.",
+            message: t`Purchase canceled. Your membership has not changed.`,
         };
     if (code === "20")
         return {
             ok: false,
             pending: true,
-            message:
-                "Payment is pending in Google Play. Membership will update after payment is approved.",
+            message: t`Payment is pending in Google Play. Membership will update after payment is approved.`,
         };
     // Purchases stay with the account that bought them; RevenueCat refuses transfers.
     if (["6", "7", "13"].includes(code))
         return {
             ok: false,
             retryable: false,
-            message:
-                "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again.",
+            message: t`This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again.`,
         };
     return {
         ok: false,
@@ -229,10 +228,10 @@ function failure(error: unknown): BillingResult {
             error instanceof BillingError
                 ? error.message
                 : code === "10"
-                  ? "Could not connect to Google Play. Check your connection and try again."
+                  ? t`Could not connect to Google Play. Check your connection and try again.`
                   : code === "3"
-                    ? "Google Play couldn't complete the purchase. Check your payment method in Google Play."
-                    : "Google Play billing could not complete. Please try again.",
+                    ? t`Google Play couldn't complete the purchase. Check your payment method in Google Play.`
+                    : t`Google Play billing could not complete. Please try again.`,
     };
 }
 async function syncMembership(
@@ -292,8 +291,7 @@ export async function purchaseGooglePlayPlan(
                 return {
                     ok: false,
                     pending: true,
-                    message:
-                        "Google Play already has an active subscription. Membership confirmation is pending.",
+                    message: t`Google Play already has an active subscription. Membership confirmation is pending.`,
                 };
             }
             const products = await purchases.getProducts([
@@ -312,14 +310,14 @@ export async function purchaseGooglePlayPlan(
                     ok: false,
                     offerChanged: { trial },
                     message: trial
-                        ? "This plan now starts with a 14-day free trial. Check the plan and try again."
-                        : "The free trial is no longer available for this plan. Check the plan and try again.",
+                        ? t`This plan now starts with a 14-day free trial. Check the plan and try again.`
+                        : t`The free trial is no longer available for this plan. Check the plan and try again.`,
                 };
             }
             await purchases.purchaseSubscriptionOption(option);
             return syncMembership(
                 session,
-                "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly.",
+                t`Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly.`,
             );
         });
     } catch (error) {
@@ -335,7 +333,7 @@ export async function restoreGooglePlayPurchases(): Promise<BillingResult> {
             await purchases.restorePurchases();
             return syncMembership(
                 session,
-                "Purchases restored. Membership confirmation is pending. Refresh Membership shortly.",
+                t`Purchases restored. Membership confirmation is pending. Refresh Membership shortly.`,
             );
         });
     } catch (error) {
@@ -360,8 +358,7 @@ export async function checkGooglePlayPurchaseStatus(): Promise<BillingResult> {
                 : {
                       ok: false,
                       pending: true,
-                      message:
-                          "Membership confirmation is pending. Check status again shortly.",
+                      message: t`Membership confirmation is pending. Check status again shortly.`,
                   };
         });
     } catch (error) {

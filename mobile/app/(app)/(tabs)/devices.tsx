@@ -18,6 +18,9 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAtomValue } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     Check,
     ChevronDown,
@@ -30,7 +33,6 @@ import {
     SquareTerminal,
     X,
 } from "lucide-react-native";
-import { agentRowSubtitle } from "@cryptex-industries/vault-core/agent/agent-format";
 import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
 import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import type { LinkedDevice } from "@cryptex-industries/vault-core/vault-utils/vault";
@@ -67,22 +69,22 @@ import {
 import { DeviceNetwork } from "@/components/devices/device-network";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { colors } from "@/theme";
+import { agentRowSubtitle } from "@/agent/agent-wording";
 import { useConnectedAgents } from "@/agent/use-agents";
 import { AgentRow, AgentSectionLabel } from "@/components/agents/agent-rows";
 import { AgentNotificationsNotice } from "@/components/agents/agent-notifications-notice";
 
 const DEVICE_SECTION_HEIGHT = 40;
 
-const ROOT_DESCRIPTION =
-    "Root access allows this device to link and remove account devices, manage account recovery, and delete the Online Services account.";
-const FILTERS: { value: DeviceFilter; label: string }[] = [
-    { value: "all", label: "All devices" },
-    { value: "local", label: "Linked to this vault" },
-    { value: "remote", label: "No local name" },
-    { value: "isolated", label: "No recorded links" },
+const FILTERS: { value: DeviceFilter; label: MessageDescriptor }[] = [
+    { value: "all", label: msg`All devices` },
+    { value: "local", label: msg`Linked to this vault` },
+    { value: "remote", label: msg`No local name` },
+    { value: "isolated", label: msg`No recorded links` },
 ];
 
 export default function DevicesScreen() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const { isTablet } = useBreakpoint();
     const account = useDeviceTopology();
@@ -340,10 +342,13 @@ export default function DevicesScreen() {
         },
         [pending, detailBusy],
     );
-    const copy = useCallback(async (id: string) => {
-        if (!(await copyTextToClipboard(id)))
-            throw new Error("Could not copy the ID.");
-    }, []);
+    const copy = useCallback(
+        async (id: string) => {
+            if (!(await copyTextToClipboard(id)))
+                throw new Error(t`Could not copy the ID.`);
+        },
+        [t],
+    );
     const refresh = () => {
         if (
             !account.bound ||
@@ -367,13 +372,18 @@ export default function DevicesScreen() {
             WebRTCStatus.Connected;
         try {
             await actions.connectDevice(local.ID);
+            const deviceName = local.Name;
             if (!connected)
-                setStatus(`Connection started for ${local.Name || "device"}.`);
+                setStatus(
+                    deviceName
+                        ? t`Connection started for ${deviceName}.`
+                        : t`Connection started for device.`,
+                );
         } catch (cause) {
             setError(
                 cause instanceof Error
                     ? cause.message
-                    : "Could not connect to this device.",
+                    : t`Could not connect to this device.`,
             );
         } finally {
             quickInFlight.current = false;
@@ -394,18 +404,27 @@ export default function DevicesScreen() {
         },
         [pending, detailBusy],
     );
-    const showRootConfirmation = useCallback((target: DeviceNode) => {
-        if (!target.serverId) return;
-        setError("");
-        setConfirm({
-            title: `${target.root ? "Remove" : "Allow"} root access for ${target.displayName}?`,
-            description: target.root
-                ? "This device will keep its registration and sync links but lose root permissions."
-                : ROOT_DESCRIPTION,
-            label: target.root ? "Remove root access" : "Allow root access",
-            action: () => toggleRootRef.current(target.serverId!, !target.root),
-        });
-    }, []);
+    const showRootConfirmation = useCallback(
+        (target: DeviceNode) => {
+            if (!target.serverId) return;
+            setError("");
+            const deviceName = target.displayName;
+            setConfirm({
+                title: target.root
+                    ? t`Remove root access for ${deviceName}?`
+                    : t`Allow root access for ${deviceName}?`,
+                description: target.root
+                    ? t`This device will keep its registration and sync links but lose root permissions.`
+                    : t`Root access allows this device to link and remove account devices, manage account recovery, and delete the Online Services account.`,
+                label: target.root
+                    ? t`Remove root access`
+                    : t`Allow root access`,
+                action: () =>
+                    toggleRootRef.current(target.serverId!, !target.root),
+            });
+        },
+        [t],
+    );
     const details = (
         <DeviceDetails
             open={detailOpen && !confirm}
@@ -437,6 +456,7 @@ export default function DevicesScreen() {
             onClose={() => setDetailOpen(false)}
         />
     );
+    const deviceCount = results.length;
     const visibleError =
         !detailOpen && !confirm
             ? error ||
@@ -444,14 +464,14 @@ export default function DevicesScreen() {
             : "";
     const accountNotice = !account.hasSession
         ? account.bound
-            ? "Account access is not verified. Refresh to reconnect to Online Services."
-            : "Showing links saved in this vault. Connect to Online Services to view account devices."
+            ? t`Account access is not verified. Refresh to reconnect to Online Services.`
+            : t`Showing links saved in this vault. Connect to Online Services to view account devices.`
         : account.loading
-          ? "Checking account devices and connections."
+          ? t`Checking account devices and connections.`
           : !account.isRoot
-            ? "This device does not have root access. Saved links are available. Use a root device to manage account devices."
+            ? t`This device does not have root access. Saved links are available. Use a root device to manage account devices.`
             : !map.topologyVerified && !account.error
-              ? "Account relationships are not verified. Refresh before changing access or removing links."
+              ? t`Account relationships are not verified. Refresh before changing access or removing links.`
               : "";
 
     return (
@@ -469,8 +489,8 @@ export default function DevicesScreen() {
                 <View style={{ flex: 1, minWidth: 0, position: "relative" }}>
                     <Input
                         testID="device-search"
-                        accessibilityLabel="Search devices by ID or saved name"
-                        placeholder="Search devices"
+                        accessibilityLabel={t`Search devices by ID or saved name`}
+                        placeholder={t`Search devices`}
                         value={query}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -488,7 +508,7 @@ export default function DevicesScreen() {
                         <Pressable
                             testID="device-search-clear"
                             accessibilityRole="button"
-                            accessibilityLabel="Clear device search"
+                            accessibilityLabel={t`Clear device search`}
                             onPress={() => setQuery("")}
                             style={{
                                 position: "absolute",
@@ -507,7 +527,7 @@ export default function DevicesScreen() {
                 <Pressable
                     testID="device-link"
                     accessibilityRole="button"
-                    accessibilityLabel="Link a device"
+                    accessibilityLabel={t`Link a device`}
                     accessibilityState={{ disabled: pending }}
                     disabled={pending}
                     onPress={() => {
@@ -539,7 +559,7 @@ export default function DevicesScreen() {
                         testID={`device-view-${item}`}
                         accessibilityRole="tab"
                         accessibilityLabel={
-                            item === "map" ? "Connection map" : "Device list"
+                            item === "map" ? t`Connection map` : t`Device list`
                         }
                         accessibilityState={{ selected: view === item }}
                         onPress={() => {
@@ -563,7 +583,15 @@ export default function DevicesScreen() {
                                         : colors.muted,
                             }}
                         >
-                            {item === "map" ? "Connections" : "List"}
+                            {item === "map"
+                                ? t({
+                                      message: "Connections",
+                                      comment: "Tab: map of device connections",
+                                  })
+                                : t({
+                                      message: "List",
+                                      comment: "Tab: list of devices",
+                                  })}
                         </Text>
                         {view === item ? (
                             <View
@@ -583,7 +611,7 @@ export default function DevicesScreen() {
                 <Pressable
                     testID="device-filter"
                     accessibilityRole="button"
-                    accessibilityLabel="Filter devices"
+                    accessibilityLabel={t`Filter devices`}
                     onPress={() => {
                         Keyboard.dismiss();
                         setFilterOpen(true);
@@ -605,7 +633,10 @@ export default function DevicesScreen() {
                             color: colors.muted,
                         }}
                     >
-                        {FILTERS.find((item) => item.value === filter)?.label}
+                        {t(
+                            FILTERS.find((item) => item.value === filter)!
+                                .label,
+                        )}
                     </Text>
                     <ChevronDown size={12} color={colors.muted} />
                 </Pressable>
@@ -614,8 +645,11 @@ export default function DevicesScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={
                         coolingDown
-                            ? `Refresh available in ${cooldown} seconds`
-                            : "Refresh devices"
+                            ? plural(cooldown, {
+                                  one: "Refresh available in # second",
+                                  other: "Refresh available in # seconds",
+                              })
+                            : t`Refresh devices`
                     }
                     accessibilityState={{
                         disabled:
@@ -672,7 +706,10 @@ export default function DevicesScreen() {
                 }}
             >
                 <Text style={{ fontSize: 10, color: colors.muted }}>
-                    {results.length} devices
+                    {plural(deviceCount, {
+                        one: "# device",
+                        other: "# devices",
+                    })}
                 </Text>
                 <Text
                     style={{
@@ -683,7 +720,17 @@ export default function DevicesScreen() {
                         paddingLeft: 8,
                     }}
                 >
-                    {account.isRoot ? "Root" : "Non-root"}
+                    {account.isRoot
+                        ? t({
+                              message: "Root",
+                              comment:
+                                  "Badge: this device has root access to the account",
+                          })
+                        : t({
+                              message: "Non-root",
+                              comment:
+                                  "Badge: this device has no root access to the account",
+                          })}
                 </Text>
                 <View style={{ flex: 1 }} />
                 <Pressable
@@ -691,8 +738,8 @@ export default function DevicesScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={
                         scope === "all"
-                            ? "Show devices linked to this device"
-                            : "Show all devices"
+                            ? t`Show devices linked to this device`
+                            : t`Show all devices`
                     }
                     onPress={() => {
                         setScope(scope === "all" ? "local" : "all");
@@ -709,13 +756,16 @@ export default function DevicesScreen() {
                     }}
                 >
                     <Text style={{ fontSize: 10, color: colors.muted }}>
-                        {scope === "all" ? "This device" : "All devices"}
+                        {scope === "all" ? t`This device` : t`All devices`}
                     </Text>
                 </Pressable>
                 <Pressable
                     testID="device-isolated"
                     accessibilityRole="button"
-                    accessibilityLabel={`Show ${isolatedCount} devices with no recorded links`}
+                    accessibilityLabel={plural(isolatedCount, {
+                        one: "Show # device with no recorded links",
+                        other: "Show # devices with no recorded links",
+                    })}
                     onPress={() => {
                         setScope("all");
                         setFilter("isolated");
@@ -731,7 +781,7 @@ export default function DevicesScreen() {
                     }}
                 >
                     <Text style={{ fontSize: 10, color: colors.muted }}>
-                        No links ({isolatedCount})
+                        {t`No links (${isolatedCount})`}
                     </Text>
                 </Pressable>
             </View>
@@ -807,7 +857,7 @@ export default function DevicesScreen() {
                         <View
                             testID="device-map-loading"
                             accessibilityRole="progressbar"
-                            accessibilityLabel="Loading connections"
+                            accessibilityLabel={t`Loading connections`}
                             style={{
                                 flex: 1,
                                 alignItems: "center",
@@ -817,7 +867,7 @@ export default function DevicesScreen() {
                         >
                             <ActivityIndicator color={colors.primary} />
                             <Text style={{ color: colors.muted, fontSize: 13 }}>
-                                Loading connections…
+                                {t`Loading connections…`}
                             </Text>
                         </View>
                     ) : null}
@@ -856,7 +906,7 @@ export default function DevicesScreen() {
                                 header={
                                     showSections ? (
                                         <AgentSectionLabel
-                                            title="Linked devices"
+                                            title={t`Linked devices`}
                                             right={String(results.length)}
                                             style={{
                                                 marginTop: 0,
@@ -872,7 +922,7 @@ export default function DevicesScreen() {
                                             style={{ paddingBottom: 24 }}
                                         >
                                             <AgentSectionLabel
-                                                title="Connected agents"
+                                                title={t`Connected agents`}
                                                 right={
                                                     <View
                                                         style={{
@@ -896,7 +946,7 @@ export default function DevicesScreen() {
                                                         <Pressable
                                                             testID="agent-relay-shortcut"
                                                             accessibilityRole="button"
-                                                            accessibilityLabel="Agent relay settings"
+                                                            accessibilityLabel={t`Agent relay settings`}
                                                             hitSlop={8}
                                                             onPress={() =>
                                                                 router.push(
@@ -937,7 +987,7 @@ export default function DevicesScreen() {
                                                     key={agent.ID}
                                                     id={agent.ID}
                                                     name={sanitizeDisplayText(
-                                                        agent.Name || "Agent",
+                                                        agent.Name || t`Agent`,
                                                     )}
                                                     subtitle={
                                                         connectedAgents.statusLabel(
@@ -1031,7 +1081,7 @@ export default function DevicesScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        {error ? "Root access" : confirm?.title}
+                        {error ? t`Root access` : confirm?.title}
                     </UnlockedDialogTitle>
                     <DialogDescription>
                         {error || confirm?.description}
@@ -1046,7 +1096,7 @@ export default function DevicesScreen() {
                             setConfirm(null);
                         }}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                     <Button
                         loading={confirmBusy}
@@ -1058,20 +1108,20 @@ export default function DevicesScreen() {
                             void confirm
                                 .action()
                                 .then(() => {
-                                    setStatus("Account device updated.");
+                                    setStatus(t`Account device updated.`);
                                     setConfirm(null);
                                 })
                                 .catch((cause: unknown) =>
                                     setError(
                                         cause instanceof Error
                                             ? cause.message
-                                            : "Could not update the account device.",
+                                            : t`Could not update the account device.`,
                                     ),
                                 )
                                 .finally(() => setConfirmBusy(false));
                         }}
                     >
-                        {error ? "Retry" : (confirm?.label ?? "Confirm")}
+                        {error ? t`Retry` : (confirm?.label ?? t`Confirm`)}
                     </Button>
                 </DialogFooter>
             </Dialog>
@@ -1088,7 +1138,7 @@ export default function DevicesScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        Devices could not be updated
+                        {t`Devices could not be updated`}
                     </UnlockedDialogTitle>
                     <DialogDescription>{visibleError}</DialogDescription>
                 </DialogHeader>
@@ -1099,7 +1149,7 @@ export default function DevicesScreen() {
                         setDismissedAccountError(account.error);
                     }}
                 >
-                    Close
+                    {t`Close`}
                 </Button>
             </Dialog>
             <Dialog
@@ -1110,10 +1160,10 @@ export default function DevicesScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        Filter devices
+                        {t`Filter devices`}
                     </UnlockedDialogTitle>
                     <DialogDescription>
-                        Filters apply to the map and list.
+                        {t`Filters apply to the map and list.`}
                     </DialogDescription>
                 </DialogHeader>
                 {FILTERS.map((item) => (
@@ -1121,7 +1171,7 @@ export default function DevicesScreen() {
                         key={item.value}
                         testID={`device-filter-${item.value}`}
                         accessibilityRole="button"
-                        accessibilityLabel={item.label}
+                        accessibilityLabel={t(item.label)}
                         accessibilityState={{ selected: filter === item.value }}
                         onPress={() => {
                             setFilter(item.value);
@@ -1138,7 +1188,7 @@ export default function DevicesScreen() {
                             borderBottomColor: colors.border,
                         }}
                     >
-                        <Text style={{ fontSize: 13 }}>{item.label}</Text>
+                        <Text style={{ fontSize: 13 }}>{t(item.label)}</Text>
                         {filter === item.value ? (
                             <Check size={17} color={colors.primary} />
                         ) : null}
@@ -1153,13 +1203,17 @@ export default function DevicesScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle style={{ fontSize: 24 }}>
-                        Add
+                        {t({
+                            message: "Add",
+                            comment:
+                                "Title of the sheet for linking a device or connecting an agent",
+                        })}
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 <UnlockedMenuRow
                     icon={Send}
-                    title="Create invitation"
-                    subtitle="Show a QR code or save an invitation file."
+                    title={t`Create invitation`}
+                    subtitle={t`Show a QR code or save an invitation file.`}
                     onPress={() => {
                         setLinkOpen(false);
                         router.push("/(app)/devices/link-send");
@@ -1167,8 +1221,8 @@ export default function DevicesScreen() {
                 />
                 <UnlockedMenuRow
                     icon={QrCode}
-                    title="Use invitation"
-                    subtitle="Scan a QR code or open an invitation file."
+                    title={t`Use invitation`}
+                    subtitle={t`Scan a QR code or open an invitation file.`}
                     onPress={() => {
                         setLinkOpen(false);
                         router.push("/link-receive");
@@ -1177,8 +1231,8 @@ export default function DevicesScreen() {
                 <UnlockedMenuRow
                     testID="agent-connect"
                     icon={SquareTerminal}
-                    title="Connect an agent"
-                    subtitle="Scan the code shown by cryptex-agent pair."
+                    title={t`Connect an agent`}
+                    subtitle={t`Scan the code shown by cryptex-agent pair.`}
                     onPress={() => {
                         setLinkOpen(false);
                         router.push("/(app)/devices/connect-agent");

@@ -2,6 +2,7 @@
  * Persists received items into the unlocked vault.
  * Retains existing item IDs; an explicit Online Services binding may replace the current one.
  */
+import { t } from "@lingui/core/macro";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
     Directory,
@@ -15,7 +16,7 @@ import { ensureSyncKemKeypair } from "@cryptex-industries/vault-core/vault-utils
 import { ensureSyncSigningKeypair } from "@cryptex-industries/vault-core/vault-utils/sync-signing";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { decodeReceivedVault } from "@/utils/received-vault";
-import { MISSING_VAULT_SECRET_ERROR } from "@/utils/vault-session";
+import { missingVaultSecretError } from "@/utils/vault-session";
 import {
     mergeReceivedVaultContents,
     receiverSyncKeyMaterial,
@@ -54,8 +55,8 @@ export async function ensureActiveVaultSyncKeyMaterial(): Promise<ReceiverSyncKe
     if (mutationResult.isErr()) {
         throw new Error(
             mutationResult.error === "VAULT_DEK_NOT_FOUND"
-                ? MISSING_VAULT_SECRET_ERROR
-                : "Failed to prepare this vault's synchronization identity.",
+                ? missingVaultSecretError()
+                : t`Failed to prepare this vault's synchronization identity.`,
         );
     }
     return mutationResult.value;
@@ -111,8 +112,8 @@ export async function mergeReceivedVaultIntoActive(params: {
     if (mutationResult.isErr()) {
         throw new Error(
             mutationResult.error === "VAULT_DEK_NOT_FOUND"
-                ? MISSING_VAULT_SECRET_ERROR
-                : "Failed to persist merged vault.",
+                ? missingVaultSecretError()
+                : t`Failed to persist merged vault.`,
         );
     }
 

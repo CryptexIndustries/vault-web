@@ -213,7 +213,7 @@ test("native credential resource overlays and Maestro arguments select the same 
         const xml = identityResources(profile);
         assert.ok(
             xml.includes(
-                `<string name="cryptex_app_scheme">${profile.scheme}</string>`,
+                `<string name="cryptex_app_scheme" translatable="false">${profile.scheme}</string>`,
             ),
         );
         assert.ok(xml.includes(profile.displayName));
@@ -291,6 +291,16 @@ test("native generation points all three framework settings activities to the se
             );
             assert.ok(values.includes(profile.scheme));
             assert.ok(values.includes(profile.displayName));
+            const croatian = readFileSync(
+                join(root, "app/src/main/res/values-hr/cryptex_identity.xml"),
+                "utf8",
+            );
+            assert.ok(
+                croatian.includes(
+                    `<string name="cryptex_accessibility_service_name">${profile.displayName}: zamjensko popunjavanje</string>`,
+                ),
+            );
+            assert.ok(!croatian.includes("cryptex_app_scheme"));
             for (const name of [
                 "cryptex_autofill_service",
                 "cryptex_accessibility_service",

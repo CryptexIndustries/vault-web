@@ -4,6 +4,8 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { Redirect, router, useFocusEffect } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
 import { useAtomValue } from "jotai";
+import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { Fingerprint, Plus } from "lucide-react-native";
 import { ulid } from "ulidx";
 import { credentialMatchesPageUrl } from "@cryptex-industries/vault-core/credential-url";
@@ -80,8 +82,8 @@ import {
 import { InlineNotice } from "@/components/inline-notice";
 import { colors } from "@/theme";
 
-const REQUEST_EXPIRED =
-    "This credential request expired. Return to the app or browser and try again.";
+const requestExpired = () =>
+    t`This credential request expired. Return to the app or browser and try again.`;
 type RequestView =
     | "picker"
     | "decision"
@@ -116,9 +118,10 @@ async function verifyPasskeyUser(
     relyingParty: string,
 ) {
     const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: `${operation} passkey`,
+        promptMessage:
+            operation === "Create" ? t`Create passkey` : t`Use passkey`,
         promptSubtitle: relyingParty,
-        cancelLabel: "Cancel",
+        cancelLabel: t`Cancel`,
         disableDeviceFallback: false,
         requireConfirmation: true,
         biometricsSecurityLevel: "strong",
@@ -131,6 +134,7 @@ async function verifyPasskeyUser(
 }
 
 export default function CredentialRequestScreen() {
+    const { t } = useLingui();
     const isFocused = useIsFocused();
     const unlocked = useAtomValue(isVaultUnlockedAtom);
     const credentials = useAtomValue(vaultCredentialsAtom);
@@ -239,11 +243,11 @@ export default function CredentialRequestScreen() {
             !requestSessionRef.current ||
             !isVaultSessionCurrent(requestSessionRef.current)
         )
-            return REQUEST_EXPIRED;
+            return requestExpired();
         const current = androidCredentials.getPendingRequest();
         return current?.id === request.id && current.kind === request.kind
             ? null
-            : REQUEST_EXPIRED;
+            : requestExpired();
     }, [request]);
     useEffect(() => {
         const operations = operationsRef.current;
@@ -260,7 +264,7 @@ export default function CredentialRequestScreen() {
     /** requestGuard, plus: the operation's own session is still the current one. */
     const operationGuard = useCallback(
         (operation: SecretRelease): string | null =>
-            requestGuard() ?? (operation.current() ? null : REQUEST_EXPIRED),
+            requestGuard() ?? (operation.current() ? null : requestExpired()),
         [requestGuard],
     );
     const returnToVault = () => router.replace("/(app)/(tabs)/vault");
@@ -276,7 +280,7 @@ export default function CredentialRequestScreen() {
     useEffect(() => {
         if (request?.kind !== "provider-unlock" || !unlocked) return;
         if (requestGuard()) {
-            setRequestError(REQUEST_EXPIRED);
+            setRequestError(requestExpired());
             return;
         }
         androidCredentials.setProviderCredentials(
@@ -284,7 +288,7 @@ export default function CredentialRequestScreen() {
             getCachedAutoLockMinutes(),
         );
         if (!androidCredentials.completeProviderUnlock(request.id))
-            setRequestError(REQUEST_EXPIRED);
+            setRequestError(requestExpired());
         else returnToVault();
     }, [credentials, request, requestGuard, unlocked]);
 
@@ -339,7 +343,7 @@ export default function CredentialRequestScreen() {
 
     const accessibilityOriginWarning =
         request?.kind === "accessibility-get" && target?.pageUrl
-            ? "An embedded or hidden frame may receive this login even when the address bar shows another site. Only fill if you trust this page and its embedded content."
+            ? t`An embedded or hidden frame may receive this login even when the address bar shows another site. Only fill if you trust this page and its embedded content.`
             : null;
 
     const eligibleCredentials = useMemo(
@@ -379,7 +383,7 @@ export default function CredentialRequestScreen() {
             operation: SecretRelease = startOperation(),
         ) => {
             if (!request || operationGuard(operation)) {
-                setRequestError(REQUEST_EXPIRED);
+                setRequestError(requestExpired());
                 setView("picker");
                 return false;
             }
@@ -393,7 +397,7 @@ export default function CredentialRequestScreen() {
             }
             const copyTotp = !!totp && (await loadAutoCopyTotp());
             if (operationGuard(operation)) {
-                setRequestError(REQUEST_EXPIRED);
+                setRequestError(requestExpired());
                 setView("picker");
                 return false;
             }
@@ -423,7 +427,7 @@ export default function CredentialRequestScreen() {
             if (completed && copyTotp && operation.current())
                 await copySecretToClipboard(totp);
             if (!completed) {
-                setRequestError(REQUEST_EXPIRED);
+                setRequestError(requestExpired());
                 setView("picker");
             } else returnToVault();
             return completed;
@@ -494,13 +498,13 @@ export default function CredentialRequestScreen() {
         if (result.isErr()) {
             setAssociationError(
                 serializedGate ??
-                    "The association could not be saved. The login was not filled. Go back to fill once.",
+                    t`The association could not be saved. The login was not filled. Go back to fill once.`,
             );
             return;
         }
         if (operationGuard(operation)) {
             setAssociationError(
-                "The association was saved, but the request expired before Cryptex Vault could fill the login.",
+                t`The association was saved, but the request expired before Cryptex Vault could fill the login.`,
             );
             return;
         }
@@ -552,8 +556,8 @@ export default function CredentialRequestScreen() {
             ) {
                 setRequestError(
                     request?.requestJson
-                        ? REQUEST_EXPIRED
-                        : "This passkey request is malformed.",
+                        ? requestExpired()
+                        : t`This passkey request is malformed.`,
                 );
                 return;
             }
@@ -617,7 +621,7 @@ export default function CredentialRequestScreen() {
                     returnToVault();
                     return;
                 }
-                setRequestError("Could not complete this passkey request.");
+                setRequestError(t`Could not complete this passkey request.`);
                 setBusy(false);
             }
         },
@@ -628,6 +632,7 @@ export default function CredentialRequestScreen() {
             passkeyRequest?.rpId,
             request,
             startOperation,
+            t,
         ],
     );
 
@@ -650,8 +655,8 @@ export default function CredentialRequestScreen() {
         if (!request?.requestJson || !rpId || operationGuard(operation)) {
             setRequestError(
                 request?.requestJson
-                    ? REQUEST_EXPIRED
-                    : "This passkey request is malformed.",
+                    ? requestExpired()
+                    : t`This passkey request is malformed.`,
             );
             return;
         }
@@ -672,7 +677,7 @@ export default function CredentialRequestScreen() {
             )
         ) {
             if (!androidCredentials.rejectExcludedPasskeyCreate(request.id)) {
-                setRequestError("A passkey for this account already exists.");
+                setRequestError(t`A passkey for this account already exists.`);
             }
             return;
         }
@@ -765,7 +770,7 @@ export default function CredentialRequestScreen() {
                 returnToVault();
                 return;
             }
-            setRequestError("Could not create and save this passkey.");
+            setRequestError(t`Could not create and save this passkey.`);
             setBusy(false);
         }
     };
@@ -843,7 +848,7 @@ export default function CredentialRequestScreen() {
         }
         if (requestGuard()) {
             setRequestError(
-                "The login was saved, but the Android request expired before Cryptex Vault could return.",
+                t`The login was saved, but the Android request expired before Cryptex Vault could return.`,
             );
             return;
         }
@@ -852,7 +857,7 @@ export default function CredentialRequestScreen() {
                 !androidCredentials.completeProviderPasswordCreate(request.id)
             ) {
                 setRequestError(
-                    "The login was saved, but Android could not finish the credential request.",
+                    t`The login was saved, but Android could not finish the credential request.`,
                 );
             } else returnToVault();
         } else {
@@ -893,49 +898,60 @@ export default function CredentialRequestScreen() {
     if (!request) {
         return (
             <RequestMessage
-                title="Request expired"
-                message={REQUEST_EXPIRED}
+                title={t`Request expired`}
+                message={requestExpired()}
                 onCancel={cancelRequest}
             />
         );
     }
     if (request.kind === "provider-unlock") {
+        const title = t({
+            message: "Unlock provider",
+            comment:
+                "Title while Android asks Cryptex Vault, as its password and passkey provider, to unlock",
+        });
         return requestError ? (
             <RequestMessage
-                title="Unlock provider"
+                title={title}
                 message={requestError}
                 onCancel={cancelRequest}
             />
         ) : (
             <RequestProgress
-                title="Unlock provider"
-                label="Returning to Android…"
+                title={title}
+                label={t`Returning to Android…`}
                 onCancel={cancelRequest}
             />
         );
     }
     if (request.kind === "provider-passkey-create") {
-        const rpId = passkeyRequest?.rp?.id ?? "Unknown relying party";
+        const rpId =
+            passkeyRequest?.rp?.id ??
+            t({
+                message: "Unknown relying party",
+                comment:
+                    "Relying party: the website or app the passkey is for (WebAuthn term). Shown when the request doesn't name it",
+            });
         const rpDisplayName = passkeyRequest?.rp?.name;
         return (
             <AutofillRequestShell
-                title="Create passkey"
+                title={t`Create passkey`}
                 onBack={cancelRequest}
-                backLabel="Cancel passkey creation"
+                backLabel={t`Cancel passkey creation`}
                 footer={
                     <View style={{ gap: 10 }}>
                         <UnlockedButton
                             loading={busy}
                             onPress={() => void completePasskeyCreate()}
                         >
-                            Create and save
+                            {t`Create and save`}
                         </UnlockedButton>
                         <UnlockedButton
                             variant="ghost"
                             disabled={busy}
                             onPress={cancelRequest}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </UnlockedButton>
                     </View>
                 }
@@ -947,7 +963,11 @@ export default function CredentialRequestScreen() {
                         detail={
                             rpDisplayName && rpDisplayName !== rpId
                                 ? rpDisplayName
-                                : "Relying party ID"
+                                : t({
+                                      message: "Relying party ID",
+                                      comment:
+                                          "Relying party: the website or app the passkey is for (WebAuthn term). The value above is its ID, usually a domain name",
+                                  })
                         }
                     />
                     <View style={{ gap: 5 }}>
@@ -958,14 +978,18 @@ export default function CredentialRequestScreen() {
                                 letterSpacing: 1,
                             }}
                         >
-                            ACCOUNT
+                            {t({
+                                message: "ACCOUNT",
+                                comment:
+                                    "Label above the user account the new passkey is for",
+                            })}
                         </UnlockedText>
                         <UnlockedText
                             style={{ fontSize: 17, fontWeight: "600" }}
                         >
                             {passkeyRequest?.user?.displayName ??
                                 passkeyRequest?.user?.name ??
-                                "Unknown account"}
+                                t`Unknown account`}
                         </UnlockedText>
                         {passkeyRequest?.user?.displayName &&
                         passkeyRequest.user.name ? (
@@ -986,22 +1010,29 @@ export default function CredentialRequestScreen() {
     if (request.kind === "provider-passkey-get") {
         return (
             <AutofillRequestShell
-                title="Use passkey"
+                title={t`Use passkey`}
                 onBack={cancelRequest}
-                backLabel="Cancel passkey request"
+                backLabel={t`Cancel passkey request`}
                 footer={
                     <UnlockedButton
                         variant="ghost"
                         disabled={busy}
                         onPress={cancelRequest}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </UnlockedButton>
                 }
             >
                 <View style={{ gap: 18 }}>
                     <RequestDestination
-                        label={passkeyRequest?.rpId ?? "Unknown relying party"}
+                        label={
+                            passkeyRequest?.rpId ??
+                            t({
+                                message: "Unknown relying party",
+                                comment:
+                                    "Relying party: the website or app the passkey is for (WebAuthn term). Shown when the request doesn't name it",
+                            })
+                        }
                         kind="passkey"
                     />
                     {busy && request.credentialId ? (
@@ -1014,7 +1045,7 @@ export default function CredentialRequestScreen() {
                         >
                             <ActivityIndicator color={colors.primary} />
                             <UnlockedText>
-                                Waiting for Android verification…
+                                {t`Waiting for Android verification…`}
                             </UnlockedText>
                         </View>
                     ) : passkeyMatches.length ? (
@@ -1061,14 +1092,14 @@ export default function CredentialRequestScreen() {
                                         fontSize: 12,
                                     }}
                                 >
-                                    Continue
+                                    {t`Continue`}
                                 </UnlockedText>
                             </Pressable>
                         ))
                     ) : (
                         <InlineNotice
                             tone="info"
-                            message="No passkeys match this request."
+                            message={t`No passkeys match this request.`}
                         />
                     )}
                     {requestError ? (
@@ -1081,7 +1112,7 @@ export default function CredentialRequestScreen() {
     if (view === "save-choice") {
         return (
             <AutofillRequestShell
-                title="Choose login to update"
+                title={t`Choose login to update`}
                 onBack={cancelRequest}
             >
                 <UnlockedText
@@ -1091,8 +1122,7 @@ export default function CredentialRequestScreen() {
                         lineHeight: 19,
                     }}
                 >
-                    More than one saved login has this username. Choose one to
-                    update, or save a new login.
+                    {t`More than one saved login has this username. Choose one to update, or save a new login.`}
                 </UnlockedText>
                 <View style={{ marginTop: 16 }}>
                     {saveCandidates.map((credential) => (
@@ -1116,7 +1146,7 @@ export default function CredentialRequestScreen() {
                             <UnlockedText
                                 style={{ color: colors.muted, fontSize: 12 }}
                             >
-                                {credential.URL || "No saved website"}
+                                {credential.URL || t`No saved website`}
                             </UnlockedText>
                         </Pressable>
                     ))}
@@ -1136,7 +1166,7 @@ export default function CredentialRequestScreen() {
                                 fontWeight: "600",
                             }}
                         >
-                            Save new login
+                            {t`Save new login`}
                         </UnlockedText>
                     </UnlockedButton>
                 </View>
@@ -1156,8 +1186,7 @@ export default function CredentialRequestScreen() {
                         request.password == null
                             ? {
                                   tone: "info",
-                                  message:
-                                      "Android hid this password from accessibility. Enter it inside Cryptex Vault to save this login.",
+                                  message: t`Android hid this password from accessibility. Enter it inside Cryptex Vault to save this login.`,
                               }
                             : undefined
                     }
@@ -1191,6 +1220,8 @@ export default function CredentialRequestScreen() {
         );
     }
     if (view === "decision" && target) {
+        const selectedName = selected?.Name;
+        const destinationName = target.displayName;
         const selectedIsMatch =
             !!selected &&
             matches.some((credential) => credential.ID === selected.ID);
@@ -1202,7 +1233,7 @@ export default function CredentialRequestScreen() {
                     [
                         autofillAssociationWarning(target) ??
                             (selected
-                                ? `${selected.Name} is not saved for ${target.displayName}. Check the destination before filling.`
+                                ? t`${selectedName} is not saved for ${destinationName}. Check the destination before filling.`
                                 : null),
                         accessibilityOriginWarning,
                     ]
@@ -1242,8 +1273,8 @@ export default function CredentialRequestScreen() {
     ) {
         return (
             <RequestProgress
-                title="Verify destination"
-                label="Verifying request…"
+                title={t`Verify destination`}
+                label={t`Verifying request…`}
                 onCancel={cancelRequest}
             />
         );
@@ -1251,8 +1282,8 @@ export default function CredentialRequestScreen() {
     if (!target) {
         return (
             <RequestMessage
-                title="Destination unavailable"
-                message="Cryptex Vault could not confirm which app or website requested this login."
+                title={t`Destination unavailable`}
+                message={t`Cryptex Vault could not confirm which app or website requested this login.`}
                 onCancel={cancelRequest}
             />
         );
@@ -1315,11 +1346,12 @@ function RequestMessage({
     message: string;
     onCancel: () => void;
 }) {
+    const { t } = useLingui();
     return (
         <AutofillRequestShell title={title} onBack={onCancel}>
             <InlineNotice tone="error" message={message} />
             <UnlockedButton className="mt-4" onPress={onCancel}>
-                Return to app
+                {t`Return to app`}
             </UnlockedButton>
         </AutofillRequestShell>
     );

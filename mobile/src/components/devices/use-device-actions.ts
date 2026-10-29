@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { t } from "@lingui/core/macro";
 
 import { WebRTCStatus } from "@cryptex-industries/vault-core/synchronization-utils";
 import {
@@ -38,7 +39,7 @@ async function removeLocalDeviceRecords(ids: string[]) {
     );
     if (result.isErr()) {
         throw new Error(
-            "Could not save the local link changes. The saved links were kept. Retry removing them.",
+            t`Could not save the local link changes. The saved links were kept. Retry removing them.`,
         );
     }
 }
@@ -68,7 +69,7 @@ export function useDeviceActions() {
                             (device) => device.ID === config.ID,
                         )
                     ) {
-                        throw new Error("Device is no longer linked.");
+                        throw new Error(t`Device is no longer linked.`);
                     }
                     updatedLinkedDevices.Devices =
                         updatedLinkedDevices.Devices.map((device) =>
@@ -84,7 +85,7 @@ export function useDeviceActions() {
                 },
             );
             if (result.isErr()) {
-                throw new Error("Failed to save device configuration.");
+                throw new Error(t`Failed to save device configuration.`);
             }
         },
         [],
@@ -110,7 +111,7 @@ export function useDeviceActions() {
     const unlinkDevice = useCallback(
         async (device: LinkedDevice, localOnly = false): Promise<string> => {
             if (inFlight.current)
-                throw new Error("A device change is already in progress.");
+                throw new Error(t`A device change is already in progress.`);
             const generation = getVaultSessionGeneration();
             inFlight.current = true;
             setPendingId(device.ID);
@@ -118,7 +119,7 @@ export function useDeviceActions() {
                 const current = getUnlockedVault().LinkedDevices.Devices.find(
                     (entry) => entry.ID === device.ID,
                 );
-                if (!current) throw new Error("Device is no longer linked.");
+                if (!current) throw new Error(t`Device is no longer linked.`);
                 let serverUnlinked = false;
                 if (
                     !localOnly &&
@@ -126,7 +127,7 @@ export function useDeviceActions() {
                 ) {
                     if (!cloudEnabled)
                         throw new Error(
-                            "Online Services is unavailable. The saved link was kept.",
+                            t`Online Services is unavailable. The saved link was kept.`,
                         );
                     const currentVault = getUnlockedVault();
                     const session = onlineServicesStore.get(
@@ -139,12 +140,12 @@ export function useDeviceActions() {
                             currentVault.OnlineServices.DeviceId
                     ) {
                         throw new Error(
-                            "Sign in to Online Services on this device before unlinking. The saved link was kept.",
+                            t`Sign in to Online Services on this device before unlinking. The saved link was kept.`,
                         );
                     }
                     if (!current.SyncID.trim())
                         throw new Error(
-                            "This saved connection has no relationship ID. The saved link was kept.",
+                            t`This saved connection has no relationship ID. The saved link was kept.`,
                         );
                     await breakLinkMut.mutateAsync({ syncId: current.SyncID });
                     serverUnlinked = true;
@@ -152,13 +153,13 @@ export function useDeviceActions() {
                 if (!isSameActiveVaultSession(generation)) {
                     if (serverUnlinked) {
                         throw new DeviceActionError(
-                            "Online Services connection unlinked, but the vault session changed before its saved link could be removed. Open the original vault and forget its saved link locally to finish.",
+                            t`Online Services connection unlinked, but the vault session changed before its saved link could be removed. Open the original vault and forget its saved link locally to finish.`,
                             "connection-unlinked",
                             true,
                         );
                     }
                     throw new Error(
-                        "The vault session changed. Open Devices again to continue.",
+                        t`The vault session changed. Open Devices again to continue.`,
                     );
                 }
                 try {
@@ -166,16 +167,19 @@ export function useDeviceActions() {
                 } catch (error) {
                     if (serverUnlinked) {
                         throw new DeviceActionError(
-                            "Online Services connection unlinked, but the saved links were kept because this vault could not save the local removal. Forget its saved link locally to finish.",
+                            t`Online Services connection unlinked, but the saved links were kept because this vault could not save the local removal. Forget its saved link locally to finish.`,
                             "connection-unlinked",
                             true,
                         );
                     }
                     throw error;
                 }
+                const name = current.Name;
                 return localOnly
-                    ? "Saved link removed from this vault."
-                    : `Unlinked ${current.Name || "device"}.`;
+                    ? t`Saved link removed from this vault.`
+                    : name
+                      ? t`Unlinked ${name}.`
+                      : t`Unlinked device.`;
             } finally {
                 inFlight.current = false;
                 setPendingId(null);
@@ -198,7 +202,7 @@ export function useDeviceActions() {
                 const started = await controller.connectDevice(deviceId);
                 if (!started)
                     throw new Error(
-                        "Could not start the connection. Check this device's connection settings and try again.",
+                        t`Could not start the connection. Check this device's connection settings and try again.`,
                     );
             }
         },

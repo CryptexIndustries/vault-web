@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -36,6 +37,7 @@ export function AccountAuth({
     recoverPending,
     busy,
 }: AccountAuthProps) {
+    const { t } = useLingui();
     const captchaOn = isTurnstileConfigured();
 
     if (authMode === "register") {
@@ -50,11 +52,10 @@ export function AccountAuth({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Add Online Services
+                        {t`Add Online Services`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Create an account for this vault. No email address is
-                        required.
+                        {t`Create an account for this vault. No email address is required.`}
                     </Text>
                 </View>
                 <View
@@ -72,22 +73,21 @@ export function AccountAuth({
                             lineHeight: 18,
                         }}
                     >
-                        This device can administer the account. Save the account
-                        Recovery Kit after creating your account.
+                        {t`This device can administer the account. Save the account Recovery Kit after creating your account.`}
                     </Text>
                 </View>
                 <Text className="text-xs text-muted-foreground">
                     {captchaOn
-                        ? "Human verification opens when you create the account."
-                        : "Human verification is not configured for this local service."}
+                        ? t`Human verification opens when you create the account.`
+                        : t`Human verification is not configured for this local service.`}
                 </Text>
                 <Button
                     className="mt-6"
                     loading={busy || registerPending}
                     onPress={onRegister}
-                    accessibilityLabel="Create Online Services account"
+                    accessibilityLabel={t`Create Online Services account`}
                 >
-                    Create account
+                    {t`Create account`}
                 </Button>
             </View>
         );
@@ -104,12 +104,10 @@ export function AccountAuth({
                         letterSpacing: -0.5,
                     }}
                 >
-                    Restore account access
+                    {t`Restore account access`}
                 </Text>
                 <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                    Use the User ID and 24-word phrase from your account
-                    Recovery Kit. Recovering removes every other device from the
-                    account.
+                    {t`Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account.`}
                 </Text>
             </View>
             <View
@@ -127,35 +125,33 @@ export function AccountAuth({
                         lineHeight: 18,
                     }}
                 >
-                    The account Recovery Kit restores Online Services access.
-                    Your vault recovery code is used separately to recover the
-                    vault.
+                    {t`The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault.`}
                 </Text>
             </View>
             <View style={{ marginVertical: 20 }}>
-                <Label>User ID</Label>
+                <Label>{t`User ID`}</Label>
                 <Input
                     value={recoverUserId}
                     onChangeText={onRecoverUserIdChange}
-                    placeholder="Your user ID"
+                    placeholder={t`Your user ID`}
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="off"
                     editable={!busy}
-                    accessibilityLabel="Online Services user ID"
+                    accessibilityLabel={t`Online Services user ID`}
                 />
             </View>
             <View style={{ marginVertical: 20 }}>
-                <Label>Account recovery phrase</Label>
+                <Label>{t`Account recovery phrase`}</Label>
                 <Input
                     value={recoverPhrase}
                     onChangeText={onRecoverPhraseChange}
-                    placeholder="Enter all 24 words in order"
+                    placeholder={t`Enter all 24 words in order`}
                     autoCapitalize="none"
                     autoCorrect={false}
                     spellCheck={false}
                     editable={!busy}
-                    accessibilityLabel="Account recovery phrase"
+                    accessibilityLabel={t`Account recovery phrase`}
                     multiline
                     numberOfLines={5}
                     textAlignVertical="top"
@@ -174,21 +170,21 @@ export function AccountAuth({
                         marginTop: 7,
                     }}
                 >
-                    Enter all 24 words in order.
+                    {t`Enter all 24 words in order.`}
                 </Text>
             </View>
             <Text className="text-xs text-muted-foreground">
                 {captchaOn
-                    ? "Human verification opens when you recover the account."
-                    : "Human verification is not configured for this local service."}
+                    ? t`Human verification opens when you recover the account.`
+                    : t`Human verification is not configured for this local service.`}
             </Text>
             <Button
                 className="mt-6"
                 loading={busy || recoverPending}
                 onPress={onRecover}
-                accessibilityLabel="Recover account"
+                accessibilityLabel={t`Recover account`}
             >
-                Recover account
+                {t`Recover account`}
             </Button>
         </View>
     );

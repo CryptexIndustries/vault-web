@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import { ONLINE_SERVICES_SELECTION_ID } from "@cryptex-industries/vault-core/consts";
 import type {
     LinkedDevices,
@@ -25,6 +26,7 @@ function ServerBlock({
     hosts: string;
     description: string;
 }) {
+    const { t } = useLingui();
     return (
         <View
             style={{
@@ -39,7 +41,7 @@ function ServerBlock({
                 {label}
             </Text>
             <Text style={{ fontSize: 13, fontWeight: "500" }}>
-                {custom ? "Custom server" : "Online Services"}
+                {custom ? t`Custom server` : "Online Services"}
             </Text>
             {custom ? (
                 <Text
@@ -77,12 +79,13 @@ export function DeviceServerDetails({
         "SignalingServers" | "STUNServers" | "TURNServers"
     >;
 }) {
+    const { t } = useLingui();
     const hosts = (ids: string[], servers: { ID: string; Host: string }[]) =>
         ids
             .map(
                 (id) =>
                     servers.find((server) => server.ID === id)?.Host ??
-                    "Configuration unavailable",
+                    t`Configuration unavailable`,
             )
             .join("\n");
     return (
@@ -98,7 +101,11 @@ export function DeviceServerDetails({
                 {local.Name}
             </Text>
             <ServerBlock
-                label="Signaling"
+                label={t({
+                    message: "Signaling",
+                    comment:
+                        "Heading for the signaling server of a device link",
+                })}
                 custom={
                     local.SignalingServerID !== ONLINE_SERVICES_SELECTION_ID
                 }
@@ -106,19 +113,21 @@ export function DeviceServerDetails({
                     [local.SignalingServerID],
                     signalingConfig.SignalingServers,
                 )}
-                description="Finds the other device and coordinates the connection."
+                description={t`Finds the other device and coordinates the connection.`}
             />
             <ServerBlock
+                // i18n-ignore: protocol name
                 label="STUN"
                 custom={local.STUNServerIDs.length > 0}
                 hosts={hosts(local.STUNServerIDs, signalingConfig.STUNServers)}
-                description="Helps devices discover their public network address."
+                description={t`Helps devices discover their public network address.`}
             />
             <ServerBlock
+                // i18n-ignore: protocol name
                 label="TURN"
                 custom={local.TURNServerIDs.length > 0}
                 hosts={hosts(local.TURNServerIDs, signalingConfig.TURNServers)}
-                description="Can relay traffic when a direct connection is unavailable."
+                description={t`Can relay traffic when a direct connection is unavailable.`}
             />
             <Text
                 style={{
@@ -131,8 +140,7 @@ export function DeviceServerDetails({
                     paddingLeft: 10,
                 }}
             >
-                These are configured servers. This view does not confirm whether
-                the active connection uses a TURN relay.
+                {t`These are configured servers. This view does not confirm whether the active connection uses a TURN relay.`}
             </Text>
         </>
     );
@@ -190,6 +198,7 @@ export function DeviceConnectionSettings({
     onDraftChange: (draft: DeviceConfigurationDraft) => void;
     onTimeoutChange: (timeout: string) => void;
 }) {
+    const { t } = useLingui();
     const inputStyle = {
         minHeight: 46,
         height: 46,
@@ -225,10 +234,10 @@ export function DeviceConnectionSettings({
         <>
             <View style={{ marginTop: 4, marginBottom: 16 }}>
                 <Label style={{ fontSize: 11, lineHeight: 15 }}>
-                    Display name
+                    {t`Display name`}
                 </Label>
                 <Input
-                    accessibilityLabel="Device display name"
+                    accessibilityLabel={t`Device display name`}
                     maxLength={150}
                     value={draft.Name}
                     editable={!busy}
@@ -236,15 +245,15 @@ export function DeviceConnectionSettings({
                     onChangeText={(Name) => setDraft({ ...draft, Name })}
                 />
             </View>
-            {setting("Connect automatically", "AutoConnect")}
-            {setting("Sync after connecting", "AutoSync")}
-            {setting("Disconnect after inactivity", "SyncTimeout")}
+            {setting(t`Connect automatically`, "AutoConnect")}
+            {setting(t`Sync after connecting`, "AutoSync")}
+            {setting(t`Disconnect after inactivity`, "SyncTimeout")}
             <View style={{ marginVertical: 16 }}>
                 <Label style={{ fontSize: 11, lineHeight: 15 }}>
-                    Timeout seconds
+                    {t`Timeout seconds`}
                 </Label>
                 <Input
-                    accessibilityLabel="Sync timeout in seconds"
+                    accessibilityLabel={t`Sync timeout in seconds`}
                     keyboardType="number-pad"
                     value={timeout}
                     editable={!busy && draft.SyncTimeout}
@@ -258,25 +267,28 @@ export function DeviceConnectionSettings({
             {local ? (
                 <>
                     <SettingsInformation
-                        label="Local device ID"
+                        label={t`Local device ID`}
                         value={local.ID}
                         mono
                     />
                     <SettingsInformation
-                        label="Sync ID"
-                        value={local.SyncID || "Not set"}
+                        label={t`Sync ID`}
+                        value={local.SyncID || t`Not set`}
                         mono
                     />
                     <SettingsInformation
-                        label="Linked"
+                        label={t({
+                            message: "Linked",
+                            comment: "Date the device link was created",
+                        })}
                         value={dateTime(local.LinkedAtTimestamp)}
                     />
                     <SettingsInformation
-                        label="Last sync"
+                        label={t`Last sync`}
                         value={
                             local.LastSync
                                 ? dateTime(local.LastSync)
-                                : "Never synced"
+                                : t`Never synced`
                         }
                     />
                 </>

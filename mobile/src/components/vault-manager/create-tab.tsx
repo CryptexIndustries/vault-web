@@ -4,6 +4,9 @@ import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { useSetAtom } from "jotai";
 import { Check, ChevronDown } from "lucide-react-native";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { VaultMetadata } from "@/app_lib/vault-utils/storage";
 import {
@@ -54,14 +57,15 @@ const MOBILE_OPS_LIMIT = 3;
 
 const CREATE_PROTECTION_OPTIONS: {
     id: AdditionalKeyProtectionChoice;
-    label: string;
+    label: MessageDescriptor;
 }[] = [
-    { id: "none", label: "No additional key protection" },
-    { id: "protectionPhrase128", label: "Generated phrase (128-bit)" },
-    { id: "protectionPhrase256", label: "Generated phrase (256-bit)" },
+    { id: "none", label: msg`No additional key protection` },
+    { id: "protectionPhrase128", label: msg`Generated phrase (128-bit)` },
+    { id: "protectionPhrase256", label: msg`Generated phrase (256-bit)` },
 ];
 
 export function CreateTab() {
+    const { t } = useLingui();
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
 
@@ -114,13 +118,13 @@ export function CreateTab() {
 
     const validateProtection = () => {
         const next = {
-            name: name.trim() ? "" : "Enter a name for this vault.",
-            password: password ? "" : "Enter a master password.",
+            name: name.trim() ? "" : t`Enter a name for this vault.`,
+            password: password ? "" : t`Enter a master password.`,
             confirm: !confirm
-                ? "Confirm your master password."
+                ? t`Confirm your master password.`
                 : password === confirm
                   ? ""
-                  : "Enter the same password again.",
+                  : t`Enter the same password again.`,
         };
         setFieldErrors(next);
         const first = next.name
@@ -197,7 +201,7 @@ export function CreateTab() {
                           }
                         : String(cause),
             });
-            setError("Failed to create vault.");
+            setError(t`Failed to create vault.`);
         } finally {
             setLoading(false);
         }
@@ -231,7 +235,7 @@ export function CreateTab() {
             router.replace("/(app)/(tabs)/vault");
         } catch {
             setError(
-                "Could not save the vault. Your recovery details are still available; try again.",
+                t`Could not save the vault. Your recovery details are still available; try again.`,
             );
         } finally {
             finishInFlight.current = false;
@@ -239,17 +243,23 @@ export function CreateTab() {
         }
     };
 
+    const selectedProtectionLabel = CREATE_PROTECTION_OPTIONS.find(
+        (option) => option.id === additionalKeyProtectionChoice,
+    )?.label;
+    const stepLabels = [
+        t({ message: "Protect", comment: "Create vault step" }),
+        t({ message: "Personalize", comment: "Create vault step" }),
+        t({ message: "Save recovery", comment: "Create vault step" }),
+    ];
+
     return (
         <View>
-            <VaultEntrySteps
-                labels={["Protect", "Personalize", "Save recovery"]}
-                current={formStage}
-            />
+            <VaultEntrySteps labels={stepLabels} current={formStage} />
             {formStage === 0 ? (
                 <>
                     <View className="mb-[17px]">
                         <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Vault name
+                            {t`Vault name`}
                         </Label>
                         <Input
                             ref={nameRef}
@@ -259,16 +269,16 @@ export function CreateTab() {
                                 clearFieldError("name");
                             }}
                             invalid={!!fieldErrors.name}
-                            placeholder="e.g. Personal"
+                            placeholder={t`e.g. Personal`}
                             autoCapitalize="words"
-                            accessibilityLabel="Vault name"
+                            accessibilityLabel={t`Vault name`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError message={fieldErrors.name} />
                     </View>
                     <View className="mb-[17px]">
                         <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Master password
+                            {t`Master password`}
                         </Label>
                         <Input
                             ref={passwordRef}
@@ -288,8 +298,8 @@ export function CreateTab() {
                             autoCapitalize="none"
                             autoCorrect={false}
                             textContentType="newPassword"
-                            placeholder="Choose a strong password"
-                            accessibilityLabel="Master password"
+                            placeholder={t`Choose a strong password`}
+                            accessibilityLabel={t`Master password`}
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError message={fieldErrors.password} />
@@ -297,7 +307,7 @@ export function CreateTab() {
                     </View>
                     <View>
                         <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Confirm password
+                            {t`Confirm password`}
                         </Label>
                         <Input
                             ref={confirmRef}
@@ -311,32 +321,30 @@ export function CreateTab() {
                             secureTextEntry
                             autoCapitalize="none"
                             autoCorrect={false}
-                            placeholder="Enter it again"
-                            accessibilityLabel="Confirm master password"
+                            placeholder={t`Enter it again`}
+                            accessibilityLabel={t`Confirm master password`}
                             testID="confirm-master-password"
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError message={fieldErrors.confirm} />
                     </View>
                     <Text className="mb-[25px] mt-3 text-xs leading-[18px] text-muted-foreground">
-                        Choose a password you can remember. If you forget it,
-                        you&apos;ll need your vault recovery code.
+                        {t`Choose a password you can remember. If you forget it, you'll need your vault recovery code.`}
                     </Text>
                 </>
             ) : (
                 <>
                     <Text className="mb-4 text-sm text-muted-foreground">
-                        Add optional protection and details before creating the
-                        vault.
+                        {t`Add optional protection and details before creating the vault.`}
                     </Text>
                     <View>
                         <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                            Additional key protection
+                            {t`Additional key protection`}
                         </Label>
                         <Pressable
                             disabled={loading}
                             accessibilityRole="button"
-                            accessibilityLabel="Choose additional key protection"
+                            accessibilityLabel={t`Choose additional key protection`}
                             accessibilityState={{
                                 expanded: protectionPickerOpen,
                                 disabled: loading,
@@ -345,13 +353,9 @@ export function CreateTab() {
                             className="h-[54px] min-h-[54px] flex-row items-center rounded-md border border-border bg-transparent px-3.5"
                         >
                             <Text className="flex-1 text-sm text-foreground">
-                                {
-                                    CREATE_PROTECTION_OPTIONS.find(
-                                        (option) =>
-                                            option.id ===
-                                            additionalKeyProtectionChoice,
-                                    )?.label
-                                }
+                                {selectedProtectionLabel
+                                    ? t(selectedProtectionLabel)
+                                    : null}
                             </Text>
                             <Icon
                                 as={ChevronDown}
@@ -360,30 +364,31 @@ export function CreateTab() {
                             />
                         </Pressable>
                         <Text className="mt-2 text-xs leading-[18px] text-muted-foreground">
-                            Your master password is always required. A generated
-                            phrase adds another secret to keep for restores on a
-                            new device.
+                            {t`Your master password is always required. A generated phrase adds another secret to keep for restores on a new device.`}
                         </Text>
                     </View>
                     <AdvancedDisclosure
                         ruled
                         className="mt-4"
-                        title="Description & password import"
+                        title={t`Description & password import`}
                         description={
                             initialImport
-                                ? `${initialImport.credentials.length} credentials ready`
-                                : "Optional vault details"
+                                ? plural(initialImport.credentials.length, {
+                                      one: "# credential ready",
+                                      other: "# credentials ready",
+                                  })
+                                : t`Optional vault details`
                         }
                     >
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                Description (optional)
+                                {t`Description (optional)`}
                             </Label>
                             <Input
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Optional"
-                                accessibilityLabel="Vault description, optional"
+                                placeholder={t`Optional`}
+                                accessibilityLabel={t`Vault description, optional`}
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                         </View>
@@ -391,13 +396,19 @@ export function CreateTab() {
                             <View className="gap-2">
                                 <InlineNotice
                                     tone="success"
-                                    message={`${initialImport.credentials.length} credentials are staged. They will be added when this vault is created.`}
+                                    message={plural(
+                                        initialImport.credentials.length,
+                                        {
+                                            one: "# credential is staged. It will be added when this vault is created.",
+                                            other: "# credentials are staged. They will be added when this vault is created.",
+                                        },
+                                    )}
                                 />
                                 <Button
                                     variant="outline"
                                     onPress={() => setInitialImport(null)}
                                 >
-                                    Remove staged import
+                                    {t`Remove staged import`}
                                 </Button>
                             </View>
                         ) : (
@@ -441,7 +452,7 @@ export function CreateTab() {
                         : void handleCreate()
                 }
             >
-                {formStage === 0 ? "Continue" : "Create vault"}
+                {formStage === 0 ? t`Continue` : t`Create vault`}
             </VaultEntryAction>
             {formStage === 1 ? (
                 <Button
@@ -452,13 +463,13 @@ export function CreateTab() {
                         setFormStage(0);
                     }}
                 >
-                    Back to password
+                    {t`Back to password`}
                 </Button>
             ) : null}
             <VaultEntryAssurance
                 className={formStage === 1 ? "mb-2 mt-10" : "mt-10"}
             >
-                Encrypted before it&apos;s saved
+                {t`Encrypted before it's saved`}
             </VaultEntryAssurance>
 
             <PasswordGeneratorDialog
@@ -478,9 +489,9 @@ export function CreateTab() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Additional key protection</DialogTitle>
+                    <DialogTitle>{t`Additional key protection`}</DialogTitle>
                     <DialogDescription>
-                        Choose what is required with your master password.
+                        {t`Choose what is required with your master password.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="gap-2">
@@ -502,7 +513,7 @@ export function CreateTab() {
                                 )}
                             >
                                 <Text className="flex-1 font-medium text-sm text-foreground">
-                                    {option.label}
+                                    {t(option.label)}
                                 </Text>
                                 {selected ? (
                                     <Icon
@@ -526,36 +537,32 @@ export function CreateTab() {
                 fullHeight
             >
                 <DialogHeader>
-                    <DialogTitle>Keep your way back in</DialogTitle>
+                    <DialogTitle>{t`Keep your way back in`}</DialogTitle>
                     <DialogDescription>
-                        Store this offline. It can unlock the vault if you
-                        forget your master password.
+                        {t`Store this offline. It can unlock the vault if you forget your master password.`}
                     </DialogDescription>
                 </DialogHeader>
-                <VaultEntrySteps
-                    labels={["Protect", "Personalize", "Save recovery"]}
-                    current={2}
-                />
+                <VaultEntrySteps labels={stepLabels} current={2} />
                 {recoveryCode ? (
                     <SecretReveal
-                        label="Recovery code"
+                        label={t`Recovery code`}
                         value={recoveryCode}
-                        helper="Shown once. Write it down before continuing."
+                        helper={t`Shown once. Write it down before continuing.`}
                         requireAck
                         defaultRevealed
-                        ackLabel="I have written down the recovery code"
+                        ackLabel={t`I have written down the recovery code`}
                         acknowledged={recoveryAck}
                         onAcknowledgedChange={setRecoveryAck}
                     />
                 ) : null}
                 {protectionPhrase ? (
                     <SecretReveal
-                        label="Generated protection phrase"
+                        label={t`Generated protection phrase`}
                         value={protectionPhrase}
-                        helper="Shown once. It is required with your master password on a new device."
+                        helper={t`Shown once. It is required with your master password on a new device.`}
                         requireAck
                         defaultRevealed
-                        ackLabel="I have written down the protection phrase"
+                        ackLabel={t`I have written down the protection phrase`}
                         acknowledged={additionalKeyProtectionAck}
                         onAcknowledgedChange={setAdditionalKeyProtectionAck}
                     />
@@ -574,7 +581,7 @@ export function CreateTab() {
                         }
                         onPress={() => void finishCreate()}
                     >
-                        Save &amp; open vault
+                        {t`Save & open vault`}
                     </VaultEntryAction>
                 </DialogFooter>
             </Dialog>

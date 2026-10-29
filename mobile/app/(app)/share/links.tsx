@@ -2,6 +2,9 @@ import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAtomValue } from "jotai";
+import { i18n } from "@lingui/core";
+import { plural, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ArrowDownUp,
     Link2,
@@ -21,13 +24,11 @@ import {
     queryShareListRows,
     SHARE_LIST_SORTS,
     SHARE_LIST_STATUSES,
-    SHARE_STATUS_LABELS,
     toShareListRows,
     type ShareListRow,
     type ShareListSort,
     type ShareListStatus,
 } from "@cryptex-industries/vault-core/vault-utils/share-list";
-import { describeShareError } from "@cryptex-industries/vault-core/vault-utils/share-messages";
 import {
     dismissShareLink,
     refreshShareStatuses,
@@ -47,6 +48,11 @@ import {
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { mobileShareDeps } from "@/app_lib/share-links";
+import {
+    shareErrorText,
+    shareSortLabel,
+    shareStatusLabel,
+} from "@/app_lib/share-messages";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { colors } from "@/theme";
 
@@ -61,7 +67,7 @@ const STATUS_COLORS: Record<ShareListStatus, string> = {
 };
 
 const formatDate = (timestamp: number) =>
-    new Date(timestamp).toLocaleString(undefined, {
+    new Date(timestamp).toLocaleString(i18n.locale, {
         dateStyle: "medium",
         timeStyle: "short",
     });
@@ -71,13 +77,16 @@ function describeTiming(
     status: ShareListStatus,
 ) {
     if (status === "viewed" && record.ViewedAtTimestamp) {
-        return `Opened ${formatDate(record.ViewedAtTimestamp)}`;
+        const date = formatDate(record.ViewedAtTimestamp);
+        return t`Opened ${date}`;
     }
     if (status === "active") {
-        return `Expires ${formatDate(record.ExpiresAtTimestamp)}`;
+        const date = formatDate(record.ExpiresAtTimestamp);
+        return t`Expires ${date}`;
     }
-    if (status === "burned") return "Destroyed after five wrong passphrases";
-    return `Created ${formatDate(record.CreatedAtTimestamp)}`;
+    if (status === "burned") return t`Destroyed after five wrong passphrases`;
+    const date = formatDate(record.CreatedAtTimestamp);
+    return t`Created ${date}`;
 }
 
 function HeaderIcon({
@@ -220,6 +229,7 @@ function RadioRow({
 }
 
 export default function SharedLinksScreen() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const names = useMemo(
         () =>
@@ -230,9 +240,21 @@ export default function SharedLinksScreen() {
             ),
         [vault.Credentials],
     );
+    const deletedItem = t({
+        message: "Deleted item",
+        comment: "Shared link whose vault item was deleted",
+    });
+    const secret = t({
+        message: "Secret",
+        comment: "Shared link for text that has no label",
+    });
     const rows = useMemo(
-        () => toShareListRows(vault.ShareLinks ?? [], names),
-        [vault.ShareLinks, names],
+        () =>
+            toShareListRows(vault.ShareLinks ?? [], names, Date.now(), {
+                deletedItem,
+                secret,
+            }),
+        [vault.ShareLinks, names, deletedItem, secret],
     );
     const [query, setQuery] = useState("");
     const [statuses, setStatuses] = useState<ShareListStatus[]>([]);
@@ -256,7 +278,7 @@ export default function SharedLinksScreen() {
         try {
             await refreshShareStatuses(mobileShareDeps());
         } catch (err) {
-            show(describeShareError(err));
+            show(shareErrorText(err));
         } finally {
             setRefreshing(false);
         }
@@ -274,7 +296,7 @@ export default function SharedLinksScreen() {
             try {
                 await action(mobileShareDeps(), id);
             } catch (err) {
-                show(describeShareError(err));
+                show(shareErrorText(err));
             } finally {
                 setBusyId(null);
             }
@@ -284,11 +306,10 @@ export default function SharedLinksScreen() {
 
     const revoke = (row: ShareListRow) =>
         confirm({
-            title: "Revoke this link?",
-            description:
-                "It stops working right away. The recipient sees that it no longer exists.",
-            confirmLabel: "Revoke link",
-            cancelLabel: "Cancel",
+            title: t`Revoke this link?`,
+            description: t`It stops working right away. The recipient sees that it no longer exists.`,
+            confirmLabel: t`Revoke link`,
+            cancelLabel: t`Cancel`,
             destructive: true,
             onConfirm: () => void run(row.record.ID, revokeShareLink),
         });
@@ -299,11 +320,10 @@ export default function SharedLinksScreen() {
             return;
         }
         confirm({
-            title: "Remove an active link?",
-            description:
-                "It's still active, so this revokes it first. The recipient can no longer open it.",
-            confirmLabel: "Revoke and remove",
-            cancelLabel: "Cancel",
+            title: t`Remove an active link?`,
+            description: t`It's still active, so this revokes it first. The recipient can no longer open it.`,
+            confirmLabel: t`Revoke and remove`,
+            cancelLabel: t`Cancel`,
             destructive: true,
             onConfirm: () => void run(row.record.ID, dismissShareLink),
         });
@@ -320,29 +340,29 @@ export default function SharedLinksScreen() {
         [busyId],
     );
 
-    const sortLabel =
-        SHARE_LIST_SORTS.find((option) => option.value === sort)?.label ?? "";
+    const sortLabel = shareSortLabel(sort);
+    const selectedCount = statuses.length;
 
     return (
         <UnlockedTaskScreen
-            title="Shared links"
+            title={t`Shared links`}
             scroll={false}
             actions={
                 <View style={{ flexDirection: "row" }}>
                     <HeaderIcon
                         icon={Server}
-                        label="Share server settings"
+                        label={t`Share server settings`}
                         onPress={() => router.push("/(app)/share/server")}
                     />
                     <HeaderIcon
                         icon={RefreshCw}
-                        label="Refresh status"
+                        label={t`Refresh status`}
                         disabled={refreshing}
                         onPress={() => void refresh()}
                     />
                     <HeaderIcon
                         icon={Plus}
-                        label="Share a secret"
+                        label={t`Share a secret`}
                         onPress={() => router.push("/(app)/share")}
                     />
                 </View>
@@ -378,8 +398,8 @@ export default function SharedLinksScreen() {
                     <Input
                         value={query}
                         onChangeText={setQuery}
-                        placeholder="Search name or server"
-                        accessibilityLabel="Search shared links"
+                        placeholder={t`Search name or server`}
+                        accessibilityLabel={t`Search shared links`}
                         autoCapitalize="none"
                         autoCorrect={false}
                         returnKeyType="search"
@@ -389,7 +409,7 @@ export default function SharedLinksScreen() {
                     {query ? (
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel="Clear search"
+                            accessibilityLabel={t`Clear search`}
                             onPress={() => setQuery("")}
                             style={{
                                 width: 44,
@@ -406,16 +426,16 @@ export default function SharedLinksScreen() {
                 <ControlIcon
                     icon={ListFilter}
                     label={
-                        statuses.length
-                            ? `Filter by status, ${statuses.length} selected`
-                            : "Filter by status"
+                        selectedCount
+                            ? t`Filter by status, ${selectedCount} selected`
+                            : t`Filter by status`
                     }
                     badge={statuses.length}
                     onPress={() => setFilterOpen(true)}
                 />
                 <ControlIcon
                     icon={ArrowDownUp}
-                    label={`Sort: ${sortLabel}`}
+                    label={t`Sort: ${sortLabel}`}
                     onPress={() => setSortOpen(true)}
                 />
             </View>
@@ -439,17 +459,17 @@ export default function SharedLinksScreen() {
                         <View style={{ gap: 14, paddingTop: 12 }}>
                             <InlineNotice
                                 tone="info"
-                                message="No shared links yet. Use Share once on an item, or share a secret that isn't in your vault."
+                                message={t`No shared links yet. Use Share once on an item, or share a secret that isn't in your vault.`}
                             />
                             <Button onPress={() => router.push("/(app)/share")}>
-                                Share a secret
+                                {t`Share a secret`}
                             </Button>
                         </View>
                     ) : (
                         <View style={{ paddingTop: 12 }}>
                             <InlineNotice
                                 tone="info"
-                                message="No links match."
+                                message={t`No links match.`}
                             />
                         </View>
                     )
@@ -464,10 +484,14 @@ export default function SharedLinksScreen() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <UnlockedDialogTitle>Filter by status</UnlockedDialogTitle>
+                    <UnlockedDialogTitle>
+                        {t`Filter by status`}
+                    </UnlockedDialogTitle>
                 </DialogHeader>
                 {SHARE_LIST_STATUSES.map((option) => {
                     const on = statuses.includes(option.value);
+                    const statusLabel = shareStatusLabel(option.value);
+                    const count = counts[option.value];
                     return (
                         <View
                             key={option.value}
@@ -480,7 +504,7 @@ export default function SharedLinksScreen() {
                             }}
                         >
                             <Text style={{ flex: 1, fontSize: 14 }}>
-                                {option.label}
+                                {statusLabel}
                             </Text>
                             <Text
                                 style={{
@@ -503,7 +527,10 @@ export default function SharedLinksScreen() {
                                             : [...current, option.value],
                                     )
                                 }
-                                accessibilityLabel={`${option.label}, ${counts[option.value]} links`}
+                                accessibilityLabel={plural(count, {
+                                    one: `${statusLabel}, # link`,
+                                    other: `${statusLabel}, # links`,
+                                })}
                             />
                         </View>
                     );
@@ -515,13 +542,13 @@ export default function SharedLinksScreen() {
                         disabled={statuses.length === 0}
                         onPress={() => setStatuses([])}
                     >
-                        Show all
+                        {t`Show all`}
                     </Button>
                     <Button
                         className="flex-1"
                         onPress={() => setFilterOpen(false)}
                     >
-                        Done
+                        {t`Done`}
                     </Button>
                 </View>
             </Dialog>
@@ -532,12 +559,12 @@ export default function SharedLinksScreen() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <UnlockedDialogTitle>Sort by</UnlockedDialogTitle>
+                    <UnlockedDialogTitle>{t`Sort by`}</UnlockedDialogTitle>
                 </DialogHeader>
                 {SHARE_LIST_SORTS.map((option) => (
                     <RadioRow
                         key={option.value}
-                        label={option.label}
+                        label={shareSortLabel(option.value)}
                         selected={option.value === sort}
                         onPress={() => {
                             setSort(option.value);
@@ -564,7 +591,7 @@ export default function SharedLinksScreen() {
                                     fontSize: 13,
                                 }}
                             >
-                                {SHARE_STATUS_LABELS[actionsFor.status]}
+                                {shareStatusLabel(actionsFor.status)}
                             </Text>
                             <Text style={{ color: colors.muted, fontSize: 13 }}>
                                 {describeTiming(
@@ -582,7 +609,7 @@ export default function SharedLinksScreen() {
                                     revoke(row);
                                 }}
                             >
-                                Revoke link
+                                {t`Revoke link`}
                             </Button>
                         ) : null}
                         {names.has(actionsFor.record.CredentialID) ? (
@@ -594,7 +621,7 @@ export default function SharedLinksScreen() {
                                     router.push(`/(app)/(tabs)/vault/${id}`);
                                 }}
                             >
-                                Open item
+                                {t`Open item`}
                             </Button>
                         ) : null}
                         <Button
@@ -605,7 +632,7 @@ export default function SharedLinksScreen() {
                                 remove(row);
                             }}
                         >
-                            Remove from list
+                            {t`Remove from list`}
                         </Button>
                     </>
                 ) : null}
@@ -623,6 +650,7 @@ function SharedLinkRow({
     busy: boolean;
     onPress: () => void;
 }) {
+    const { t } = useLingui();
     const { record, status, name, host } = row;
     // Same shape as the vault list: flat rows, a divider, a round icon.
     return (
@@ -638,8 +666,8 @@ function SharedLinkRow({
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${name}, ${SHARE_STATUS_LABELS[status]}`}
-                accessibilityHint="Shows actions for this link"
+                accessibilityLabel={`${name}, ${shareStatusLabel(status)}`}
+                accessibilityHint={t`Shows actions for this link`}
                 disabled={busy}
                 onPress={onPress}
                 android_ripple={{ color: colors.border }}
@@ -684,7 +712,7 @@ function SharedLinkRow({
                             <Lock
                                 size={13}
                                 color={colors.muted}
-                                accessibilityLabel="Passphrase protected"
+                                accessibilityLabel={t`Passphrase protected`}
                             />
                         ) : null}
                         <Text
@@ -693,7 +721,7 @@ function SharedLinkRow({
                                 color: STATUS_COLORS[status],
                             }}
                         >
-                            {SHARE_STATUS_LABELS[status]}
+                            {shareStatusLabel(status)}
                         </Text>
                     </View>
                     <View style={{ flexDirection: "row", gap: 10 }}>
@@ -715,7 +743,7 @@ function SharedLinkRow({
             </Pressable>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Actions for ${name}`}
+                accessibilityLabel={t`Actions for ${name}`}
                 disabled={busy}
                 onPress={onPress}
                 style={{

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, View } from "react-native";
 import { router } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
+import { useLingui } from "@lingui/react/macro";
 
 import { AccountAuth } from "@/components/account/account-auth";
 import { useAccountController } from "@/components/account/account-controller";
@@ -19,13 +20,14 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 
 export default function AccountRecoverScreen() {
+    const { t } = useLingui();
     const account = useAccountController();
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [next, setNext] = useState<"account" | "offer" | "kit" | null>(null);
     usePreventRemove(account.mutationBusy, () => {
         Alert.alert(
-            "Account recovery in progress",
-            "Wait for account recovery to finish before leaving this screen.",
+            t`Account recovery in progress`,
+            t`Wait for account recovery to finish before leaving this screen.`,
         );
     });
     useEffect(() => {
@@ -40,7 +42,7 @@ export default function AccountRecoverScreen() {
     }, [account.mutationBusy, next]);
 
     return (
-        <UnlockedScreen scroll taskTitle="Recover account">
+        <UnlockedScreen scroll taskTitle={t`Recover account`}>
             <AccountAuth
                 authMode="recover"
                 recoverUserId={account.recoverUserId}
@@ -69,11 +71,9 @@ export default function AccountRecoverScreen() {
                 onOpenChange={setConfirmOpen}
             >
                 <DialogHeader>
-                    <DialogTitle>Recover this account?</DialogTitle>
+                    <DialogTitle>{t`Recover this account?`}</DialogTitle>
                     <DialogDescription>
-                        Recovering removes every other device from this account
-                        and signs them out. It also uses up this Recovery Kit;
-                        you can save a new one next.
+                        {t`Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next.`}
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -81,7 +81,7 @@ export default function AccountRecoverScreen() {
                         variant="secondary"
                         onPress={() => setConfirmOpen(false)}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                     <Button
                         variant="destructive"
@@ -93,7 +93,7 @@ export default function AccountRecoverScreen() {
                             });
                         }}
                     >
-                        Recover account
+                        {t`Recover account`}
                     </Button>
                 </DialogFooter>
             </Dialog>
@@ -105,11 +105,9 @@ export default function AccountRecoverScreen() {
                 }}
             >
                 <DialogHeader>
-                    <DialogTitle>Create a new Recovery Kit?</DialogTitle>
+                    <DialogTitle>{t`Create a new Recovery Kit?`}</DialogTitle>
                     <DialogDescription>
-                        The Kit you used no longer works, so this account has
-                        none. Create one now, or later from Account &gt;
-                        Recovery &amp; access.
+                        {t`The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access.`}
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -117,10 +115,14 @@ export default function AccountRecoverScreen() {
                         variant="secondary"
                         onPress={() => setNext("account")}
                     >
-                        Later
+                        {t({
+                            message: "Later",
+                            comment:
+                                "Button: skip creating a Recovery Kit for now",
+                        })}
                     </Button>
                     <Button onPress={() => setNext("kit")}>
-                        Create Recovery Kit
+                        {t`Create Recovery Kit`}
                     </Button>
                 </DialogFooter>
             </Dialog>

@@ -8,6 +8,8 @@ import {
 } from "react";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     establishOnlineServicesSession,
@@ -39,7 +41,7 @@ import { persistVaultMutation } from "@/utils/vault-mutations";
 import {
     getVaultSessionGeneration,
     isSameActiveVaultSession,
-    MISSING_VAULT_SECRET_ERROR,
+    missingVaultSecretError,
 } from "@/utils/vault-session";
 import { onlineServicesLog } from "@/utils/logging";
 import { trpcReact } from "@/utils/trpc";
@@ -73,7 +75,7 @@ type AccountVaultMutation = (currentVault: Vault) => Vault | Promise<Vault>;
 
 function assertAccountVaultSession(generation: number): void {
     if (!isSameActiveVaultSession(generation)) {
-        throw new Error(MISSING_VAULT_SECRET_ERROR);
+        throw new Error(missingVaultSecretError());
     }
 }
 
@@ -89,12 +91,12 @@ async function persistAccountMutation(
     );
     if (result.isOk()) return { ok: true };
     if (result.error === "VAULT_DEK_NOT_FOUND") {
-        return { ok: false, message: MISSING_VAULT_SECRET_ERROR };
+        return { ok: false, message: missingVaultSecretError() };
     }
     if (result.error === "VAULT_METADATA_MISSING") {
-        return { ok: false, message: "Vault metadata is unavailable." };
+        return { ok: false, message: t`Vault metadata is unavailable.` };
     }
-    return { ok: false, message: "Failed to save vault." };
+    return { ok: false, message: t`Failed to save vault.` };
 }
 
 async function rollbackFailedRegistrationBinding(options: {
@@ -142,6 +144,7 @@ async function rollbackFailedRegistrationBinding(options: {
 }
 
 function useCreateAccountController() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
         store: onlineServicesStore,
@@ -211,7 +214,7 @@ function useCreateAccountController() {
         if (!cloudOn) {
             setMessage({
                 tone: "error",
-                text: "Online Services are disabled in this app.",
+                text: t`Online Services are disabled in this app.`,
             });
             return;
         }
@@ -219,7 +222,7 @@ function useCreateAccountController() {
         const generation = getVaultSessionGeneration();
         const assertCurrent = () => {
             if (!isSameActiveVaultSession(generation)) {
-                throw new Error("Unlock your vault again to continue setup.");
+                throw new Error(t`Unlock your vault again to continue setup.`);
             }
         };
         setBusy(true);
@@ -256,7 +259,10 @@ function useCreateAccountController() {
                           Vault.bindOnlineServices(next, registeredBinding);
                           return next;
                       })
-                    : { ok: false as const, message: "Vault session expired." };
+                    : {
+                          ok: false as const,
+                          message: t`Vault session expired.`,
+                      };
                 if (!persisted.ok) {
                     await rollbackFailedRegistrationBinding({
                         generation,
@@ -265,9 +271,10 @@ function useCreateAccountController() {
                         deleteChallenge: () => deleteChallengeMut.mutateAsync(),
                         deleteUser: (input) => deleteUserMut.mutateAsync(input),
                     });
+                    const reason = persisted.message;
                     setMessage({
                         tone: "error",
-                        text: `${persisted.message} Remote registration was rolled back when possible.`,
+                        text: t`${reason} Remote registration was rolled back when possible.`,
                     });
                     return;
                 }
@@ -279,7 +286,7 @@ function useCreateAccountController() {
                     remoteData: null,
                 });
             }
-            if (!binding) throw new Error("Account setup could not be saved.");
+            if (!binding) throw new Error(t`Account setup could not be saved.`);
             await establishOnlineServicesSession({
                 deviceId: binding.DeviceId,
                 privateKeyJWK: binding.PrivateKeyJWK,
@@ -314,7 +321,7 @@ function useCreateAccountController() {
                 text:
                     error instanceof Error
                         ? error.message
-                        : "Registration failed.",
+                        : t`Registration failed.`,
             });
         } finally {
             captchaToken = null;
@@ -327,14 +334,14 @@ function useCreateAccountController() {
         if (!cloudOn) {
             setMessage({
                 tone: "error",
-                text: "Online Services are disabled in this app.",
+                text: t`Online Services are disabled in this app.`,
             });
             return false;
         }
         if (!recoverUserId.trim() || !recoverPhrase.trim()) {
             setMessage({
                 tone: "error",
-                text: "User ID and recovery phrase are required.",
+                text: t`User ID and recovery phrase are required.`,
             });
             return false;
         }
@@ -342,9 +349,10 @@ function useCreateAccountController() {
             joinRecoveryPhrase(splitRecoveryPhraseIntoSlots(recoverPhrase)),
         );
         if (words !== RECOVERY_PHRASE_WORD_COUNT) {
+            const wordCount = RECOVERY_PHRASE_WORD_COUNT;
             setMessage({
                 tone: "error",
-                text: `Recovery phrase must be exactly ${RECOVERY_PHRASE_WORD_COUNT} words.`,
+                text: t`Recovery phrase must be exactly ${wordCount} words.`,
             });
             return false;
         }
@@ -423,7 +431,9 @@ function useCreateAccountController() {
             setMessage({
                 tone: "error",
                 text:
-                    error instanceof Error ? error.message : "Recovery failed.",
+                    error instanceof Error
+                        ? error.message
+                        : t`Recovery failed.`,
             });
             return false;
         } finally {
@@ -454,7 +464,14 @@ function useCreateAccountController() {
         } catch (error) {
             setMessage({
                 tone: "error",
-                text: error instanceof Error ? error.message : "Failed",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : t({
+                              message: "Failed",
+                              comment:
+                                  "Fallback error when creating or rotating a Recovery Kit fails",
+                          }),
             });
             return false;
         }
@@ -482,7 +499,14 @@ function useCreateAccountController() {
         } catch (error) {
             setMessage({
                 tone: "error",
-                text: error instanceof Error ? error.message : "Failed",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : t({
+                              message: "Failed",
+                              comment:
+                                  "Fallback error when creating or rotating a Recovery Kit fails",
+                          }),
             });
         }
     };
@@ -502,7 +526,7 @@ function useCreateAccountController() {
             setMessage({
                 tone: "error",
                 text:
-                    error instanceof Error ? error.message : "Refresh failed.",
+                    error instanceof Error ? error.message : t`Refresh failed.`,
             });
         } finally {
             setBusy(false);
@@ -558,7 +582,7 @@ function useCreateAccountController() {
                 text:
                     error instanceof Error
                         ? error.message
-                        : "Failed to remove local binding.",
+                        : t`Failed to remove local binding.`,
             });
         } finally {
             setRemoveLocalBindingPending(false);
@@ -570,14 +594,14 @@ function useCreateAccountController() {
         if (!remoteConfig?.root) {
             setMessage({
                 tone: "error",
-                text: "Only the root device can delete the account.",
+                text: t`Only the root device can delete the account.`,
             });
             return;
         }
         if (!Vault.isOnlineServicesBound(vault)) {
             setMessage({
                 tone: "error",
-                text: "Online Services binding required.",
+                text: t`Online Services binding required.`,
             });
             return;
         }
@@ -619,7 +643,8 @@ function useCreateAccountController() {
             });
             setMessage({
                 tone: "error",
-                text: error instanceof Error ? error.message : "Delete failed.",
+                text:
+                    error instanceof Error ? error.message : t`Delete failed.`,
             });
         } finally {
             setDeleteAccountPending(false);
@@ -677,11 +702,9 @@ function useCreateAccountController() {
                     onOpenChange={setRotateRecoveryOpen}
                 >
                     <DialogHeader>
-                        <DialogTitle>Rotate Recovery Kit?</DialogTitle>
+                        <DialogTitle>{t`Rotate Recovery Kit?`}</DialogTitle>
                         <DialogDescription>
-                            This immediately replaces the current recovery
-                            phrase. Existing Recovery Kits will stop working.
-                            The new kit is shown once.
+                            {t`This immediately replaces the current recovery phrase. Existing Recovery Kits will stop working. The new kit is shown once.`}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -690,14 +713,14 @@ function useCreateAccountController() {
                             disabled={rotateRecoveryMut.isPending}
                             onPress={() => setRotateRecoveryOpen(false)}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </Button>
                         <Button
                             variant="destructive"
                             loading={rotateRecoveryMut.isPending}
                             onPress={() => void handleRotateRecovery()}
                         >
-                            Rotate kit
+                            {t`Rotate kit`}
                         </Button>
                     </DialogFooter>
                 </Dialog>
@@ -708,12 +731,9 @@ function useCreateAccountController() {
                     onOpenChange={setRemoveLocalBindingOpen}
                 >
                     <DialogHeader>
-                        <DialogTitle>Disconnect this device?</DialogTitle>
+                        <DialogTitle>{t`Disconnect this device?`}</DialogTitle>
                         <DialogDescription>
-                            This vault will forget its saved Online Services
-                            access. Your local vault and online account will
-                            remain. To reconnect this vault, you’ll need your
-                            Recovery Kit or an invitation from a linked device.
+                            {t`This vault will forget its saved Online Services access. Your local vault and online account will remain. To reconnect this vault, you’ll need your Recovery Kit or an invitation from a linked device.`}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -722,14 +742,14 @@ function useCreateAccountController() {
                             disabled={removeLocalBindingPending}
                             onPress={() => setRemoveLocalBindingOpen(false)}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </Button>
                         <Button
                             variant="destructive"
                             loading={removeLocalBindingPending}
                             onPress={() => void handleRemoveLocalBinding()}
                         >
-                            Disconnect device
+                            {t`Disconnect device`}
                         </Button>
                     </DialogFooter>
                 </Dialog>
@@ -739,10 +759,9 @@ function useCreateAccountController() {
                     onOpenChange={setDeleteAccountOpen}
                 >
                     <DialogHeader>
-                        <DialogTitle>Delete account?</DialogTitle>
+                        <DialogTitle>{t`Delete account?`}</DialogTitle>
                         <DialogDescription>
-                            This permanently removes the server account. Root
-                            device only. This action cannot be undone.
+                            {t`This permanently removes the server account. Root device only. This action cannot be undone.`}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -751,14 +770,14 @@ function useCreateAccountController() {
                             disabled={deleteAccountPending}
                             onPress={() => setDeleteAccountOpen(false)}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </Button>
                         <Button
                             variant="destructive"
                             loading={deleteAccountPending}
                             onPress={() => void handleDeleteAccount()}
                         >
-                            Delete account
+                            {t`Delete account`}
                         </Button>
                     </DialogFooter>
                 </Dialog>

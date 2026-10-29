@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     deleteCredential,
@@ -33,6 +34,7 @@ import { isSSHKeyItem } from "@/utils/ssh-keys";
 import { colors } from "@/theme";
 
 export default function CredentialDetailScreen() {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const { id, returnTo } = useLocalSearchParams<{
         id: string;
@@ -62,11 +64,12 @@ export default function CredentialDetailScreen() {
 
     const handleDelete = () => {
         if (!credential) return;
+        const name = credential.Name;
         confirm({
-            title: "Delete credential",
-            description: `You are about to remove the “${credential.Name}” credential.`,
-            cancelLabel: "Cancel",
-            confirmLabel: "Delete",
+            title: t`Delete credential`,
+            description: t`You are about to remove the “${name}” credential.`,
+            cancelLabel: t`Cancel`,
+            confirmLabel: t`Delete`,
             onConfirm: () => {
                 void (async () => {
                     const result = await persistVaultMutation(
@@ -87,7 +90,7 @@ export default function CredentialDetailScreen() {
                     if (result.isOk()) {
                         goBack();
                     } else {
-                        Alert.alert("Error", "Failed to delete credential.");
+                        Alert.alert(t`Error`, t`Failed to delete credential.`);
                     }
                 })();
             },
@@ -114,7 +117,7 @@ export default function CredentialDetailScreen() {
             },
         );
         if (result.isErr()) {
-            Alert.alert("Error", "Failed to move item.");
+            Alert.alert(t`Error`, t`Failed to move item.`);
             return;
         }
         setMoveOpen(false);
@@ -122,12 +125,12 @@ export default function CredentialDetailScreen() {
 
     if (!credential) {
         return (
-            <UnlockedTaskScreen title="Item details" onBack={goBack}>
+            <UnlockedTaskScreen title={t`Item details`} onBack={goBack}>
                 <Text className="mb-4 text-foreground">
-                    Credential not found.
+                    {t`Credential not found.`}
                 </Text>
                 <Button className="min-h-[44px]" onPress={goBack}>
-                    Back
+                    {t`Back`}
                 </Button>
             </UnlockedTaskScreen>
         );
@@ -135,7 +138,7 @@ export default function CredentialDetailScreen() {
 
     return (
         <UnlockedTaskScreen
-            title="Item details"
+            title={t`Item details`}
             onBack={goBack}
             actions={
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -143,8 +146,8 @@ export default function CredentialDetailScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={
                             isSSHKeyItem(credential)
-                                ? "Edit details"
-                                : "Edit item"
+                                ? t`Edit details`
+                                : t`Edit item`
                         }
                         onPress={() =>
                             router.push({
@@ -168,13 +171,15 @@ export default function CredentialDetailScreen() {
                                 fontWeight: "600",
                             }}
                         >
-                            {isSSHKeyItem(credential) ? "Edit details" : "Edit"}
+                            {isSSHKeyItem(credential)
+                                ? t`Edit details`
+                                : t`Edit`}
                         </Text>
                     </Pressable>
                     {credential.Type !== ItemType.Passkey ? (
                         <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel="Share once"
+                            accessibilityLabel={t`Share once`}
                             onPress={() =>
                                 router.push({
                                     pathname: "/(app)/share",
@@ -193,7 +198,7 @@ export default function CredentialDetailScreen() {
                     ) : null}
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="More item actions"
+                        accessibilityLabel={t`More item actions`}
                         onPress={() => setMenuOpen(true)}
                         style={{
                             width: 48,
@@ -231,9 +236,9 @@ export default function CredentialDetailScreen() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>{credential.Name || "Item"}</DialogTitle>
+                    <DialogTitle>{credential.Name || t`Item`}</DialogTitle>
                     <DialogDescription>
-                        Choose an action for this item.
+                        {t`Choose an action for this item.`}
                     </DialogDescription>
                 </DialogHeader>
                 {credential.Type !== ItemType.Passkey ? (
@@ -247,7 +252,7 @@ export default function CredentialDetailScreen() {
                             });
                         }}
                     >
-                        Share once
+                        {t`Share once`}
                     </Button>
                 ) : null}
                 <Button
@@ -257,7 +262,7 @@ export default function CredentialDetailScreen() {
                         setMoveOpen(true);
                     }}
                 >
-                    Move to directory
+                    {t`Move to directory`}
                 </Button>
                 <Button
                     variant="destructive"
@@ -266,7 +271,7 @@ export default function CredentialDetailScreen() {
                         handleDelete();
                     }}
                 >
-                    Delete item
+                    {t`Delete item`}
                 </Button>
             </Dialog>
 
@@ -276,9 +281,9 @@ export default function CredentialDetailScreen() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Move to directory</DialogTitle>
+                    <DialogTitle>{t`Move to directory`}</DialogTitle>
                     <DialogDescription>
-                        Select where this item belongs.
+                        {t`Select where this item belongs.`}
                     </DialogDescription>
                 </DialogHeader>
                 <Pressable
@@ -291,7 +296,7 @@ export default function CredentialDetailScreen() {
                         borderBottomColor: colors.border,
                     }}
                 >
-                    <Text style={{ fontSize: 14 }}>No directory</Text>
+                    <Text style={{ fontSize: 14 }}>{t`No directory`}</Text>
                 </Pressable>
                 {directories.map((directory) => (
                     <Pressable

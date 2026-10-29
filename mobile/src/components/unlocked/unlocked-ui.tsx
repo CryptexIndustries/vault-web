@@ -23,6 +23,9 @@ import { router, useGlobalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { useAtomValue, useSetAtom } from "jotai";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ArrowLeft,
     Check,
@@ -353,6 +356,7 @@ export function VaultLockScreen({
 }: {
     onContinueEditing: () => void;
 }) {
+    const { t } = useLingui();
     const state = useAtomValue(vaultLockStateAtom);
     const controller = useOptionalSyncRuntime()?.controller;
     const lock = useLockVault();
@@ -363,7 +367,7 @@ export function VaultLockScreen({
         setForceLockError(null);
         const result = await lockVaultWithoutSaving(controller);
         if (result.isOk()) router.replace("/(locked)/unlock");
-        else setForceLockError("Could not end this vault session. Try again.");
+        else setForceLockError(t`Could not end this vault session. Try again.`);
     };
     return (
         <>
@@ -386,7 +390,8 @@ export function VaultLockScreen({
                     />
                 )}
                 <UnlockedText style={{ letterSpacing: 2 }}>
-                    CRYPTEX{" "}
+                    {/* i18n-ignore: brand wordmark */}
+                    CRYPTEX {/* i18n-ignore: brand wordmark */}
                     <RNText style={{ color: colors.primary }}>VAULT</RNText>
                 </UnlockedText>
                 <UnlockedText
@@ -398,8 +403,8 @@ export function VaultLockScreen({
                     }
                 >
                     {state === "locking"
-                        ? "Locking vault…"
-                        : "Saving failed. Your vault is still unlocked in memory."}
+                        ? t`Locking vault…`
+                        : t`Saving failed. Your vault is still unlocked in memory.`}
                 </UnlockedText>
                 {forceLockError ? (
                     <UnlockedText
@@ -414,12 +419,10 @@ export function VaultLockScreen({
                         <UnlockedText
                             style={{ color: colors.muted, textAlign: "center" }}
                         >
-                            You can retry the save, keep editing, or lock
-                            without saving. Unsaved changes may be lost if you
-                            lock anyway.
+                            {t`You can retry the save, keep editing, or lock without saving. Unsaved changes may be lost if you lock anyway.`}
                         </UnlockedText>
                         <UnlockedButton onPress={() => void lock()}>
-                            Retry saving and lock
+                            {t`Retry saving and lock`}
                         </UnlockedButton>
                         <UnlockedButton
                             variant="outline"
@@ -428,13 +431,13 @@ export function VaultLockScreen({
                                 vaultStore.set(vaultLockStateAtom, "idle");
                             }}
                         >
-                            Keep editing
+                            {t`Keep editing`}
                         </UnlockedButton>
                         <UnlockedButton
                             variant="destructive"
                             onPress={() => setConfirmDiscardOpen(true)}
                         >
-                            Lock anyway
+                            {t`Lock anyway`}
                         </UnlockedButton>
                     </View>
                 ) : null}
@@ -446,24 +449,23 @@ export function VaultLockScreen({
             >
                 <DialogHeader>
                     <UnlockedDialogTitle>
-                        Lock without saving?
+                        {t`Lock without saving?`}
                     </UnlockedDialogTitle>
                     <DialogDescription>
-                        Any unsaved changes will be lost. Cryptex Vault will end
-                        this session without saving again.
+                        {t`Any unsaved changes will be lost. Cryptex Vault will end this session without saving again.`}
                     </DialogDescription>
                 </DialogHeader>
                 <UnlockedButton
                     variant="secondary"
                     onPress={() => setConfirmDiscardOpen(false)}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </UnlockedButton>
                 <UnlockedButton
                     variant="destructive"
                     onPress={() => void confirmLockAnyway()}
                 >
-                    Lock anyway
+                    {t`Lock anyway`}
                 </UnlockedButton>
             </Dialog>
         </>
@@ -471,6 +473,7 @@ export function VaultLockScreen({
 }
 
 function UnlockedBrandHeader() {
+    const { t, i18n } = useLingui();
     const lock = useLockVault();
     const { width } = useWindowDimensions();
     const narrow = width <= 360;
@@ -539,10 +542,18 @@ function UnlockedBrandHeader() {
         };
     }, [accountOpen, cloudAvailable]);
     const authLabel = authenticated
-        ? "Signed in to Online Services"
+        ? t`Signed in to Online Services`
         : bound
-          ? "Online Services: sign in required"
-          : "Local vault: Online Services not signed in";
+          ? t`Online Services: sign in required`
+          : t`Local vault: Online Services not signed in`;
+    const disconnectedCount = devices.length - connectedDeviceCount;
+    const deviceCount = devices.length;
+    const syncQueueDone = syncQueue.done;
+    const syncQueueTotal = syncQueue.total;
+    const syncQueueCurrent = Math.min(syncQueue.done + 1, syncQueue.total);
+    const failedCount = failedDevices.length;
+    const connectedCount = connectedIds.length;
+    const connectedFailedCount = connectedFailedIds.length;
 
     return (
         <>
@@ -580,6 +591,7 @@ function UnlockedBrandHeader() {
                             letterSpacing: 1.7,
                         }}
                     >
+                        {/* i18n-ignore: brand wordmark */}
                         CRYPTEX
                     </UnlockedText>
                     <UnlockedText
@@ -590,6 +602,7 @@ function UnlockedBrandHeader() {
                             letterSpacing: 1.7,
                         }}
                     >
+                        {/* i18n-ignore: brand wordmark */}
                         VAULT
                     </UnlockedText>
                 </View>
@@ -632,7 +645,10 @@ function UnlockedBrandHeader() {
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${connectedDeviceCount} other devices connected`}
+                    accessibilityLabel={plural(connectedDeviceCount, {
+                        one: "# other device connected",
+                        other: "# other devices connected",
+                    })}
                     hitSlop={4}
                     onPress={() => setDevicesOpen(true)}
                     style={{
@@ -655,7 +671,7 @@ function UnlockedBrandHeader() {
                 </Pressable>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Lock vault"
+                    accessibilityLabel={t`Lock vault`}
                     hitSlop={6}
                     onPress={() => void lock()}
                     style={{
@@ -678,7 +694,7 @@ function UnlockedBrandHeader() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <UnlockedDialogTitle>Online Services</UnlockedDialogTitle>
+                    <UnlockedDialogTitle>{t`Online Services`}</UnlockedDialogTitle>
                     <UnlockedText
                         style={{
                             color: colors.muted,
@@ -686,18 +702,17 @@ function UnlockedBrandHeader() {
                             lineHeight: 19,
                         }}
                     >
-                        Your local vault remains available independently of
-                        Online Services.
+                        {t`Your local vault remains available independently of Online Services.`}
                     </UnlockedText>
                 </DialogHeader>
                 <StatusLine
-                    label="Authentication"
+                    label={t`Authentication`}
                     value={
                         authenticated
-                            ? "Signed in"
+                            ? t`Signed in`
                             : bound
-                              ? "Sign in required"
-                              : "Not signed in"
+                              ? t`Sign in required`
+                              : t`Not signed in`
                     }
                     tone={
                         authenticated
@@ -708,15 +723,24 @@ function UnlockedBrandHeader() {
                     }
                 />
                 <StatusLine
-                    label="Service availability"
+                    label={t`Service availability`}
                     value={
                         serviceAvailability === "checking"
-                            ? "Checking…"
+                            ? t`Checking…`
                             : serviceAvailability === "reachable"
-                              ? "Reachable"
+                              ? t({
+                                    message: "Reachable",
+                                    comment: "Online Services server status",
+                                })
                               : serviceAvailability === "unreachable"
-                                ? "Unavailable"
-                                : "Unknown"
+                                ? t({
+                                      message: "Unavailable",
+                                      comment: "Online Services server status",
+                                  })
+                                : t({
+                                      message: "Unknown",
+                                      comment: "Online Services server status",
+                                  })
                     }
                     tone={
                         serviceAvailability === "reachable"
@@ -733,7 +757,7 @@ function UnlockedBrandHeader() {
                         router.navigate("/(app)/(tabs)/account");
                     }}
                 >
-                    Open Account
+                    {t`Open Account`}
                 </UnlockedButton>
             </Dialog>
             <Dialog
@@ -742,7 +766,9 @@ function UnlockedBrandHeader() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <UnlockedDialogTitle>Connected devices</UnlockedDialogTitle>
+                    <UnlockedDialogTitle>
+                        {t`Connected devices`}
+                    </UnlockedDialogTitle>
                 </DialogHeader>
                 <ScrollView
                     style={{ maxHeight: 320 }}
@@ -750,13 +776,22 @@ function UnlockedBrandHeader() {
                     nestedScrollEnabled
                 >
                     <StatusLine
-                        label="Connected now"
-                        value={`${connectedDeviceCount} of ${devices.length} devices`}
+                        label={t`Connected now`}
+                        value={plural(deviceCount, {
+                            one: `${connectedDeviceCount} of # device`,
+                            other: `${connectedDeviceCount} of # devices`,
+                        })}
                         tone={connectedDeviceCount ? "positive" : "neutral"}
                     />
                     {devices.map((device) => {
                         const connected = connectedIds.includes(device.ID);
                         const result = syncQueue.results[device.ID];
+                        const deviceName = device.Name;
+                        const lastSync = device.LastSync
+                            ? new Date(device.LastSync).toLocaleString(
+                                  i18n.locale,
+                              )
+                            : null;
                         return (
                             <View
                                 key={device.ID}
@@ -793,7 +828,7 @@ function UnlockedBrandHeader() {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <UnlockedText style={{ fontSize: 14 }}>
-                                        {device.Name || "Untitled device"}
+                                        {device.Name || t`Untitled device`}
                                     </UnlockedText>
                                     <UnlockedText
                                         style={{
@@ -807,17 +842,34 @@ function UnlockedBrandHeader() {
                                             marginTop: 5,
                                         }}
                                     >
-                                        {result ??
-                                            (connected
-                                                ? device.LastSync
-                                                    ? `Connected, synced ${new Date(device.LastSync).toLocaleString()}`
-                                                    : "Connected, never synced"
-                                                : "Disconnected")}
+                                        {result
+                                            ? t(
+                                                  SYNC_QUEUE_RESULT_LABELS[
+                                                      result
+                                                  ],
+                                              )
+                                            : connected
+                                              ? lastSync
+                                                  ? t`Connected, synced ${lastSync}`
+                                                  : t`Connected, never synced`
+                                              : t({
+                                                    message: "Disconnected",
+                                                    comment:
+                                                        "Live connection status of a linked device",
+                                                })}
                                     </UnlockedText>
                                 </View>
                                 <Pressable
                                     accessibilityRole="button"
-                                    accessibilityLabel={`${connected ? "Sync" : "Connect"} ${device.Name || "device"}`}
+                                    accessibilityLabel={
+                                        connected
+                                            ? deviceName
+                                                ? t`Sync ${deviceName}`
+                                                : t`Sync device`
+                                            : deviceName
+                                              ? t`Connect ${deviceName}`
+                                              : t`Connect device`
+                                    }
                                     disabled={syncQueue.active}
                                     onPress={() =>
                                         connected
@@ -858,7 +910,7 @@ function UnlockedBrandHeader() {
                         router.navigate("/(app)/(tabs)/devices");
                     }}
                 >
-                    Open Devices
+                    {t`Open Devices`}
                 </UnlockedButton>
                 <UnlockedText
                     accessibilityRole="alert"
@@ -869,10 +921,12 @@ function UnlockedBrandHeader() {
                     }}
                 >
                     {syncQueue.active
-                        ? `Syncing ${Math.min(syncQueue.done + 1, syncQueue.total)} of ${syncQueue.total}`
+                        ? t`Syncing ${syncQueueCurrent} of ${syncQueueTotal}`
                         : syncQueue.total
-                          ? `Finished: ${syncQueue.done} processed${failedDevices.length ? `, ${failedDevices.length} failed` : ""}`
-                          : "Sync devices one at a time"}
+                          ? failedCount
+                              ? t`Finished: ${syncQueueDone} processed, ${failedCount} failed`
+                              : t`Finished: ${syncQueueDone} processed`
+                          : t`Sync devices one at a time`}
                 </UnlockedText>
                 <UnlockedText
                     style={{
@@ -881,8 +935,10 @@ function UnlockedBrandHeader() {
                         lineHeight: 18,
                     }}
                 >
-                    {devices.length - connectedDeviceCount} disconnected devices
-                    excluded from Sync all.
+                    {plural(disconnectedCount, {
+                        one: "# disconnected device excluded from Sync all.",
+                        other: "# disconnected devices excluded from Sync all.",
+                    })}
                 </UnlockedText>
                 {syncQueue.active ? (
                     <UnlockedButton
@@ -891,15 +947,15 @@ function UnlockedBrandHeader() {
                         onPress={stopSyncQueue}
                     >
                         {syncQueue.stopRequested
-                            ? "Stopping after current device…"
-                            : "Stop queue"}
+                            ? t`Stopping after current device…`
+                            : t`Stop queue`}
                     </UnlockedButton>
                 ) : (
                     <UnlockedButton
                         disabled={connectedIds.length === 0}
                         onPress={() => void runSyncQueue(connectedIds)}
                     >
-                        {`Sync all (${connectedIds.length})`}
+                        {t`Sync all (${connectedCount})`}
                     </UnlockedButton>
                 )}
                 {!syncQueue.active && failedDevices.length ? (
@@ -912,7 +968,7 @@ function UnlockedBrandHeader() {
                                     lineHeight: 18,
                                 }}
                             >
-                                Reconnect failed devices to retry.
+                                {t`Reconnect failed devices to retry.`}
                             </UnlockedText>
                         ) : null}
                         <UnlockedButton
@@ -922,7 +978,7 @@ function UnlockedBrandHeader() {
                                 void runSyncQueue(connectedFailedIds)
                             }
                         >
-                            {`Retry failed (${connectedFailedIds.length})`}
+                            {t`Retry failed (${connectedFailedCount})`}
                         </UnlockedButton>
                     </>
                 ) : null}
@@ -1089,9 +1145,10 @@ type TaskHeaderProps = {
 export function UnlockedTaskHeader({
     title,
     onBack,
-    backLabel = "Back",
+    backLabel,
     actions,
 }: TaskHeaderProps) {
+    const { t } = useLingui();
     useFocusEffect(
         useCallback(() => {
             if (!onBack) return;
@@ -1118,7 +1175,7 @@ export function UnlockedTaskHeader({
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={backLabel}
+                accessibilityLabel={backLabel ?? t`Back`}
                 onPress={onBack ?? (() => router.back())}
                 style={{
                     width: 48,
@@ -1213,15 +1270,32 @@ export function UnlockedTaskScreen({
     );
 }
 
+const SYNC_QUEUE_RESULT_LABELS: Record<
+    "Queued" | "Syncing" | "Synced" | "Failed",
+    MessageDescriptor
+> = {
+    Queued: msg({ message: "Queued", comment: "Sync status of a device" }),
+    Syncing: msg({ message: "Syncing", comment: "Sync status of a device" }),
+    Synced: msg({ message: "Synced", comment: "Sync status of a device" }),
+    Failed: msg({ message: "Failed", comment: "Sync status of a device" }),
+};
+
 const DESTINATIONS: Array<{
     route: "vault" | "account" | "devices" | "settings";
-    label: string;
+    label: MessageDescriptor;
     icon: LucideIcon;
 }> = [
-    { route: "vault", label: "Vault", icon: VaultIcon },
-    { route: "account", label: "Account", icon: User },
-    { route: "devices", label: "Devices", icon: Smartphone },
-    { route: "settings", label: "More", icon: MoreHorizontal },
+    { route: "vault", label: msg`Vault`, icon: VaultIcon },
+    { route: "account", label: msg`Account`, icon: User },
+    { route: "devices", label: msg`Devices`, icon: Smartphone },
+    {
+        route: "settings",
+        label: msg({
+            message: "More",
+            comment: "Tab name for settings and other options",
+        }),
+        icon: MoreHorizontal,
+    },
 ];
 
 type UnlockedTabBarProps = {
@@ -1239,6 +1313,7 @@ export function UnlockedTabBar({
     navigation,
     onAdd,
 }: UnlockedTabBarProps) {
+    const { t } = useLingui();
     const insets = useSafeAreaInsets();
     const { width } = useWindowDimensions();
     const slotWidth = Math.min(
@@ -1262,7 +1337,7 @@ export function UnlockedTabBar({
             <Pressable
                 key={item.route}
                 accessibilityRole="tab"
-                accessibilityLabel={item.label}
+                accessibilityLabel={t(item.label)}
                 accessibilityState={{ selected }}
                 onPress={() => navigation.navigate(item.route)}
                 style={{
@@ -1284,7 +1359,7 @@ export function UnlockedTabBar({
                         fontSize: 11,
                     }}
                 >
-                    {item.label}
+                    {t(item.label)}
                 </UnlockedText>
             </Pressable>
         );
@@ -1313,7 +1388,7 @@ export function UnlockedTabBar({
             <View style={{ width: slotWidth, alignItems: "center" }}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Add item"
+                    accessibilityLabel={t`Add item`}
                     onPress={() =>
                         onAdd(
                             activeRoute === "vault" &&
@@ -1345,7 +1420,10 @@ export function UnlockedTabBar({
                     <UnlockedText
                         style={{ color: colors.navigation, fontSize: 11 }}
                     >
-                        Add
+                        {t({
+                            message: "Add",
+                            comment: "Tab bar button that adds a vault item",
+                        })}
                     </UnlockedText>
                 </Pressable>
             </View>

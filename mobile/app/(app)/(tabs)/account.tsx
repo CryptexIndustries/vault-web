@@ -4,6 +4,8 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
 import { ArrowLeft, Shield, Smartphone, User } from "lucide-react-native";
 import { useAtomValue } from "jotai";
+import { t as translate } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -35,6 +37,7 @@ import {
 } from "@/utils/vault-session";
 import {
     onlineServicesAuthConnectionStatusAtom,
+    onlineServicesAuthStatusLabel,
     onlineServicesDataAtom,
     onlineServicesStore,
     unlockedVaultAtom,
@@ -45,6 +48,7 @@ import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { colors } from "@/theme";
 
 export default function AccountScreen() {
+    const { t } = useLingui();
     const focused = useIsFocused();
     const [appState, setAppState] = useState(AppState.currentState);
     const vault = useAtomValue(unlockedVaultAtom);
@@ -280,9 +284,9 @@ export default function AccountScreen() {
                     if (outcome === "success") setBillingPending(true);
                     else if (outcome !== "cancel")
                         showFeedback(
-                            "Could not refresh membership. Please try again.",
+                            translate`Could not refresh membership. Please try again.`,
                             {
-                                label: "Check status",
+                                label: translate`Check status`,
                                 onPress: () =>
                                     router.setParams({
                                         billingOutcome: "resume",
@@ -309,9 +313,9 @@ export default function AccountScreen() {
             } catch {
                 if (isCurrent() && outcome !== "cancel")
                     showFeedback(
-                        "Could not refresh membership. Please try again.",
+                        translate`Could not refresh membership. Please try again.`,
                         {
-                            label: "Check status",
+                            label: translate`Check status`,
                             onPress: () =>
                                 router.setParams({
                                     billingOutcome: outcome,
@@ -406,9 +410,9 @@ export default function AccountScreen() {
             } catch {
                 if (!isCurrent()) return;
                 showFeedback(
-                    "Could not update your membership. Please try again.",
+                    translate`Could not update your membership. Please try again.`,
                     {
-                        label: "Retry",
+                        label: translate`Retry`,
                         onPress: () => {
                             void handleRefresh();
                         },
@@ -531,7 +535,7 @@ export default function AccountScreen() {
                 if (!result.ok) {
                     if (!result.pending)
                         report(result.message, {
-                            label: "Check status",
+                            label: t`Check status`,
                             onPress: checkPendingBilling,
                         });
                     return;
@@ -543,10 +547,13 @@ export default function AccountScreen() {
             });
         } catch {
             if (isCurrent())
-                report("Could not check your subscription. Please try again.", {
-                    label: "Check status",
-                    onPress: checkPendingBilling,
-                });
+                report(
+                    t`Could not check your subscription. Please try again.`,
+                    {
+                        label: t`Check status`,
+                        onPress: checkPendingBilling,
+                    },
+                );
         } finally {
             if (statusCheckInFlight.current === request)
                 statusCheckInFlight.current = null;
@@ -555,7 +562,7 @@ export default function AccountScreen() {
     };
 
     const accountSummaryProps = {
-        tierName: subscription?.productName ?? "Membership unavailable",
+        tierName: subscription?.productName ?? t`Membership unavailable`,
         subscriptionStatus: subscription?.status ?? "Status unavailable",
         subscription,
         remoteConfig,
@@ -565,7 +572,11 @@ export default function AccountScreen() {
         userId: vault.OnlineServices?.UserID ?? null,
         onlineServicesBound: bound,
         isConnected: hasSession,
-        authStatusDescription: authStatus.statusDescription,
+        // Failures carry their own message; other labels follow the current language.
+        authStatusDescription:
+            authStatus.status === "FAILED"
+                ? authStatus.statusDescription
+                : onlineServicesAuthStatusLabel(authStatus.status),
         refreshing: busy || configFetching || subscriptionFetching,
         onRefresh: () => void handleRefresh(),
         onBillingBusyChange: (value: boolean) => {
@@ -664,8 +675,8 @@ export default function AccountScreen() {
                     }
                     loadingLabel={
                         billingPending
-                            ? "Confirming your subscription…"
-                            : "Updating membership…"
+                            ? t`Confirming your subscription…`
+                            : t`Updating membership…`
                     }
                 >
                     <DialogHeader
@@ -680,7 +691,7 @@ export default function AccountScreen() {
                                 variant="ghost"
                                 size="icon"
                                 disabled={playBillingBusy}
-                                accessibilityLabel="Back to membership"
+                                accessibilityLabel={t`Back to membership`}
                                 onPress={openMembership}
                             >
                                 <ArrowLeft
@@ -691,10 +702,10 @@ export default function AccountScreen() {
                         ) : null}
                         <DialogTitle>
                             {accountSummaryMode === "membership"
-                                ? "Membership"
+                                ? t`Membership`
                                 : accountSummaryMode === "upgrade"
                                   ? "Online Services"
-                                  : "Account details"}
+                                  : t`Account details`}
                         </DialogTitle>
                     </DialogHeader>
                     {accountDetailsOpen &&
@@ -749,8 +760,8 @@ export default function AccountScreen() {
                             tone={busy ? "loading" : "warning"}
                             message={
                                 busy
-                                    ? "Reconnecting to Online Services…"
-                                    : "Online Services needs reconnection."
+                                    ? t`Reconnecting to Online Services…`
+                                    : t`Online Services needs reconnection.`
                             }
                         />
                         <Button
@@ -758,15 +769,17 @@ export default function AccountScreen() {
                             loading={busy}
                             onPress={() => void handleRefresh()}
                         >
-                            Reconnect
+                            {t({
+                                message: "Reconnect",
+                                comment: "Button: reconnect to Online Services",
+                            })}
                         </Button>
                     </View>
                 ) : null}
 
                 {!cloudOn ? (
                     <Text className="text-sm leading-5 text-muted-foreground">
-                        Online Services are unavailable in this app
-                        configuration. Your local vault remains available.
+                        {t`Online Services are unavailable in this app configuration. Your local vault remains available.`}
                     </Text>
                 ) : !bound ? (
                     <View className="gap-3">
@@ -786,6 +799,7 @@ export default function AccountScreen() {
                                     letterSpacing: -0.5,
                                 }}
                             >
+                                {/* i18n-ignore: product name */}
                                 Online Services
                             </Text>
                             <Text
@@ -796,12 +810,11 @@ export default function AccountScreen() {
                                     marginTop: 6,
                                 }}
                             >
-                                Add online services when you need them. Your
-                                local vault works independently.
+                                {t`Add online services when you need them. Your local vault works independently.`}
                             </Text>
                         </View>
                         <Button onPress={startSubscriptionSignup}>
-                            Get Online Services
+                            {t`Get Online Services`}
                         </Button>
                         <Button
                             variant="secondary"
@@ -809,7 +822,7 @@ export default function AccountScreen() {
                                 router.push("/(app)/account/auth/recover")
                             }
                         >
-                            Recover account
+                            {t`Recover account`}
                         </Button>
                         <View
                             className="gap-3"
@@ -828,7 +841,7 @@ export default function AccountScreen() {
                                     textTransform: "uppercase",
                                 }}
                             >
-                                Already set up on another device?
+                                {t`Already set up on another device?`}
                             </Text>
                             <Text
                                 style={{
@@ -837,14 +850,13 @@ export default function AccountScreen() {
                                     lineHeight: 20,
                                 }}
                             >
-                                You don't need a second account. Link this vault
-                                to that device instead.
+                                {t`You don't need a second account. Link this vault to that device instead.`}
                             </Text>
                             <Button
                                 variant="secondary"
                                 onPress={() => router.push("/link-receive")}
                             >
-                                Use invitation
+                                {t`Use invitation`}
                             </Button>
                         </View>
                     </View>
@@ -860,20 +872,20 @@ export default function AccountScreen() {
                                 textTransform: "uppercase",
                             }}
                         >
-                            Your account
+                            {t`Your account`}
                         </Text>
                         <UnlockedMenuRow
                             icon={Shield}
-                            title="Recovery & access"
-                            subtitle="Recovery Kit and account security"
+                            title={t`Recovery & access`}
+                            subtitle={t`Recovery Kit and account security`}
                             onPress={() =>
                                 router.push("/(app)/account/security")
                             }
                         />
                         <UnlockedMenuRow
                             icon={Smartphone}
-                            title="Online Services devices"
-                            subtitle="Account access and vault sync links"
+                            title={t`Online Services devices`}
+                            subtitle={t`Account access and vault sync links`}
                             onPress={() => router.push("/(app)/(tabs)/devices")}
                         />
                         <Text
@@ -886,12 +898,12 @@ export default function AccountScreen() {
                                 textTransform: "uppercase",
                             }}
                         >
-                            Account details
+                            {t`Account details`}
                         </Text>
                         <UnlockedMenuRow
                             icon={User}
-                            title="Account identifiers"
-                            subtitle="User ID and this device"
+                            title={t`Account identifiers`}
+                            subtitle={t`User ID and this device`}
                             onPress={() => {
                                 setAccountSummaryMode("details");
                                 setAccountDetailsOpen(true);

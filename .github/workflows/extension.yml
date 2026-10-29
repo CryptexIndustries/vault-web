@@ -2,10 +2,37 @@ name: Browser extension
 
 # extension-* tags build production. Run it by hand to build any branch with
 # either profile. Values come from extension/release-config.json and
-# extension/prerelease-config.json.
+# extension/prerelease-config.json. Other pushes and pull requests that change
+# something the extension uses only run the tests; tag pushes ignore the paths.
 on:
     push:
+        branches: [development, master]
         tags: ["extension-*"]
+        paths:
+            - "extension/**"
+            - "web/src/**"
+            - "packages/**"
+            - "e2e/**"
+            - "compose.e2e.yaml"
+            - "patches/**"
+            - "pnpm-workspace.yaml"
+            - "pnpm-lock.yaml"
+            - "package.json"
+            - ".github/workflows/extension.yml"
+            - "!**/*.md"
+    pull_request:
+        paths:
+            - "extension/**"
+            - "web/src/**"
+            - "packages/**"
+            - "e2e/**"
+            - "compose.e2e.yaml"
+            - "patches/**"
+            - "pnpm-workspace.yaml"
+            - "pnpm-lock.yaml"
+            - "package.json"
+            - ".github/workflows/extension.yml"
+            - "!**/*.md"
     workflow_dispatch:
         inputs:
             profile:
@@ -50,6 +77,7 @@ jobs:
     package:
         name: Chromium extension package
         needs: e2e
+        if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         env:

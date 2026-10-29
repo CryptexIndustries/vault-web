@@ -815,6 +815,7 @@ describe("legacy V2 backup restore", () => {
         } as never;
     });
 
+    // Migration derives two keys with the production Argon2 settings.
     it("unlocks after restore when backup blob is pre-envelope Version 2", async () => {
         const vaultBytes = VaultUtilTypes.Vault.encode(new Vault()).finish();
         const legacyEncrypted = await EncryptDataBlob(
@@ -850,5 +851,5 @@ describe("legacy V2 backup restore", () => {
         if (result.isOk()) {
             expect(result.value.revealSecrets?.recoveryCode).toBeDefined();
         }
-    });
+    }, 30_000);
 });

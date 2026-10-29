@@ -1,0 +1,20 @@
+appId: ${CRYPTEX_APP_ID}
+# Any vault change schedules an upload to each destination.
+---
+- tapOn: Add item
+- tapOn:
+      id: add-item-login
+- tapOn: Credential name
+- inputText: ${LOGIN_NAME}
+- tapOn: Credential username
+- inputText: garage@example.test
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: credential-submit
+      direction: DOWN
+- tapOn:
+      id: credential-submit
+- assertVisible: ${LOGIN_NAME}.*
+- tapOn: Back
+- assertVisible: Search your vault

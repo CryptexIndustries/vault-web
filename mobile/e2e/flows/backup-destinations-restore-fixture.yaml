@@ -1,0 +1,37 @@
+appId: ${CRYPTEX_APP_ID}
+# Restores the backup labelled BACKUP and opens it with the fixture password.
+---
+- extendedWaitUntil:
+      visible: ${BACKUP}
+      timeout: 30000
+- tapOn: ${BACKUP}
+- scrollUntilVisible:
+      element:
+          text: After restore, unlock with the existing master password.*
+      direction: DOWN
+- scrollUntilVisible:
+      element:
+          text: Restored vault name
+      direction: DOWN
+- tapOn: Restored vault name
+- eraseText: 100
+- inputText: Fixture Restored Vault
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-vault
+      direction: DOWN
+- tapOn:
+      id: restore-vault
+- assertVisible: Backup restored. Unlock it to continue.
+- extendedWaitUntil:
+      visible: Master password
+      timeout: 10000
+- tapOn: Master password
+- inputText: CrossPlatformFixture42
+- hideKeyboard
+- tapOn:
+      id: unlock-vault
+- extendedWaitUntil:
+      visible: ${LOGIN_NAME}.*
+      timeout: 30000

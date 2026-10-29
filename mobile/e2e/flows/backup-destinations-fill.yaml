@@ -1,0 +1,55 @@
+appId: ${CRYPTEX_APP_ID}
+# Fills an empty destination form. Close the keyboard before tapping anything
+# low on the sheet: its suggestion strip covers it and would take the tap.
+---
+- tapOn:
+      id: backup-destination-Name
+- inputText: E2E Garage
+- tapOn:
+      id: backup-destination-Endpoint
+- inputText: ${ENDPOINT}
+- tapOn:
+      id: backup-destination-Bucket
+- inputText: ${S3_BUCKET}
+- tapOn:
+      id: backup-destination-Region
+- inputText: garage
+- tapOn:
+      id: backup-destination-Prefix
+- inputText: ${S3_PREFIX}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: backup-destination-PathStyle
+      direction: DOWN
+# The first tap can land while the keyboard closes; tap until it's on.
+- retry:
+      maxRetries: 2
+      commands:
+          - tapOn:
+                id: backup-destination-PathStyle
+          - assertVisible:
+                id: backup-destination-PathStyle
+                checked: true
+- scrollUntilVisible:
+      element:
+          id: backup-destination-AccessKeyID
+      direction: DOWN
+- tapOn:
+      id: backup-destination-AccessKeyID
+- inputText: ${KEY_ID}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: backup-destination-SecretAccessKey
+      direction: DOWN
+- tapOn:
+      id: backup-destination-SecretAccessKey
+- inputText: ${SECRET}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: backup-destination-save
+      direction: DOWN
+- tapOn:
+      id: backup-destination-save

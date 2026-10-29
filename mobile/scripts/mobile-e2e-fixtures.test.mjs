@@ -91,6 +91,18 @@ test("all fixture master-password fields use the shared vault-creation password"
                             "E2E Transfer Login.*",
                     ),
                 );
+            } else if (
+                // A backup made after the password change, and the backups
+                // the web app and the extension made with their own password.
+                nextInput?.inputText ===
+                {
+                    "backup-destinations-11-restore.yaml":
+                        "GarageRotatedPassword77",
+                    "backup-destinations-restore-fixture.yaml":
+                        "CrossPlatformFixture42",
+                }[name]
+            ) {
+                continue;
             } else {
                 const fixturePassword = [
                     "sync-link-receiver.yaml",

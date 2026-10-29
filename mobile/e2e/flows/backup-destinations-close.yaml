@@ -1,0 +1,7 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- tapOn: Back
+- tapOn:
+      text: Vault
+      below: Security,.*
+- assertVisible: Search your vault

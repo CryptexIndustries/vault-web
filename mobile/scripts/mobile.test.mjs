@@ -434,6 +434,7 @@ test("every device suite requires explicit selection before running anything", (
         "provider-auto-lock",
         "ssh-keys",
         "ssh-agent",
+        "backup-destinations",
     ]) {
         assert.throws(() => capture(["e2e", suite]), /Select a device/);
     }
@@ -499,6 +500,7 @@ test("protected devices fail before any device command, including either sync ro
         "provider-auto-lock",
         "ssh-keys",
         "ssh-agent",
+        "backup-destinations",
     ]) {
         assert.throws(() => capture(["e2e", suite], env), /protected device/);
     }

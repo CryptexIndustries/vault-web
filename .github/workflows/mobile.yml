@@ -9,6 +9,8 @@ on:
       - "packages/vault-core/**"
       - "packages/api-contract/**"
       - "packages/shared-ui/**"
+      - "e2e/**"
+      - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
@@ -24,6 +26,8 @@ on:
       - "packages/vault-core/**"
       - "packages/api-contract/**"
       - "packages/shared-ui/**"
+      - "e2e/**"
+      - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
@@ -209,6 +213,8 @@ jobs:
             pnpm mobile:e2e -- smoke
             pnpm mobile:e2e -- crypto
             pnpm mobile:e2e -- native
+            # Starts its own Garage in Docker.
+            pnpm mobile:e2e -- backup-destinations
 
       - name: Upload E2E artifacts
         if: always()

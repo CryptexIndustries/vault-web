@@ -1,0 +1,10 @@
+# Publishes the e2e Garage on loopback for runs on the host. The ports differ
+# from the development Garage's 3900 and 3903.
+services:
+    garage:
+        ports:
+            - "127.0.0.1:${E2E_GARAGE_PORT:-3910}:3900"
+            - "127.0.0.1:${E2E_GARAGE_ADMIN_PORT:-3913}:3903"
+    garage-tls:
+        ports:
+            - "127.0.0.1:${E2E_GARAGE_TLS_PORT:-3943}:8443"

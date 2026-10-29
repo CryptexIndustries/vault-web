@@ -17,6 +17,15 @@ Use `pnpm test:e2e:extension:headed` to watch the flow. Failure traces,
 screenshots, and videos are written below `test-results/e2e`. The aggregate
 `pnpm test:e2e` command runs both the extension and web projects.
 
+The backup destination tests upload to a real Garage. Global setup starts it
+from `compose.e2e.yaml` on loopback and stops it when Playwright exits, so the
+run needs Docker. It listens on `E2E_GARAGE_PORT` (default 3910),
+`E2E_GARAGE_ADMIN_PORT` (3913) and `E2E_GARAGE_TLS_PORT` (3943). Each test
+makes its own bucket and keys. Chromium resolves `garage.e2e` and its bucket
+subdomains to Garage for the virtual-hosted test, which uses the https port
+because the extension allows plain http only on loopback. Several tests wait
+out the 30-second upload delay, so the file takes about five minutes.
+
 The E2E build uses `CRYPTEX_E2E=1` and development mode to add the private
 `e2e-bootstrap.html` seed page; it is absent from production builds. The relying
 party uses a real `navigator.credentials.create({ publicKey })` request. The

@@ -1,6 +1,6 @@
 /**
- * Starts the signaling and TURN servers from compose.e2e.yaml for runs on the
- * host, and stops them afterwards. The Compose run starts them itself.
+ * Starts the signaling, TURN and Garage servers from compose.e2e.yaml for runs
+ * on the host, and stops them afterwards. The Compose run starts them itself.
  */
 import { spawnSync } from "node:child_process";
 
@@ -13,6 +13,8 @@ const compose = [
     "compose.e2e.yaml",
     "--file",
     "web/e2e/compose.host-servers.yaml",
+    "--file",
+    "e2e/garage/compose.host.yaml",
 ];
 
 function docker(...args: string[]) {
@@ -26,7 +28,15 @@ function docker(...args: string[]) {
 export default function globalSetup() {
     if (process.env.E2E_UPSTREAM_URL) return;
 
-    docker("up", "--detach", "--wait", "signaling", "turn");
+    docker(
+        "up",
+        "--detach",
+        "--wait",
+        "signaling",
+        "turn",
+        "garage",
+        "garage-tls",
+    );
     // The tests read these; the ports come from compose.host-servers.yaml.
     process.env.E2E_SIGNALING_HOST = "127.0.0.1";
     process.env.E2E_TURN_HOST = "127.0.0.1";

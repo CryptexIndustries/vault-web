@@ -12,7 +12,24 @@ while the proxy reaches the app through Compose service DNS.
 
 The specs in `tests/` cover the main vault journey (create, edit, search,
 lock and unlock), importing, SSH keys and the SSH agent, the purchase journey,
-device linking between two browsers, and the vault's server settings.
+device linking between two browsers, the vault's server settings, and backup
+destinations.
+
+The backup destination specs run against a real Garage. Each test makes its
+own bucket and keys, then checks the bucket directly. They cover a refused key,
+uploads after changes, pausing and removing, retention and "Keep every backup",
+a password change that deletes older backups, restoring from the bucket, and a
+linked browser that backs up to its own folder. Further tests cover
+virtual-hosted addresses (`<bucket>.garage.e2e`), a key that loses its
+permissions next to a destination that keeps working, a network outage, a
+restore list of more than 1,000 backups, and restoring the backups the Android
+app and the extension made (`e2e/fixtures/backups/`).
+
+The web app only connects to `https:` addresses, so the browser reaches Garage
+through a Caddy proxy. Its certificate comes from the fixed test CA in
+`e2e/garage/tls/`, and the tests ignore certificate errors. Chromium starts
+with `--host-resolver-rules` so that `garage.e2e` and its bucket subdomains
+reach the proxy.
 
 ## Run
 
@@ -22,10 +39,12 @@ pnpm test:e2e:web
 ```
 
 Every run gets the self-hosted signaling (soketi) and TURN (coturn) servers
-from `compose.e2e.yaml`. The Docker command starts them in its stack. Runs on
-the host start the same two containers from `global-setup.ts`, publish them on
-loopback (`E2E_SIGNALING_PORT`, default 6001, and `E2E_TURN_PORT`, default
-3478), and stop them when Playwright exits. Host runs need Docker for this.
+and Garage with its TLS proxy from `compose.e2e.yaml`. The Docker command
+starts them in its stack. Runs on the host start the same containers from
+`global-setup.ts`, publish them on loopback (`E2E_SIGNALING_PORT`, default
+6001, `E2E_TURN_PORT`, default 3478, and `E2E_GARAGE_PORT`,
+`E2E_GARAGE_ADMIN_PORT` and `E2E_GARAGE_TLS_PORT`, default 3910, 3913 and
+3943), and stop them when Playwright exits. Host runs need Docker for this.
 
 The Docker command downloads its own browser, so `test:e2e:install` is only
 needed for local debugging. Use `pnpm test:e2e:web:local` for a fast host run or

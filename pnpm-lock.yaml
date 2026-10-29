@@ -68,6 +68,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260404.1
         version: 7.0.0-dev.20260404.1
+      aws4fetch:
+        specifier: 1.0.20
+        version: 1.0.20
       jest:
         specifier: 29.7.0
         version: 29.7.0(@types/node@20.19.9)(supports-color@8.1.1)(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))

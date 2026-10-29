@@ -7,6 +7,7 @@ const repositoryRoot = path.resolve(currentDirectory, "../..");
 
 export default defineConfig({
     testDir: path.resolve(currentDirectory, "tests"),
+    globalSetup: path.resolve(currentDirectory, "global-setup.ts"),
     testIgnore:
         process.env.CRYPTEX_LIVE_E2E === "1"
             ? []

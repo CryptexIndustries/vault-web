@@ -1,0 +1,11 @@
+appId: ${CRYPTEX_APP_ID}
+name: Stop the app while a change waits to upload
+---
+- launchApp:
+      stopApp: false
+- assertVisible: Search your vault
+- runFlow:
+      file: backup-destinations-add-login.yaml
+      env:
+          LOGIN_NAME: Stopped Login
+- stopApp

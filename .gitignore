@@ -29,6 +29,8 @@ web/out/
 *.pem
 !mobile/config/ota-certificates/production.pem
 !mobile/config/ota-certificates/preprod.pem
+# The e2e Garage proxy's test CA and certificate.
+!e2e/garage/tls/*.pem
 *.jks
 *.keystore
 *.p12

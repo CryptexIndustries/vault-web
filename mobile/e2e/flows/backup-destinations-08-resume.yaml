@@ -1,0 +1,11 @@
+appId: ${CRYPTEX_APP_ID}
+name: Resuming uploads the changes made while paused
+---
+- launchApp:
+      stopApp: false
+- runFlow: backup-destinations-open.yaml
+- tapOn: Automatic backups to E2E Garage
+- extendedWaitUntil:
+      visible: E2E Garage, Last backup.*
+      timeout: 90000
+- runFlow: backup-destinations-close.yaml

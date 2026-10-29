@@ -1,0 +1,51 @@
+appId: ${CRYPTEX_APP_ID}
+name: Add a backup destination, first with details that can't work
+---
+- runFlow: setup-vault.yaml
+- runFlow: sync-disable-auto-lock.yaml
+- runFlow: backup-destinations-open.yaml
+# Plain http is only allowed on this device's loopback. The fields are filled
+# afresh each time: tapping a long value puts the cursor mid-text, so
+# eraseText can't clear it.
+- tapOn:
+      id: backup-destination-add
+- runFlow:
+      file: backup-destinations-fill.yaml
+      env:
+          ENDPOINT: http://storage.example.test
+          KEY_ID: ${S3_RO_KEY_ID}
+          SECRET: ${S3_RO_SECRET}
+- scrollUntilVisible:
+      element:
+          text: Enter the endpoint as an https:// address with no path.
+      direction: UP
+- pressKey: Back
+- tapOn:
+      id: backup-destination-add
+# A key that can read but not write fails the connection test.
+- runFlow:
+      file: backup-destinations-fill.yaml
+      env:
+          ENDPOINT: ${S3_ENDPOINT}
+          KEY_ID: ${S3_RO_KEY_ID}
+          SECRET: ${S3_RO_SECRET}
+- extendedWaitUntil:
+      visible: The bucket refused the access key.*
+      timeout: 30000
+- scrollUntilVisible:
+      element:
+          text: Save anyway
+      direction: DOWN
+- pressKey: Back
+- tapOn:
+      id: backup-destination-add
+- runFlow:
+      file: backup-destinations-fill.yaml
+      env:
+          ENDPOINT: ${S3_ENDPOINT}
+          KEY_ID: ${S3_KEY_ID}
+          SECRET: ${S3_SECRET}
+- extendedWaitUntil:
+      visible: E2E Garage, Last backup.*
+      timeout: 60000
+- runFlow: backup-destinations-close.yaml

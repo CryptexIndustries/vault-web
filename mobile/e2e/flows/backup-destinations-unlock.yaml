@@ -1,0 +1,11 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- launchApp:
+      stopApp: false
+- assertVisible: Unlock vault
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+      id: unlock-vault
+- assertVisible: Search your vault

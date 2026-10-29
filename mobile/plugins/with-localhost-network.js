@@ -16,20 +16,34 @@ module.exports = (config) => {
     return withDangerousMod(config, [
         "android",
         async (mod) => {
-            const directory = path.join(
+            const resources = path.join(
                 mod.modRequest.platformProjectRoot,
-                "app/src/main/res/xml",
+                "app/src/main/res",
             );
-            await fs.mkdir(directory, { recursive: true });
+            const profile = process.env.CRYPTEX_BUILD_PROFILE;
+            await fs.mkdir(path.join(resources, "xml"), { recursive: true });
             await fs.copyFile(
                 path.join(
                     __dirname,
-                    process.env.CRYPTEX_BUILD_PROFILE === "production"
+                    profile === "production"
                         ? "network_security_config_release.xml"
-                        : "network_security_config.xml",
+                        : profile === "e2e"
+                          ? "network_security_config_e2e.xml"
+                          : "network_security_config.xml",
                 ),
-                path.join(directory, "network_security_config.xml"),
+                path.join(resources, "xml/network_security_config.xml"),
             );
+            // Only E2E builds trust the test CA of the e2e Garage.
+            const testCA = path.join(resources, "raw/cryptex_e2e_ca.pem");
+            if (profile === "e2e") {
+                await fs.mkdir(path.dirname(testCA), { recursive: true });
+                await fs.copyFile(
+                    path.join(__dirname, "../../e2e/garage/tls/ca.pem"),
+                    testCA,
+                );
+            } else {
+                await fs.rm(testCA, { force: true });
+            }
             return mod;
         },
     ]);

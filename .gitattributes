@@ -1,0 +1,2 @@
+# Encrypted vault backups, such as the e2e fixtures.
+*.cryx binary

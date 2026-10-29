@@ -1,0 +1,14 @@
+# HTTPS in front of Garage, because the web app's CSP only allows https:
+# connections. The certificate comes from the test CA in tls/, which Android
+# E2E builds trust; browsers ignore certificate errors instead.
+{
+	admin off
+	auto_https disable_redirects
+	# Clients that connect by IP address send no server name.
+	default_sni garage-tls
+}
+
+https://garage-tls:8443, https://127.0.0.1:8443, https://localhost:8443, https://garage.e2e:8443, https://*.garage.e2e:8443 {
+	tls /etc/caddy/tls/garage.pem /etc/caddy/tls/garage-key.pem
+	reverse_proxy garage:3900
+}

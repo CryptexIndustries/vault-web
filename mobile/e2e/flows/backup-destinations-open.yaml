@@ -1,0 +1,8 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- tapOn: More
+- tapOn: Backup Center,.*
+- scrollUntilVisible:
+      element:
+          id: backup-destination-add
+      direction: DOWN

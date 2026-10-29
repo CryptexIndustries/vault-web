@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { garageHostResolverRules, garageS3Url } from "../../e2e/garage/garage";
+
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type ExtensionFixtures = {
@@ -28,6 +30,9 @@ export const test = base.extend<ExtensionFixtures>({
                 args: [
                     `--disable-extensions-except=${extensionPath}`,
                     `--load-extension=${extensionPath}`,
+                    `--host-resolver-rules=${garageHostResolverRules(garageS3Url)}`,
+                    // The e2e Garage's https certificate comes from a test CA.
+                    "--ignore-certificate-errors",
                 ],
             });
             await use(context);

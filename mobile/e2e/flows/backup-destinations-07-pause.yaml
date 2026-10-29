@@ -1,0 +1,26 @@
+appId: ${CRYPTEX_APP_ID}
+name: Back up on demand, then pause
+---
+- runFlow: backup-destinations-unlock.yaml
+- runFlow: backup-destinations-open.yaml
+- tapOn: E2E Garage, .*
+- scrollUntilVisible:
+      element:
+          id: backup-destination-backup-now
+      direction: UP
+- tapOn:
+      id: backup-destination-backup-now
+- extendedWaitUntil:
+      visible: Backed up to E2E Garage
+      timeout: 60000
+- pressKey: Back
+- assertNotVisible: Edit destination
+- tapOn: Automatic backups to E2E Garage
+- extendedWaitUntil:
+      visible: E2E Garage, Paused
+      timeout: 10000
+- runFlow: backup-destinations-close.yaml
+- runFlow:
+      file: backup-destinations-add-login.yaml
+      env:
+          LOGIN_NAME: Paused Login

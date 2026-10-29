@@ -66,7 +66,9 @@ Pass the same --distribution to mobile:dev so Metro bundles the matching billing
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
-        ssh-keys, ssh-agent, sync, fixture, cloud-fixture, target, qr, crypto, crypto-audit, native
+        ssh-keys, ssh-agent, backup-destinations, sync, fixture, cloud-fixture, target, qr, crypto,
+        crypto-audit, native
+backup-destinations starts its own Garage in Docker (E2E_GARAGE_TLS_PORT, default 3943).
 Sync requires E2E_SYNC_SENDER, E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.
 CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 `;
@@ -523,6 +525,14 @@ export function runMobile(
     } else if (suite === "ssh-keys") {
         requireDevice();
         execute("bash", ["e2e/run-ssh-keys.sh", ...args], deviceEnv);
+    } else if (suite === "backup-destinations") {
+        rejectArguments();
+        requireDevice();
+        execute(
+            process.execPath,
+            ["e2e/run-backup-destinations.mjs"],
+            deviceEnv,
+        );
     } else if (suite === "ssh-agent") {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });

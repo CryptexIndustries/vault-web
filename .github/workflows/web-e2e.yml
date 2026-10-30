@@ -53,10 +53,10 @@ jobs:
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: 24.16.0
-            - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+            # The script needs only Node and Docker. Both images install their
+            # own dependencies, so the host skips pnpm install.
             - name: Run web end-to-end tests
-              run: pnpm test:e2e:web
+              run: node scripts/run-web-e2e.mjs
             - name: Upload web end-to-end artifacts
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

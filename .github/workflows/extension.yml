@@ -44,8 +44,10 @@ on:
 permissions:
     contents: read
 
+# The SHA gives every push its own group. GitHub keeps only one pending run per
+# group, so a shared group would cancel a waiting push when the next one lands.
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.profile || 'production' }}
+    group: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}-${{ inputs.profile || 'production' }}
     cancel-in-progress: false
 
 jobs:

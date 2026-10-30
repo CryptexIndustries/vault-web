@@ -77,17 +77,15 @@ available. Tag runs use the workflow in the tagged commit.
 
 ```sh
 gh workflow run mobile.yml --ref development -f profile=preprod
-gh workflow run mobile.yml --ref development -f profile=preprod -f distribution=fdroid
 gh workflow run mobile.yml --ref mobile-v0.1.0 -f profile=production
 ```
 
-`distribution=fdroid` tests the F-Droid recipe before a release. Instead of the
-standard preproduction APK, it runs the same recipe as
-`com.cryptexindustries.vault.preprod` for `arm64-v8a` and `x86_64` only. The
-preproduction key signs the APKs, the x86_64 APK gets the same emulator launch
-check as a release, and they land in `mobile-fdroid-preprod-release-<run-id>`.
-Production builds F-Droid unless `distribution=play`, which rebuilds only
-[Google Play](../docs/GOOGLE_PLAY.md).
+`distribution` defaults to `fdroid`; `play` builds
+[Google Play](../docs/GOOGLE_PLAY.md) instead. A preproduction F-Droid run tests
+the recipe before a release: it builds `com.cryptexindustries.vault.preprod` for
+`arm64-v8a` and `x86_64` only. The preproduction key signs the APKs, the x86_64
+APK gets the same emulator launch check as a release, and they land in
+`mobile-fdroid-preprod-release-<run-id>`.
 
 Production builds read `mobile/release-config.json`; preproduction builds,
 including preproduction F-Droid runs, read `mobile/prerelease-config.json`. Both
@@ -99,8 +97,8 @@ configuration snapshot from the build job. They use environment secrets
 The alias comes from the public signing identity. Signing uses build-tools 34,
 checks the certificate pin and APK policy, and never rebuilds the application.
 
-The `mobile-preprod-release-<run-id>` and `mobile-fdroid-release-<run-id>` artifacts
-contain signed and unsigned APKs, public configuration, verification receipts and
+The `mobile-fdroid-release-<run-id>` and `mobile-fdroid-preprod-release-<run-id>`
+artifacts contain signed and unsigned APKs, public configuration, verification receipts and
 checksums. Each `mobile-fdroid-submission-<run-id>-<abi>` contains scanner/build logs and
 submission metadata with the exact source commit and srclib definitions.
 

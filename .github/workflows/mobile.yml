@@ -50,11 +50,11 @@ on:
         type: choice
         options: [preprod, production]
       distribution:
-        description: play builds the Google Play APK and AAB; fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; standard builds the preprod APK and production builds F-Droid
+        description: fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; play builds the Google Play APK and AAB
         required: true
-        default: standard
+        default: fdroid
         type: choice
-        options: [standard, fdroid, play]
+        options: [fdroid, play]
 
 concurrency:
   group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}-${{ inputs.distribution || 'standard' }}
@@ -229,115 +229,10 @@ jobs:
             ~/.maestro/tests
           if-no-files-found: ignore
 
-  preprod_build:
-    name: build preproduction APK
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    needs: [check, smoke]
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution == 'standard'
-    environment: Mobile - Preproduction
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.25.0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24.21.0
-          cache: pnpm
-
-      - name: Setup Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install pinned Android build tools
-        run: |
-          test -n "$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
-            "platforms;android-36" "build-tools;36.0.0" "build-tools;34.0.0" \
-            "ndk;27.1.12297006" "cmake;3.22.1"
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build unsigned preproduction APK
-        run: pnpm mobile:build -- --unsigned --profile preprod --config mobile/prerelease-config.json --clean --jobs 4 --heap 4096
-
-      - name: Prepare signing inputs
-        run: |
-          mkdir "$RUNNER_TEMP/mobile-release"
-          cp mobile/dist/cryptex-vault-preprod-unsigned.apk{,.json} "$RUNNER_TEMP/mobile-release/"
-          cp mobile/prerelease-config.json "$RUNNER_TEMP/mobile-release/release-config.json"
-
-      - name: Upload verified unsigned APK and its configuration
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: mobile-preprod-unsigned-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release/
-          if-no-files-found: error
-
-  preprod_sign:
-    name: sign preproduction APK
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: preprod_build
-    environment: Mobile - Preproduction
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24.21.0
-
-      - name: Setup Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install pinned APK inspection and signing tools
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
-
-      - name: Download verified unsigned APK and its configuration
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: mobile-preprod-unsigned-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release
-
-      - name: Sign and verify the preproduction APK
-        env:
-          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
-          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
-          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: node mobile/scripts/ci-release.mjs sign preprod "$RUNNER_TEMP/mobile-release"
-
-      - name: Upload signed preproduction APK, configuration and checksums
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: mobile-preprod-release-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release/
-          if-no-files-found: error
-
   fdroid:
     name: build F-Droid APKs
     needs: check
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution != 'play' && (inputs.profile == 'production' || inputs.distribution == 'fdroid'))
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'fdroid')
     uses: ./.github/workflows/mobile-fdroid.yml
     with:
       profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'preprod' || 'production' }}
@@ -348,7 +243,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [fdroid, smoke]
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production' && inputs.distribution != 'play')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production' && inputs.distribution == 'fdroid')
     environment: Mobile - Production
     steps:
       - name: Checkout release source

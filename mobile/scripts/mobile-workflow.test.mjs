@@ -177,42 +177,37 @@ test("release triggers select preproduction manually and production only for tag
     );
     assert.deepEqual(
         workflow.on.workflow_dispatch.inputs.distribution.options,
-        ["standard", "fdroid", "play"],
+        ["fdroid", "play"],
     );
     assert.equal(
         workflow.on.workflow_dispatch.inputs.distribution.default,
-        "standard",
+        "fdroid",
     );
     assert.deepEqual(workflow.on.push.tags, ["mobile-v*"]);
     assert.deepEqual(Object.keys(fdroid.on), ["workflow_call"]);
     assert.deepEqual(Object.keys(play.on), ["workflow_call"]);
     const all = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
-    // [preprod_build, fdroid, fdroid_sign, fdroid_preprod_sign, google_play, google_play_sign],
+    // [fdroid, fdroid_sign, fdroid_preprod_sign, google_play, google_play_sign],
     // then the F-Droid profile and ABIs, then the Play profile.
     const cases = [
         [
             "pull_request",
             "refs/pull/1/merge",
             {},
-            [false, false, false, false, false, false],
+            [false, false, false, false, false],
         ],
         [
             "push",
             "refs/heads/development",
             {},
-            [false, false, false, false, false, false],
+            [false, false, false, false, false],
         ],
-        [
-            "push",
-            "refs/heads/master",
-            {},
-            [false, false, false, false, false, false],
-        ],
+        ["push", "refs/heads/master", {}, [false, false, false, false, false]],
         [
             "push",
             "refs/tags/mobile-v0.1.0",
             {},
-            [false, true, true, false, true, true],
+            [true, true, false, true, true],
             "production",
             all,
             "production",
@@ -220,14 +215,8 @@ test("release triggers select preproduction manually and production only for tag
         [
             "workflow_dispatch",
             "refs/heads/development",
-            { profile: "preprod", distribution: "standard" },
-            [true, false, false, false, false, false],
-        ],
-        [
-            "workflow_dispatch",
-            "refs/heads/development",
             { profile: "preprod", distribution: "fdroid" },
-            [false, true, false, true, false, false],
+            [true, false, true, false, false],
             "preprod",
             ["arm64-v8a", "x86_64"],
         ],
@@ -235,7 +224,7 @@ test("release triggers select preproduction manually and production only for tag
             "workflow_dispatch",
             "refs/heads/development",
             { profile: "preprod", distribution: "play" },
-            [false, false, false, false, true, true],
+            [false, false, false, true, true],
             undefined,
             undefined,
             "preprod",
@@ -243,16 +232,8 @@ test("release triggers select preproduction manually and production only for tag
         [
             "workflow_dispatch",
             "refs/tags/mobile-v0.1.0",
-            { profile: "production", distribution: "standard" },
-            [false, true, true, false, false, false],
-            "production",
-            all,
-        ],
-        [
-            "workflow_dispatch",
-            "refs/tags/mobile-v0.1.0",
             { profile: "production", distribution: "fdroid" },
-            [false, true, true, false, false, false],
+            [true, true, false, false, false],
             "production",
             all,
         ],
@@ -260,7 +241,7 @@ test("release triggers select preproduction manually and production only for tag
             "workflow_dispatch",
             "refs/tags/mobile-v0.1.0",
             { profile: "production", distribution: "play" },
-            [false, false, false, false, true, true],
+            [false, false, false, true, true],
             undefined,
             undefined,
             "production",
@@ -281,7 +262,6 @@ test("release triggers select preproduction manually and production only for tag
             startsWith: (value, prefix) => value.startsWith(prefix),
         };
         const actual = [
-            "preprod_build",
             "fdroid",
             "fdroid_sign",
             "fdroid_preprod_sign",
@@ -324,7 +304,6 @@ test("release triggers select preproduction manually and production only for tag
     }
     assert.equal(workflow.jobs.smoke.if, undefined);
     assert.equal(workflow.jobs.smoke.needs, "check");
-    assert.deepEqual(workflow.jobs.preprod_build.needs, ["check", "smoke"]);
     assert.equal(workflow.jobs.fdroid.needs, "check");
     assert.deepEqual(workflow.jobs.fdroid_sign.needs, ["fdroid", "smoke"]);
     assert.deepEqual(workflow.jobs.fdroid_preprod_sign.needs, [
@@ -368,53 +347,26 @@ test("production dispatch rejects branches and version mismatches before buildin
 });
 
 test("signing credentials are scoped to separate signing steps and the matching environment", () => {
-    for (const [jobs, signer, builder, environment, profile, distribution] of [
-        [
-            workflow.jobs,
-            "preprod_sign",
-            "preprod_build",
-            "Mobile - Preproduction",
-            "preprod",
-            "standard",
-        ],
-        [
-            workflow.jobs,
-            "fdroid_sign",
-            "fdroid",
-            "Mobile - Production",
-            "production",
-            "fdroid",
-        ],
-        [
-            workflow.jobs,
-            "fdroid_preprod_sign",
-            "fdroid",
-            "Mobile - Preproduction",
-            "preprod",
-            "fdroid",
-        ],
+    const build = fdroid.jobs.build;
+    for (const [signer, environment, profile] of [
+        ["fdroid_sign", "Mobile - Production", "production"],
+        ["fdroid_preprod_sign", "Mobile - Preproduction", "preprod"],
     ]) {
-        const reusable = builder === "fdroid";
-        const build = reusable ? fdroid.jobs.build : jobs[builder];
-        assert.deepEqual(
-            jobs[signer].needs,
-            reusable ? ["fdroid", "smoke"] : builder,
-        );
-        assert.equal(jobs[signer].environment, environment);
+        const job = workflow.jobs[signer];
+        assert.deepEqual(job.needs, ["fdroid", "smoke"]);
+        assert.equal(job.environment, environment);
         assert.equal(
-            reusable
-                ? expression(build.environment, { inputs: { profile } })
-                : build.environment,
+            expression(build.environment, { inputs: { profile } }),
             environment,
         );
-        const secretSteps = jobs[signer].steps.filter((step) =>
+        const secretSteps = job.steps.filter((step) =>
             JSON.stringify(step).includes("secrets.CRYPTEX_"),
         );
         assert.equal(secretSteps.length, 1);
         assert.match(
             secretSteps[0].run,
             new RegExp(
-                `ci-release.mjs sign ${profile} "\\$RUNNER_TEMP/mobile-release"${profile === "preprod" && distribution === "fdroid" ? " fdroid" : ""}$`,
+                `ci-release.mjs sign ${profile} "\\$RUNNER_TEMP/mobile-release"${profile === "preprod" ? " fdroid" : ""}$`,
             ),
         );
         assert.deepEqual(
@@ -426,20 +378,19 @@ test("signing credentials are scoped to separate signing steps and the matching 
             ].sort(),
         );
         assert.ok(
-            !jobs[signer].steps.some((step) =>
+            !job.steps.some((step) =>
                 /pnpm install|mobile:build|gradle/.test(step.run || ""),
             ),
             "Signing must not install app dependencies or rebuild the APK",
         );
-        const download = jobs[signer].steps.find((step) =>
+        const download = job.steps.find((step) =>
             step.uses?.startsWith("actions/download-artifact@"),
         );
         assert.ok(!JSON.stringify(build).includes("secrets.CRYPTEX_"));
-        const upload = build.steps.find((step) =>
-            reusable
-                ? step.with?.name ===
-                  download.with.pattern.replace("*", "${{ matrix.abi }}")
-                : step.with?.name === download.with.name,
+        const upload = build.steps.find(
+            (step) =>
+                step.with?.name ===
+                download.with.pattern.replace("*", "${{ matrix.abi }}"),
         );
         assert.ok(
             upload,

@@ -33,8 +33,11 @@ const WRONG_PASSWORD = "e2e-wrong-vault-password-42!";
 const DESTINATION = "E2E Garage";
 const PREFIX = "vaults/";
 const DAY = 24 * 60 * 60 * 1000;
-// Uploads wait 30 seconds after the last change.
+// Uploads wait 30 seconds after the last change. Tests that wait for that
+// install page.clock and jump it forward once the change is saved.
 const AFTER_DEBOUNCE = 35_000;
+// How long to wait after a jump for an upload that shouldn't happen.
+const SETTLE = 5_000;
 const UPLOAD = { timeout: 60_000 };
 
 test.use({
@@ -243,6 +246,7 @@ test("adds a destination, uploads after changes and restores from the bucket", a
     browser,
 }) => {
     test.setTimeout(240_000);
+    await page.clock.install();
     const bucket = await createGarageBucket();
     await createVault(page, "Destination vault", PASSWORD);
     await addCredential(page, "First bucket login");
@@ -277,6 +281,7 @@ test("adds a destination, uploads after changes and restores from the bucket", a
     await expect(destinationRow(center)).toContainText(
         "Changes waiting to upload.",
     );
+    await page.clock.fastForward(AFTER_DEBOUNCE);
     await expect.poll(() => backups(bucket), UPLOAD).toHaveLength(2);
     await expect(destinationRow(center)).not.toContainText("waiting");
     expect(
@@ -306,6 +311,7 @@ test("pausing stops uploads, resuming catches up and removing leaves the bucket 
     page,
 }) => {
     test.setTimeout(300_000);
+    await page.clock.install();
     const bucket = await createGarageBucket();
     await createVault(page, "Paused destination vault", PASSWORD);
     const center = await addDestination(page, bucket);
@@ -321,11 +327,14 @@ test("pausing stops uploads, resuming catches up and removing leaves the bucket 
     ).toBeDisabled();
     await closeBackupCenter(page);
     await addCredential(page, "Made while paused");
-    await page.waitForTimeout(AFTER_DEBOUNCE);
+    await page.clock.fastForward(AFTER_DEBOUNCE);
+    await page.waitForTimeout(SETTLE);
     expect(await backups(bucket)).toHaveLength(1);
 
     await openBackupCenter(page);
     await automatic.click();
+    await expect(row).toContainText("Changes waiting to upload.");
+    await page.clock.fastForward(AFTER_DEBOUNCE);
     await expect.poll(() => backups(bucket), UPLOAD).toHaveLength(2);
     await expect(row).toContainText("Last backup");
 
@@ -342,7 +351,8 @@ test("pausing stops uploads, resuming catches up and removing leaves the bucket 
 
     await closeBackupCenter(page);
     await addCredential(page, "Made after removing");
-    await page.waitForTimeout(AFTER_DEBOUNCE);
+    await page.clock.fastForward(AFTER_DEBOUNCE);
+    await page.waitForTimeout(SETTLE);
     expect(await backups(bucket)).toEqual(kept);
 });
 
@@ -518,6 +528,7 @@ test("a linked browser gets the destination and backs up to its own folder", asy
     const receiverContext = await browser.newContext({
         ignoreHTTPSErrors: true,
     });
+    await receiverContext.clock.install();
     try {
         const receiver = await receiverContext.newPage();
         await receiver.goto("/app");
@@ -593,11 +604,16 @@ test("a linked browser gets the destination and backs up to its own folder", asy
             .getByRole("button", { name: "Actions for Second browser" })
             .click();
         await page.getByRole("menuitem", { name: "Sync now" }).click();
-        await expect(
-            destinationRow(await openBackupCenter(receiver)).filter({
-                hasText: "Later Garage",
-            }),
-        ).toContainText("Last backup", { timeout: 90_000 });
+        const laterRow = destinationRow(
+            await openBackupCenter(receiver),
+        ).filter({ hasText: "Later Garage" });
+        await expect(laterRow).toContainText("Changes waiting to upload.", {
+            timeout: 60_000,
+        });
+        await receiverContext.clock.fastForward(AFTER_DEBOUNCE);
+        await expect(laterRow).toContainText("Last backup", {
+            timeout: 90_000,
+        });
         const laterDevices = new Set(
             (await backups(later)).map((name) => name.split("/")[2]),
         );
@@ -663,6 +679,7 @@ test("a refused key fails only its own destination, and the next change catches 
     page,
 }) => {
     test.setTimeout(300_000);
+    await page.clock.install();
     const broken = await createGarageBucket();
     const working = await createGarageBucket();
     await createVault(page, "Refused key vault", PASSWORD);
@@ -676,6 +693,7 @@ test("a refused key fails only its own destination, and the next change catches 
 
     await closeBackupCenter(page);
     await addCredential(page, "Made while refused");
+    await page.clock.fastForward(AFTER_DEBOUNCE);
     await openBackupCenter(page);
     await expect(brokenRow).toContainText(
         "The bucket refused the access key.",
@@ -689,6 +707,7 @@ test("a refused key fails only its own destination, and the next change catches 
     await broken.restoreKey();
     await closeBackupCenter(page);
     await addCredential(page, "Made after the key works again");
+    await page.clock.fastForward(AFTER_DEBOUNCE);
     await openBackupCenter(page);
     await expect.poll(() => backups(broken), UPLOAD).toHaveLength(2);
     await expect(brokenRow).toContainText("Last backup");
@@ -699,6 +718,7 @@ test("an outage shows on the row and the backup catches up once the bucket is ba
     page,
 }) => {
     test.setTimeout(240_000);
+    await page.clock.install();
     const bucket = await createGarageBucket();
     await createVault(page, "Outage vault", PASSWORD);
     const center = await addDestination(page, bucket);
@@ -709,6 +729,7 @@ test("an outage shows on the row and the backup catches up once the bucket is ba
 
     await closeBackupCenter(page);
     await addCredential(page, "Made during the outage");
+    await page.clock.fastForward(AFTER_DEBOUNCE);
     await openBackupCenter(page);
     await expect(row).toContainText("Couldn't reach the bucket", UPLOAD);
     await expect(row).toContainText("Retrying in 1 min.");

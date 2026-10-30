@@ -6,15 +6,16 @@ on:
     tags: ["mobile-v*"]
     paths:
       - "mobile/**"
-      - "packages/vault-core/**"
-      - "packages/api-contract/**"
-      - "packages/shared-ui/**"
+      - "packages/**"
+      - "web/src/lib/price-lists.ts"
       - "e2e/**"
       - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "package.json"
+      - ".npmrc"
+      - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
       - "!**/*.md"
@@ -23,15 +24,16 @@ on:
   pull_request:
     paths:
       - "mobile/**"
-      - "packages/vault-core/**"
-      - "packages/api-contract/**"
-      - "packages/shared-ui/**"
+      - "packages/**"
+      - "web/src/lib/price-lists.ts"
       - "e2e/**"
       - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "package.json"
+      - ".npmrc"
+      - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
       - "!**/*.md"
@@ -115,7 +117,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: check
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v'))
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
 

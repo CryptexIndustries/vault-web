@@ -171,26 +171,16 @@ test("release triggers select preproduction manually and production only for tag
     assert.deepEqual(workflow.on.push.tags, ["mobile-v*"]);
     assert.deepEqual(Object.keys(fdroid.on), ["workflow_call"]);
     const all = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
-    // [smoke, preprod_build, fdroid, fdroid_sign, fdroid_preprod_sign], then the F-Droid profile and ABIs.
+    // [preprod_build, fdroid, fdroid_sign, fdroid_preprod_sign], then the F-Droid profile and ABIs.
     const cases = [
-        [
-            "pull_request",
-            "refs/pull/1/merge",
-            {},
-            [false, false, false, false, false],
-        ],
-        [
-            "push",
-            "refs/heads/development",
-            {},
-            [false, false, false, false, false],
-        ],
-        ["push", "refs/heads/master", {}, [false, false, false, false, false]],
+        ["pull_request", "refs/pull/1/merge", {}, [false, false, false, false]],
+        ["push", "refs/heads/development", {}, [false, false, false, false]],
+        ["push", "refs/heads/master", {}, [false, false, false, false]],
         [
             "push",
             "refs/tags/mobile-v0.1.0",
             {},
-            [true, false, true, true, false],
+            [false, true, true, false],
             "production",
             all,
         ],
@@ -198,13 +188,13 @@ test("release triggers select preproduction manually and production only for tag
             "workflow_dispatch",
             "refs/heads/development",
             { profile: "preprod", distribution: "standard" },
-            [true, true, false, false, false],
+            [true, false, false, false],
         ],
         [
             "workflow_dispatch",
             "refs/heads/development",
             { profile: "preprod", distribution: "fdroid" },
-            [true, false, true, false, true],
+            [false, true, false, true],
             "preprod",
             ["arm64-v8a", "x86_64"],
         ],
@@ -212,7 +202,7 @@ test("release triggers select preproduction manually and production only for tag
             "workflow_dispatch",
             "refs/tags/mobile-v0.1.0",
             { profile: "production", distribution: "standard" },
-            [true, false, true, true, false],
+            [false, true, true, false],
             "production",
             all,
         ],
@@ -220,7 +210,7 @@ test("release triggers select preproduction manually and production only for tag
             "workflow_dispatch",
             "refs/tags/mobile-v0.1.0",
             { profile: "production", distribution: "fdroid" },
-            [true, false, true, true, false],
+            [false, true, true, false],
             "production",
             all,
         ],
@@ -232,7 +222,6 @@ test("release triggers select preproduction manually and production only for tag
             startsWith: (value, prefix) => value.startsWith(prefix),
         };
         const actual = [
-            "smoke",
             "preprod_build",
             "fdroid",
             "fdroid_sign",
@@ -255,6 +244,8 @@ test("release triggers select preproduction manually and production only for tag
             abis,
         );
     }
+    assert.equal(workflow.jobs.smoke.if, undefined);
+    assert.equal(workflow.jobs.smoke.needs, "check");
     assert.deepEqual(workflow.jobs.preprod_build.needs, ["check", "smoke"]);
     assert.equal(workflow.jobs.fdroid.needs, "check");
     assert.deepEqual(workflow.jobs.fdroid_sign.needs, ["fdroid", "smoke"]);

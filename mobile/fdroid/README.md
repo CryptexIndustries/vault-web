@@ -50,15 +50,17 @@ source commit. Publish APKs as release assets.
 
 ## Release CI
 
-[Mobile](../../.github/workflows/mobile.yml) runs checks on relevant pushes to
-`development` or `master` and on pull requests. Android smoke tests and release
-builds run only on manual dispatch or `mobile-v*` release tags.
+[Mobile](../../.github/workflows/mobile.yml) runs checks and Android smoke tests
+on relevant pushes to `development` or `master` and on pull requests. A newer
+push to the same branch or pull request cancels the older run. Release builds
+run only on manual dispatch or `mobile-v*` release tags.
 
 Manual dispatch defaults to `preprod` and builds the selected branch using the
 `Mobile - Preproduction` GitHub environment. Selecting `production` requires
 dispatch on an existing `mobile-v` tag matching `app.json`. Pushing that tag
 automatically selects production and calls
-[Mobile F-Droid](../../.github/workflows/mobile-fdroid.yml) after checks and smoke tests.
+[Mobile F-Droid](../../.github/workflows/mobile-fdroid.yml) once checks pass, in
+parallel with the smoke tests.
 The F-Droid workflow runs four parallel jobs inside the pinned official
 build-server container, one for each Android ABI. Each job compiles Skia and
 the app only for its ABI. A separate signing job verifies and signs all four

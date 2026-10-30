@@ -68,7 +68,7 @@
     "devDependencies": {
         "@jest/globals": "29.7.0",
         "@playwright/test": "^1.62.1",
-        "@types/node": "20.19.9",
+        "@types/node": "24.19.2",
         "@typescript/native-preview": "7.0.0-dev.20260404.1",
         "aws4fetch": "1.0.20",
         "jest": "29.7.0",

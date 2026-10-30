@@ -279,6 +279,10 @@ function Dialog({
             style={fullHeight ? { flex: 1 } : { flexShrink: 1 }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            // The sheet turns scrolling off mid-drag to take over a pull at
+            // the top. Android then never releases its overscroll stretch,
+            // and the next tap only catches it instead of reaching the content.
+            overScrollMode="never"
             showsVerticalScrollIndicator={false}
             contentContainerClassName={bottomContentClassName}
         >

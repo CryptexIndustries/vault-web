@@ -47,7 +47,7 @@
         "dist/full/zxing_full.wasm",
         "dist/writer/zxing_writer.wasm"
     ],
-    "pnpm@11.25.0": [
+    "pnpm@11.28.9": [
         "dist/vendor/fastlist-0.3.0-x86.exe",
         "dist/vendor/fastlist-0.3.0-x64.exe",
         "dist/node_modules/@reflink/reflink-win32-x64-msvc/reflink.win32-x64-msvc.node",

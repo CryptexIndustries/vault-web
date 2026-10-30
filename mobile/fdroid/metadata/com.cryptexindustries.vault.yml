@@ -28,7 +28,7 @@ Builds:
       - apt-get update
       - apt-get install -y --no-install-recommends -t forky nodejs node-corepack
       - corepack enable pnpm
-      - corepack prepare pnpm@11.25.0 --activate
+      - corepack prepare pnpm@11.28.9 --activate
     output: mobile/dist/cryptex-vault-fdroid-armeabi-v7a-unsigned.apk
     srclibs:
       - esbuild@208f539945b145e7c9d6d844290f81c3fe5af320
@@ -73,7 +73,7 @@ Builds:
       - apt-get update
       - apt-get install -y --no-install-recommends -t forky nodejs node-corepack
       - corepack enable pnpm
-      - corepack prepare pnpm@11.25.0 --activate
+      - corepack prepare pnpm@11.28.9 --activate
     output: mobile/dist/cryptex-vault-fdroid-arm64-v8a-unsigned.apk
     srclibs:
       - esbuild@208f539945b145e7c9d6d844290f81c3fe5af320
@@ -118,7 +118,7 @@ Builds:
       - apt-get update
       - apt-get install -y --no-install-recommends -t forky nodejs node-corepack
       - corepack enable pnpm
-      - corepack prepare pnpm@11.25.0 --activate
+      - corepack prepare pnpm@11.28.9 --activate
     output: mobile/dist/cryptex-vault-fdroid-x86-unsigned.apk
     srclibs:
       - esbuild@208f539945b145e7c9d6d844290f81c3fe5af320
@@ -163,7 +163,7 @@ Builds:
       - apt-get update
       - apt-get install -y --no-install-recommends -t forky nodejs node-corepack
       - corepack enable pnpm
-      - corepack prepare pnpm@11.25.0 --activate
+      - corepack prepare pnpm@11.28.9 --activate
     output: mobile/dist/cryptex-vault-fdroid-x86_64-unsigned.apk
     srclibs:
       - esbuild@208f539945b145e7c9d6d844290f81c3fe5af320

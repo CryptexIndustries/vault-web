@@ -24,7 +24,7 @@ jobs:
               with:
                   node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Verify lockfile specifiers
@@ -40,7 +40,7 @@ jobs:
               with:
                   node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Lint web client
@@ -90,7 +90,7 @@ jobs:
               with:
                   node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Lint extension
@@ -115,7 +115,7 @@ jobs:
               with:
                   node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Install Chromium

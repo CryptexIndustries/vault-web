@@ -30,7 +30,7 @@ Bug reports, documentation fixes, and code changes are welcome. [CONTRIBUTING.md
 
 ## Develop locally
 
-Run the web app directly with Node.js 24.16 or later and pnpm 11.25 or later:
+Run the web app directly with Node.js 24.16 or later and pnpm 11.28 or later:
 
 ```bash
 pnpm install

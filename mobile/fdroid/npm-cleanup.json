@@ -41,6 +41,7 @@
     "@typescript/native-preview-linux-x64@7.0.0-dev.20260404.1": ["lib/tsgo"],
     "lefthook-linux-x64@2.1.9": ["bin/lefthook"],
     "playwright-core@1.62.1": ["lib/webp_codec.wasm"],
+    "source-map@0.7.6": ["lib/mappings.wasm"],
     "jszip@3.10.1": [".jekyll-metadata"],
     "zxing-wasm@3.1.0": [
         "dist/reader/zxing_reader.wasm",

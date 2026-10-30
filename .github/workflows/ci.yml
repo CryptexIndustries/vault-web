@@ -178,17 +178,17 @@ jobs:
                   docker stack config -c compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish web image
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: .
                   file: web/prod.Dockerfile
@@ -248,10 +248,10 @@ jobs:
                   docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
@@ -259,7 +259,7 @@ jobs:
 
             - name: Build and publish share server image
               id: build
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: services
                   file: services/cmd/share-server/Dockerfile
@@ -327,10 +327,10 @@ jobs:
                   docker stack config -c services/cmd/relay-server/compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
@@ -338,7 +338,7 @@ jobs:
 
             - name: Build and publish relay image
               id: build
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: services
                   file: services/cmd/relay-server/Dockerfile

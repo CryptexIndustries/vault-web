@@ -4,7 +4,7 @@
 # Public client settings are validated and served from the container environment
 # at runtime, so the same image can run locally or against Cryptex Online Services.
 
-FROM node:24.16.0-alpine3.23@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS base
+FROM node:24.22.2-alpine3.23@sha256:9b69af715c7f9d038150b54ccccbaeffa9064bbc93e2904c29591ca097316af1 AS base
 
 FROM base AS builder
 

@@ -18,6 +18,8 @@ on:
             - "pnpm-workspace.yaml"
             - "pnpm-lock.yaml"
             - "package.json"
+            - ".npmrc"
+            - "scripts/install-lefthook.mjs"
             - ".github/workflows/extension.yml"
             - "!**/*.md"
     pull_request:
@@ -31,6 +33,8 @@ on:
             - "pnpm-workspace.yaml"
             - "pnpm-lock.yaml"
             - "package.json"
+            - ".npmrc"
+            - "scripts/install-lefthook.mjs"
             - ".github/workflows/extension.yml"
             - "!**/*.md"
     workflow_dispatch:

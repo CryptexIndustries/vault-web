@@ -46,9 +46,6 @@ docker compose -f compose.dev.yaml --profile local --env-file web/.env.client.de
 
 Both options open the local vault at [http://localhost:3000/app](http://localhost:3000/app) without Online Services. To work on the extension, run `pnpm dev:ext` in another terminal and see its [setup notes](extension/README.md).
 
-When you run `pnpm install` in a Git checkout, the `prepare` script installs [Lefthook](lefthook.yml). It runs two Git hooks:
+When you run `pnpm install` in a Git checkout, the `prepare` script installs [Lefthook](lefthook.yml). Its `pre-commit` hook formats supported staged files in `web/`, `extension/`, `packages/`, and `mobile/` with oxfmt and stages any fixes. It also runs `verify-lockfile` if `package.json`, `pnpm-workspace.yaml`, or `pnpm-lock.yaml` is staged.
 
-- `pre-commit` formats supported staged files in `web/`, `extension/`, and `packages/` with oxfmt and stages any fixes. It also runs `verify-lockfile` if `package.json`, `pnpm-workspace.yaml`, or `pnpm-lock.yaml` is staged.
-- `pre-push` runs `verify-lockfile` on every push.
-
-Despite its name, `verify-lockfile` currently only invokes pnpm and updates the lockfile timestamp. It does not check whether the lockfile matches the manifests. Run `pnpm lint` and `pnpm test` before contributing changes; the hooks do not run them.
+Despite its name, `verify-lockfile` currently only invokes pnpm and updates the lockfile timestamp. It does not check whether the lockfile matches the manifests. Run `pnpm lint` and `pnpm test` before contributing changes; the hook does not run them.

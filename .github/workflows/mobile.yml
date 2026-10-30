@@ -18,6 +18,7 @@ on:
       - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
+      - ".github/workflows/mobile-google-play.yml"
       - "!**/*.md"
       - "!mobile/store-listing/**"
       - "!mobile/*.webm"
@@ -36,6 +37,7 @@ on:
       - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
+      - ".github/workflows/mobile-google-play.yml"
       - "!**/*.md"
       - "!mobile/store-listing/**"
       - "!mobile/*.webm"
@@ -48,11 +50,11 @@ on:
         type: choice
         options: [preprod, production]
       distribution:
-        description: Preproduction only; fdroid builds arm64-v8a and x86_64 with the F-Droid recipe instead of the standard APK
+        description: play builds the Google Play APK and AAB; fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; standard builds the preprod APK and production builds F-Droid
         required: true
         default: standard
         type: choice
-        options: [standard, fdroid]
+        options: [standard, fdroid, play]
 
 concurrency:
   group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}-${{ inputs.distribution || 'standard' }}
@@ -232,7 +234,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: [check, smoke]
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution != 'fdroid'
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution == 'standard'
     environment: Mobile - Preproduction
     steps:
       - name: Checkout
@@ -335,7 +337,7 @@ jobs:
   fdroid:
     name: build F-Droid APKs
     needs: check
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && (inputs.profile == 'production' || inputs.distribution == 'fdroid'))
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution != 'play' && (inputs.profile == 'production' || inputs.distribution == 'fdroid'))
     uses: ./.github/workflows/mobile-fdroid.yml
     with:
       profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'preprod' || 'production' }}
@@ -346,7 +348,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [fdroid, smoke]
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production' && inputs.distribution != 'play')
     environment: Mobile - Production
     steps:
       - name: Checkout release source
@@ -414,9 +416,10 @@ jobs:
     name: draft GitHub release
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: fdroid_sign
+    needs: [fdroid_sign, google_play_sign]
     # mobile-v1.2.3 tags open a draft release with the 1.2.3 section of
-    # mobile/CHANGELOG.md and the signed APKs. Publishing it is a manual step.
+    # mobile/CHANGELOG.md and the signed F-Droid APKs once Play is signed too.
+    # Publishing it is a manual step.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')
     permissions:
       contents: write
@@ -538,5 +541,93 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mobile-fdroid-preprod-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release/
+          if-no-files-found: error
+
+  google_play:
+    name: build Google Play APK and AAB
+    needs: check
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'play')
+    uses: ./.github/workflows/mobile-google-play.yml
+    with:
+      profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+
+  google_play_sign:
+    name: sign Google Play APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [google_play, smoke]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'play')
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'Mobile - Preproduction' || 'Mobile - Production' }}
+    env:
+      RELEASE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install pinned APK inspection and signing tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
+
+      - name: Download verified unsigned artifacts and their configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mobile-google-play-unsigned-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Sign and verify the APK and AAB
+        env:
+          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
+          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
+          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
+        run: node mobile/scripts/ci-release.mjs sign "$RELEASE_PROFILE" "$RUNNER_TEMP/mobile-release" play
+
+      - name: Select the signed APK and its package
+        # The emulator runner starts a new shell for each script line.
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          import { artifactName, getProfile } from './mobile/scripts/release-config.mjs';
+          const profile = process.env.RELEASE_PROFILE;
+          console.log(`SIGNED_APK=${process.env.RUNNER_TEMP}/mobile-release/${artifactName({ profile, distribution: 'play' })}`);
+          console.log(`APP_PACKAGE=${getProfile(profile).applicationId}`);
+          NODE
+
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke test signed Play APK
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb -s "$ANDROID_SERIAL" install "$SIGNED_APK"
+            adb -s "$ANDROID_SERIAL" shell am start -W -n "$APP_PACKAGE/.MainActivity"
+            sleep 10
+            adb -s "$ANDROID_SERIAL" logcat -d -b crash -v brief
+            adb -s "$ANDROID_SERIAL" shell pidof "$APP_PACKAGE"
+
+      - name: Upload signed APK, AAB, configuration and checksums
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-google-play-release-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error

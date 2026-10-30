@@ -86,7 +86,8 @@ standard preproduction APK, it runs the same recipe as
 `com.cryptexindustries.vault.preprod` for `arm64-v8a` and `x86_64` only. The
 preproduction key signs the APKs, the x86_64 APK gets the same emulator launch
 check as a release, and they land in `mobile-fdroid-preprod-release-<run-id>`.
-Production ignores `distribution`.
+Production builds F-Droid unless `distribution=play`, which rebuilds only
+[Google Play](../docs/GOOGLE_PLAY.md).
 
 Production builds read `mobile/release-config.json`; preproduction builds,
 including preproduction F-Droid runs, read `mobile/prerelease-config.json`. Both

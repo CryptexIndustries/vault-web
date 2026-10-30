@@ -39,9 +39,16 @@ The existing profile identity signs the local APK and serves as the AAB upload k
 
 Play version codes are the `app.json` `versionCode` times ten. F-Droid ABI builds use the next four codes, so every distribution gets a distinct code and each release is higher than the last.
 
-Pushing a `mobile-v<version>` tag runs the **Mobile Google Play** GitHub workflow for production, next to the **Mobile** workflow's F-Droid builds. Run it by hand for preproduction on any branch, or to rebuild production on a `mobile-v` tag. Production always needs the tag that matches the app version. The workflow builds from the selected profile's committed JSON. It signs with the same `Mobile - Production` or `Mobile - Preproduction` environment as the standard release builds, using their `CRYPTEX_KEYSTORE_BASE64`, `CRYPTEX_KEYSTORE_PASSWORD` and `CRYPTEX_KEY_PASSWORD` secrets, so Play builds need no environment of their own. The alias comes from the profile's committed signing identity.
+Pushing a `mobile-v<version>` tag makes the **Mobile** GitHub workflow build Play for production, in parallel with the F-Droid builds and the Android e2e suite. The Play APK and AAB are signed only after e2e passes, and the draft GitHub release waits for them. To build by hand, run **Mobile** with `distribution=play`: preproduction on any branch, or production to rebuild Play on a `mobile-v` tag. Production always needs the tag that matches the app version.
 
-Download `mobile-google-play-release-<run-id>` for the build artifacts and public configuration. Upload the AAB to Play Console manually.
+```sh
+gh workflow run mobile.yml --ref development -f profile=preprod -f distribution=play
+gh workflow run mobile.yml --ref mobile-v0.1.0 -f profile=production -f distribution=play
+```
+
+The workflow builds from the selected profile's committed JSON. The build job has no signing keys. A separate job signs with the `Mobile - Production` or `Mobile - Preproduction` environment's `CRYPTEX_KEYSTORE_BASE64`, `CRYPTEX_KEYSTORE_PASSWORD` and `CRYPTEX_KEY_PASSWORD` secrets, the same ones F-Droid uses, then starts the signed APK on an emulator. The alias comes from the profile's committed signing identity.
+
+Download `mobile-google-play-release-<run-id>` from the Mobile run for the signed artifacts and public configuration. Upload the AAB to Play Console manually.
 
 ## Validate before release
 

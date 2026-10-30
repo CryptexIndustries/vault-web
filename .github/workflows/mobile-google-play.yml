@@ -1,18 +1,14 @@
 name: Mobile Google Play
 
-# A mobile-v tag builds production. Run it by hand for preprod on any branch,
-# or to rebuild production on a mobile-v tag.
+# Builds the unsigned Play APK and AAB for the Mobile workflow, which signs them
+# once the Android e2e suite passes.
 on:
-  push:
-    tags: ["mobile-v*"]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       profile:
-        description: Production requires a mobile-v release tag; preprod builds the selected branch
-        required: true
+        description: production for releases; preprod builds com.cryptexindustries.vault.preprod
+        type: string
         default: production
-        type: choice
-        options: [production, preprod]
 
 permissions:
   contents: read
@@ -23,12 +19,11 @@ concurrency:
 
 jobs:
   build:
-    name: Build and sign Google Play APK and AAB
+    name: Build unsigned Google Play APK and AAB
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    environment: ${{ (github.event_name == 'push' || inputs.profile == 'production') && 'Mobile - Production' || 'Mobile - Preproduction' }}
     env:
-      RELEASE_PROFILE: ${{ github.event_name == 'push' && 'production' || inputs.profile }}
+      RELEASE_PROFILE: ${{ inputs.profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -82,24 +77,15 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Check mobile
-        run: pnpm mobile:check
-
       - name: Build and verify unsigned Play artifacts
         run: pnpm mobile:build:play -- --profile "$RELEASE_PROFILE" --config "$RELEASE_CONFIG" --unsigned --clean --jobs 2 --heap 4096
 
-      - name: Sign and verify APK and AAB
-        env:
-          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
-          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
-          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: |
-          cp "$RELEASE_CONFIG" mobile/dist/release-config.json
-          node mobile/scripts/ci-release.mjs sign "$RELEASE_PROFILE" mobile/dist play
+      - name: Prepare signing inputs
+        run: cp "$RELEASE_CONFIG" mobile/dist/release-config.json
 
-      - name: Upload signed artifacts, receipts and checksums
+      - name: Upload verified unsigned artifacts and their configuration
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-google-play-release-${{ github.run_id }}
+          name: mobile-google-play-unsigned-${{ github.run_id }}
           path: mobile/dist/
           if-no-files-found: error

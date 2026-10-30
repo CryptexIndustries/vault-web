@@ -35,9 +35,11 @@ on:
 permissions:
     contents: read
 
+# The SHA gives every push its own group. GitHub keeps only one pending run per
+# group, so a shared group would cancel a waiting push when the next one lands.
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/development' }}
+    group: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
+    cancel-in-progress: false
 
 jobs:
     web-e2e:

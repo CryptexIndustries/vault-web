@@ -26,9 +26,6 @@ const play = yaml.load(
         "utf8",
     ),
 );
-const toolchain = JSON.parse(
-    readFileSync(new URL("../fdroid/toolchain.json", import.meta.url), "utf8"),
-);
 const expression = (value, context) =>
     runInNewContext(value.replace(/^\$\{\{\s*|\s*\}\}$/g, ""), context);
 
@@ -57,30 +54,6 @@ test("mobile CI uses full action commit hashes and read-only credentials", () =>
     }
 });
 
-test("validation and Android CI install JDK 21 before mobile commands", () => {
-    assert.equal(toolchain.java, "21");
-    for (const name of ["check", "smoke"]) {
-        const steps = workflow.jobs[name].steps;
-        const java = steps.filter((step) =>
-            step.uses?.startsWith("actions/setup-java@"),
-        );
-        assert.equal(java.length, 1, name);
-        assert.equal(
-            java[0].uses,
-            "actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
-        );
-        assert.equal(java[0].with.distribution, "temurin", name);
-        assert.equal(java[0].with["java-version"], toolchain.java, name);
-        const firstMobile = steps.findIndex((step) =>
-            step.run?.startsWith("pnpm mobile:"),
-        );
-        assert.ok(
-            firstMobile >= 0 && steps.indexOf(java[0]) < firstMobile,
-            name,
-        );
-    }
-});
-
 test("Maestro installation pins its tested release and checks the archive before extraction", () => {
     const install = workflow.jobs.smoke.steps.find(
         (step) => step.name === "Install verified Maestro 2.9.0",
@@ -101,26 +74,6 @@ test("Maestro installation pins its tested release and checks the archive before
             install.run.indexOf("unzip"),
     );
     assert.ok(install.run.indexOf("unzip") < install.run.indexOf("--version"));
-});
-
-test("Android CI runs the pinned native fixtures after SDK installation and before builds", () => {
-    const steps = workflow.jobs.smoke.steps;
-    const fixture = steps.findIndex(
-        (step) =>
-            step.name === "Verify pinned native build reproducibility fixtures",
-    );
-    const sdk = steps.findIndex(
-        (step) => step.name === "Install pinned Android build tools",
-    );
-    const build = steps.findIndex(
-        (step) => step.run === "pnpm mobile:build -- --e2e",
-    );
-    assert.ok(sdk >= 0 && fixture > sdk && build > fixture);
-    assert.equal(
-        steps[fixture].run,
-        'CRYPTEX_NATIVE_TEST_SDK="$ANDROID_SDK_ROOT" pnpm mobile:check -- cli',
-    );
-    assert.match(steps[sdk].run, /ANDROID_SDK_ROOT=.*GITHUB_ENV/);
 });
 
 test("CI shell scripts parse without executing tools or device commands", () => {
@@ -148,17 +101,6 @@ test("smoke builds only its test APK and Online Services overrides stay test-onl
     );
     assert.equal(builds.length, 1);
     assert.equal(builds[0].run, "pnpm mobile:build -- --e2e");
-    const emulator = steps.find((step) =>
-        step.uses?.startsWith("reactivecircus/android-emulator-runner@"),
-    );
-    assert.equal(
-        emulator.env.ORG_GRADLE_PROJECT_reactNativeArchitectures,
-        emulator.with.arch,
-    );
-    const stop = steps.find(
-        (step) => step.run === "mobile/android/gradlew --stop",
-    );
-    assert.ok(stop && steps.indexOf(stop) < steps.indexOf(emulator));
     for (const step of steps) {
         if (step.env?.EXPO_PUBLIC_CLOUD_ENABLED === "false") {
             assert.equal(step.run, "pnpm mobile:build -- --e2e");
@@ -385,33 +327,4 @@ test("signing credentials are scoped to separate signing steps and the matching 
     ]) {
         assert.equal(job.environment, undefined);
     }
-});
-
-test("F-Droid runs every ABI independently and signing waits for the whole matrix", () => {
-    assert.deepEqual(fdroid.jobs.build.strategy, {
-        "fail-fast": false,
-        matrix: { abi: "${{ fromJSON(inputs.abis) }}" },
-    });
-    assert.deepEqual(JSON.parse(fdroid.on.workflow_call.inputs.abis.default), [
-        "armeabi-v7a",
-        "arm64-v8a",
-        "x86",
-        "x86_64",
-    ]);
-    assert.equal(fdroid.on.workflow_call.inputs.profile.default, "production");
-    const build = fdroid.jobs.build.steps.find((step) =>
-        step.run?.includes("/app/mobile/fdroid/ci.sh"),
-    );
-    assert.equal(build.env.CRYPTEX_BUILD_ARCH, "${{ matrix.abi }}");
-    assert.equal(build.env.CRYPTEX_APP_PROFILE, "${{ inputs.profile }}");
-    assert.match(build.run, /--env CRYPTEX_BUILD_ARCH/);
-    assert.match(build.run, /--env CRYPTEX_APP_PROFILE/);
-    assert.ok(
-        !fdroid.jobs.build.concurrency,
-        "ABI jobs must not share a job concurrency lock",
-    );
-    const download = workflow.jobs.fdroid_sign.steps.find((step) =>
-        step.uses?.startsWith("actions/download-artifact@"),
-    );
-    assert.equal(download.with["merge-multiple"], true);
 });

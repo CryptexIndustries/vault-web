@@ -2,7 +2,7 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
-## 1.9.0 - 2026-10-30
+## 1.9.0 - 2026-10-31
 
 ### Added
 

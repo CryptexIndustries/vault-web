@@ -98,6 +98,14 @@ function onlineServicesSessionPort() {
     return getVaultCoreRuntime().onlineServicesSessionPort;
 }
 
+/** Only an UNAUTHORIZED tRPC error can be fixed by a fresh session. */
+function isUnauthorizedError(error: unknown): boolean {
+    return (
+        (error as { data?: { code?: unknown } } | null)?.data?.code ===
+        "UNAUTHORIZED"
+    );
+}
+
 /**
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
@@ -189,6 +197,7 @@ export const initWebRTC = async (
         try {
             turnCredentials = await fetchTurnCredentials();
         } catch (error) {
+            if (!isUnauthorizedError(error)) throw error;
             const reauthenticated =
                 await onlineServicesSessionPort().forceReauthenticate();
             if (!reauthenticated) {
@@ -250,7 +259,8 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
                     return next(null, data);
                 } catch (e) {
                     const reauthenticated =
-                        await onlineServicesSessionPort().forceReauthenticate();
+                        isUnauthorizedError(e) &&
+                        (await onlineServicesSessionPort().forceReauthenticate());
                     if (reauthenticated) {
                         try {
                             const data = await authorizeChannel();

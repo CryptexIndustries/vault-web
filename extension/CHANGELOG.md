@@ -2,7 +2,7 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
-## 1.9.0 - 2026-10-30
+## 1.9.0 - 2026-10-31
 
 ### Added
 

@@ -33,7 +33,7 @@ export function PopupPasswordGeneratorDialog({
                 {open ? (
                     <PasswordGeneratorPanel
                         compact
-                        showToasts
+                        showSuccessToasts
                         onPasswordSelect={onPasswordSelect}
                         onCancel={() => onOpenChange(false)}
                     />

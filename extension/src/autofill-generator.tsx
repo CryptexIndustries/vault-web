@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import "./autofill-generator.css";
 
 import { PasswordGeneratorPanel } from "@/components/ui/password-generator";
+import { Toaster } from "@/components/ui/sonner";
 import { uiLog } from "./utils/ext-logging";
 import {
     claimAutofillFrameBootstrap,
@@ -89,6 +90,7 @@ const App = () => {
                     postToParent({ kind: "use", password })
                 }
             />
+            <Toaster position="top-center" />
         </div>
     );
 };

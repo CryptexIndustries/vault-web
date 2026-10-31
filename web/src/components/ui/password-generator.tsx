@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english.js";
-import { Brain, Copy, Hash, RefreshCw, Shield, X } from "lucide-react";
+import { Brain, Check, Copy, Hash, RefreshCw, Shield, X } from "lucide-react";
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -133,8 +133,10 @@ function generatePasswordFromForm(data: PasswordGeneratorFormData): string {
     return generateMemorablePassphrase(data);
 }
 
-function usePasswordGenerator(showToasts: boolean) {
+function usePasswordGenerator(showSuccessToasts: boolean) {
     const [generatedPassword, setGeneratedPassword] = useState("");
+    const [copied, setCopied] = useState(false);
+    const copiedTimer = useRef<number | undefined>(undefined);
 
     const {
         register,
@@ -157,18 +159,15 @@ function usePasswordGenerator(showToasts: boolean) {
 
     const watchedType = watch("type");
 
-    const notifyError = useCallback(
-        (message: string) => {
-            if (showToasts) toast.error(message);
-        },
-        [showToasts],
-    );
+    const notifyError = useCallback((message: string) => {
+        toast.error(message);
+    }, []);
 
     const notifySuccess = useCallback(
         (message: string) => {
-            if (showToasts) toast.success(message);
+            if (showSuccessToasts) toast.success(message);
         },
-        [showToasts],
+        [showSuccessToasts],
     );
 
     const generatePassword = useCallback(
@@ -197,10 +196,19 @@ function usePasswordGenerator(showToasts: boolean) {
 
     const copyToClipboard = useCallback(async () => {
         if (!generatedPassword) return;
-        await copySecretToClipboard(generatedPassword, {
-            showToast: showToasts,
-        });
-    }, [generatedPassword, showToasts]);
+        if (
+            await copySecretToClipboard(generatedPassword, {
+                showSuccessToast: showSuccessToasts,
+            })
+        ) {
+            setCopied(true);
+            window.clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(
+                () => setCopied(false),
+                2000,
+            );
+        }
+    }, [generatedPassword, showSuccessToasts]);
 
     useEffect(() => {
         generatePassword(watch());
@@ -221,6 +229,7 @@ function usePasswordGenerator(showToasts: boolean) {
         watchedType,
         regeneratePassword,
         copyToClipboard,
+        copied,
         generatePassword,
         notifySuccess,
     };
@@ -229,7 +238,7 @@ function usePasswordGenerator(showToasts: boolean) {
 export type PasswordGeneratorPanelProps = {
     onPasswordSelect?: (password: string) => void;
     onCancel?: () => void;
-    showToasts?: boolean;
+    showSuccessToasts?: boolean;
     compact?: boolean;
     className?: string;
 };
@@ -237,7 +246,7 @@ export type PasswordGeneratorPanelProps = {
 export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
     onPasswordSelect,
     onCancel,
-    showToasts = false,
+    showSuccessToasts = false,
     compact = false,
     className,
 }) => {
@@ -251,8 +260,11 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
         watchedType,
         regeneratePassword,
         copyToClipboard,
+        copied,
         notifySuccess,
-    } = usePasswordGenerator(showToasts);
+    } = usePasswordGenerator(showSuccessToasts);
+
+    const CopyIcon = copied ? Check : Copy;
 
     const onSubmit = (data: PasswordGeneratorFormData) => {
         if (generatedPassword && onPasswordSelect) {
@@ -310,16 +322,6 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                     Cancel
                 </Button>
             ) : null}
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                onClick={() => void copyToClipboard()}
-                disabled={!generatedPassword}
-            >
-                <Copy className="h-3.5 w-3.5" />
-            </Button>
             {onPasswordSelect ? (
                 <Button
                     type="button"
@@ -339,15 +341,6 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                     Cancel
                 </Button>
             ) : null}
-            <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void copyToClipboard()}
-                disabled={!generatedPassword}
-            >
-                <Copy className="h-4 w-4" />
-                Copy
-            </Button>
             {onPasswordSelect ? (
                 <Button
                     type="button"
@@ -397,8 +390,9 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                                     onClick={() => void copyToClipboard()}
                                     disabled={!generatedPassword}
                                     className={compact ? "h-5 w-5" : "h-6 w-6"}
+                                    aria-label="Copy password"
                                 >
-                                    <Copy
+                                    <CopyIcon
                                         className={
                                             compact ? "h-2.5 w-2.5" : "h-3 w-3"
                                         }
@@ -663,7 +657,7 @@ export const PasswordGeneratorDialog: React.FC<{
             <DialogContent className="sm:max-w-[500px]">
                 {open ? (
                     <PasswordGeneratorPanel
-                        showToasts
+                        showSuccessToasts
                         onPasswordSelect={onPasswordSelect}
                         onCancel={() => onOpenChange(false)}
                     />

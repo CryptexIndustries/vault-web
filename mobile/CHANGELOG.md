@@ -2,7 +2,7 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
-## 0.5.0 - 2026-10-30
+## 0.5.0 - 2026-10-31
 
 ### Added
 

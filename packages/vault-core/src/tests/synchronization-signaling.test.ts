@@ -1,7 +1,13 @@
 /** @jest-environment node */
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { Options } from "pusher-js";
-import { initPusherInstance } from "../synchronization";
+import {
+    initPusherInstance,
+    SyncConnectionController,
+    type VaultOperations,
+} from "../synchronization";
+import { ONLINE_SERVICES_SELECTION_ID } from "../consts";
+import * as Types from "../proto/vault";
 
 jest.mock("../vault-utils/post-quantum-kem", () => ({}));
 jest.mock("../vault-utils/sync-signing", () => ({}));
@@ -43,6 +49,30 @@ const trpcError = (code: string) =>
 beforeEach(() => {
     jest.clearAllMocks();
     forceReauthenticate.mockResolvedValue(true);
+});
+
+it("never opens a signaling channel for a device linked before sync IDs existed", async () => {
+    // Older vaults have no SyncID field, so it decodes as "".
+    const legacy = Types.LinkedDevice.decode(
+        Types.LinkedDevice.encode(
+            Types.LinkedDevice.fromPartial({
+                ID: "legacy",
+                Name: "Old laptop",
+                AutoConnect: true,
+                SignalingServerID: ONLINE_SERVICES_SELECTION_ID,
+            }),
+        ).finish(),
+    );
+    const controller = new SyncConnectionController({
+        getSynchronizationConfig: async () =>
+            Types.LinkedDevices.fromPartial({ Devices: [legacy] }),
+    } as VaultOperations);
+
+    await expect(controller.connectDevice(legacy.ID)).resolves.toBe(false);
+    await expect(controller.connectDevice(legacy.ID)).resolves.toBe(false);
+
+    expect(pusher).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledTimes(1);
 });
 
 describe("Online Services channel authorization", () => {

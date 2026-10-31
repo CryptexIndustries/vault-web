@@ -15,6 +15,8 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - Sync now works with a STUN server entered as a `stun:` URL in the web app, and with a TURN server whose host is named `turn`, such as `turn:3478`. Sync used to build an invalid address for both.
 - Restoring a managed backup no longer fails at the captcha step, and each backup in the list shows its date and source device instead of a blank button.
 - A managed backup taken while the vault's security settings are changed or the Recovery Kit is rotated can now always be restored. Before, such a backup could pair the new settings with the old key and fail to restore.
+- On a new install, slow phones no longer show a blank screen after a vault is created, restored or unlocked.
+- Pulling down at the top of a bottom sheet no longer swallows the next tap.
 
 ## 0.4.0 - 2026-10-25
 

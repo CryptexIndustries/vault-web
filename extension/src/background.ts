@@ -120,6 +120,7 @@ import {
     parseCreateEncryptedBackupRequest,
 } from "./background/backup-service";
 import { createIndexedDbBackupBlobStore } from "./utils/backup-staging";
+import { LEGACY_EXT_LOGS_STORAGE_KEY } from "./utils/ext-logging";
 import {
     getLatestSecurityBackupJobId,
     getSecurityBackupJob,
@@ -2223,6 +2224,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     await ensureActiveKeyPair();
     // Also check if rotation is needed on install/update
     await checkAndRotateKeysIfNeeded();
+    await chrome.storage.local.remove(LEGACY_EXT_LOGS_STORAGE_KEY);
 });
 
 // Also ensure key pair exists on startup

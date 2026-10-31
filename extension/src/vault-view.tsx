@@ -17,6 +17,7 @@ import {
     ExternalLink,
     Eye,
     EyeOff,
+    FileJson,
     FileText,
     Fingerprint,
     Globe,
@@ -130,6 +131,8 @@ import {
 import { SSHKeyEditor } from "./components/ssh-key-editor";
 import { PopupPasswordGeneratorDialog } from "./components/popup-password-generator-dialog";
 import { PopupBackupDialog } from "./components/popup-backup-dialog";
+import { LogInspectorDialog } from "@/components/dialog/log-inspector";
+import { createExtensionLogSource } from "./utils/extension-log-source";
 import {
     ShareDialog,
     type ShareDialogTarget,
@@ -139,7 +142,7 @@ import { useExtensionShareBackend } from "./share-backend";
 import { PopupVaultSecurityDialog } from "./components/popup-vault-security-dialog";
 import { shouldAutoReconnectAfterWebRTCStatus } from "./sync-connection-lifecycle";
 import { parseOriginish } from "./utils/etld";
-import { uiLog } from "./utils/ext-logging";
+import { syncLog, uiLog, vaultLog } from "./utils/ext-logging";
 import {
     createPopupEnvelope,
     sendEncryptedEnvelopeToSW,
@@ -441,6 +444,9 @@ const ConnectionStatusIndicator: React.FC<{
     );
 };
 
+// Module-level so the worker logs it has fetched survive dialog reopening.
+const extensionLogSource = createExtensionLogSource();
+
 const VaultView: React.FC<VaultViewProps> = ({
     lockVaultFn,
     openFullPageFn,
@@ -539,6 +545,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     const [lastSync, setLastSync] = useState<Date | null>(null);
     const linkedDevicesRef = useRef<VaultUtilTypes.LinkedDevice[]>([]);
 
+    const showLogInspectorFnRef = useRef<(() => void) | null>(null);
     const showWarningDialogFnRef = useRef<WarningDialogShowFn>(() => {
         // No-op
     });
@@ -858,7 +865,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             await navigator.clipboard.writeText(text);
             return true;
         } catch (err) {
-            console.error("Failed to copy to clipboard:", err);
+            uiLog.error("Failed to copy to clipboard", err);
             return false;
         }
     };
@@ -950,7 +957,7 @@ const VaultView: React.FC<VaultViewProps> = ({
     // Credential CRUD operations
     const createCredential = async (formData: CredentialFormSchemaType) => {
         if (!serverPublicKey) {
-            console.error(
+            vaultLog.error(
                 "CREDENTIAL_CREATE_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -981,7 +988,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to create credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
@@ -990,7 +997,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             const resRetry = await _createCredential(formData);
             if (resRetry.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to create credential after retrying: " +
                         resRetry.error,
                 );
@@ -999,7 +1006,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 return ok();
             }
         } else {
-            console.error("Failed to create credential:", res.error);
+            vaultLog.error("Failed to create credential", res.error);
         }
 
         setIsCreating(false);
@@ -1055,7 +1062,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         formData: CredentialFormSchemaType,
     ) => {
         if (!serverPublicKey) {
-            console.error(
+            vaultLog.error(
                 "CREDENTIAL_UPDATE_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -1096,7 +1103,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to update credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
@@ -1105,7 +1112,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             const resRetry = await _updateCredential(id, formData);
             if (resRetry.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to update credential after retrying: " +
                         resRetry.error,
                 );
@@ -1114,7 +1121,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 return ok();
             }
         } else {
-            console.error("Failed to update credential: " + res.error);
+            vaultLog.error("Failed to update credential: " + res.error);
         }
 
         setIsUpdating(false);
@@ -1170,7 +1177,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const deleteCredential = async (id: string) => {
         if (!serverPublicKey) {
-            console.error(
+            vaultLog.error(
                 "CREDENTIAL_DELETE_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -1192,7 +1199,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to delete credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
@@ -1202,7 +1209,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             const resRetry = await _deleteCredential(id);
             if (resRetry.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to delete credential after retrying: " +
                         resRetry.error,
                 );
@@ -1215,7 +1222,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 return ok();
             }
         } else {
-            console.error("Failed to delete credential: " + res.error);
+            vaultLog.error("Failed to delete credential: " + res.error);
         }
 
         setIsDeleting(false);
@@ -1331,16 +1338,16 @@ const VaultView: React.FC<VaultViewProps> = ({
             >(res);
 
             if (!decryptedPayload?.ok) {
-                console.error(
-                    "Failed to decrypt encrypted response (GetCredentials):",
+                vaultLog.error(
+                    "Failed to decrypt encrypted response (GetCredentials)",
                     decryptedPayload.error,
                 );
                 return err("ENVELOPE_FAILED_DECRYPTION");
             }
 
             if (!decryptedPayload.payload.ok) {
-                console.error(
-                    "Failed to get credentials (GetCredentials):",
+                vaultLog.error(
+                    "Failed to get credentials (GetCredentials)",
                     decryptedPayload.payload.error,
                 );
                 return err("FAILED_TO_GET_CREDENTIALS");
@@ -1358,7 +1365,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
     const refreshCredentials = useCallback(async () => {
         if (!serverPublicKey) {
-            console.error(
+            vaultLog.error(
                 "REFRESH_CREDENTIALS_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -1378,7 +1385,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to refresh credentials, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
@@ -1387,7 +1394,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             const resRetry = await _refreshCredentials();
             if (resRetry.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to refresh credentials after retrying: " +
                         resRetry.error,
                 );
@@ -1398,7 +1405,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 return ok();
             }
         } else {
-            console.error("Failed to refresh credentials: " + res.error);
+            vaultLog.error("Failed to refresh credentials: " + res.error);
         }
 
         setIsRefreshing(false);
@@ -1568,16 +1575,16 @@ const VaultView: React.FC<VaultViewProps> = ({
             >(res);
 
             if (!decryptedPayload?.ok) {
-                console.error(
-                    "Failed to decrypt encrypted response (SyncGetConfiguration):",
+                syncLog.error(
+                    "Failed to decrypt encrypted response (SyncGetConfiguration)",
                     decryptedPayload.error,
                 );
                 return err("ENVELOPE_FAILED_DECRYPTION");
             }
 
             if (!decryptedPayload.payload.ok) {
-                console.error(
-                    "Failed to get synchronization configuration (SyncGetConfiguration):",
+                syncLog.error(
+                    "Failed to get synchronization configuration (SyncGetConfiguration)",
                     decryptedPayload.payload.error,
                 );
                 return err("FAILED_TO_GET_SYNCHRONIZATION_CONFIGURATION");
@@ -1620,16 +1627,16 @@ const VaultView: React.FC<VaultViewProps> = ({
                 }>(res);
 
                 if (!decryptedPayload?.ok) {
-                    console.warn(
-                        "Failed to decrypt encrypted response (SyncSetLastSync):",
+                    syncLog.warn(
+                        "Failed to decrypt encrypted response (SyncSetLastSync)",
                         decryptedPayload.error,
                     );
                     return;
                 }
 
                 if (!decryptedPayload.payload.ok) {
-                    console.warn(
-                        "Failed to record device last sync (SyncSetLastSync):",
+                    syncLog.warn(
+                        "Failed to record device last sync (SyncSetLastSync)",
                         decryptedPayload.payload.error,
                     );
                 }
@@ -1637,20 +1644,20 @@ const VaultView: React.FC<VaultViewProps> = ({
             }
 
             if (res.payload?.code === "STALE_KEY") {
-                console.warn(
+                syncLog.warn(
                     "Stale key while recording device last sync, refreshing",
                 );
                 const refreshRes = await onStaleKeyError();
                 if (refreshRes.isErr()) {
-                    console.warn(
-                        "Failed to refresh public key after stale key (SyncSetLastSync):",
+                    syncLog.warn(
+                        "Failed to refresh public key after stale key (SyncSetLastSync)",
                         refreshRes.error,
                     );
                 }
                 return;
             }
 
-            console.warn(
+            syncLog.warn(
                 "Unexpected plaintext envelope while recording device last sync",
                 res.payload,
             );
@@ -1662,7 +1669,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         id: string,
     ): Promise<Result<VaultCredential, string>> => {
         if (!serverPublicKey) {
-            console.error(
+            vaultLog.error(
                 "LOAD_CREDENTIAL_FAILED: No server public key available for encrypted messaging",
             );
             return err("NO_PUBLIC_KEY_AVAILABLE");
@@ -1676,7 +1683,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (res.error === "STALE_KEY") {
             const refreshKeyResult = await onStaleKeyError();
             if (refreshKeyResult.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to request credential, tried to refresh public key but failed: " +
                         refreshKeyResult.error,
                 );
@@ -1685,7 +1692,7 @@ const VaultView: React.FC<VaultViewProps> = ({
 
             const resRetry = await _requestCredential(id);
             if (resRetry.isErr()) {
-                console.error(
+                vaultLog.error(
                     "Failed to request credential after retrying: " +
                         resRetry.error,
                 );
@@ -1694,7 +1701,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             return ok(resRetry.value);
         }
 
-        console.error("Failed to request credential: " + res.error);
+        vaultLog.error("Failed to request credential: " + res.error);
         return err("FAILED_TO_REQUEST_CREDENTIAL");
     };
 
@@ -1999,8 +2006,8 @@ const VaultView: React.FC<VaultViewProps> = ({
             (async () => {
                 const syncConfig = await _getSyncConfig();
                 if (syncConfig.isErr()) {
-                    console.error(
-                        "Failed to get synchronization configuration:",
+                    syncLog.error(
+                        "Failed to get synchronization configuration",
                         syncConfig.error,
                     );
                     return;
@@ -2132,9 +2139,9 @@ const VaultView: React.FC<VaultViewProps> = ({
                                             .Failed,
                                     );
 
-                                    console.warn(
-                                        "NOT IMPLEMENTED: Error",
-                                        event,
+                                    syncLog.warn(
+                                        "Synchronization with a linked device failed",
+                                        { deviceId: device.ID },
                                     );
                                 }
                             }
@@ -2581,6 +2588,24 @@ const VaultView: React.FC<VaultViewProps> = ({
                                     </span>
                                     <span className="block text-[11px] text-muted-foreground">
                                         One-time links you sent
+                                    </span>
+                                </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    requestAnimationFrame(() =>
+                                        showLogInspectorFnRef.current?.(),
+                                    );
+                                }}
+                                className="items-start py-2"
+                            >
+                                <FileJson className="mt-0.5 text-primary" />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        Diagnostic logs
+                                    </span>
+                                    <span className="block text-[11px] text-muted-foreground">
+                                        Inspect and export recent logs
                                     </span>
                                 </span>
                             </DropdownMenuItem>
@@ -3951,6 +3976,10 @@ const VaultView: React.FC<VaultViewProps> = ({
                 open={showVaultSecurity}
                 onOpenChange={setShowVaultSecurity}
                 onSessionInvalidated={lockVaultFn}
+            />
+            <LogInspectorDialog
+                showDialogFnRef={showLogInspectorFnRef}
+                source={extensionLogSource}
             />
 
             <DirectoryEditorDialog

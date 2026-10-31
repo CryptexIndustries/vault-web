@@ -83,6 +83,8 @@ Backups: `CreateEncryptedBackup`, `GetBackupContext`,
 Vault security: `GetVaultSecurity`, `ReconfigureVaultSecurity`,
 `RotateVaultRecoveryCode`
 
+Diagnostics: `GetLogs`, `ClearLogs`
+
 ### `link`
 
 `ProxyFetch`, `OnlineServicesEstablish`, `OnlineServicesClear`
@@ -171,6 +173,18 @@ completedAt }`.
   snapshot must still match both, and every authenticated request rechecks the
   device ID before upload completion, listing, or deletion.
 - Decrypted request and response payloads are never written to debug logs.
+
+### Diagnostic logs (`worker-logs.ts`)
+
+- `GetLogs` and `ClearLogs` return `VAULT_NOT_UNLOCKED` while locked. They
+  check the active vault index, not the whole vault, because the viewer polls
+  every second.
+- `GetLogs` takes `null` or `{ since?: string }` with an ISO timestamp and
+  returns the worker's in-memory entries at or after it. Anything else returns
+  `INVALID_LOGS_REQUEST`.
+- Each entry's `data` is made JSON-safe on its own: errors become
+  `{ name, message }`, and values that can't be encoded (cycles, BigInt) become
+  strings, so one entry can't fail the whole response.
 
 ## Client call sites
 

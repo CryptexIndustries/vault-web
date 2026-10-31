@@ -70,13 +70,21 @@ per group). Each extension page and the SW keeps its own logs until it closes or
 stops. An extension update deletes the `extLogs` key that older versions kept in
 `chrome.storage.local`.
 
+While unlocked, Vault actions > Diagnostic logs shows the page's and the
+worker's logs. See [../ui/README.md](../ui/README.md).
+
 Channels: `uiLog`, `vaultLog`, `signalingLog`, `webrtcLog`, `onlineServicesLog`,
 `importLog`, `generalLog`, `syncLog`.
 
 Optional `data` fields may contain deviceId, vaultId, or error context — not
 credential secrets by policy, but not enforced at runtime.
 
-Production Terser drops `console.log/info/debug` but retains `warn`/`error`.
+`vaultLogger` prints to the console only in development builds, so
+`ext-logging.ts` prints warnings and errors in release builds. Production
+Terser drops `console.log/info/debug` but retains `warn`/`error`. Report
+through these channels instead of `console.warn`/`console.error` so the log
+viewer shows it. `sw-envelope-client.ts` is the exception, because content
+scripts load it too.
 
 ## Idle lock
 

@@ -27,6 +27,20 @@ import {
     vaultLogger,
 } from "@/utils/logging";
 
+/** A log entry, optionally tagged with the context that wrote it. */
+export type LogInspectorEntry = LogEntry & { source?: string };
+
+/** Where the inspector reads and clears logs. Defaults to this page's logger. */
+export type LogInspectorSource = {
+    load: () => Promise<LogInspectorEntry[]>;
+    clear: () => Promise<void>;
+};
+
+const pageLogSource: LogInspectorSource = {
+    load: async () => vaultLogger.getAllLogs(),
+    clear: async () => vaultLogger.clearAll(),
+};
+
 const levelColors: Record<
     LogLevel,
     { row: string; badge: string; text: string }
@@ -139,7 +153,7 @@ function LogEntryRow({
     isExpanded,
     onToggle,
 }: {
-    entry: LogEntry;
+    entry: LogInspectorEntry;
     isExpanded: boolean;
     onToggle: () => void;
 }) {
@@ -185,6 +199,11 @@ function LogEntryRow({
                 >
                     {groupIcons[entry.group]} {entry.group}
                 </span>
+                {entry.source ? (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {entry.source}
+                    </span>
+                ) : null}
                 <span
                     className={cn(
                         "flex-grow break-words text-sm",
@@ -212,7 +231,8 @@ function LogEntryRow({
 
 export const LogInspectorDialog: React.FC<{
     showDialogFnRef: React.RefObject<(() => void) | null>;
-}> = ({ showDialogFnRef }) => {
+    source?: LogInspectorSource;
+}> = ({ showDialogFnRef, source = pageLogSource }) => {
     const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedGroups, setSelectedGroups] = useState<Set<LogGroup>>(
@@ -226,26 +246,37 @@ export const LogInspectorDialog: React.FC<{
     );
     const [autoScroll, setAutoScroll] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [logCounts, setLogCounts] = useState<Record<LogGroup, number>>(
-        {} as Record<LogGroup, number>,
-    );
+    const [logs, setLogs] = useState<LogInspectorEntry[]>([]);
+    const logCounts = useMemo(() => {
+        const counts = {} as Record<LogGroup, number>;
+        for (const log of logs) {
+            counts[log.group] = (counts[log.group] ?? 0) + 1;
+        }
+        return counts;
+    }, [logs]);
 
     const logContainerRef = useRef<HTMLDivElement>(null);
+    const loadingRef = useRef(false);
 
-    const refreshLogs = useCallback(() => {
-        setLogs(vaultLogger.getAllLogs());
-        setLogCounts(vaultLogger.getLogCounts());
-    }, []);
+    const refreshLogs = useCallback(async () => {
+        // A slow source must not stack up requests from the interval.
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+        try {
+            setLogs(await source.load());
+        } finally {
+            loadingRef.current = false;
+        }
+    }, [source]);
 
     showDialogFnRef.current = () => {
         setOpen(true);
-        refreshLogs();
+        void refreshLogs();
     };
 
     useEffect(() => {
         if (!open) return;
-        const interval = setInterval(refreshLogs, 1000);
+        const interval = setInterval(() => void refreshLogs(), 1000);
         return () => clearInterval(interval);
     }, [open, refreshLogs]);
 
@@ -317,24 +348,26 @@ export const LogInspectorDialog: React.FC<{
             return next;
         });
 
-    const clearLogs = () => {
-        vaultLogger.clearAll();
-        refreshLogs();
+    const clearLogs = async () => {
+        await source.clear();
+        void refreshLogs();
         setExpandedEntries(new Set());
         vaultLogger.info(LogGroup.General, "Logs cleared");
     };
 
     const exportLogs = () => {
-        const json = vaultLogger.exportAsJSON({
-            groups:
-                selectedGroups.size === Object.values(LogGroup).length
-                    ? undefined
-                    : Array.from(selectedGroups),
-            levels:
-                selectedLevels.size === Object.values(LogLevel).length
-                    ? undefined
-                    : Array.from(selectedLevels),
-        });
+        const json = JSON.stringify(
+            // Like the list, an empty selection means no filter.
+            logs.filter(
+                (log) =>
+                    (selectedGroups.size === 0 ||
+                        selectedGroups.has(log.group)) &&
+                    (selectedLevels.size === 0 ||
+                        selectedLevels.has(log.level)),
+            ),
+            null,
+            2,
+        );
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
@@ -591,7 +624,7 @@ export const LogInspectorDialog: React.FC<{
                         <Button
                             variant="destructive"
                             size="sm"
-                            onClick={clearLogs}
+                            onClick={() => void clearLogs()}
                             disabled={totalLogCount === 0}
                         >
                             <Trash2 className="mr-1 h-4 w-4" />

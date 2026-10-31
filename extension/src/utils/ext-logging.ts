@@ -1,6 +1,9 @@
 /**
  * Extension-side logging adapter. Forwards every log to the shared in-memory
  * `vaultLogger`, so consumers in the web codebase keep working.
+ *
+ * `vaultLogger` prints to the console only in development builds. Release
+ * builds still print warnings and errors, so they stay visible in DevTools.
  */
 
 import {
@@ -38,6 +41,16 @@ const dispatch = (
         case LogLevel.Error:
             vaultLogger.error(group, message, data);
             break;
+    }
+    if (
+        process.env.NODE_ENV !== "development" &&
+        (level === LogLevel.Warn || level === LogLevel.Error)
+    ) {
+        const print = level === LogLevel.Warn ? console.warn : console.error;
+        print(
+            `[${group}]`,
+            ...(data === undefined ? [message] : [message, data]),
+        );
     }
 };
 

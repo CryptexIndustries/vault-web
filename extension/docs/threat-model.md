@@ -40,7 +40,7 @@ architecture docs under `extension/docs/`.
 | Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                                            | Re-auth without user gesture                            |
 | ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                                          | Decrypt captured envelopes                              |
 | Mnemonic (link receive)       | Link page memory during flow                                                    | Decrypt link package                                    |
-| Diagnostic logs               | In-memory `vaultLogger` of each extension page and the SW                       | Metadata leakage (deviceId, vaultId, errors)            |
+| Diagnostic logs               | In-memory `vaultLogger` per page and SW; unlocked log inspector; console        | Metadata leakage (deviceId, vaultId, errors)            |
 | Encrypted `.cryx` ciphertext  | IndexedDB `cryptex-backup-staging` (one-shot); popup after take; user Downloads | Vault at rest if the vault secret is also stolen        |
 | Local backup receipt          | `chrome.storage.local` `cryptex:local-backup-receipt:{vaultId}`                 | Last-backup time and blob fingerprint; not vault bytes  |
 | Clipboard                     | OS clipboard after copy actions                                                 | Credential field exposure                               |

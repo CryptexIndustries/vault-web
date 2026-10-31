@@ -98,6 +98,13 @@ WebAuthn PRF is deliberately omitted. Existing PRF-protected vaults show an
 unsupported notice and must be changed in the web app. One-time protection
 phrases and recovery codes block dialog dismissal until acknowledged.
 
+### Diagnostic logs (`LogInspectorDialog`)
+
+Opened from Vault actions, so only while unlocked. It reuses the web app's log
+inspector. `extension-log-source.ts` merges this page's logs with the worker's,
+fetched with `GetLogs`, and tags them `Page` or `Worker`. After the first load
+it asks the worker only for newer entries. Clear All empties both.
+
 ### Link tab (`popup-receive-link.tsx`)
 
 Stages: `input` → `linking` → `passphrase` → `done` | `failed` | `aborted`

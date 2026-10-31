@@ -2,6 +2,7 @@ import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { Globe, RadioTower, Server } from "lucide-react-native";
 import {
@@ -65,6 +66,7 @@ export function ConnectivityPanel({
     nativeEditor = false,
     onDeletePendingChange,
 }: ConnectivityPanelProps) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const navigation = useNavigation();
     const newServerRef = useRef<
@@ -160,10 +162,10 @@ export function ConnectivityPanel({
 
     usePreventRemove(nativeEditor && dirty && !allowRemove, ({ data }) => {
         confirm({
-            title: "Discard server changes?",
-            description: "Your server changes have not been saved.",
-            cancelLabel: "Keep editing",
-            confirmLabel: "Discard",
+            title: t`Discard server changes?`,
+            description: t`Your server changes have not been saved.`,
+            cancelLabel: t`Keep editing`,
+            confirmLabel: t`Discard`,
             onConfirm: () => {
                 pendingActionRef.current = data.action;
                 setAllowRemove(true);
@@ -232,17 +234,17 @@ export function ConnectivityPanel({
             )
         ) {
             setError(
-                "Enter a host and port for STUN or TURN. Secure URL schemes are not supported by this connection configuration.",
+                t`Enter a host and port for STUN or TURN. Secure URL schemes are not supported by this connection configuration.`,
             );
             return;
         }
 
         if (cleanStun.some((s) => !s.Name || !s.Host)) {
-            setError("Each STUN server needs a name and host.");
+            setError(t`Each STUN server needs a name and host.`);
             return;
         }
         if (cleanTurn.some((s) => !s.Name || !s.Host)) {
-            setError("Each TURN server needs a name and host.");
+            setError(t`Each TURN server needs a name and host.`);
             return;
         }
         if (
@@ -257,7 +259,7 @@ export function ConnectivityPanel({
             )
         ) {
             setError(
-                "Each signaling server needs name, app ID, key, secret, host, and a service port.",
+                t`Each signaling server needs name, app ID, key, secret, host, and a service port.`,
             );
             return;
         }
@@ -268,7 +270,7 @@ export function ConnectivityPanel({
             hasDuplicateHosts(cleanSignaling.map((s) => s.Host))
         ) {
             setError(
-                "Duplicate host entries are not allowed within a section.",
+                t`Duplicate host entries are not allowed within a section.`,
             );
             return;
         }
@@ -292,17 +294,17 @@ export function ConnectivityPanel({
                 },
             );
             if (result.isErr()) {
-                throw new Error("Failed to save connectivity configuration.");
+                throw new Error(t`Failed to save connectivity configuration.`);
             }
             setDirty(false);
-            setStatus("Connectivity configuration saved.");
+            setStatus(t`Connectivity configuration saved.`);
             onSaved?.();
             finishEditor(tab);
         } catch (e) {
             setError(
                 e instanceof Error
                     ? e.message
-                    : "Failed to save connectivity configuration.",
+                    : t`Failed to save connectivity configuration.`,
             );
         } finally {
             setSaving(false);
@@ -333,33 +335,32 @@ export function ConnectivityPanel({
         return (
             <View>
                 <Text className="mb-1 mt-6 text-[10px] uppercase tracking-[1.1px] text-muted-foreground">
-                    Custom servers
+                    {t`Custom servers`}
                 </Text>
                 <UnlockedMenuRow
                     icon={Globe}
-                    title="STUN servers"
-                    subtitle="Help devices find a direct connection"
+                    title={t`STUN servers`}
+                    subtitle={t`Help devices find a direct connection`}
                     value={String(stunServers.length)}
                     onPress={() => onRouteChange("stun")}
                 />
                 <UnlockedMenuRow
                     icon={Server}
-                    title="TURN servers"
-                    subtitle="Relay encrypted traffic when needed"
+                    title={t`TURN servers`}
+                    subtitle={t`Relay encrypted traffic when needed`}
                     value={String(turnServers.length)}
                     onPress={() => onRouteChange("turn")}
                 />
                 <UnlockedMenuRow
                     icon={RadioTower}
-                    title="Signaling servers"
-                    subtitle="Introduce your devices to each other"
+                    title={t`Signaling servers`}
+                    subtitle={t`Introduce your devices to each other`}
                     value={String(signalingServers.length)}
                     onPress={() => onRouteChange("signaling")}
                 />
                 <View className="mt-5 border-l-2 border-muted pl-3">
                     <Text className="text-xs leading-5 text-muted-foreground">
-                        For links without Online Services, configure signaling
-                        and at least one STUN or TURN server.
+                        {t`For links without Online Services, configure signaling and at least one STUN or TURN server.`}
                     </Text>
                 </View>
             </View>
@@ -398,8 +399,30 @@ export function ConnectivityPanel({
         }
     };
 
-    const label =
-        tab === "stun" ? "STUN" : tab === "turn" ? "TURN" : "Signaling";
+    const title =
+        tab === "stun"
+            ? t`STUN servers`
+            : tab === "turn"
+              ? t`TURN servers`
+              : t`Signaling servers`;
+    const emptyText =
+        tab === "stun"
+            ? t`No custom STUN servers configured.`
+            : tab === "turn"
+              ? t`No custom TURN servers configured.`
+              : t`No custom signaling servers configured.`;
+    const untitled =
+        tab === "stun"
+            ? t`Untitled STUN server`
+            : tab === "turn"
+              ? t`Untitled TURN server`
+              : t`Untitled signaling server`;
+    const addLabel =
+        tab === "stun"
+            ? t`Add STUN server`
+            : tab === "turn"
+              ? t`Add TURN server`
+              : t`Add signaling server`;
     const Icon = tab === "stun" ? Globe : tab === "turn" ? Server : RadioTower;
     const serverList = (
         <View className="gap-3">
@@ -412,27 +435,29 @@ export function ConnectivityPanel({
                         letterSpacing: -0.5,
                     }}
                 >
-                    {label} servers
+                    {title}
                 </Text>
                 <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
                     {tab === "stun"
-                        ? "Discover a direct route between devices."
+                        ? t`Discover a direct route between devices.`
                         : tab === "turn"
-                          ? "Relay encrypted traffic when a direct route is unavailable."
-                          : "Let devices discover each other and exchange connection information."}
+                          ? t`Relay encrypted traffic when a direct route is unavailable.`
+                          : t`Let devices discover each other and exchange connection information.`}
                 </Text>
             </View>
             {savedServers.length === 0 ? (
                 <View className="my-5 border-l-2 border-border pl-[13px]">
-                    <Text className="text-xs leading-[18px] text-muted-foreground">{`No custom ${label.toLowerCase()} servers configured.`}</Text>
+                    <Text className="text-xs leading-[18px] text-muted-foreground">
+                        {emptyText}
+                    </Text>
                 </View>
             ) : (
                 savedServers.map((server) => (
                     <UnlockedMenuRow
                         key={server.ID}
                         icon={Icon}
-                        title={server.Name || `Untitled ${label} server`}
-                        subtitle={server.Host || "Configuration incomplete"}
+                        title={server.Name || untitled}
+                        subtitle={server.Host || t`Configuration incomplete`}
                         onPress={() => {
                             setStunSheetHidden(false);
                             setEditingId(server.ID);
@@ -441,10 +466,9 @@ export function ConnectivityPanel({
                     />
                 ))
             )}
-            <Button
-                className="mt-6"
-                onPress={addServer}
-            >{`Add ${label} server`}</Button>
+            <Button className="mt-6" onPress={addServer}>
+                {addLabel}
+            </Button>
         </View>
     );
 
@@ -488,13 +512,13 @@ export function ConnectivityPanel({
                 },
             );
             if (result.isErr())
-                throw new Error("Could not delete server. Please try again.");
+                throw new Error(t`Could not delete server. Please try again.`);
             setDirty(false);
             onSaved?.();
             finishEditor(tab);
         } catch (e) {
             setError(
-                e instanceof Error ? e.message : "Could not delete server.",
+                e instanceof Error ? e.message : t`Could not delete server.`,
             );
             onDeletePendingChange?.(false);
         } finally {
@@ -502,6 +526,10 @@ export function ConnectivityPanel({
         }
     };
 
+    const serverNameLabel = t({
+        message: "Name",
+        comment: "Name of a custom server",
+    });
     const editor = (
         <View className="gap-3">
             {tab !== "stun" ? (
@@ -514,16 +542,21 @@ export function ConnectivityPanel({
                             letterSpacing: -0.5,
                         }}
                     >
-                        {editingExisting ? "Edit" : "Add"}{" "}
-                        {tab === "turn" ? "TURN" : "Signaling"} server
+                        {tab === "turn"
+                            ? editingExisting
+                                ? t`Edit TURN server`
+                                : t`Add TURN server`
+                            : editingExisting
+                              ? t`Edit signaling server`
+                              : t`Add signaling server`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Saved inside this vault.
+                        {t`Saved inside this vault.`}
                     </Text>
                 </View>
             ) : (
                 <Text className="text-sm text-muted-foreground">
-                    Saved inside this vault.
+                    {t`Saved inside this vault.`}
                 </Text>
             )}
 
@@ -531,7 +564,7 @@ export function ConnectivityPanel({
                 <View className="gap-3">
                     {draftStun.every((server) => server.ID !== editingId) ? (
                         <Text className="text-sm text-muted-foreground">
-                            No custom STUN servers.
+                            {t`No custom STUN servers.`}
                         </Text>
                     ) : (
                         draftStun
@@ -539,10 +572,10 @@ export function ConnectivityPanel({
                             .map((server) => (
                                 <View key={server.ID} className="gap-5">
                                     <View>
-                                        <Label>Name</Label>
+                                        <Label>{serverNameLabel}</Label>
                                         <Input
                                             value={server.Name}
-                                            accessibilityLabel="Name"
+                                            accessibilityLabel={serverNameLabel}
                                             onChangeText={(value) => {
                                                 markDirty();
                                                 setDraftStun((list) =>
@@ -559,14 +592,18 @@ export function ConnectivityPanel({
                                                     ),
                                                 );
                                             }}
-                                            placeholder="Home STUN"
+                                            placeholder={t({
+                                                message: "Home STUN",
+                                                comment:
+                                                    "Example name for a STUN server",
+                                            })}
                                         />
                                     </View>
                                     <View>
-                                        <Label>Host / URL</Label>
+                                        <Label>{t`Host / URL`}</Label>
                                         <Input
                                             value={server.Host}
-                                            accessibilityLabel="Host / URL"
+                                            accessibilityLabel={t`Host / URL`}
                                             onChangeText={(value) => {
                                                 markDirty();
                                                 setDraftStun((list) =>
@@ -585,6 +622,7 @@ export function ConnectivityPanel({
                                             }}
                                             autoCapitalize="none"
                                             autoCorrect={false}
+                                            // i18n-ignore: example host
                                             placeholder="stun.example.com:3478"
                                         />
                                     </View>
@@ -598,7 +636,7 @@ export function ConnectivityPanel({
                 <View className="gap-3">
                     {draftTurn.every((server) => server.ID !== editingId) ? (
                         <Text className="text-sm text-muted-foreground">
-                            No custom TURN servers.
+                            {t`No custom TURN servers.`}
                         </Text>
                     ) : (
                         draftTurn
@@ -607,10 +645,12 @@ export function ConnectivityPanel({
                                 return (
                                     <View key={server.ID} className="gap-5">
                                         <View>
-                                            <Label>Name</Label>
+                                            <Label>{serverNameLabel}</Label>
                                             <Input
                                                 value={server.Name}
-                                                accessibilityLabel="Name"
+                                                accessibilityLabel={
+                                                    serverNameLabel
+                                                }
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -628,14 +668,18 @@ export function ConnectivityPanel({
                                                         ),
                                                     );
                                                 }}
-                                                placeholder="Home TURN"
+                                                placeholder={t({
+                                                    message: "Home TURN",
+                                                    comment:
+                                                        "Example name for a TURN server",
+                                                })}
                                             />
                                         </View>
                                         <View>
-                                            <Label>Host / URL</Label>
+                                            <Label>{t`Host / URL`}</Label>
                                             <Input
                                                 value={server.Host}
-                                                accessibilityLabel="Host / URL"
+                                                accessibilityLabel={t`Host / URL`}
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -655,14 +699,15 @@ export function ConnectivityPanel({
                                                 }}
                                                 autoCapitalize="none"
                                                 autoCorrect={false}
+                                                // i18n-ignore: example host
                                                 placeholder="turn.example.com:3478"
                                             />
                                         </View>
                                         <View>
-                                            <Label>Username</Label>
+                                            <Label>{t`Username`}</Label>
                                             <Input
                                                 value={server.Username}
-                                                accessibilityLabel="Username"
+                                                accessibilityLabel={t`Username`}
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -686,7 +731,13 @@ export function ConnectivityPanel({
                                             />
                                         </View>
                                         <View>
-                                            <Label>Credential</Label>
+                                            <Label>
+                                                {t({
+                                                    message: "Credential",
+                                                    context:
+                                                        "TURN server password",
+                                                })}
+                                            </Label>
                                             <Input
                                                 value={server.Password}
                                                 onChangeText={(value) => {
@@ -711,7 +762,7 @@ export function ConnectivityPanel({
                                                 revealButtonHeight={54}
                                                 autoCapitalize="none"
                                                 autoCorrect={false}
-                                                accessibilityLabel="TURN credential"
+                                                accessibilityLabel={t`TURN credential`}
                                             />
                                         </View>
                                     </View>
@@ -727,7 +778,7 @@ export function ConnectivityPanel({
                         (server) => server.ID !== editingId,
                     ) ? (
                         <Text className="text-sm text-muted-foreground">
-                            No custom signaling servers.
+                            {t`No custom signaling servers.`}
                         </Text>
                     ) : (
                         draftSignaling
@@ -737,22 +788,50 @@ export function ConnectivityPanel({
                                     <View key={server.ID} className="gap-5">
                                         {(
                                             [
-                                                ["Name", "Name", "Home Pusher"],
                                                 [
-                                                    "Host",
+                                                    serverNameLabel,
+                                                    "Name",
+                                                    t({
+                                                        message: "Home Pusher",
+                                                        comment:
+                                                            "Example name for a signaling server",
+                                                    }),
+                                                ],
+                                                [
+                                                    t({
+                                                        message: "Host",
+                                                        comment:
+                                                            "Signaling server host name",
+                                                    }),
                                                     "Host",
                                                     "pusher.example.com",
                                                 ],
-                                                ["App ID", "AppID", "app-id"],
-                                                ["Key", "Key", "app-key"],
-                                                ["Secret", "Secret", ""],
+                                                [t`App ID`, "AppID", "app-id"],
                                                 [
-                                                    "WS port",
+                                                    t({
+                                                        message: "Key",
+                                                        comment:
+                                                            "Signaling server app key",
+                                                    }),
+                                                    "Key",
+                                                    "app-key",
+                                                ],
+                                                [
+                                                    t({
+                                                        message: "Secret",
+                                                        comment:
+                                                            "Signaling server app secret",
+                                                    }),
+                                                    "Secret",
+                                                    "",
+                                                ],
+                                                [
+                                                    t`WS port`,
                                                     "ServicePort",
                                                     "6001",
                                                 ],
                                                 [
-                                                    "WSS port (0 = disable TLS)",
+                                                    t`WSS port (0 = disable TLS)`,
                                                     "SecureServicePort",
                                                     "0",
                                                 ],
@@ -820,7 +899,7 @@ export function ConnectivityPanel({
                     disabled={saving}
                     onPress={() => void testServer()}
                 >
-                    Test connection
+                    {t`Test connection`}
                 </Button>
             ) : null}
             {editingExisting ? (
@@ -830,11 +909,10 @@ export function ConnectivityPanel({
                     onPress={() => {
                         if (tab === "stun") setStunSheetHidden(true);
                         confirm({
-                            title: "Delete server?",
-                            description:
-                                "Remove this custom server from the vault.",
-                            confirmLabel: "Delete server",
-                            cancelLabel: "Keep server",
+                            title: t`Delete server?`,
+                            description: t`Remove this custom server from the vault.`,
+                            confirmLabel: t`Delete server`,
+                            cancelLabel: t`Keep server`,
                             onCancel: () => setStunSheetHidden(false),
                             onConfirm: () => {
                                 setStunSheetHidden(false);
@@ -843,7 +921,7 @@ export function ConnectivityPanel({
                         });
                     }}
                 >
-                    Delete server
+                    {t`Delete server`}
                 </Button>
             ) : null}
             <Button
@@ -852,7 +930,7 @@ export function ConnectivityPanel({
                 disabled={!dirty || testingId !== null}
                 onPress={() => void save()}
             >
-                Save server
+                {t`Save server`}
             </Button>
         </View>
     );
@@ -865,10 +943,10 @@ export function ConnectivityPanel({
         }
         setStunSheetHidden(true);
         confirm({
-            title: "Discard server changes?",
-            description: "Your STUN server changes have not been saved.",
-            confirmLabel: "Discard changes",
-            cancelLabel: "Keep editing",
+            title: t`Discard server changes?`,
+            description: t`Your STUN server changes have not been saved.`,
+            confirmLabel: t`Discard changes`,
+            cancelLabel: t`Keep editing`,
             onConfirm: () => onRouteChange("stun"),
             onCancel: () => setStunSheetHidden(false),
         });
@@ -886,8 +964,8 @@ export function ConnectivityPanel({
                 <DialogHeader>
                     <UnlockedDialogTitle>
                         {editingExisting
-                            ? "Edit STUN server"
-                            : "Add STUN server"}
+                            ? t`Edit STUN server`
+                            : t`Add STUN server`}
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 {editor}

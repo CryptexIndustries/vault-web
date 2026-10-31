@@ -74,6 +74,8 @@ This review does not establish compliance with a regulatory framework or deploym
 | A14 | Clipboard, exports, and logs                     | OS clipboard, browser downloads, console                          | Secrets or metadata escape the vault's storage controls                                            |
 | A15 | One-time share link and its key                  | Share dialog until copied; wherever the sender sends it           | Anyone holding it can open the share once                                                          |
 | A16 | Share manage tokens and share settings           | Encrypted vault (`ShareLinks`, `ShareSettings`), synced           | Revoke the sender's shares and read their status; creation token use on a self-hosted server       |
+| A17 | Backup destination keys                          | Encrypted vault (`BackupDestinations`), synced and in backups     | Read, overwrite or delete whatever the key allows in the user's bucket                             |
+| A18 | Backup device ID and marker key                  | Vault `LinkedDevices` (device-local); marker HMAC in localStorage | Folder name and change detection only; the HMAC reveals nothing without the key                    |
 
 | State    | Expected secret handling                                                               | Remaining exposure                                                                             |
 | -------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -101,6 +103,7 @@ flowchart LR
     Providers["Stripe and Turnstile"]
     Share["Share server (same origin, /share-api)"]
     Recipient["Share recipient browser"]
+    Bucket[("User's S3-compatible bucket")]
 
     User -->|"F1: unlock and vault actions"| App
     App <-->|"F2: encrypted persistence"| IDB
@@ -114,6 +117,7 @@ flowchart LR
     App <-->|"F10: billing and captcha"| Providers
     App <-->|"F11: create, status, revoke share ciphertext"| Share
     Recipient <-->|"F12: /s/ page, peek and one-time reveal"| Share
+    App <-->|"F13: SigV4 backup upload, list, prune, restore"| Bucket
 ```
 
 The diagram shows logical flows. TURN may relay peer traffic. Signaling and relay services still observe connection metadata even when application payloads are encrypted.
@@ -127,6 +131,7 @@ The diagram shows logical flows. TURN may relay peer traffic. Signaling and rela
 | B3: Web app and peer/transport infrastructure | F7, F8, F9  | Authenticated payload encryption, signed sync setup, encrypted mnemonic-protected link package   | Malformed authenticated peer data, leaked mnemonic, service disruption, and metadata disclosure   |
 | B4: Vault and user/OS surfaces                | F1, F4      | Explicit/idle lock, encrypted persistence after import, controlled UI actions                    | Clipboard, screen capture, and exported files remain outside vault control                        |
 | B5: Web app and share server                  | F11, F12    | Browser-side AES-256-GCM; key only in the link fragment; token hashes; ticket audience check     | Link interception opens the share; the recipient page is trusted code from the web origin         |
+| B6: Web app and backup destination bucket     | F13         | Encrypted `.cryx` only; HTTPS endpoints; SigV4; pruning limited to this device's folder          | Provider sees metadata; synced keys let any linked device delete what the key allows              |
 
 Relevant attackers include a thief with a copy of IndexedDB or a backup, a script executing in the unlocked app, a malicious browser extension, an observer or disruptor of signaling/relay traffic, an authenticated malicious peer, and an attacker holding a JWT, Recovery Kit, or linking phrase. Their capabilities differ: possession of ciphertext alone is not possession of a decryption key.
 
@@ -145,7 +150,7 @@ Weak passwords still permit offline guessing. Browser storage integrity, cryptog
 
 ### Sync and device linking
 
-- Pusher presence channels provide signaling; WebRTC carries peer traffic. Sync channels use `presence-sync-{syncID}`. Connectivity uses configured STUN/TURN servers or Cloud-provided TURN credentials.
+- Pusher presence channels provide signaling; WebRTC carries peer traffic. Sync channels use `presence-sync-{syncID}`. Connectivity uses configured STUN/TURN servers or Cloud-provided TURN credentials. The server editor's Test connection can run before a server is saved. It sends the typed TURN username and password, or a presence signature made with the typed signaling secret, to the host in the form.
 - Sync keys reside in vault `LinkedDevices` data. Sync uses ML-KEM-768 and ML-DSA-65, with HKDF-derived AES-GCM keys and transcript-bound additional authenticated data.
 - Linking encrypts the package using a 12-word BIP39 mnemonic, Argon2id, and XChaCha20-Poly1305. Its HMAC-SHA-256 uses mnemonic bytes as the MAC key.
 - The linking copy removes current Online Services data, resets linked-device state, and installs sender root-device metadata for the receiver.
@@ -184,6 +189,19 @@ A stolen Kit and User ID authorize eligible ciphertext retrieval. An attacker wh
 
 The server side is covered by the [share server threat model](../services/cmd/share-server/threat-model.md).
 
+### Backup destinations
+
+- After a vault change, the web app uploads the same encrypted `.cryx` a manual backup produces straight to each S3-compatible bucket the user added. Requests are SigV4-signed, use `credentials: "omit"` and carry no Online Services JWT. The signed payload hash lets the provider reject a corrupted body.
+- Endpoints must be `https://` origins with no path, user info, query or fragment. The validator also accepts plain `http://` for `localhost`, `127.0.0.1`, `[::1]` and `10.0.2.2`, but the production CSP limits `connect-src` to `https:`, so the web app can't reach them in production.
+- Object keys are `<prefix><destination ID>/<device ID>/<timestamp>.cryx`. The prefix rejects `.` and `..` segments and control characters, the destination ID is a ULID and the device ID is `web-<ULID>`. Pruning lists only this device's folder and deletes only keys that parse as backups in it.
+- Pruning keeps every backup from the last 24 hours, the newest per UTC day for 30 days and the newest per UTC month for a year, like managed backups, unless the destination keeps everything. A pruning run stops deleting once its scheduler session ends, which happens on lock or when another vault opens.
+- After a security change, "Delete older destination backups" uploads the replacement first and deletes this device's other backups only after the upload succeeds.
+- Destination records sync like share records: they merge by version, a removal is final and erases the record's keys, and records that fail validation are dropped.
+- The device ID and marker key live in `LinkedDevices`, which never syncs and never goes into a backup. The per-destination state in localStorage holds an HMAC of the vault keyed with the marker key, so it says nothing about the contents without the vault.
+- Restoring from a bucket lists its backups, downloads the chosen one and hands it to the same restore path as a file the user picks. The bucket needs a CORS rule for the web app's origin.
+
+The bucket provider sees ciphertext size, upload times, device folder names and how many devices back up. Bucket keys sync to every linked device and are inside every backup, so a linked device, or anyone who opens a backup, can overwrite or delete what the key allows. A key without delete rights, used with "Keep every backup", limits that. Backups made under an old master password stay in other devices' folders, and in this device's folder unless the user turned on the deletion option. A bucket restore has no size limit beyond the browser's memory.
+
 ### Import, export, clipboard, and logging
 
 - Imported vault data is encrypted when saved. Plaintext imports and downloaded exports remain user-managed files outside the vault boundary.
@@ -208,6 +226,8 @@ STRIDE categories are spoofing, tampering, repudiation, information disclosure, 
 | T8  | Information disclosure                         | Clipboard, exports, or development logs expose A1/A5/A10/A11                                        | B4       | Encrypted persistence; limited production tRPC logging                                            | User files and clipboard are outside vault control; verbose development logs                                                  |
 | T9  | Information disclosure                         | Someone intercepts a share link (A15) and opens it before the recipient                             | B5       | One view; optional passphrase; the sender's list shows "Opened"                                   | Detection only; the delivery channel is outside this model                                                                    |
 | T10 | Tampering                                      | A malicious device or replayed sync data alters share records (A16)                                 | B3       | Sticky removal; immutable server and manage token; origin validation                              | A compromised sender device can revoke the sender's shares, or sync records that make other devices contact a server it picks |
+| T11 | Tampering, denial of service                   | A linked device, or someone who opens a backup, uses A17 to delete or overwrite bucket backups      | B3, B6   | Each device prunes only its own folder; HTTPS-only endpoints; sticky removal                      | Limited by the key's rights; no delete rights plus "Keep every backup" stops deletion, not overwrites                         |
+| T12 | Information disclosure                         | An attacker who learns an old master password opens an older backup left in a bucket (A2)           | B6       | Optional deletion of this device's older backups after a security change                          | Other devices' folders and copies outside the bucket keep the old password                                                    |
 
 Repudiation remains unassessed. This review does not establish an audit-evidence control.
 
@@ -221,6 +241,8 @@ Priorities are qualitative engineering judgments, not CVSS scores. Per-risk like
 | R6  | Medium   | Link security depends on a 12-word mnemonic; MAC uses mnemonic bytes directly            | Needs review                 | Milivoj Bošnjak (8l4cksmith) | Review mnemonic entropy and MAC key derivation; determine whether a separate derived MAC key is needed |
 | R8  | Medium   | Client UX can imply backend guarantees that this repository cannot establish             | Needs decision               | Milivoj Bošnjak (8l4cksmith) | Keep claims conditional and link separate backend assurance when available                             |
 | R9  | Low      | Development tRPC logs include full inputs/results when real accounts or secrets are used | Documented; enforcement open | Milivoj Bošnjak (8l4cksmith) | Keep real secrets out of development builds; consider automated redaction                              |
+| R10 | Low      | Backup destination keys sync to every linked device and travel inside every backup       | Accepted                     | Milivoj Bošnjak (8l4cksmith) | The guide recommends a key limited to one bucket; consider per-device keys if users ask                |
+| R11 | Low      | Backups under an old master password remain in other devices' destination folders        | Accepted                     | Milivoj Bošnjak (8l4cksmith) | The guide explains it; showing other devices' folders in the app is planned                            |
 
 ## 8. External services and privacy
 
@@ -233,6 +255,7 @@ Priorities are qualitative engineering judgments, not CVSS scores. Per-risk like
 | Stripe               | Checkout and customer portal                                                                                                   | Billing session, customer, and payment metadata                                                                                                                                 |
 | Cloudflare Turnstile | Signup, recovery, and feedback bot protection                                                                                  | Captcha token and browser interaction metadata                                                                                                                                  |
 | Share server         | One-time share links                                                                                                           | Share ciphertext, token hashes, sizes, timing, and an account pseudonym for subscriber tickets                                                                                  |
+| Backup destinations  | The user's own S3-compatible buckets                                                                                           | Ciphertext, sizes, upload times, device folder names, access key ID, and IP address                                                                                             |
 
 The client design does not require sending vault plaintext or the master password to these services. Sync/link payload encryption is separate from signaling and relay transport. This repository does not verify provider logs, retention, access controls, or private backend code.
 
@@ -255,5 +278,6 @@ All paths below are relative to this document.
 - [Synchronization](../packages/vault-core/src/synchronization.ts), [sync crypto](../packages/vault-core/src/vault-utils/sync-crypto.ts), and [linking](../packages/vault-core/src/vault-utils/linking.ts).
 - [Authentication](docs/authentication.md), [authentication API](docs/authentication-api.md), [web auth session](src/app_lib/auth-session.ts), and [API contract](../packages/api-contract/src/router.ts).
 - [Managed backups](docs/managed-backups.md), [transfer implementation](src/app_lib/managed-backups.ts), and [restore UI](src/components/vault-manager/restore.tsx).
+- [Backup destination records](../packages/vault-core/src/vault-utils/backup-destinations.ts), [transfers](../packages/vault-core/src/vault-utils/backup-destination-transfers.ts), [scheduler](../packages/vault-core/src/vault-utils/backup-destination-scheduler.ts), [S3 client](../packages/vault-core/src/vault-utils/s3-client.ts), and [bucket restore](src/components/vault-manager/restore-bucket-panel.tsx).
 - [Clipboard helper](src/utils/clipboard.ts) and [tRPC logging](src/utils/trpc.ts).
 - [Share dialog](src/components/share/share-dialog.tsx), [recipient page](src/components/share/share-reveal.tsx), [share links](../packages/vault-core/src/vault-utils/share-link.ts), [share service](../packages/vault-core/src/vault-utils/share-service.ts), and [share records](../packages/vault-core/src/vault-utils/share-records.ts).

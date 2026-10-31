@@ -7,14 +7,30 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
+import androidx.core.app.LocaleManagerCompat
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.os.ConfigurationCompat
+
+/**
+ * Before Android 13, AppCompat applies the in-app language to activities only, so text built
+ * here would follow the device language. LocaleManagerCompat reads the saved choice without an activity.
+ */
+internal fun Context.appLocalized(): Context {
+  if (Build.VERSION.SDK_INT >= 33) return this
+  val locales = LocaleManagerCompat.getApplicationLocales(this)
+  if (locales.isEmpty) return this
+  val config = Configuration(resources.configuration)
+  ConfigurationCompat.setLocales(config, locales)
+  return createConfigurationContext(config)
+}
 
 internal object AgentNotifications {
   private const val TAG = "CryptexAgentService"
@@ -48,14 +64,15 @@ internal object AgentNotifications {
 
   fun ensureChannels(context: Context) {
     val manager = NotificationManagerCompat.from(context)
+    val strings = context.appLocalized()
     manager.createNotificationChannel(
       NotificationChannelCompat.Builder(REQUEST_CHANNEL, NotificationManagerCompat.IMPORTANCE_HIGH)
-        .setName(context.getString(R.string.cryptex_agent_requests_channel))
+        .setName(strings.getString(R.string.cryptex_agent_requests_channel))
         .build(),
     )
     manager.createNotificationChannel(
       NotificationChannelCompat.Builder(SERVICE_CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW)
-        .setName(context.getString(R.string.cryptex_agent_service_channel))
+        .setName(strings.getString(R.string.cryptex_agent_service_channel))
         .setShowBadge(false)
         .build(),
     )
@@ -206,20 +223,21 @@ internal object AgentNotifications {
     ensureChannels(context)
     val manager = NotificationManagerCompat.from(context)
     if (!manager.areNotificationsEnabled()) return
+    val strings = context.appLocalized()
     val publicVersion = NotificationCompat.Builder(context, REQUEST_CHANNEL)
       .setSmallIcon(icon)
-      .setContentTitle(context.getString(R.string.cryptex_agent_request_public_title))
+      .setContentTitle(strings.getString(R.string.cryptex_agent_request_public_title))
       .build()
     val review = reviewPendingIntent(context, requestId)
     val notification = NotificationCompat.Builder(context, REQUEST_CHANNEL)
       .setSmallIcon(icon)
       .setContentTitle(
-        if (generic) context.getString(R.string.cryptex_agent_request_public_title)
-        else context.getString(R.string.cryptex_agent_request_title, displayName(context, agentName)),
+        if (generic) strings.getString(R.string.cryptex_agent_request_public_title)
+        else strings.getString(R.string.cryptex_agent_request_title, displayName(strings, agentName)),
       )
       .setContentText(
         if (generic) null
-        else context.getString(
+        else strings.getString(
           if (vaultLocked) R.string.cryptex_agent_request_locked else R.string.cryptex_agent_request_unlocked,
         ),
       )
@@ -232,8 +250,8 @@ internal object AgentNotifications {
       .setTimeoutAfter(timeoutMs)
       .addExtras(Bundle().apply { putLong(EXTRA_FIRST_POSTED, postedAt) })
       .setContentIntent(review)
-      .addAction(0, context.getString(R.string.cryptex_agent_request_review), review)
-      .addAction(0, context.getString(R.string.cryptex_agent_request_deny), denyPendingIntent(context, requestId))
+      .addAction(0, strings.getString(R.string.cryptex_agent_request_review), review)
+      .addAction(0, strings.getString(R.string.cryptex_agent_request_deny), denyPendingIntent(context, requestId))
       .build()
     try {
       manager.notify(requestTag(requestId), requestNotificationId(requestId), notification)
@@ -251,10 +269,11 @@ internal object AgentNotifications {
 
   fun serviceNotification(context: Context): Notification {
     ensureChannels(context)
+    val strings = context.appLocalized()
     return NotificationCompat.Builder(context, SERVICE_CHANNEL)
       .setSmallIcon(icon)
-      .setContentTitle(context.getString(R.string.cryptex_agent_service_title))
-      .setContentText(context.getString(R.string.cryptex_agent_service_text))
+      .setContentTitle(strings.getString(R.string.cryptex_agent_service_title))
+      .setContentText(strings.getString(R.string.cryptex_agent_service_text))
       .setContentIntent(openAppPendingIntent(context))
       .setOngoing(true)
       .setShowWhen(false)

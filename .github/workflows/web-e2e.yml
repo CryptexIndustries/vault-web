@@ -1,0 +1,68 @@
+name: Web end-to-end
+
+# Runs when something the web app or its e2e setup uses changes. Tag pushes
+# ignore the paths.
+on:
+    push:
+        branches: [development, master]
+        tags: ["web-v*"]
+        paths:
+            - "web/**"
+            - "packages/**"
+            - "e2e/**"
+            - "compose.e2e.yaml"
+            - "scripts/run-web-e2e.mjs"
+            - "scripts/install-lefthook.mjs"
+            - "patches/**"
+            - "pnpm-workspace.yaml"
+            - "pnpm-lock.yaml"
+            - "package.json"
+            - ".github/workflows/web-e2e.yml"
+            - "!**/*.md"
+    pull_request:
+        paths:
+            - "web/**"
+            - "packages/**"
+            - "e2e/**"
+            - "compose.e2e.yaml"
+            - "scripts/run-web-e2e.mjs"
+            - "scripts/install-lefthook.mjs"
+            - "patches/**"
+            - "pnpm-workspace.yaml"
+            - "pnpm-lock.yaml"
+            - "package.json"
+            - ".github/workflows/web-e2e.yml"
+            - "!**/*.md"
+
+permissions:
+    contents: read
+
+# The SHA gives every push its own group. GitHub keeps only one pending run per
+# group, so a shared group would cancel a waiting push when the next one lands.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
+    cancel-in-progress: false
+
+jobs:
+    web-e2e:
+        name: Web end-to-end
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            # The script needs only Node and Docker. Both images install their
+            # own dependencies, so the host skips pnpm install.
+            - name: Run web end-to-end tests
+              run: node scripts/run-web-e2e.mjs
+            - name: Upload web end-to-end artifacts
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: web-e2e
+                  path: |
+                      test-results/web-e2e
+                      playwright-report/web-e2e
+                  if-no-files-found: ignore

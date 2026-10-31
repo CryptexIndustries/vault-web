@@ -22,6 +22,10 @@ export default function Backups() {
             ]}
             related={[
                 { href: "/docs/recovery", title: "Recovery secrets explained" },
+                {
+                    href: "/docs/backup-destinations",
+                    title: "Backup destinations",
+                },
                 { href: "/docs/online-services", title: "Online Services" },
             ]}
         >
@@ -99,6 +103,14 @@ export default function Backups() {
                     later automatic backups run while the web vault is open and
                     unlocked. Use <strong>Backup Now</strong> when you want a
                     restore point immediately.
+                </p>
+                <p>
+                    To keep automatic backups in a bucket you control instead,
+                    see{" "}
+                    <Link href="/docs/backup-destinations">
+                        backup destinations
+                    </Link>
+                    .
                 </p>
                 <p>
                     You can pause uploads without deleting existing history, or

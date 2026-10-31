@@ -8,6 +8,8 @@ import {
     UnlockedLabel as Label,
 } from "@/components/unlocked/unlocked-ui";
 import { useEffect, useState } from "react";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { Alert, Keyboard, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
@@ -64,6 +66,11 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export default function SecuritySettingsScreen() {
+    const { t } = useLingui();
+    const off = t({
+        message: "Off",
+        comment: "Auto-lock option: never lock on inactivity",
+    });
     const metadata = useAtomValue(unlockedVaultMetadataAtom);
 
     const [autoLockMinutes, setAutoLockMinutes] = useState(
@@ -115,7 +122,7 @@ export default function SecuritySettingsScreen() {
             return;
         }
         if (enabled && !enrollmentPassword) {
-            setEnrollmentError("Enter your master password.");
+            setEnrollmentError(t`Enter your master password.`);
             return;
         }
         setBiometricBusy(true);
@@ -124,8 +131,8 @@ export default function SecuritySettingsScreen() {
             if (enabled) {
                 if (!biometricAvailable) {
                     Alert.alert(
-                        "Biometrics unavailable",
-                        "This device has no enrolled biometrics, or hardware is unavailable.",
+                        t`Biometrics unavailable`,
+                        t`This device has no enrolled biometrics, or hardware is unavailable.`,
                     );
                     return;
                 }
@@ -137,7 +144,7 @@ export default function SecuritySettingsScreen() {
                 setEnrollmentPhrase("");
                 if (dekRes.isErr()) {
                     setEnrollmentError(
-                        "Could not verify your vault credentials. Check the master password and any required protection phrase.",
+                        t`Could not verify your vault credentials. Check the master password and any required protection phrase.`,
                     );
                     return;
                 }
@@ -151,25 +158,18 @@ export default function SecuritySettingsScreen() {
                     const messages: Partial<
                         Record<typeof result.error, string>
                     > = {
-                        BIOMETRIC_UNAVAILABLE:
-                            "Could not access this device's biometrics.",
-                        BIOMETRIC_NOT_ENROLLED:
-                            "Enroll a fingerprint in Android Settings first.",
-                        BIOMETRIC_CANCELLED:
-                            "Fingerprint authentication was cancelled. Try again when ready.",
-                        AUTH_KEY_FAILED:
-                            "Could not access or save the fingerprint-protected unlock key.",
-                        BIOMETRIC_KEY_INVALIDATED:
-                            "Android invalidated the biometric unlock key after a security change.",
-                        VAULT_KEY_EXPORT_FAILED:
-                            "Could not prepare this vault's encryption key for biometric unlock. Lock the vault, unlock with your password, and try again.",
-                        WRAP_FAILED:
-                            "Could not encrypt the vault key for biometric unlock.",
-                        ENROLLMENT_SAVE_FAILED:
-                            "Could not save biometric unlock data in device storage.",
+                        BIOMETRIC_UNAVAILABLE: t`Could not access this device's biometrics.`,
+                        BIOMETRIC_NOT_ENROLLED: t`Enroll a fingerprint in Android Settings first.`,
+                        BIOMETRIC_CANCELLED: t`Fingerprint authentication was cancelled. Try again when ready.`,
+                        AUTH_KEY_FAILED: t`Could not access or save the fingerprint-protected unlock key.`,
+                        BIOMETRIC_KEY_INVALIDATED: t`Android invalidated the biometric unlock key after a security change.`,
+                        VAULT_KEY_EXPORT_FAILED: t`Could not prepare this vault's encryption key for biometric unlock. Lock the vault, unlock with your password, and try again.`,
+                        WRAP_FAILED: t`Could not encrypt the vault key for biometric unlock.`,
+                        ENROLLMENT_SAVE_FAILED: t`Could not save biometric unlock data in device storage.`,
                     };
+                    const code = result.error;
                     setEnrollmentError(
-                        `${messages[result.error] ?? "Could not enable biometric unlock."}\n\nError: ${result.error}`,
+                        `${messages[code] ?? t`Could not enable biometric unlock.`}\n\n${t`Error: ${code}`}`,
                     );
                 }
             } else {
@@ -181,12 +181,12 @@ export default function SecuritySettingsScreen() {
             setEnrollmentPhrase("");
             if (enabled)
                 setEnrollmentError(
-                    "Could not enable biometric unlock. Try again.",
+                    t`Could not enable biometric unlock. Try again.`,
                 );
             else
                 Alert.alert(
-                    "Biometrics",
-                    "Could not disable biometric unlock. Try again.",
+                    t`Biometrics`,
+                    t`Could not disable biometric unlock. Try again.`,
                 );
         } finally {
             setBiometricBusy(false);
@@ -201,33 +201,33 @@ export default function SecuritySettingsScreen() {
             setAutoLockMinutes(minutes);
             setAutoLockOpen(false);
         } catch {
-            setAutoLockError("Could not save auto-lock. Try again.");
+            setAutoLockError(t`Could not save auto-lock. Try again.`);
         } finally {
             setAutoLockSaving(false);
         }
     };
 
     const biometricHint = biometricChecking
-        ? "Checking device support…"
+        ? t`Checking device support…`
         : !biometricAvailable
-          ? "Unavailable on this device"
+          ? t`Unavailable on this device`
           : biometricEnabled
-            ? "DEK stored behind device biometrics"
-            : "Enable to unlock without typing your password";
+            ? t`DEK stored behind device biometrics`
+            : t`Enable to unlock without typing your password`;
     const currentFactorValue =
         metadata?.Blob?.Envelope?.PrimaryProtectionKind ===
         AdditionalKeyProtectionKind.PROTECTION_PHRASE_128
-            ? "Generated phrase (128-bit)"
+            ? t`Generated phrase (128-bit)`
             : metadata?.Blob?.Envelope?.PrimaryProtectionKind ===
                 AdditionalKeyProtectionKind.PROTECTION_PHRASE_256
-              ? "Generated phrase (256-bit)"
+              ? t`Generated phrase (256-bit)`
               : metadata?.Blob?.Envelope?.PrimaryProtectionKind ===
                   AdditionalKeyProtectionKind.WEBAUTHN_PRF
-                ? "Security key"
-                : "No additional key protection";
+                ? t`Security key`
+                : t`No additional key protection`;
 
     return (
-        <UnlockedTaskScreen title="Security">
+        <UnlockedTaskScreen title={t`Security`}>
             <Dialog
                 open={autoLockOpen}
                 onOpenChange={setAutoLockOpen}
@@ -236,23 +236,28 @@ export default function SecuritySettingsScreen() {
                 dismissible={!autoLockSaving}
             >
                 <DialogHeader>
-                    <DialogTitle>Auto-lock</DialogTitle>
+                    <DialogTitle>{t`Auto-lock`}</DialogTitle>
                 </DialogHeader>
                 <Text className="mb-5 text-sm leading-5 text-muted-foreground">
-                    Lock after no interaction while the app is open, or
-                    immediately on return when background time exceeds this
-                    setting.
+                    {t`Lock after no interaction while the app is open, or immediately on return when background time exceeds this setting.`}
                 </Text>
                 <View>
                     {AUTO_LOCK_MINUTE_OPTIONS.map((minutes) => {
                         const value = String(minutes);
                         const selected = autoLockMinutes === value;
+                        const hours = minutes / 60;
                         const label =
                             minutes === 0
-                                ? "Off"
+                                ? off
                                 : minutes < 60
-                                  ? `${minutes} minute${minutes === 1 ? "" : "s"}`
-                                  : `${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+                                  ? plural(minutes, {
+                                        one: "# minute",
+                                        other: "# minutes",
+                                    })
+                                  : plural(hours, {
+                                        one: "# hour",
+                                        other: "# hours",
+                                    });
                         return (
                             <Pressable
                                 key={value}
@@ -308,8 +313,12 @@ export default function SecuritySettingsScreen() {
                                             }}
                                         >
                                             {minutes === 0
-                                                ? "Manual locking remains available."
-                                                : "Default"}
+                                                ? t`Manual locking remains available.`
+                                                : t({
+                                                      message: "Default",
+                                                      comment:
+                                                          "Marks the default auto-lock option",
+                                                  })}
                                         </Text>
                                     ) : null}
                                 </View>
@@ -321,16 +330,19 @@ export default function SecuritySettingsScreen() {
                     <InlineNotice tone="error" message={autoLockError} />
                 ) : null}
             </Dialog>
-            <SectionLabel>Unlock &amp; privacy</SectionLabel>
+            <SectionLabel>{t`Unlock & privacy`}</SectionLabel>
             <View>
                 <MoreRow
                     icon={Clock}
-                    title="Auto-lock"
-                    subtitle="Lock after inactivity"
+                    title={t`Auto-lock`}
+                    subtitle={t`Lock after inactivity`}
                     value={
                         autoLockMinutes === "0"
-                            ? "Off"
-                            : `${autoLockMinutes} minutes`
+                            ? off
+                            : plural(Number(autoLockMinutes), {
+                                  one: "# minute",
+                                  other: "# minutes",
+                              })
                     }
                     onPress={() => {
                         setAutoLockError("");
@@ -345,7 +357,7 @@ export default function SecuritySettingsScreen() {
                     />
                     <View className="flex-1 py-3 pr-3">
                         <Text className="text-sm text-foreground">
-                            Biometric unlock
+                            {t`Biometric unlock`}
                         </Text>
                         <Text className="mt-1 text-xs text-muted-foreground">
                             {biometricHint}
@@ -359,7 +371,7 @@ export default function SecuritySettingsScreen() {
                             biometricBusy
                         }
                         onValueChange={(v) => void toggleBiometric(v)}
-                        accessibilityLabel="Biometric unlock"
+                        accessibilityLabel={t`Biometric unlock`}
                         thumbColor={
                             biometricAvailable
                                 ? colors.foreground
@@ -370,11 +382,11 @@ export default function SecuritySettingsScreen() {
                         }}
                     />
                 </View>
-                <SectionLabel>Vault protection</SectionLabel>
+                <SectionLabel>{t`Vault protection`}</SectionLabel>
                 <MoreRow
                     icon={KeyRound}
-                    title="Master password"
-                    subtitle="Change the password used to unlock"
+                    title={t`Master password`}
+                    subtitle={t`Change the password used to unlock`}
                     onPress={() =>
                         router.push({
                             pathname: "/(app)/settings/security/action",
@@ -384,8 +396,8 @@ export default function SecuritySettingsScreen() {
                 />
                 <MoreRow
                     icon={Shield}
-                    title="Additional protection"
-                    subtitle="Add a generated protection phrase"
+                    title={t`Additional protection`}
+                    subtitle={t`Add a generated protection phrase`}
                     value={currentFactorValue}
                     onPress={() =>
                         router.push({
@@ -396,8 +408,8 @@ export default function SecuritySettingsScreen() {
                 />
                 <MoreRow
                     icon={Archive}
-                    title="Vault recovery code"
-                    subtitle="Replace the code used to recover this vault"
+                    title={t`Vault recovery code`}
+                    subtitle={t`Replace the code used to recover this vault`}
                     onPress={() =>
                         router.push({
                             pathname: "/(app)/settings/security/action",
@@ -407,8 +419,8 @@ export default function SecuritySettingsScreen() {
                 />
                 <MoreRow
                     icon={Settings2}
-                    title="Encryption settings"
-                    subtitle="Advanced Argon2id parameters"
+                    title={t`Encryption settings`}
+                    subtitle={t`Advanced Argon2id parameters`}
                     onPress={() =>
                         router.push({
                             pathname: "/(app)/settings/security/action",
@@ -419,13 +431,12 @@ export default function SecuritySettingsScreen() {
                 {biometricBusy ? (
                     <InlineNotice
                         tone="loading"
-                        message="Updating biometric enrollment…"
+                        message={t`Updating biometric enrollment…`}
                     />
                 ) : null}
                 <View className="mt-5 border-l-2 border-muted pl-3">
                     <Text className="text-xs leading-5 text-muted-foreground">
-                        Password and protection changes apply to this vault.
-                        Account recovery is managed separately in Account.
+                        {t`Password and protection changes apply to this vault. Account recovery is managed separately in Account.`}
                     </Text>
                 </View>
             </View>
@@ -440,13 +451,12 @@ export default function SecuritySettingsScreen() {
                 dismissible={!biometricBusy}
             >
                 <DialogHeader>
-                    <DialogTitle>Enable biometric unlock</DialogTitle>
+                    <DialogTitle>{t`Enable biometric unlock`}</DialogTitle>
                     <DialogDescription>
-                        Confirm your vault password, then authenticate with your
-                        fingerprint.
+                        {t`Confirm your vault password, then authenticate with your fingerprint.`}
                     </DialogDescription>
                 </DialogHeader>
-                <Label>Master password</Label>
+                <Label>{t`Master password`}</Label>
                 <Input
                     value={enrollmentPassword}
                     onChangeText={(value) => {
@@ -457,7 +467,7 @@ export default function SecuritySettingsScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     editable={!biometricBusy}
-                    accessibilityLabel="Confirm vault password for biometric unlock"
+                    accessibilityLabel={t`Confirm vault password for biometric unlock`}
                     revealButtonHeight={54}
                     className="h-[54px]"
                 />
@@ -466,7 +476,7 @@ export default function SecuritySettingsScreen() {
                 metadata?.Blob?.Envelope?.PrimaryProtectionKind ===
                     AdditionalKeyProtectionKind.PROTECTION_PHRASE_256 ? (
                     <>
-                        <Label>Protection phrase (if required)</Label>
+                        <Label>{t`Protection phrase (if required)`}</Label>
                         <Input
                             value={enrollmentPhrase}
                             onChangeText={(value) => {
@@ -477,13 +487,12 @@ export default function SecuritySettingsScreen() {
                             autoCapitalize="none"
                             autoCorrect={false}
                             editable={!biometricBusy}
-                            accessibilityLabel="Vault protection phrase for biometric unlock"
+                            accessibilityLabel={t`Vault protection phrase for biometric unlock`}
                             revealButtonHeight={54}
                             className="h-[54px]"
                         />
                         <Text className="text-xs text-muted-foreground">
-                            Leave blank if the protection phrase is already
-                            saved on this device.
+                            {t`Leave blank if the protection phrase is already saved on this device.`}
                         </Text>
                     </>
                 ) : null}
@@ -499,14 +508,14 @@ export default function SecuritySettingsScreen() {
                         loading={biometricBusy}
                         onPress={() => void toggleBiometric(true)}
                     >
-                        Enable biometric unlock
+                        {t`Enable biometric unlock`}
                     </Button>
                     <Button
                         variant="ghost"
                         disabled={biometricBusy}
                         onPress={closeEnrollment}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                 </DialogFooter>
             </Dialog>

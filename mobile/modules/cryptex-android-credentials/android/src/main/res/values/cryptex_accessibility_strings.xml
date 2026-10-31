@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="cryptex_accessibility_description">Offers an explicit autofill and save button on login fields when an app or browser does not support Android autofill. Readable form values are inspected only after you choose Save login; Android-protected passwords must be entered again in Cryptex Vault.</string>
+    <string name="cryptex_accessibility_open_fallback">Open %1$s autofill fallback</string>
+    <string name="cryptex_accessibility_fill_title">Autofill login</string>
+    <string name="cryptex_accessibility_fill_subtitle">Choose a saved login from your vault</string>
+    <string name="cryptex_accessibility_save_title">Save login</string>
+    <string name="cryptex_accessibility_save_subtitle">Read the form and review it in Cryptex Vault</string>
+    <string name="cryptex_accessibility_choose_action">Choose an action for %1$s.</string>
+    <string name="cryptex_accessibility_dismiss">Dismiss for this visit</string>
+    <string name="cryptex_accessibility_passwords_mismatch">The password fields do not match.</string>
+    <string name="cryptex_accessibility_fill_failed">Cryptex Vault couldn\'t fill this form. Try standard autofill.</string>
+    <string name="cryptex_accessibility_fill_partial">Some fields could not be filled. Check the form.</string>
 </resources>

@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import Papa from "papaparse";
+import type { ZodIssue } from "zod";
 
 import { CredentialConstants, TOTPConstants } from "../consts";
 import { isCredentialUrlRuleValid } from "../credential-url";
@@ -24,6 +25,7 @@ import {
     VaultCredential,
 } from "./vault";
 import { parseSSHPublicKey } from "./ssh-key-info";
+import type { SSHKeyError } from "./ssh-key";
 
 // The private-key code pulls in elliptic-curve libraries, so it loads only
 // when an import actually contains SSH keys.
@@ -68,11 +70,45 @@ export type ImportNoticeKind =
     | "saved-differently"
     | "not-imported";
 
+export type ImportNoticeCode =
+    | "ARCHIVED_STATUS_SAVED_AS_FIELD"
+    | "BITWARDEN_ATTACHMENTS_UNSUPPORTED"
+    | "BITWARDEN_DELETED_ITEMS_SKIPPED"
+    | "BITWARDEN_LINKED_FIELDS_UNSUPPORTED"
+    | "BITWARDEN_PASSKEY_UNSUPPORTED"
+    | "CRYPTEX_DELETED_DIRECTORIES_SKIPPED"
+    | "CRYPTEX_DELETED_RECORDS_SKIPPED"
+    | "CRYPTEX_SSH_KEY_INVALID"
+    | "FOLDER_STRUCTURE_ADJUSTED"
+    | "KEEPASS_ATTACHMENTS_UNSUPPORTED"
+    | "KEEPASS_DELETED_ITEMS_SKIPPED"
+    | "KEEPASS_GROUP_METADATA_UNSUPPORTED"
+    | "ONEPASSWORD_ATTACHMENTS_UNSUPPORTED"
+    | "ONEPASSWORD_DELETED_ITEMS_SKIPPED"
+    | "ONEPASSWORD_DOCUMENTS_SKIPPED"
+    | "SSH_KEY_UNSUPPORTED"
+    | "TOTP_CONFIGURATION_UNSUPPORTED"
+    | "URL_SAVED_AS_TEXT";
+
+/** Which wording a notice uses when its code has more than one. */
+export type ImportNoticeVariant =
+    | "invalid-url"
+    | "url-match-rule"
+    | "hotp"
+    | "invalid-otp"
+    | "invalid-secret"
+    | "keepass-settings";
+
 export type ImportNotice = {
-    code: string;
+    code: ImportNoticeCode;
     kind: ImportNoticeKind;
     title: string;
     detail?: string;
+    variant?: ImportNoticeVariant;
+    /** The source app named in the detail of SSH_KEY_UNSUPPORTED. */
+    sourceLabel?: string;
+    /** Why the first unreadable key failed, for SSH_KEY_UNSUPPORTED. */
+    sshKeyError?: SSHKeyError;
     count: number;
     itemNames: string[];
     requiresConfirmation?: boolean;
@@ -106,13 +142,86 @@ export const ImportSourceLabels: Record<ImportSource, string> = {
 
 export const MAX_IMPORT_FILE_BYTES = 1024 * 1024 * 1024;
 
-export class ImportFileError extends Error {
-    public readonly code: string;
+export type ImportFileErrorCode =
+    | "BITWARDEN_FOLDER_INVALID"
+    | "BITWARDEN_FOLDERS_INVALID"
+    | "BITWARDEN_ITEM_INVALID"
+    | "BITWARDEN_ITEMS_MISSING"
+    | "BITWARDEN_SCHEMA_MISMATCH"
+    | "CRYPTEX_CREDENTIAL_INVALID"
+    | "CRYPTEX_DIRECTORY_INVALID"
+    | "CRYPTEX_SCHEMA_MISMATCH"
+    | "CSV_HEADERS_MISSING"
+    | "CSV_SCHEMA_MISMATCH"
+    | "ENCRYPTED_EXPORT_UNSUPPORTED"
+    | "IMPORT_DIRECTORY_ID_DUPLICATE"
+    | "IMPORT_DIRECTORY_INVALID"
+    | "IMPORT_FILE_TOO_LARGE"
+    | "IMPORT_ITEM_INVALID"
+    | "INVALID_1PUX"
+    | "INVALID_1PUX_ATTRIBUTES"
+    | "INVALID_1PUX_DATA"
+    | "INVALID_CSV"
+    | "INVALID_JSON"
+    | "INVALID_XML"
+    | "KEEPASS_ENTRY_INVALID"
+    | "KEEPASS_ROOT_MISSING"
+    | "KEEPASS_XML_SCHEMA_MISMATCH"
+    | "ONEPASSWORD_ACCOUNT_INVALID"
+    | "ONEPASSWORD_ACCOUNTS_MISSING"
+    | "ONEPASSWORD_ATTRIBUTES_INVALID"
+    | "ONEPASSWORD_ATTRIBUTES_MISSING"
+    | "ONEPASSWORD_DATA_MISSING"
+    | "ONEPASSWORD_ITEM_INVALID"
+    | "ONEPASSWORD_ITEMS_INVALID"
+    | "ONEPASSWORD_VAULT_INVALID"
+    | "ONEPASSWORD_VAULTS_INVALID"
+    | "UNSUPPORTED_IMPORT_SOURCE";
 
-    constructor(code: string, message: string, options?: ErrorOptions) {
+/** The values an error message names. Positions count from 1. */
+export type ImportFileErrorDetails = {
+    source?: ImportSource;
+    /** "Bitwarden" or "Cryptex Vault", for INVALID_JSON. */
+    sourceName?: string;
+    row?: number;
+    missingColumns?: string[];
+    /** Which check failed, when one code has more than one message. */
+    reason?:
+        | "name-or-type"
+        | "type-data"
+        | "custom-fields"
+        | "website-addresses"
+        | "item-structure"
+        | "item-fields";
+    account?: number;
+    vault?: number;
+    vaultName?: string;
+    folder?: number;
+    item?: number;
+    itemName?: string;
+    field?: number;
+    /** KeePass group path of the entry. */
+    path?: string;
+    directoryId?: string;
+    /** Dotted path of the invalid credential field, for IMPORT_ITEM_INVALID. */
+    fieldPath?: string;
+    issue?: ZodIssue;
+};
+
+export class ImportFileError extends Error {
+    public readonly code: ImportFileErrorCode;
+    public readonly details: ImportFileErrorDetails;
+
+    constructor(
+        code: ImportFileErrorCode,
+        message: string,
+        details: ImportFileErrorDetails = {},
+        options?: ErrorOptions,
+    ) {
         super(message, options);
         this.name = "ImportFileError";
         this.code = code;
+        this.details = details;
     }
 }
 
@@ -187,6 +296,7 @@ const parseJsonFile = async <T>(file: File, sourceName: string): Promise<T> => {
         throw new ImportFileError(
             "INVALID_JSON",
             `${sourceName} export is not valid JSON.`,
+            { sourceName },
             { cause: error },
         );
     }
@@ -213,6 +323,7 @@ const parseCsvText = (
         throw new ImportFileError(
             "INVALID_CSV",
             `${ImportSourceLabels[source]} could not be read as CSV${first?.row == null ? "." : ` near row ${first.row + 1}.`}`,
+            { source, row: first?.row == null ? undefined : first.row + 1 },
         );
     }
     const headers = parsed.meta.fields ?? [];
@@ -220,6 +331,7 @@ const parseCsvText = (
         throw new ImportFileError(
             "CSV_HEADERS_MISSING",
             `${ImportSourceLabels[source]} is missing its header row.`,
+            { source },
         );
     }
     return { rows: parsed.data, headers };
@@ -243,6 +355,7 @@ const assertCsvHeaders = (
         throw new ImportFileError(
             "CSV_SCHEMA_MISMATCH",
             `${ImportSourceLabels[source]} is missing required column${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}. Check that the selected source matches the export file.`,
+            { source, missingColumns: missing },
         );
     }
 };
@@ -325,6 +438,9 @@ const addImportNotice = (
         kind: notice.kind,
         title: notice.title,
         detail: notice.detail,
+        variant: notice.variant,
+        sourceLabel: notice.sourceLabel,
+        sshKeyError: notice.sshKeyError,
         count,
         itemNames: notice.itemName ? [notice.itemName] : [],
         requiresConfirmation: notice.requiresConfirmation,
@@ -379,6 +495,8 @@ const assignImportedSSHKey = async (
             kind: "saved-differently",
             title: "Some SSH keys will be saved as hidden fields",
             detail: `Cryptex Vault couldn't read these ${sourceLabel} keys, so they can't be used as SSH keys. ${result.error.message}`,
+            sourceLabel,
+            sshKeyError: result.error,
             itemName: credential.Name,
             requiresConfirmation: true,
         });
@@ -561,6 +679,7 @@ const assignNativeUrls = (
                 kind: "saved-differently",
                 title: "Website addresses will be saved as text",
                 detail: "Cryptex Vault cannot use these addresses for autofill.",
+                variant: "invalid-url",
                 itemName: credential.Name,
             });
         }
@@ -583,7 +702,11 @@ const assignTotp = (
     const value = asString(raw);
     if (!value) return;
     const normalized = value.trim().toLowerCase();
-    const preserveUnsupported = (kind: string, message: string) => {
+    const preserveUnsupported = (
+        kind: string,
+        variant: ImportNoticeVariant,
+        message: string,
+    ) => {
         addCustomField(
             credential,
             `${sourceLabel} ${kind} configuration`,
@@ -595,6 +718,7 @@ const assignTotp = (
             kind: "saved-differently",
             title: "Authenticator setups will be saved as hidden text",
             detail: message,
+            variant,
             itemName: credential.Name,
             requiresConfirmation: true,
         });
@@ -602,6 +726,7 @@ const assignTotp = (
     if (normalized.startsWith("otpauth://hotp/")) {
         preserveUnsupported(
             "HOTP",
+            "hotp",
             "Cryptex Vault cannot generate codes from HOTP configurations, so they will be preserved as hidden custom fields.",
         );
         return;
@@ -636,6 +761,7 @@ const assignTotp = (
         } catch {
             preserveUnsupported(
                 "OTP",
+                "invalid-otp",
                 "Cryptex Vault cannot generate codes from invalid or unsupported one-time-password configurations, so they will be preserved as hidden custom fields.",
             );
         }
@@ -644,6 +770,7 @@ const assignTotp = (
     if (!/^[A-Z2-7]+=*$/iu.test(value)) {
         preserveUnsupported(
             "authenticator",
+            "invalid-secret",
             "Invalid authenticator secrets will be preserved as hidden custom fields.",
         );
         return;
@@ -860,6 +987,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "BITWARDEN_ITEM_INVALID",
                 `This file can't be imported because Bitwarden item ${index + 1} is missing a valid name or type. Nothing was imported.`,
+                { item: index + 1, reason: "name-or-type" },
             );
         }
         const expectedContainer =
@@ -876,6 +1004,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "BITWARDEN_ITEM_INVALID",
                 `This file can't be imported because Bitwarden item ${index + 1} does not contain the data required for its type. Nothing was imported.`,
+                { item: index + 1, reason: "type-data" },
             );
         }
         if (
@@ -886,6 +1015,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "BITWARDEN_ITEM_INVALID",
                 `This file can't be imported because the custom fields on Bitwarden item ${index + 1} are invalid. Nothing was imported.`,
+                { item: index + 1, reason: "custom-fields" },
             );
         }
         const loginUris = item.login?.uris;
@@ -899,6 +1029,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "BITWARDEN_ITEM_INVALID",
                 `This file can't be imported because the website addresses on Bitwarden item ${index + 1} are invalid. Nothing was imported.`,
+                { item: index + 1, reason: "website-addresses" },
             );
         }
     });
@@ -919,6 +1050,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "BITWARDEN_FOLDER_INVALID",
                 `This file can't be imported because Bitwarden folder ${index + 1} is missing a valid ID or name. Nothing was imported.`,
+                { folder: index + 1 },
             );
         }
     });
@@ -988,6 +1120,7 @@ const parseBitwardenJSON = async (file: File): Promise<ImportResult> => {
                     kind: "saved-differently",
                     title: "Website matching settings will be saved as text",
                     detail: "Cryptex Vault cannot reproduce these matching rules safely, so they will not be used for autofill.",
+                    variant: "url-match-rule",
                     itemName: credential.Name,
                 });
             }
@@ -1767,6 +1900,7 @@ const configureKeePassTotp = (
             kind: "saved-differently",
             title: "Authenticator setups will be saved as hidden text",
             detail: "Cryptex Vault cannot generate codes from these settings. Missing KeePass settings use KeePass defaults.",
+            variant: "keepass-settings",
             itemName: credential.Name,
             requiresConfirmation: true,
         });
@@ -1823,6 +1957,7 @@ const parseKeePass2Xml = (doc: XMLDocument): ImportResult => {
                     throw new ImportFileError(
                         "KEEPASS_ENTRY_INVALID",
                         `This file can't be imported because field ${fieldIndex + 1} on KeePass item ${entryIndex + 1} in "${path}" is invalid. Nothing was imported.`,
+                        { field: fieldIndex + 1, item: entryIndex + 1, path },
                     );
                 }
             }
@@ -2091,6 +2226,7 @@ const parseKeePass1Xml = (doc: XMLDocument): ImportResult => {
             throw new ImportFileError(
                 "KEEPASS_ENTRY_INVALID",
                 `This file can't be imported because KeePass 1.x item ${index + 1} does not match the documented XML format. Nothing was imported.`,
+                { item: index + 1 },
             );
         }
     });
@@ -2299,6 +2435,7 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
         throw new ImportFileError(
             "INVALID_1PUX",
             "The selected file is not a valid 1Password 1PUX archive.",
+            {},
             { cause: error },
         );
     }
@@ -2316,6 +2453,7 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
         throw new ImportFileError(
             "INVALID_1PUX_ATTRIBUTES",
             "The 1PUX export.attributes file is not valid JSON.",
+            {},
             { cause: error },
         );
     }
@@ -2392,6 +2530,7 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
         throw new ImportFileError(
             "INVALID_1PUX_DATA",
             "The 1PUX export.data file is not valid JSON.",
+            {},
             { cause: error },
         );
     }
@@ -2412,12 +2551,14 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "ONEPASSWORD_ACCOUNT_INVALID",
                 `This file can't be imported because 1Password account ${accountIndex + 1} is missing its attributes. Nothing was imported.`,
+                { account: accountIndex + 1 },
             );
         }
         if (!Array.isArray(account.vaults)) {
             throw new ImportFileError(
                 "ONEPASSWORD_VAULTS_INVALID",
                 `This file can't be imported because the vaults in 1Password account ${accountIndex + 1} are invalid. Nothing was imported.`,
+                { account: accountIndex + 1 },
             );
         }
         for (const [vaultIndex, vault] of (account.vaults ?? []).entries()) {
@@ -2432,12 +2573,14 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                 throw new ImportFileError(
                     "ONEPASSWORD_VAULT_INVALID",
                     `This file can't be imported because 1Password vault ${vaultIndex + 1} in account ${accountIndex + 1} is missing its name or UUID. Nothing was imported.`,
+                    { vault: vaultIndex + 1, account: accountIndex + 1 },
                 );
             }
             if (!Array.isArray(vault.items)) {
                 throw new ImportFileError(
                     "ONEPASSWORD_ITEMS_INVALID",
                     `This file can't be imported because the items in 1Password vault ${vaultIndex + 1} are invalid. Nothing was imported.`,
+                    { vault: vaultIndex + 1 },
                 );
             }
             const vaultName = vault.attrs?.name || "1Password";
@@ -2467,6 +2610,11 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                     throw new ImportFileError(
                         "ONEPASSWORD_ITEM_INVALID",
                         `This file can't be imported because item ${itemIndex + 1} in 1Password vault "${vaultName}" does not match the documented 1PUX item structure. Nothing was imported.`,
+                        {
+                            item: itemIndex + 1,
+                            vaultName,
+                            reason: "item-structure",
+                        },
                     );
                 }
                 const urlsAreValid =
@@ -2518,6 +2666,11 @@ const parseOnePassword1Pux = async (file: File): Promise<ImportResult> => {
                     throw new ImportFileError(
                         "ONEPASSWORD_ITEM_INVALID",
                         `This file can't be imported because item ${itemIndex + 1} in 1Password vault "${vaultName}" contains invalid fields. Nothing was imported.`,
+                        {
+                            item: itemIndex + 1,
+                            vaultName,
+                            reason: "item-fields",
+                        },
                     );
                 }
                 if (item.state?.toLowerCase() === "deleted") {
@@ -2850,6 +3003,7 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "CRYPTEX_DIRECTORY_INVALID",
                 `This file can't be imported because Cryptex Vault folder ${index + 1} is invalid. Nothing was imported.`,
+                { folder: index + 1 },
             );
         }
     });
@@ -2862,6 +3016,7 @@ const parseCryptexJSON = async (file: File): Promise<ImportResult> => {
             throw new ImportFileError(
                 "CRYPTEX_CREDENTIAL_INVALID",
                 `This file can't be imported because Cryptex Vault item ${index + 1} is invalid. Nothing was imported.`,
+                { item: index + 1 },
             );
         }
     });
@@ -2977,12 +3132,14 @@ const validateImportResult = (result: ImportResult): ImportResult => {
             throw new ImportFileError(
                 "IMPORT_DIRECTORY_INVALID",
                 `This file can't be imported because folder ${index + 1} has an invalid name or ID. Nothing was imported.`,
+                { folder: index + 1 },
             );
         }
         if (directoryIds.has(directory.ID)) {
             throw new ImportFileError(
                 "IMPORT_DIRECTORY_ID_DUPLICATE",
                 `This file can't be imported because more than one folder uses the ID "${directory.ID}". Nothing was imported.`,
+                { directoryId: directory.ID },
             );
         }
         directoryIds.add(directory.ID);
@@ -2996,6 +3153,12 @@ const validateImportResult = (result: ImportResult): ImportResult => {
             throw new ImportFileError(
                 "IMPORT_ITEM_INVALID",
                 `This file can't be imported because item ${index + 1}, "${credential.Name || "Unnamed item"}", has an invalid${field ? ` ${field}` : " value"}: ${issue?.message ?? "unknown error"}. Nothing was imported.`,
+                {
+                    item: index + 1,
+                    itemName: credential.Name,
+                    fieldPath: field,
+                    issue,
+                },
             );
         }
         if (

@@ -9,6 +9,9 @@ import {
     Plus,
     Trash2,
 } from "lucide-react-native";
+import { i18n } from "@lingui/core";
+import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     calculateTOTP,
@@ -53,24 +56,24 @@ type CredentialDetailPanelProps = {
 };
 
 function directoryLabel(directories: Directory[], directoryId: string): string {
-    if (!directoryId) return "No directory";
+    if (!directoryId) return t`No directory`;
     return (
         directories.find((d) => d.ID === directoryId && !d.Deleted)?.Name ??
-        "No directory"
+        t`No directory`
     );
 }
 
 function formatCustomFieldValue(type: CustomFieldType, value: string): string {
     if (type === CustomFieldType.Boolean) {
         const normalized = value.trim().toLowerCase();
-        if (["1", "true", "yes", "on"].includes(normalized)) return "Yes";
-        if (["0", "false", "no", "off"].includes(normalized)) return "No";
+        if (["1", "true", "yes", "on"].includes(normalized)) return t`Yes`;
+        if (["0", "false", "no", "off"].includes(normalized)) return t`No`;
         return value;
     }
     if (type === CustomFieldType.Date) {
         const ts = Date.parse(value);
         if (!Number.isNaN(ts)) {
-            return new Date(ts).toLocaleDateString(undefined, {
+            return new Date(ts).toLocaleDateString(i18n.locale, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -88,13 +91,14 @@ export function CredentialDetailPanel({
     embedded = false,
     primaryActions = true,
 }: CredentialDetailPanelProps) {
+    const { t } = useLingui();
     if (!credential) {
         return (
             <View className="flex-1 items-center justify-center p-6">
                 <EmptyState
                     icon={KeyRound}
-                    title="Select a credential"
-                    description="Choose an item from the list to view its details."
+                    title={t`Select a credential`}
+                    description={t`Choose an item from the list to view its details.`}
                     className="w-full max-w-sm bg-transparent"
                 />
             </View>
@@ -110,6 +114,7 @@ export function CredentialDetailPanel({
     );
     const passkeyOnly = credential.Type === ItemType.Passkey;
     const sshKey = isSSHKeyItem(credential);
+    const relyingParty = credential.Passkey?.RPID;
 
     return (
         <View className={embedded ? "flex-1" : undefined}>
@@ -135,7 +140,7 @@ export function CredentialDetailPanel({
                             className="font-medium text-2xl tracking-[-0.7px] text-foreground"
                             accessibilityRole="header"
                         >
-                            {credential.Name || "Untitled"}
+                            {credential.Name || t`Untitled`}
                         </Text>
                         <Text className="mt-1 text-xs text-muted-foreground">
                             {directoryLabel(
@@ -144,12 +149,15 @@ export function CredentialDetailPanel({
                             )}
                             {" / "}
                             {sshKey
-                                ? "SSH key"
+                                ? t`SSH key`
                                 : passkeyOnly
-                                  ? "Passkey"
+                                  ? t`Passkey`
                                   : credential.Notes && !credential.Password
-                                    ? "Secure note"
-                                    : "Login"}
+                                    ? t`Secure note`
+                                    : t({
+                                          message: "Login",
+                                          comment: "Vault item type",
+                                      })}
                         </Text>
                     </View>
                 </View>
@@ -181,12 +189,12 @@ export function CredentialDetailPanel({
                         >
                             <Pencil size={16} color={colors.foreground} />
                             <Text className="font-medium text-sm text-primary-foreground">
-                                {sshKey ? "Edit details" : "Edit"}
+                                {sshKey ? t`Edit details` : t`Edit`}
                             </Text>
                         </Button>
                         <IconButton
                             icon={Trash2}
-                            label="Delete credential"
+                            label={t`Delete credential`}
                             variant="destructive"
                             onPress={() => onDelete(credential)}
                         />
@@ -200,7 +208,7 @@ export function CredentialDetailPanel({
                                 size="sm"
                                 variant="secondary"
                                 className="flex-row gap-2"
-                                accessibilityLabel="Copy public key"
+                                accessibilityLabel={t`Copy public key`}
                                 onPress={() =>
                                     void copyTextToClipboard(
                                         sshPublicKeyLine(credential.SSHKey!),
@@ -209,7 +217,7 @@ export function CredentialDetailPanel({
                             >
                                 <Copy size={14} color={colors.foreground} />
                                 <Text className="font-medium text-xs text-secondary-foreground">
-                                    Public key
+                                    {t`Public key`}
                                 </Text>
                             </Button>
                         ) : null}
@@ -218,7 +226,7 @@ export function CredentialDetailPanel({
                                 size="sm"
                                 variant="secondary"
                                 className="flex-row gap-2"
-                                accessibilityLabel="Copy username"
+                                accessibilityLabel={t`Copy username`}
                                 onPress={() =>
                                     void copySecretToClipboard(
                                         credential.Username,
@@ -227,7 +235,7 @@ export function CredentialDetailPanel({
                             >
                                 <Copy size={14} color={colors.foreground} />
                                 <Text className="font-medium text-xs text-secondary-foreground">
-                                    Username
+                                    {t`Username`}
                                 </Text>
                             </Button>
                         ) : null}
@@ -236,7 +244,7 @@ export function CredentialDetailPanel({
                                 size="sm"
                                 variant="secondary"
                                 className="flex-row gap-2"
-                                accessibilityLabel="Copy password"
+                                accessibilityLabel={t`Copy password`}
                                 onPress={() =>
                                     void copySecretToClipboard(
                                         credential.Password,
@@ -245,7 +253,7 @@ export function CredentialDetailPanel({
                             >
                                 <Copy size={14} color={colors.foreground} />
                                 <Text className="font-medium text-xs text-secondary-foreground">
-                                    Password
+                                    {t`Password`}
                                 </Text>
                             </Button>
                         ) : null}
@@ -254,7 +262,7 @@ export function CredentialDetailPanel({
                                 size="sm"
                                 variant="secondary"
                                 className="flex-row gap-2"
-                                accessibilityLabel="Copy authenticator code"
+                                accessibilityLabel={t`Copy authenticator code`}
                                 onPress={() => {
                                     try {
                                         const { code } = calculateTOTP(
@@ -268,7 +276,11 @@ export function CredentialDetailPanel({
                             >
                                 <Copy size={14} color={colors.foreground} />
                                 <Text className="font-medium text-xs text-secondary-foreground">
-                                    OTP
+                                    {t({
+                                        message: "OTP",
+                                        comment:
+                                            "Button that copies the one-time code",
+                                    })}
                                 </Text>
                             </Button>
                         ) : null}
@@ -279,7 +291,7 @@ export function CredentialDetailPanel({
             {sshKey ? <SSHKeyDetails credential={credential} /> : null}
             {!passkeyOnly && !sshKey ? (
                 <CopyableField
-                    label="Username"
+                    label={t`Username`}
                     value={credential.Username}
                     className={
                         credential.Password
@@ -291,7 +303,7 @@ export function CredentialDetailPanel({
             {!passkeyOnly && !sshKey && credential.Password ? (
                 <View className="mb-3">
                     <CopyableField
-                        label="Password"
+                        label={t`Password`}
                         value={credential.Password}
                         secret
                         className={
@@ -310,7 +322,7 @@ export function CredentialDetailPanel({
             {credential.URL || credential.AdditionalURLs.length ? (
                 <View className="min-h-12 flex-row items-center justify-between">
                     <Text className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Websites
+                        {t`Websites`}
                     </Text>
                     <Text className="text-xs text-muted-foreground">
                         {Number(Boolean(credential.URL)) +
@@ -327,8 +339,8 @@ export function CredentialDetailPanel({
                     }
                     label={
                         normalizeAndroidAppUri(credential.URL)
-                            ? "Android app"
-                            : "Primary website"
+                            ? t`Android app`
+                            : t`Primary website`
                     }
                     value={credential.URL}
                     onOpenUrl={
@@ -338,46 +350,48 @@ export function CredentialDetailPanel({
                     }
                 />
             ) : null}
-            {credential.AdditionalURLs.map((rule, index) => (
-                <CopyableField
-                    key={`${rule.URL}:${index}`}
-                    className={[
-                        credential.URL || index > 0 ? "rounded-t-none" : "",
-                        index < credential.AdditionalURLs.length - 1
-                            ? "mb-0 rounded-b-none border-b-0"
-                            : "",
-                    ].join(" ")}
-                    label={
-                        normalizeAndroidAppUri(rule.URL)
-                            ? "Android app"
-                            : `Additional website ${index + 1}`
-                    }
-                    value={rule.URL}
-                />
-            ))}
+            {credential.AdditionalURLs.map((rule, index) => {
+                const number = index + 1;
+                return (
+                    <CopyableField
+                        key={`${rule.URL}:${index}`}
+                        className={[
+                            credential.URL || index > 0 ? "rounded-t-none" : "",
+                            index < credential.AdditionalURLs.length - 1
+                                ? "mb-0 rounded-b-none border-b-0"
+                                : "",
+                        ].join(" ")}
+                        label={
+                            normalizeAndroidAppUri(rule.URL)
+                                ? t`Android app`
+                                : t`Additional website ${number}`
+                        }
+                        value={rule.URL}
+                    />
+                );
+            })}
             {credential.Passkey ? (
                 <View className="mb-3 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
                     <View className="flex-row items-start gap-3">
                         <Fingerprint size={20} color={colors.primary} />
                         <View className="flex-1">
                             <Text className="font-medium text-foreground">
-                                Passwordless sign-in
+                                {t`Passwordless sign-in`}
                             </Text>
                             <Text className="text-xs text-muted-foreground">
-                                Offered when {credential.Passkey.RPID} requests
-                                it.
+                                {t`Offered when ${relyingParty} requests it.`}
                             </Text>
                         </View>
                     </View>
                     <CopyableField
-                        label="Passkey account"
+                        label={t`Passkey account`}
                         value={
                             credential.Passkey.UserDisplayName ||
                             credential.Passkey.UserName
                         }
                     />
                     <CopyableField
-                        label="Relying party"
+                        label={t`Relying party`}
                         value={credential.Passkey.RPID}
                         onOpenUrl={() =>
                             openCredentialUrl(
@@ -387,7 +401,10 @@ export function CredentialDetailPanel({
                     />
                     <View className="flex-row items-center justify-between rounded-lg border border-border bg-secondary/50 p-3">
                         <Text className="text-sm text-muted-foreground">
-                            Credential
+                            {t({
+                                message: "Credential",
+                                context: "Passkey credential ID row",
+                            })}
                         </Text>
                         <Text className="font-mono text-xs text-foreground">
                             •••• {credential.Passkey.CredentialID.slice(-8)}
@@ -398,7 +415,7 @@ export function CredentialDetailPanel({
             {credential.Notes ? (
                 <View className="mb-3">
                     <Text className="mb-1.5 font-medium text-xs uppercase tracking-wider text-muted-foreground">
-                        Notes
+                        {t`Notes`}
                     </Text>
                     <View className="rounded-lg border border-border bg-secondary/50 p-3">
                         <Text className="text-sm leading-5 text-foreground">
@@ -413,7 +430,7 @@ export function CredentialDetailPanel({
                     <Separator className="mb-4" />
                     <View className="mb-3 flex-row items-center justify-between">
                         <Text className="font-medium text-xs uppercase tracking-wider text-muted-foreground">
-                            Custom Fields
+                            {t`Custom Fields`}
                         </Text>
                         <Badge variant="secondary">
                             <Text className="text-xs text-secondary-foreground">
@@ -427,7 +444,7 @@ export function CredentialDetailPanel({
                         return (
                             <CopyableField
                                 key={field.ID}
-                                label={field.Name || "Field"}
+                                label={field.Name || t`Field`}
                                 value={formatCustomFieldValue(
                                     field.Type,
                                     field.Value,
@@ -445,11 +462,11 @@ export function CredentialDetailPanel({
                     <View className="flex-row items-center gap-2">
                         <Clock size={16} color={colors.muted} />
                         <Text className="text-sm text-muted-foreground">
-                            Last modified
+                            {t`Last modified`}
                         </Text>
                     </View>
                     <Text className="text-sm text-foreground">
-                        {modified.toLocaleDateString(undefined, {
+                        {modified.toLocaleDateString(i18n.locale, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",
@@ -460,11 +477,14 @@ export function CredentialDetailPanel({
                     <View className="flex-row items-center gap-2">
                         <Plus size={16} color={colors.muted} />
                         <Text className="text-sm text-muted-foreground">
-                            Created
+                            {t({
+                                message: "Created",
+                                comment: "Date the item was created",
+                            })}
                         </Text>
                     </View>
                     <Text className="text-sm text-foreground">
-                        {created.toLocaleDateString(undefined, {
+                        {created.toLocaleDateString(i18n.locale, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",

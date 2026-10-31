@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { Archive, Download, FileJson } from "lucide-react-native";
 import { useAtomValue } from "jotai";
 import * as DocumentPicker from "expo-document-picker";
@@ -43,13 +45,14 @@ import {
     writeSecretTempFile,
 } from "@/utils/secret-temp-files";
 
-const SESSION_ENDED = "Vault session expired. Unlock and try again.";
+const SESSION_ENDED = msg`Vault session expired. Unlock and try again.`;
 
 export function ImportExportScreen({
     view = "root",
 }: {
     view?: "root" | "import" | "plain";
 }) {
+    const { t } = useLingui();
     const params = useLocalSearchParams<{ pane?: string }>();
     const [pane, setPane] = useState<"root" | "import" | "encrypted" | "plain">(
         params.pane === "encrypted" ? "encrypted" : view,
@@ -90,12 +93,12 @@ export function ImportExportScreen({
         setStatus("");
         try {
             if (!metadata?.Blob) {
-                setStatus("Vault metadata missing.");
+                setStatus(t`Vault metadata missing.`);
                 return;
             }
             const dekRes = getVaultDEKFromSession();
             if (dekRes.isErr()) {
-                setStatus("Session key missing. Unlock again.");
+                setStatus(t`Session key missing. Unlock again.`);
                 return;
             }
             const raw = await serializeVault(
@@ -104,7 +107,7 @@ export function ImportExportScreen({
                 dekRes.value,
             );
             if (!release.current()) {
-                setStatus(SESSION_ENDED);
+                setStatus(t(SESSION_ENDED));
                 return;
             }
             const shared = await shareSecretFile(
@@ -117,18 +120,18 @@ export function ImportExportScreen({
                 {
                     isCurrent: release.current,
                     mimeType: "application/octet-stream",
-                    dialogTitle: "Export encrypted vault backup",
+                    dialogTitle: t`Export encrypted vault backup`,
                 },
             );
             setStatus(
                 shared === "shared"
-                    ? "Encrypted export ready."
+                    ? t`Encrypted export ready.`
                     : shared === "unavailable"
-                      ? "Sharing is unavailable on this device."
-                      : SESSION_ENDED,
+                      ? t`Sharing is unavailable on this device.`
+                      : t(SESSION_ENDED),
             );
         } catch (e) {
-            setStatus(e instanceof Error ? e.message : "Export failed.");
+            setStatus(e instanceof Error ? e.message : t`Export failed.`);
         } finally {
             setBusy(false);
         }
@@ -143,20 +146,20 @@ export function ImportExportScreen({
 
     const handleCleartextExport = async () => {
         if (!metadata?.Blob) {
-            setCleartextError("Vault metadata missing.");
+            setCleartextError(t`Vault metadata missing.`);
             return;
         }
         if (!masterPassword.trim()) {
-            setCleartextError("Enter your master password.");
+            setCleartextError(t`Enter your master password.`);
             return;
         }
         if (!cleartextWarned) {
-            setCleartextError("Acknowledge the warning before exporting.");
+            setCleartextError(t`Acknowledge the warning before exporting.`);
             return;
         }
         if (factorKind === AdditionalKeyProtectionKind.WEBAUTHN_PRF) {
             setCleartextError(
-                "This vault uses WebAuthn PRF. Export cleartext from desktop.",
+                t`This vault uses WebAuthn PRF. Export cleartext from desktop.`,
             );
             return;
         }
@@ -191,13 +194,13 @@ export function ImportExportScreen({
             );
             if (verify.isErr()) {
                 setCleartextError(
-                    "Incorrect master password or protection phrase.",
+                    t`Incorrect master password or protection phrase.`,
                 );
                 return;
             }
 
             if (!release.current()) {
-                setCleartextError(SESSION_ENDED);
+                setCleartextError(t(SESSION_ENDED));
                 return;
             }
 
@@ -211,22 +214,22 @@ export function ImportExportScreen({
                 {
                     isCurrent: release.current,
                     mimeType: "application/json",
-                    dialogTitle: "Export cleartext vault JSON",
+                    dialogTitle: t`Export cleartext vault JSON`,
                 },
             );
             if (shared === "cancelled") {
-                setCleartextError(SESSION_ENDED);
+                setCleartextError(t(SESSION_ENDED));
                 return;
             }
             setStatus(
                 shared === "shared"
-                    ? "Cleartext export ready. Delete it after use."
-                    : "Sharing is unavailable on this device.",
+                    ? t`Cleartext export ready. Delete it after use.`
+                    : t`Sharing is unavailable on this device.`,
             );
             setCleartextOpen(false);
             resetCleartextForm();
         } catch {
-            setCleartextError("Cleartext export failed.");
+            setCleartextError(t`Cleartext export failed.`);
         } finally {
             setBusy(false);
         }
@@ -234,7 +237,7 @@ export function ImportExportScreen({
 
     if (pane === "root" || pane === "encrypted") {
         return (
-            <UnlockedTaskScreen title="Import / Export">
+            <UnlockedTaskScreen title={t`Import / Export`}>
                 <Dialog
                     open={pane === "encrypted"}
                     onOpenChange={(open) => {
@@ -250,38 +253,45 @@ export function ImportExportScreen({
                     dismissible={!busy}
                 >
                     <DialogHeader>
-                        <DialogTitle>Encrypted export</DialogTitle>
+                        <DialogTitle>{t`Encrypted export`}</DialogTitle>
                     </DialogHeader>
                     <View>
                         <View className="mb-[6px] border-b border-border pb-[22px]">
                             <UnlockedText className="mt-[10px] font-medium text-[22px] text-foreground">
-                                Save an encrypted copy
+                                {t`Save an encrypted copy`}
                             </UnlockedText>
                             <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                                The export uses this vault’s current password
-                                and protection settings.
+                                {t`The export uses this vault’s current password and protection settings.`}
                             </UnlockedText>
                         </View>
                         <View className="flex-row items-center justify-between gap-5 border-b border-border py-4">
                             <UnlockedText className="text-[13px] leading-[19px] text-muted-foreground">
-                                Format
+                                {t({
+                                    message: "Format",
+                                    comment:
+                                        "Label for the export file format row",
+                                })}
                             </UnlockedText>
                             <UnlockedText className="text-[13px] leading-[19px] text-foreground">
+                                {/* i18n-ignore: file format name */}
                                 Cryptex Vault (.cryx)
                             </UnlockedText>
                         </View>
                         <View className="flex-row items-center justify-between gap-5 border-b border-border py-4">
                             <UnlockedText className="text-[13px] leading-[19px] text-muted-foreground">
-                                Contents
+                                {t({
+                                    message: "Contents",
+                                    comment:
+                                        "Label for what the export file contains",
+                                })}
                             </UnlockedText>
                             <UnlockedText className="text-[13px] leading-[19px] text-foreground">
-                                Vault data and settings
+                                {t`Vault data and settings`}
                             </UnlockedText>
                         </View>
                         <View className="my-5 border-l-2 border-muted pl-[13px]">
                             <UnlockedText className="text-xs leading-5 text-muted-foreground">
-                                Keep your master password and any protection
-                                phrase available when restoring this file.
+                                {t`Keep your master password and any protection phrase available when restoring this file.`}
                             </UnlockedText>
                         </View>
                         <Button
@@ -289,7 +299,7 @@ export function ImportExportScreen({
                             loading={busy}
                             onPress={() => void handleEncryptedExport()}
                         >
-                            Export encrypted vault
+                            {t`Export encrypted vault`}
                         </Button>
                     </View>
                     {status ? (
@@ -298,30 +308,30 @@ export function ImportExportScreen({
                 </Dialog>
                 <View className="mb-[6px] border-b border-border pb-[22px]">
                     <UnlockedText className="mb-[6px] mt-[10px] font-medium text-[22px]">
-                        Move your vault data
+                        {t`Move your vault data`}
                     </UnlockedText>
                     <UnlockedText className="text-[13px] leading-5 text-muted-foreground">
-                        Bring logins in, or save a copy to use elsewhere.
+                        {t`Bring logins in, or save a copy to use elsewhere.`}
                     </UnlockedText>
                 </View>
                 <UnlockedText className="mb-[6px] mt-[26px] text-[11px] uppercase tracking-[1px] text-muted-foreground">
-                    Import
+                    {t({ message: "Import", comment: "Section heading" })}
                 </UnlockedText>
                 <UnlockedMenuRow
                     icon={Download}
-                    title="Import passwords"
-                    subtitle="From another password manager or vault"
+                    title={t`Import passwords`}
+                    subtitle={t`From another password manager or vault`}
                     onPress={() =>
                         router.push("/(app)/settings/import-export/import")
                     }
                 />
                 <UnlockedText className="mb-[6px] mt-[26px] text-[11px] uppercase tracking-[1px] text-muted-foreground">
-                    Export
+                    {t({ message: "Export", comment: "Section heading" })}
                 </UnlockedText>
                 <UnlockedMenuRow
                     icon={Archive}
-                    title="Encrypted vault"
-                    subtitle="Save a password-protected .cryx file"
+                    title={t`Encrypted vault`}
+                    subtitle={t`Save a password-protected .cryx file`}
                     onPress={() => {
                         setStatus("");
                         setPane("encrypted");
@@ -329,16 +339,15 @@ export function ImportExportScreen({
                 />
                 <UnlockedMenuRow
                     icon={FileJson}
-                    title="Unencrypted export"
-                    subtitle="Readable JSON for migration"
+                    title={t`Unencrypted export`}
+                    subtitle={t`Readable JSON for migration`}
                     onPress={() =>
                         router.push("/(app)/settings/import-export/plain")
                     }
                 />
                 <View className="my-5 border-l-2 border-muted pl-[13px]">
                     <UnlockedText className="text-xs leading-[18px] text-muted-foreground">
-                        Encrypted vault exports are the recommended option for
-                        backups.
+                        {t`Encrypted vault exports are the recommended option for backups.`}
                     </UnlockedText>
                 </View>
             </UnlockedTaskScreen>
@@ -350,11 +359,11 @@ export function ImportExportScreen({
             title={
                 pane === "import"
                     ? importStep === 1
-                        ? "Import passwords"
+                        ? t`Import passwords`
                         : importStep === 2
-                          ? "Choose import file"
-                          : "Review import"
-                    : "Unencrypted export"
+                          ? t`Choose import file`
+                          : t`Review import`
+                    : t`Unencrypted export`
             }
             onBack={() => {
                 if (pane === "import" && importStep > 1) {
@@ -378,22 +387,26 @@ export function ImportExportScreen({
                 <View className="gap-4">
                     <View className="mb-[6px] border-b border-border pb-[22px]">
                         <UnlockedText className="mt-[10px] font-medium text-[22px] text-foreground">
-                            Export readable data
+                            {t`Export readable data`}
                         </UnlockedText>
                         <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                            Anyone with this file can read its contents.
+                            {t`Anyone with this file can read its contents.`}
                         </UnlockedText>
                     </View>
                     <View className="min-h-[52px] flex-row items-center justify-between border-b border-border">
                         <UnlockedText className="text-sm text-muted-foreground">
-                            Format
+                            {t({
+                                message: "Format",
+                                comment: "Label for the export file format row",
+                            })}
                         </UnlockedText>
                         <UnlockedText className="text-sm text-foreground">
+                            {/* i18n-ignore: file format name */}
                             Cryptex Vault JSON
                         </UnlockedText>
                     </View>
                     <View>
-                        <Label>Master password</Label>
+                        <Label>{t`Master password`}</Label>
                         <Input
                             value={masterPassword}
                             onChangeText={(value) => {
@@ -404,12 +417,12 @@ export function ImportExportScreen({
                             autoCapitalize="none"
                             autoCorrect={false}
                             textContentType="password"
-                            accessibilityLabel="Master password for cleartext export"
+                            accessibilityLabel={t`Master password for cleartext export`}
                         />
                     </View>
                     {isProtectionPhraseKind(factorKind) ? (
                         <View>
-                            <Label>Protection phrase</Label>
+                            <Label>{t`Protection phrase`}</Label>
                             <Input
                                 value={additionalKeyProtection}
                                 onChangeText={(value) => {
@@ -419,7 +432,7 @@ export function ImportExportScreen({
                                 secureTextEntry
                                 autoCapitalize="none"
                                 autoCorrect={false}
-                                accessibilityLabel="Protection phrase"
+                                accessibilityLabel={t`Protection phrase`}
                             />
                         </View>
                     ) : null}
@@ -429,7 +442,7 @@ export function ImportExportScreen({
                             setCleartextWarned(checked);
                             setCleartextError("");
                         }}
-                        label="I understand this file is unencrypted and will delete it after use."
+                        label={t`I understand this file is unencrypted and will delete it after use.`}
                     />
                     {cleartextError ? (
                         <InlineNotice tone="error" message={cleartextError} />
@@ -439,18 +452,18 @@ export function ImportExportScreen({
                         onPress={() => {
                             if (!masterPassword.trim()) {
                                 setCleartextError(
-                                    "Enter your master password.",
+                                    t`Enter your master password.`,
                                 );
                             } else if (!cleartextWarned) {
                                 setCleartextError(
-                                    "Acknowledge the warning before exporting.",
+                                    t`Acknowledge the warning before exporting.`,
                                 );
                             } else {
                                 setCleartextOpen(true);
                             }
                         }}
                     >
-                        Review export
+                        {t`Review export`}
                     </Button>
                 </View>
             ) : null}
@@ -467,16 +480,15 @@ export function ImportExportScreen({
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Export cleartext JSON</DialogTitle>
+                    <DialogTitle>{t`Export cleartext JSON`}</DialogTitle>
                     <UnlockedText className="text-[13px] leading-5 text-muted-foreground">
-                        Confirm that you want to create an unencrypted migration
-                        file.
+                        {t`Confirm that you want to create an unencrypted migration file.`}
                     </UnlockedText>
                 </DialogHeader>
 
                 <InlineNotice
                     tone="warning"
-                    message="Anyone with this file can read all vault secrets. Prefer encrypted .cryx backups."
+                    message={t`Anyone with this file can read all vault secrets. Prefer encrypted .cryx backups.`}
                 />
 
                 <DialogFooter>
@@ -485,14 +497,14 @@ export function ImportExportScreen({
                         disabled={busy}
                         onPress={() => setCleartextOpen(false)}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                     <Button
                         variant="destructive"
                         loading={busy}
                         onPress={() => void handleCleartextExport()}
                     >
-                        Export JSON
+                        {t`Export JSON`}
                     </Button>
                 </DialogFooter>
             </Dialog>

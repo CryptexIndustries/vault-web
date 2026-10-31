@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { router } from "expo-router";
+import { useLingui } from "@lingui/react/macro";
 import {
     Archive,
     CircleHelp,
     FileUp,
     Info,
+    Languages,
     Link2,
     Shield,
     ShieldAlert,
@@ -12,12 +14,18 @@ import {
 } from "lucide-react-native";
 
 import { AboutSheet } from "@/components/about-sheet";
+import { LanguageDialog } from "@/components/language-dialog";
 import {
     UnlockedMenuRow as MoreRow,
     UnlockedScreen,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
+import {
+    APP_LOCALES,
+    appLocaleChoiceAvailable,
+    getChosenAppLocale,
+} from "@/i18n";
 
 function SectionLabel({ children }: { children: string }) {
     return (
@@ -37,60 +45,83 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export default function SettingsScreen() {
+    const { t } = useLingui();
     const [aboutOpen, setAboutOpen] = useState(false);
+    const [languageOpen, setLanguageOpen] = useState(false);
+    const chosenLocale = getChosenAppLocale();
 
     return (
         <UnlockedScreen scroll>
             <AboutSheet open={aboutOpen} onOpenChange={setAboutOpen} />
-            <SectionLabel>Vault</SectionLabel>
+            <LanguageDialog
+                open={languageOpen}
+                onOpenChange={setLanguageOpen}
+            />
+            <SectionLabel>{t`Vault`}</SectionLabel>
             <MoreRow
                 icon={Smartphone}
-                title="Autofill"
-                subtitle="Passwords, passkeys, and verification codes"
+                title={t`Autofill`}
+                subtitle={t`Passwords, passkeys, and verification codes`}
                 onPress={() => router.push("/(app)/settings/autofill")}
             />
             <MoreRow
                 icon={Shield}
-                title="Security"
-                subtitle="Auto-lock, biometrics, and encryption"
+                title={t`Security`}
+                subtitle={t`Auto-lock, biometrics, and encryption`}
                 onPress={() => router.push("/(app)/settings/security")}
             />
-            <SectionLabel>Data &amp; recovery</SectionLabel>
+            <SectionLabel>{t`Data & recovery`}</SectionLabel>
             <MoreRow
                 icon={FileUp}
-                title="Import / Export"
-                subtitle="Move logins or save an encrypted copy"
+                title={t`Import / Export`}
+                subtitle={t`Move logins or save an encrypted copy`}
                 onPress={() => router.push("/(app)/settings/import-export")}
             />
             <MoreRow
                 icon={Archive}
-                title="Backup Center"
-                subtitle="Backup history and recovery readiness"
+                title={t`Backup Center`}
+                subtitle={t`Backup history and recovery readiness`}
                 onPress={() => router.push("/(app)/settings/backup-center")}
             />
             <MoreRow
                 icon={Link2}
-                title="Shared links"
-                subtitle="One-time links you sent"
+                title={t`Shared links`}
+                subtitle={t`One-time links you sent`}
                 onPress={() => router.push("/(app)/share/links")}
             />
             <MoreRow
                 icon={ShieldAlert}
-                title="Security report"
-                subtitle="Find passwords that need attention"
+                title={t`Security report`}
+                subtitle={t`Find passwords that need attention`}
                 onPress={() => router.push("/(app)/settings/security-report")}
             />
-            <SectionLabel>Help</SectionLabel>
+            {appLocaleChoiceAvailable ? (
+                <>
+                    <SectionLabel>{t`App`}</SectionLabel>
+                    <MoreRow
+                        icon={Languages}
+                        title={t`Language`}
+                        subtitle={t`The language the app uses`}
+                        value={
+                            chosenLocale
+                                ? APP_LOCALES[chosenLocale]
+                                : t`Device language`
+                        }
+                        onPress={() => setLanguageOpen(true)}
+                    />
+                </>
+            ) : null}
+            <SectionLabel>{t`Help`}</SectionLabel>
             <MoreRow
                 icon={CircleHelp}
-                title="Diagnostics"
-                subtitle="Review and share diagnostic logs"
+                title={t`Diagnostics`}
+                subtitle={t`Review and share diagnostic logs`}
                 onPress={() => router.push("/(app)/settings/diagnostics")}
             />
             <MoreRow
                 icon={Info}
-                title="About"
-                subtitle="Version and project information"
+                title={t`About`}
+                subtitle={t`Version and project information`}
                 onPress={() => setAboutOpen(true)}
             />
         </UnlockedScreen>

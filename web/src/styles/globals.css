@@ -36,8 +36,10 @@ html {
     font-weight: 300;
     font-style: normal;
 
+    /* <html> sits outside the .dark scope, so the dark theme colors are
+       spelled out: a thumb a step above --border on a transparent track. */
     scrollbar-width: thin;
-    scrollbar-color: var(--primary) var(--background);
+    scrollbar-color: hsl(224.21 28.36% 30%) transparent;
 }
 
 .content {

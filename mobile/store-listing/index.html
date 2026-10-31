@@ -164,9 +164,16 @@
 
             <article class="slide" id="vault">
                 <div class="copy">
-                    <p class="label">DAILY ACCESS</p>
-                    <h1>Your vault,<br />ready when<br />you are</h1>
-                    <p class="description">
+                    <p class="label" data-hr="SVAKODNEVNI PRISTUP">
+                        DAILY ACCESS
+                    </p>
+                    <h1 data-hr="Tvoj trezor,<br />spreman kad<br />si i ti">
+                        Your vault,<br />ready when<br />you are
+                    </h1>
+                    <p
+                        class="description"
+                        data-hr="Lozinke i podaci za prijavu zajedno, na tvom telefonu."
+                    >
                         Keep passwords and sign-in details together on your
                         phone.
                     </p>
@@ -181,9 +188,16 @@
 
             <article class="slide" id="item" hidden>
                 <div class="copy">
-                    <p class="label">LOGIN DETAILS</p>
-                    <h1>Everything<br />you need to<br />sign in</h1>
-                    <p class="description">
+                    <p class="label" data-hr="PRISTUPNI PODACI">
+                        LOGIN DETAILS
+                    </p>
+                    <h1 data-hr="Sve što ti<br />treba za<br />prijavu">
+                        Everything<br />you need to<br />sign in
+                    </h1>
+                    <p
+                        class="description"
+                        data-hr="Kopiraj korisničko ime ili lozinku, a zatim otvori pravo web-mjesto."
+                    >
                         Copy a username or password, then open the right
                         website.
                     </p>
@@ -198,9 +212,18 @@
 
             <article class="slide" id="devices" hidden>
                 <div class="copy">
-                    <p class="label">DEVICE LINKING</p>
-                    <h1>Your vault,<br />across your<br />devices</h1>
-                    <p class="description">
+                    <p class="label" data-hr="POVEZIVANJE UREĐAJA">
+                        DEVICE LINKING
+                    </p>
+                    <h1
+                        data-hr="Tvoj trezor,<br />na svim tvojim<br />uređajima"
+                    >
+                        Your vault,<br />across your<br />devices
+                    </h1>
+                    <p
+                        class="description"
+                        data-hr="Izradi ili iskoristi pozivnicu. Pogledaj kako su tvoji uređaji povezani."
+                    >
                         Create or use an invitation. See how your devices
                         connect.
                     </p>
@@ -215,9 +238,16 @@
 
             <article class="slide" id="codes" hidden>
                 <div class="copy">
-                    <p class="label">VERIFICATION CODES</p>
-                    <h1>Copy a code.<br />Finish<br />signing in.</h1>
-                    <p class="description">
+                    <p class="label" data-hr="KODOVI ZA POTVRDU">
+                        VERIFICATION CODES
+                    </p>
+                    <h1 data-hr="Kopiraj kôd.<br />Dovrši<br />prijavu.">
+                        Copy a code.<br />Finish<br />signing in.
+                    </h1>
+                    <p
+                        class="description"
+                        data-hr="Čuvaj vremenske kodove za potvrdu u trezoru. Kopiraj ga kad ti zatreba."
+                    >
                         Keep time-based verification codes in your vault. Copy
                         one when you need it.
                     </p>
@@ -242,10 +272,23 @@
                     item.hidden = item !== slide;
                 });
             }
+            const params = new URLSearchParams(location.search);
             document.body.classList.toggle(
                 "play",
-                new URLSearchParams(location.search).get("format") === "play",
+                params.get("format") === "play",
             );
+            // ?lang=hr swaps in the Croatian copy and the raw/hr captures.
+            if (params.get("lang") === "hr") {
+                document.documentElement.lang = "hr";
+                document.querySelectorAll("[data-hr]").forEach((element) => {
+                    element.innerHTML = element.dataset.hr;
+                });
+                document.querySelectorAll(".capture img").forEach((image) => {
+                    image.src = image
+                        .getAttribute("src")
+                        .replace("raw/", "raw/hr/");
+                });
+            }
             window.addEventListener("hashchange", selectSlide);
             selectSlide();
         </script>

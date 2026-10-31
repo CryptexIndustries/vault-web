@@ -67,8 +67,8 @@ export default function LinkingDevices() {
                     your own connection servers. To use your own servers without
                     a subscription, follow the{" "}
                     <Link href="/docs/self-hosting">self-hosting guide</Link>{" "}
-                    and configure them under <strong>Vault signaling</strong>{" "}
-                    before linking.
+                    and add them under <strong>Vault signaling</strong>, the
+                    gear beside <strong>Linked Devices</strong>, before linking.
                 </p>
                 <DocCallout title="One account for all your devices">
                     <p>

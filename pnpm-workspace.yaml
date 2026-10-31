@@ -12,7 +12,6 @@ trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 43200
 blockExoticSubdeps: true
 engineStrict: true
-nodeVersion: 24.20.0
 pmOnFail: error
 verifyDepsBeforeRun: error
 enableGlobalVirtualStore: false

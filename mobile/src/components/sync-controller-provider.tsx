@@ -34,6 +34,7 @@ import {
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import { managedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
+import { backupDestinationScheduler } from "@/app_lib/backup-destinations";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { getVaultSessionGeneration } from "@/utils/vault-session";
 import { onlineServicesLog } from "@/utils/logging";
@@ -216,6 +217,9 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
             cancelActiveQueueItem.current?.();
             controller.pauseConnections();
             managedBackupCoordinator.stop();
+            // Upload now in case JS is suspended next. Unlike managed backup,
+            // the scheduler keeps running so a later lock can flush again.
+            void backupDestinationScheduler.flushBeforeLock();
             configuredDevice = undefined;
         };
         const scheduleSessionPause = () => {
@@ -298,6 +302,7 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
             }
         };
         controller.init();
+        void backupDestinationScheduler.start();
         scheduleSessionPause();
         const timeoutSubscription =
             subscribeVaultTimeoutChanges(scheduleSessionPause);
@@ -314,6 +319,7 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
             }
             if (!isAutoLockDue()) {
                 controller.init();
+                void backupDestinationScheduler.start();
                 void reconcile();
             } else {
                 pauseConnections();
@@ -334,6 +340,7 @@ export function SyncControllerProvider({ children }: { children: ReactNode }) {
             clearInterval(interval);
             unregisterController();
             managedBackupCoordinator.stop();
+            backupDestinationScheduler.stop();
         };
     }, [controller]);
 

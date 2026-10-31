@@ -22,9 +22,9 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
-                  node-version: 24.16.0
+                  node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Verify lockfile specifiers
@@ -38,9 +38,9 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
-                  node-version: 24.16.0
+                  node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Lint web client
@@ -88,9 +88,9 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
-                  node-version: 24.16.0
+                  node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Lint extension
@@ -103,32 +103,6 @@ jobs:
                   pnpm exec jest extension/tests/production-env.test.ts --runInBand
 
     # Temporarily disabled
-    web-e2e:
-        name: Web end-to-end
-        needs: [lockfile, web-quality]
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        if: ${{ false }}
-        steps:
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-              with:
-                  node-version: 24.16.0
-            - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
-            - name: Run web end-to-end tests
-              run: pnpm test:e2e:web
-            - name: Upload web end-to-end artifacts
-              if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: web-e2e
-                  path: |
-                      test-results/web-e2e
-                      playwright-report/web-e2e
-                  if-no-files-found: ignore
-
-    # Temporarily disabled
     extension-live-e2e:
         name: Extension live Autofill smoke
         needs: lockfile
@@ -139,9 +113,9 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
-                  node-version: 24.16.0
+                  node-version: 24.22.2
             - name: Enable pnpm
-              run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
             - name: Install frozen lockfile
               run: pnpm install --frozen-lockfile
             - name: Install Chromium
@@ -204,17 +178,17 @@ jobs:
                   docker stack config -c compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish web image
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: .
                   file: web/prod.Dockerfile
@@ -235,6 +209,8 @@ jobs:
         permissions:
             contents: read
             packages: write
+        outputs:
+            digest: ${{ steps.build.outputs.digest }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -272,17 +248,18 @@ jobs:
                   docker stack config -c services/cmd/share-server/compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish share server image
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              id: build
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: services
                   file: services/cmd/share-server/Dockerfile
@@ -305,6 +282,8 @@ jobs:
         permissions:
             contents: read
             packages: write
+        outputs:
+            digest: ${{ steps.build.outputs.digest }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -348,17 +327,18 @@ jobs:
                   docker stack config -c services/cmd/relay-server/compose.swarm.yaml >/dev/null
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Log in to GHCR
-              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and publish relay image
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              id: build
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: services
                   file: services/cmd/relay-server/Dockerfile
@@ -369,3 +349,79 @@ jobs:
                       org.opencontainers.image.revision=${{ github.sha }}
                   cache-from: type=gha,scope=relay-server-production
                   cache-to: type=gha,mode=max,scope=relay-server-production
+
+    # Each release job opens a draft GitHub release with that version's section
+    # of the component's CHANGELOG.md. Publishing the draft is a manual step.
+    web-release:
+        name: Draft web release
+        needs: [container-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      web/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}\`"
+                  scripts/draft-release.sh "Web v${GITHUB_REF_NAME#web-v}" web/CHANGELOG.md
+
+    share-server-release:
+        name: Draft share server release
+        needs: [share-server-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      services/cmd/share-server/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DIGEST: ${{ needs.share-server-image.outputs.digest }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}/share-server:${GITHUB_REF_NAME#share-server-}\`
+                  Digest: \`${DIGEST}\`
+
+                  Deploy it as described in the [Swarm guide](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/swarm-deployment.md#share-server-stack)."
+                  scripts/draft-release.sh "Share server v${GITHUB_REF_NAME#share-server-v}" services/cmd/share-server/CHANGELOG.md
+
+    relay-server-release:
+        name: Draft relay server release
+        needs: [relay-server-image]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      services/cmd/relay-server/CHANGELOG.md
+                      scripts/draft-release.sh
+                  sparse-checkout-cone-mode: false
+            - name: Create draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DIGEST: ${{ needs.relay-server-image.outputs.digest }}
+              shell: bash
+              run: |
+                  export RELEASE_OUTRO="Image: \`ghcr.io/${GITHUB_REPOSITORY,,}/relay-server:${GITHUB_REF_NAME#relay-server-}\`
+                  Digest: \`${DIGEST}\`
+
+                  Deploy it as described in the [Swarm guide](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/swarm-deployment.md#agent-relay-stack)."
+                  scripts/draft-release.sh "Relay server v${GITHUB_REF_NAME#relay-server-v}" services/cmd/relay-server/CHANGELOG.md

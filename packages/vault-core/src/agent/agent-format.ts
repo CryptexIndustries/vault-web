@@ -60,15 +60,14 @@ export function agentRowSubtitle(
 /** "arch-desktop, Linux amd64", as reported by the machine. */
 export function machineLabel(
     agent: Pick<ConnectedAgent, "Hostname" | "OS" | "Arch">,
+    unknown = "Unknown machine",
 ) {
     const os = agent.OS
         ? agent.OS.charAt(0).toUpperCase() + agent.OS.slice(1)
         : "";
     const platform = [os, agent.Arch].filter(Boolean).join(" ");
     return sanitizeDisplayText(
-        [agent.Hostname || "Unknown machine", platform]
-            .filter(Boolean)
-            .join(", "),
+        [agent.Hostname || unknown, platform].filter(Boolean).join(", "),
         96,
     );
 }
@@ -76,17 +75,21 @@ export function machineLabel(
 /** machineLabel for a pairing offer, before the agent has a record. */
 export function offerMachineLabel(
     offer: Pick<ClaimedPairing["offer"], "hostname" | "os" | "arch">,
+    unknown?: string,
 ) {
-    return machineLabel({
-        Hostname: offer.hostname,
-        OS: offer.os,
-        Arch: offer.arch,
-    });
+    return machineLabel(
+        {
+            Hostname: offer.hostname,
+            OS: offer.os,
+            Arch: offer.arch,
+        },
+        unknown,
+    );
 }
 
 /** The relay's host, or "Online Services" for the hosted relay (empty origin). */
-export function relayLabel(relayOrigin: string) {
-    return relayOrigin ? new URL(relayOrigin).host : "Online Services";
+export function relayLabel(relayOrigin: string, hosted = "Online Services") {
+    return relayOrigin ? new URL(relayOrigin).host : hosted;
 }
 
 /** A short fingerprint for rows: "SHA256:q9X2…Lk7e". */
@@ -129,15 +132,16 @@ export type AgentKeyOption = {
 export function agentKeyOptions(
     items: readonly VaultCredential[],
     describe: (credential: VaultCredential) => SSHKeyInfo | null,
+    keyLabel = "SSH key",
 ): AgentKeyOption[] {
     return items.map((credential) => {
         const info = describe(credential);
         return {
             id: credential.ID,
-            name: credential.Name || "SSH key",
+            name: credential.Name || keyLabel,
             detail: info
                 ? `${info.label} ${shortFingerprint(info.fingerprint)}`
-                : "SSH key",
+                : keyLabel,
             fingerprint: info?.fingerprint ?? credential.ID,
         };
     });
@@ -184,19 +188,58 @@ function firstWord(text: string) {
     return text.trim().split(/\s+/)[0] || "ssh";
 }
 
-export function historyTitle(entry: AgentRequestRecord): string {
+/** What a history entry was, with its display-ready names, for historyTitle. */
+export type HistoryTitleParts =
+    | { kind: "git-signature" }
+    | { kind: "signature"; namespace: string }
+    | { kind: "login"; program: string; server: string }
+    | { kind: "unknown-login"; program: string }
+    | { kind: "other" };
+
+export function historyTitleParts(
+    entry: AgentRequestRecord,
+): HistoryTitleParts {
     const program = sanitizeDisplayText(firstWord(entry.Process), 32);
     if (entry.Kind === AgentRequestKind.AgentRequestSignature)
         return entry.Namespace === "git"
-            ? "Git signature"
-            : `${capitalize(sanitizeDisplayText(entry.Namespace || "file", 32))} signature`;
+            ? { kind: "git-signature" }
+            : {
+                  kind: "signature",
+                  namespace: capitalize(
+                      sanitizeDisplayText(entry.Namespace || "file", 32),
+                  ),
+              };
     if (entry.Kind === AgentRequestKind.AgentRequestLogin) {
         if (entry.Host)
-            return `${program} to ${sanitizeDisplayText(entry.Host)}`;
-        if (entry.DestinationUnknown) return `${program} to an unknown server`;
-        return `${program} to ${shortFingerprint(entry.HostKeyFingerprint)}`;
+            return {
+                kind: "login",
+                program,
+                server: sanitizeDisplayText(entry.Host),
+            };
+        if (entry.DestinationUnknown) return { kind: "unknown-login", program };
+        return {
+            kind: "login",
+            program,
+            server: shortFingerprint(entry.HostKeyFingerprint),
+        };
     }
-    return "Other request";
+    return { kind: "other" };
+}
+
+export function historyTitle(entry: AgentRequestRecord): string {
+    const title = historyTitleParts(entry);
+    switch (title.kind) {
+        case "git-signature":
+            return "Git signature";
+        case "signature":
+            return `${title.namespace} signature`;
+        case "login":
+            return `${title.program} to ${title.server}`;
+        case "unknown-login":
+            return `${title.program} to an unknown server`;
+        case "other":
+            return "Other request";
+    }
 }
 
 export function outcomeLabel(outcome: AgentRequestOutcome): string {
@@ -216,18 +259,45 @@ export function outcomeLabel(outcome: AgentRequestOutcome): string {
     }
 }
 
-/** The approval screen title. */
-export function requestTitle(request: Pick<IncomingRequest, "check">): string {
+/** What the approval screen asks, with its display-ready names, for requestTitle. */
+export type RequestTitleParts =
+    | { kind: "git-signature" | "file-signature" | "unknown-login" }
+    | { kind: "signature"; namespace: string }
+    | { kind: "login"; server: string | null };
+
+export function requestTitleParts(
+    request: Pick<IncomingRequest, "check">,
+): RequestTitleParts {
     const { check } = request;
     if (check.kind === "signature") {
-        if (check.namespace === "git") return "Sign a git commit?";
-        if (check.namespace === "file") return "Sign a file?";
-        return `Create a ${sanitizeDisplayText(check.namespace || "file", 32)} signature?`;
+        if (check.namespace === "git") return { kind: "git-signature" };
+        if (check.namespace === "file") return { kind: "file-signature" };
+        return {
+            kind: "signature",
+            namespace: sanitizeDisplayText(check.namespace || "file", 32),
+        };
     }
     if (check.destinationUnknown || !check.verifiedHost)
-        return "SSH login, destination unknown";
+        return { kind: "unknown-login" };
     const name = check.verifiedHost.names[0];
-    return `Sign in to ${name ? sanitizeDisplayText(name) : "this server"}?`;
+    return { kind: "login", server: name ? sanitizeDisplayText(name) : null };
+}
+
+/** The approval screen title. */
+export function requestTitle(request: Pick<IncomingRequest, "check">): string {
+    const title = requestTitleParts(request);
+    switch (title.kind) {
+        case "git-signature":
+            return "Sign a git commit?";
+        case "file-signature":
+            return "Sign a file?";
+        case "signature":
+            return `Create a ${title.namespace} signature?`;
+        case "unknown-login":
+            return "SSH login, destination unknown";
+        case "login":
+            return `Sign in to ${title.server ?? "this server"}?`;
+    }
 }
 
 /** The label of a Remember choice on the approval screen. */

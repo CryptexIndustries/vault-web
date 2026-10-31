@@ -1,11 +1,11 @@
 import * as React from "react";
-import { Pressable, View, type ViewProps } from "react-native";
 import {
-    AlertCircle,
-    CheckCircle2,
-    Info,
-    LoaderCircle,
-} from "lucide-react-native";
+    ActivityIndicator,
+    Pressable,
+    View,
+    type ViewProps,
+} from "react-native";
+import { AlertCircle, CheckCircle2, Info } from "lucide-react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -26,7 +26,13 @@ type InlineNoticeProps = ViewProps & {
 
 const toneStyles: Record<
     InlineNoticeTone,
-    { border: string; text: string; iconColor: string; Icon: typeof Info }
+    {
+        border: string;
+        text: string;
+        iconColor: string;
+        /** Null shows a spinner. */
+        Icon: typeof Info | null;
+    }
 > = {
     info: {
         border: "border-border",
@@ -56,7 +62,7 @@ const toneStyles: Record<
         border: "border-border",
         text: "text-muted-foreground",
         iconColor: colors.muted,
-        Icon: LoaderCircle,
+        Icon: null,
     },
 };
 
@@ -90,13 +96,22 @@ function InlineNotice({
             )}
             {...props}
         >
-            <Icon
-                as={style.Icon}
-                size={16}
-                color={style.iconColor}
-                className="mt-0.5"
-                accessibilityElementsHidden
-            />
+            {style.Icon ? (
+                <Icon
+                    as={style.Icon}
+                    size={16}
+                    color={style.iconColor}
+                    className="mt-0.5"
+                    accessibilityElementsHidden
+                />
+            ) : (
+                <ActivityIndicator
+                    size={16}
+                    color={style.iconColor}
+                    style={{ marginTop: 2 }}
+                    importantForAccessibility="no"
+                />
+            )}
             <View className="flex-1">
                 <Text className={cn("text-sm leading-5", style.text)}>
                     {message}

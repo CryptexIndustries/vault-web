@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import {
     ItemType,
     type SSHKeyData,
@@ -29,7 +30,7 @@ export function sshKeyInfo(credential: SSHKeyItem): SSHKeyInfo | null {
 
 /** Second line in lists: the key label, then the comment when there is one. */
 export function sshKeySummary(credential: SSHKeyItem): string {
-    const label = sshKeyInfo(credential)?.label ?? "SSH key";
+    const label = sshKeyInfo(credential)?.label ?? t`SSH key`;
     const comment = credential.SSHKey?.Comment.trim();
     return comment ? `${label}, ${comment}` : label;
 }

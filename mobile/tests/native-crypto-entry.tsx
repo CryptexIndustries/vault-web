@@ -1,4 +1,6 @@
 import "../src/polyfills";
+// Before any module that translates while it loads.
+import "../src/i18n";
 import "../src/vault-core-runtime";
 import { registerRootComponent } from "expo";
 import { useEffect, useState } from "react";

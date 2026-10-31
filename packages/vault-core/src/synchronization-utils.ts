@@ -23,6 +23,19 @@ export enum WebRTCStatus {
     Failed,
 }
 
+/**
+ * The ICE server URL for a saved STUN or TURN host, which is host[:port] or a
+ * full URL. A scheme is followed by something other than a port digit, so a
+ * server named "turn" saved as "turn:3478" stays a host and port.
+ */
+export const iceServerURL = (type: "stun" | "turn", host: string) => {
+    const trimmed = host.trim();
+    const scheme = /^(stun|turn)s?:(?!\d)/i.exec(trimmed)?.[0];
+    return scheme
+        ? scheme.toLowerCase() + trimmed.slice(scheme.length)
+        : `${type}:${trimmed}`;
+};
+
 //#region Signaling Server Message
 /**
  * Signaling server message types.
@@ -258,6 +271,7 @@ export class SynchronizationEnvelope
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
         connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        backupDestinationVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloMessage.encode({
@@ -265,6 +279,7 @@ export class SynchronizationEnvelope
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
             ConnectedAgentVersionVectors: connectedAgentVersionVectors,
+            BackupDestinationVersionVectors: backupDestinationVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -283,6 +298,7 @@ export class SynchronizationEnvelope
         directoryVersionVectors: VaultUtilTypes.VersionVector[] = [],
         shareLinkVersionVectors: VaultUtilTypes.VersionVector[] = [],
         connectedAgentVersionVectors: VaultUtilTypes.VersionVector[] = [],
+        backupDestinationVersionVectors: VaultUtilTypes.VersionVector[] = [],
     ) {
         const envelopeID = ulid();
         const payload = VaultUtilTypes.SyncHelloEchoMessage.encode({
@@ -290,6 +306,7 @@ export class SynchronizationEnvelope
             DirectoryVersionVectors: directoryVersionVectors,
             ShareLinkVersionVectors: shareLinkVersionVectors,
             ConnectedAgentVersionVectors: connectedAgentVersionVectors,
+            BackupDestinationVersionVectors: backupDestinationVersionVectors,
         }).finish();
         const data = await SynchronizationEnvelope.encodeEnvelope(
             envelopeID,
@@ -329,12 +346,14 @@ export class SynchronizationEnvelope
         directories: VaultUtilTypes.Directory[] = [],
         shareLinks: VaultUtilTypes.ShareLink[] = [],
         connectedAgents: VaultUtilTypes.ConnectedAgent[] = [],
+        backupDestinations: VaultUtilTypes.BackupDestination[] = [],
     ) {
         const payload = VaultUtilTypes.SyncDataResponseMessage.encode({
             Credentials: credentials,
             Directories: directories,
             ShareLinks: shareLinks,
             ConnectedAgents: connectedAgents,
+            BackupDestinations: backupDestinations,
         }).finish();
 
         return SynchronizationEnvelope.encodeEnvelope(

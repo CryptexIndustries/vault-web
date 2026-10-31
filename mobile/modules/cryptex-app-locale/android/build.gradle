@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.cryptex.vault'
+version = '0.1.0'
+
+android {
+  namespace 'com.cryptex.vault.locale'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // androidx.appcompat (AppCompatDelegate) comes through react-android's api dependency.
+  implementation 'com.facebook.react:react-android'
+}

@@ -12,6 +12,8 @@ import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useAtomValue } from "jotai";
 import { ChevronRight, Folder } from "lucide-react-native";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     createDirectory,
@@ -32,6 +34,7 @@ import { colors } from "@/theme";
 type EditorMode = "create" | "rename" | null;
 
 export function DirectoryManagerScreen() {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const vault = useAtomValue(unlockedVaultAtom);
     const credentials = useAtomValue(vaultCredentialsAtom);
@@ -79,10 +82,10 @@ export function DirectoryManagerScreen() {
         const mode = editorMode;
         setEditorMode(null);
         confirm({
-            title: "Discard directory changes?",
-            description: "Your directory name has not been saved.",
-            confirmLabel: "Discard changes",
-            cancelLabel: "Keep editing",
+            title: t`Discard directory changes?`,
+            description: t`Your directory name has not been saved.`,
+            confirmLabel: t`Discard changes`,
+            cancelLabel: t`Keep editing`,
             onConfirm: () => {},
             onCancel: () => setEditorMode(mode),
         });
@@ -97,15 +100,19 @@ export function DirectoryManagerScreen() {
                     normalized.toLocaleLowerCase(),
         );
         if (!normalized) {
-            setError("Enter a directory name.");
+            setError(t`Enter a directory name.`);
             return;
         }
-        if (normalized.toLocaleLowerCase() === "no directory") {
-            setError("“No directory” is reserved for unfiled credentials.");
+        const reserved = normalized.toLocaleLowerCase();
+        if (
+            reserved === "no directory" ||
+            reserved === t`No directory`.toLocaleLowerCase()
+        ) {
+            setError(t`“No directory” is reserved for unfiled credentials.`);
             return;
         }
         if (duplicate) {
-            setError("A directory with this name already exists.");
+            setError(t`A directory with this name already exists.`);
             return;
         }
 
@@ -137,7 +144,7 @@ export function DirectoryManagerScreen() {
         );
         setBusy(false);
         if (result.isErr()) {
-            setError("Directory update failed.");
+            setError(t`Directory update failed.`);
             return;
         }
         setEditorMode(null);
@@ -181,7 +188,7 @@ export function DirectoryManagerScreen() {
         );
         setBusy(false);
         if (result.isErr()) {
-            setError("Failed to remove directory.");
+            setError(t`Failed to remove directory.`);
             return;
         }
         setDeleteTarget(null);
@@ -206,7 +213,7 @@ export function DirectoryManagerScreen() {
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${title}, ${subtitle}`}
+                accessibilityLabel={t`${title}, ${subtitle}`}
                 onPress={() => directory && openEditor("rename", directory)}
                 style={{
                     minHeight: 70,
@@ -237,10 +244,11 @@ export function DirectoryManagerScreen() {
     );
 
     const deleteCount = deleteTarget ? countFor(deleteTarget.ID) : 0;
+    const deleteName = deleteTarget?.Name;
 
     return (
         <UnlockedScreen scroll>
-            <UnlockedPageTitle title="Directories" />
+            <UnlockedPageTitle title={t`Directories`} />
             <View
                 style={{
                     paddingBottom: 22,
@@ -252,7 +260,7 @@ export function DirectoryManagerScreen() {
                 <UnlockedText
                     style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}
                 >
-                    Your directories
+                    {t`Your directories`}
                 </UnlockedText>
                 <UnlockedText
                     style={{
@@ -262,18 +270,19 @@ export function DirectoryManagerScreen() {
                         marginTop: 6,
                     }}
                 >
-                    Keep related items together.
+                    {t`Keep related items together.`}
                 </UnlockedText>
             </View>
             <View>
-                {directories.map((directory) =>
-                    row(
+                {directories.map((directory) => {
+                    const count = countFor(directory.ID);
+                    return row(
                         directory.ID,
                         directory.Name,
-                        `${countFor(directory.ID)} items`,
+                        plural(count, { one: "# item", other: "# items" }),
                         directory,
-                    ),
-                )}
+                    );
+                })}
             </View>
             {!directories.length ? (
                 <UnlockedText
@@ -284,8 +293,7 @@ export function DirectoryManagerScreen() {
                         marginTop: 16,
                     }}
                 >
-                    No directories yet. Create one to start organizing your
-                    credentials.
+                    {t`No directories yet. Create one to start organizing your credentials.`}
                 </UnlockedText>
             ) : null}
             <Button
@@ -299,7 +307,7 @@ export function DirectoryManagerScreen() {
                         fontSize: 14,
                     }}
                 >
-                    Create directory
+                    {t`Create directory`}
                 </UnlockedText>
             </Button>
 
@@ -313,22 +321,22 @@ export function DirectoryManagerScreen() {
                 <DialogHeader>
                     <DialogTitle>
                         {editorMode === "rename"
-                            ? (editorDirectory?.Name ?? "Directory")
-                            : "Create directory"}
+                            ? (editorDirectory?.Name ?? t`Directory`)
+                            : t`Create directory`}
                     </DialogTitle>
                 </DialogHeader>
                 <View>
-                    <Label>Directory name</Label>
+                    <Label>{t`Directory name`}</Label>
                     <Input
                         value={name}
                         onChangeText={(value) => {
                             setName(value.slice(0, 40));
                             setError("");
                         }}
-                        placeholder="e.g. Finance"
+                        placeholder={t`e.g. Finance`}
                         maxLength={40}
                         autoFocus
-                        accessibilityLabel="Directory name"
+                        accessibilityLabel={t`Directory name`}
                     />
                 </View>
                 {error ? (
@@ -345,8 +353,8 @@ export function DirectoryManagerScreen() {
                         onPress={() => void saveDirectory()}
                     >
                         {editorMode === "rename"
-                            ? "Rename directory"
-                            : "Create directory"}
+                            ? t`Rename directory`
+                            : t`Create directory`}
                     </Button>
                     {editorMode === "rename" ? (
                         <Button
@@ -358,7 +366,7 @@ export function DirectoryManagerScreen() {
                                 setError("");
                             }}
                         >
-                            Delete directory
+                            {t`Delete directory`}
                         </Button>
                     ) : null}
                 </DialogFooter>
@@ -370,7 +378,7 @@ export function DirectoryManagerScreen() {
                 placement="bottom"
             >
                 <DialogHeader>
-                    <DialogTitle>Remove directory?</DialogTitle>
+                    <DialogTitle>{t`Remove directory?`}</DialogTitle>
                     <UnlockedText
                         style={{
                             color: colors.muted,
@@ -379,8 +387,11 @@ export function DirectoryManagerScreen() {
                         }}
                     >
                         {deleteCount
-                            ? `Remove “${deleteTarget?.Name}”? Its ${deleteCount} credential${deleteCount === 1 ? "" : "s"} will move to No directory by default.`
-                            : `Remove “${deleteTarget?.Name}”? This directory is empty.`}
+                            ? plural(deleteCount, {
+                                  one: `Remove “${deleteName}”? Its # credential will move to No directory by default.`,
+                                  other: `Remove “${deleteName}”? Its # credentials will move to No directory by default.`,
+                              })
+                            : t`Remove “${deleteName}”? This directory is empty.`}
                     </UnlockedText>
                 </DialogHeader>
                 {deleteCount ? (
@@ -398,7 +409,7 @@ export function DirectoryManagerScreen() {
                     >
                         <View style={{ flex: 1 }}>
                             <UnlockedText style={{ fontSize: 14 }}>
-                                Also delete its credentials
+                                {t`Also delete its credentials`}
                             </UnlockedText>
                             <UnlockedText
                                 style={{
@@ -407,13 +418,13 @@ export function DirectoryManagerScreen() {
                                     marginTop: 6,
                                 }}
                             >
-                                Leave this off to keep your credentials.
+                                {t`Leave this off to keep your credentials.`}
                             </UnlockedText>
                         </View>
                         <Switch
                             value={deleteContents}
                             onValueChange={setDeleteContents}
-                            accessibilityLabel="Also delete directory credentials"
+                            accessibilityLabel={t`Also delete directory credentials`}
                         />
                     </View>
                 ) : null}
@@ -430,13 +441,13 @@ export function DirectoryManagerScreen() {
                         loading={busy}
                         onPress={() => void removeDirectory()}
                     >
-                        Remove directory
+                        {t`Remove directory`}
                     </Button>
                     <Button
                         variant="ghost"
                         onPress={() => setDeleteTarget(null)}
                     >
-                        Keep directory
+                        {t`Keep directory`}
                     </Button>
                 </DialogFooter>
             </Dialog>

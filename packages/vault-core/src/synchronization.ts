@@ -18,6 +18,7 @@ import {
     SynchronizationEnvelope,
     WebRTCMessageEventType,
     WebRTCStatus,
+    iceServerURL,
     isRTCSessionDescriptionInit,
     type SCCSignalingEventHandler,
     type SCCWebRTCEventHandler,
@@ -105,6 +106,9 @@ export interface VaultOperations {
     getDirectoryVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getShareLinkVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
     getConnectedAgentVersionVectors(): Promise<VaultUtilTypes.VersionVector[]>;
+    getBackupDestinationVersionVectors(): Promise<
+        VaultUtilTypes.VersionVector[]
+    >;
     getItems(
         items: VaultUtilTypes.SyncItemReference[],
     ): Promise<VaultUtilTypes.SyncDataResponseMessage>;
@@ -114,6 +118,7 @@ export interface VaultOperations {
         credentials: VaultUtilTypes.Credential[],
         shareLinks: VaultUtilTypes.ShareLink[],
         connectedAgents: VaultUtilTypes.ConnectedAgent[],
+        backupDestinations: VaultUtilTypes.BackupDestination[],
     ): Promise<void>;
     getSynchronizationConfig(): Promise<VaultUtilTypes.LinkedDevices>;
     getSyncSigningPublicKey(): Promise<string | null>;
@@ -164,7 +169,7 @@ export const initWebRTC = async (
         stunServers.length === 0
             ? []
             : stunServers.map((stunServer) => ({
-                  urls: `stun:${stunServer.Host}`,
+                  urls: iceServerURL("stun", stunServer.Host),
               }));
 
     let _turnServers: RTCIceServer[];
@@ -194,19 +199,11 @@ export const initWebRTC = async (
         }
         _turnServers = turnCredentials.iceServers;
     } else {
-        _turnServers = turnServers.map((turnServer) => {
-            const host = turnServer.Host.trim();
-            return {
-                // Preserve explicit TURN/TLS URLs; older vaults store host:port.
-                urls: /^turns?:/i.test(host)
-                    ? host.replace(/^turns?:/i, (scheme) =>
-                          scheme.toLowerCase(),
-                      )
-                    : `turn:${host}`,
-                username: turnServer.Username,
-                credential: turnServer.Password,
-            };
-        });
+        _turnServers = turnServers.map((turnServer) => ({
+            urls: iceServerURL("turn", turnServer.Host),
+            username: turnServer.Username,
+            credential: turnServer.Password,
+        }));
     }
 
     return new RTCPeerConnection({
@@ -2085,6 +2082,10 @@ class VaultItemSynchronization {
         return this.vaultOps.getConnectedAgentVersionVectors();
     }
 
+    private getBackupDestinationVersionVectors() {
+        return this.vaultOps.getBackupDestinationVersionVectors();
+    }
+
     public async transmitSyncHello(
         deviceID: string,
         dataChannel: RTCDataChannel,
@@ -2095,6 +2096,7 @@ class VaultItemSynchronization {
                 await this.getDirectoryVersionVectors(),
                 await this.getShareLinkVersionVectors(),
                 await this.getConnectedAgentVersionVectors(),
+                await this.getBackupDestinationVersionVectors(),
             );
 
         const sent = await this.sendEncryptedPlaintextMessage(
@@ -2243,6 +2245,7 @@ class VaultItemSynchronization {
                         await this.getDirectoryVersionVectors(),
                         await this.getShareLinkVersionVectors(),
                         await this.getConnectedAgentVersionVectors(),
+                        await this.getBackupDestinationVersionVectors(),
                     );
                 await this.sendEncryptedPlaintextMessage(
                     remoteDeviceID,
@@ -2334,6 +2337,10 @@ class VaultItemSynchronization {
                 ...vector,
                 ID: `agent:${vector.ID}`,
             })),
+            ...message.BackupDestinationVersionVectors.map((vector) => ({
+                ...vector,
+                ID: `backup:${vector.ID}`,
+            })),
         ];
 
         syncLog.info(`Received a sync hello message from the remote device`, {
@@ -2360,6 +2367,12 @@ class VaultItemSynchronization {
                 ...vector,
                 ID: `agent:${vector.ID}`,
             })),
+            ...(await this.getBackupDestinationVersionVectors()).map(
+                (vector) => ({
+                    ...vector,
+                    ID: `backup:${vector.ID}`,
+                }),
+            ),
         ];
 
         const versionVectorsMatchingIDs = versionVectors.filter((vector) =>
@@ -2521,8 +2534,11 @@ class VaultItemSynchronization {
                                       : kind === "agent"
                                         ? VaultUtilTypes.SyncItemType
                                               .ConnectedAgentItem
-                                        : VaultUtilTypes.SyncItemType
-                                              .CredentialItem,
+                                        : kind === "backup"
+                                          ? VaultUtilTypes.SyncItemType
+                                                .BackupDestinationItem
+                                          : VaultUtilTypes.SyncItemType
+                                                .CredentialItem,
                             ID: idParts.join(":"),
                         };
                     }),
@@ -2596,6 +2612,7 @@ class VaultItemSynchronization {
                 response.Directories,
                 response.ShareLinks,
                 response.ConnectedAgents,
+                response.BackupDestinations,
             );
 
         await this.sendEncryptedPlaintextMessage(
@@ -2649,6 +2666,7 @@ class VaultItemSynchronization {
             credentials,
             message.ShareLinks,
             message.ConnectedAgents,
+            message.BackupDestinations,
         );
 
         syncLog.info("Updated credentials in the vault", {

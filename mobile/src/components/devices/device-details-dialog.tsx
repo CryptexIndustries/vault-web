@@ -18,6 +18,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import ActionSheet, { type ActionSheetRef } from "react-native-actions-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Portal } from "@rn-primitives/portal";
@@ -93,6 +94,7 @@ function RetainedDeviceDetails({
 }: DeviceDetailsDialogProps & {
     onPresentedChange: (presented: boolean) => void;
 }) {
+    const { t } = useLingui();
     const portalName = useId();
     const sheetRef = useRef<ActionSheetRef>(null);
     const mounted = useRef(false);
@@ -281,7 +283,7 @@ function RetainedDeviceDetails({
                     <Pressable
                         style={StyleSheet.absoluteFill}
                         accessibilityRole="button"
-                        accessibilityLabel="Close dialog"
+                        accessibilityLabel={t`Close dialog`}
                         onPress={requestClose}
                     />
                 ) : null}

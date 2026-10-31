@@ -16,6 +16,7 @@ export default function PrivacyAndMetadata() {
                 { href: "#local", label: "Local storage" },
                 { href: "#network", label: "External requests" },
                 { href: "#backups", label: "Managed backups" },
+                { href: "#destinations", label: "Backup destinations" },
                 { href: "#providers", label: "Providers and logs" },
                 { href: "#control", label: "Deletion and your controls" },
             ]}
@@ -99,6 +100,17 @@ export default function PrivacyAndMetadata() {
                                     itself. Receipts, vault selection, and
                                     interface settings can persist across
                                     restarts.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Backup destination status</td>
+                                <td>
+                                    For each backup destination, the device
+                                    keeps the time and error of its last upload
+                                    and a keyed fingerprint of what it uploaded.
+                                    The fingerprint key is in the vault, so the
+                                    fingerprint reveals nothing about the
+                                    contents.
                                 </td>
                             </tr>
                         </tbody>
@@ -214,6 +226,20 @@ export default function PrivacyAndMetadata() {
                                 </td>
                             </tr>
                             <tr>
+                                <td>Backing up to a backup destination</td>
+                                <td>
+                                    The bucket&apos;s provider receives the
+                                    encrypted backup file, the access key ID,
+                                    request signatures, your IP address, and
+                                    upload times. Our servers are not involved.
+                                    See{" "}
+                                    <a href="#destinations">
+                                        backup destinations
+                                    </a>{" "}
+                                    below.
+                                </td>
+                            </tr>
+                            <tr>
                                 <td>Creating a one-time share link</td>
                                 <td>
                                     The share server receives the encrypted
@@ -323,6 +349,29 @@ export default function PrivacyAndMetadata() {
                 </p>
             </DocSection>
 
+            <DocSection id="destinations" title="Backup destination metadata">
+                <p>
+                    Backup destinations are S3-compatible buckets you add
+                    yourself. Each device uploads the same encrypted{" "}
+                    <code>.cryx</code> file you get from Download backup
+                    straight to the bucket. The bucket&apos;s address and keys
+                    are stored in the encrypted vault, sync to your linked
+                    devices, and are part of every backup.
+                </p>
+                <p>
+                    Each device writes to its own folder, whose name starts with
+                    the platform, such as <code>android-</code>. File names hold
+                    the upload time. The provider can therefore tell how many
+                    devices back up, which platforms they run, when your vault
+                    changes, and how large it is. It cannot read the contents.
+                    See{" "}
+                    <Link href="/docs/backup-destinations">
+                        Backup destinations
+                    </Link>
+                    .
+                </p>
+            </DocSection>
+
             <DocSection id="providers" title="Providers, analytics, and logs">
                 <p>
                     Our production infrastructure, STUN/TURN servers, and
@@ -389,9 +438,10 @@ export default function PrivacyAndMetadata() {
                         <dt>Delete a local vault</dt>
                         <dd>
                             Removes that installation's local vault. It does not
-                            erase copies on linked devices, downloaded files, or
-                            managed backups. Clearing the web app's site data
-                            removes its local storage as well.
+                            erase copies on linked devices, downloaded files,
+                            managed backups, or files in backup destinations.
+                            Clearing the web app's site data removes its local
+                            storage as well.
                         </dd>
                     </div>
                     <div className={t.definition}>
@@ -407,6 +457,14 @@ export default function PrivacyAndMetadata() {
                             Requests deletion of selected stored snapshots
                             within your device's permissions. It does not delete
                             the live local vault or copies already downloaded.
+                        </dd>
+                    </div>
+                    <div className={t.definition}>
+                        <dt>Remove a backup destination</dt>
+                        <dd>
+                            Stops uploads to it from every device and erases its
+                            keys from the vault. Files already in the bucket
+                            stay until you delete them there.
                         </dd>
                     </div>
                     <div className={t.definition}>

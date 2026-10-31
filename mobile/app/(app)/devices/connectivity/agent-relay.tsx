@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import {
     BatteryCharging,
     ChevronRight,
@@ -90,6 +91,7 @@ function RelayRow({
 }
 
 export default function AgentRelayScreen() {
+    const { t } = useLingui();
     const showSnackbar = useUnlockedSnackbar();
     const [relays, setRelays] = useState<CustomRelay[]>([]);
     const [editing, setEditing] = useState<CustomRelay | "new" | null>(null);
@@ -117,12 +119,12 @@ export default function AgentRelayScreen() {
         const origin = normalizeRelayUrlInput(url);
         if (!origin) {
             setError(
-                "Enter a full https:// address, like https://relay.example.com.",
+                t`Enter a full https:// address, like https://relay.example.com.`,
             );
             return;
         }
         if (!token.trim()) {
-            setError("Enter the relay's access token.");
+            setError(t`Enter the relay's access token.`);
             return;
         }
         setSaving(true);
@@ -134,7 +136,7 @@ export default function AgentRelayScreen() {
             await agentRuntime.reload();
             setEditing(null);
         } catch {
-            showSnackbar("Couldn't save the relay.");
+            showSnackbar(t`Couldn't save the relay.`);
         } finally {
             setSaving(false);
         }
@@ -146,11 +148,13 @@ export default function AgentRelayScreen() {
         await refresh();
         await agentRuntime.reload();
         setEditing(null);
-        showSnackbar("Relay removed");
+        showSnackbar(t`Relay removed`);
     };
 
+    const hostedRelayHost = new URL(env.RELAY_URL).host;
+
     return (
-        <UnlockedTaskScreen title="Agent relays">
+        <UnlockedTaskScreen title={t`Agent relays`}>
             <View className="w-full max-w-[480px] self-center">
                 <Text
                     style={{
@@ -159,18 +163,25 @@ export default function AgentRelayScreen() {
                         lineHeight: 20,
                     }}
                 >
-                    Connected agents reach this phone through a relay. The agent
-                    picks it when you run cryptex-agent pair; agents keep the
-                    relay they were paired on.
+                    {t`Connected agents reach this phone through a relay. The agent picks it when you run cryptex-agent pair; agents keep the relay they were paired on.`}
                 </Text>
-                <AgentSectionLabel title="Hosted" />
+                <AgentSectionLabel
+                    title={t({
+                        message: "Hosted",
+                        comment:
+                            "Section heading: the relay run by Cryptex Online Services",
+                    })}
+                />
                 <RelayRow
                     icon={Cloud}
-                    title="Online Services"
-                    subtitle={`${new URL(env.RELAY_URL).host}, included with your plan`}
+                    title={t({
+                        message: "Online Services",
+                        comment: "Product name of the hosted Cryptex service",
+                    })}
+                    subtitle={t`${hostedRelayHost}, included with your plan`}
                 />
                 <AgentSectionLabel
-                    title="Your own relays"
+                    title={t`Your own relays`}
                     right={String(relays.length)}
                 />
                 {relays.length ? (
@@ -180,7 +191,7 @@ export default function AgentRelayScreen() {
                             testID={`agent-relay-${new URL(relay.origin).host}`}
                             icon={Server}
                             title={relay.origin.replace(/^https?:\/\//, "")}
-                            subtitle="Access token saved on this phone"
+                            subtitle={t`Access token saved on this phone`}
                             onPress={() => open(relay)}
                         />
                     ))
@@ -193,8 +204,7 @@ export default function AgentRelayScreen() {
                             paddingVertical: 14,
                         }}
                     >
-                        No relays of your own yet. Add one to pair agents
-                        through a relay-server you run.
+                        {t`No relays of your own yet. Add one to pair agents through a relay-server you run.`}
                     </Text>
                 )}
                 <Button
@@ -203,19 +213,19 @@ export default function AgentRelayScreen() {
                     className="mt-5"
                     onPress={() => open("new")}
                 >
-                    Add relay
+                    {t`Add relay`}
                 </Button>
                 {agentService.available ? (
                     <>
                         <AgentSectionLabel
-                            title="On this phone"
+                            title={t`On this phone`}
                             style={{ marginTop: 24 }}
                         />
                         <RelayRow
                             testID="agent-battery-settings"
                             icon={BatteryCharging}
-                            title="Battery settings"
-                            subtitle="Let the app run in the background for agents"
+                            title={t`Battery settings`}
+                            subtitle={t`Let the app run in the background for agents`}
                             onPress={() =>
                                 void agentService.openBatterySettings()
                             }
@@ -231,15 +241,14 @@ export default function AgentRelayScreen() {
             >
                 <DialogHeader>
                     <DialogTitle>
-                        {editing === "new" ? "Add relay" : "Edit relay"}
+                        {editing === "new" ? t`Add relay` : t`Edit relay`}
                     </DialogTitle>
                     <DialogDescription>
-                        A relay-server you run in token mode. The token stays on
-                        this phone.
+                        {t`A relay-server you run in token mode. The token stays on this phone.`}
                     </DialogDescription>
                 </DialogHeader>
                 <View className="gap-2">
-                    <Label>Relay URL</Label>
+                    <Label>{t`Relay URL`}</Label>
                     <Input
                         testID="agent-relay-url"
                         value={url}
@@ -250,11 +259,12 @@ export default function AgentRelayScreen() {
                         autoCapitalize="none"
                         autoCorrect={false}
                         keyboardType="url"
+                        // i18n-ignore: example URL
                         placeholder="https://relay.example.com"
                     />
                 </View>
                 <View className="gap-2">
-                    <Label>Access token</Label>
+                    <Label>{t`Access token`}</Label>
                     <Input
                         testID="agent-relay-token"
                         value={token}
@@ -270,10 +280,10 @@ export default function AgentRelayScreen() {
                 {error ? <InlineNotice tone="error" message={error} /> : null}
                 <Button
                     loading={saving}
-                    loadingLabel="Saving…"
+                    loadingLabel={t`Saving…`}
                     onPress={() => void save()}
                 >
-                    Save
+                    {t`Save`}
                 </Button>
                 {editing && editing !== "new" ? (
                     <Button
@@ -281,7 +291,7 @@ export default function AgentRelayScreen() {
                         disabled={saving}
                         onPress={() => void remove()}
                     >
-                        Remove relay
+                        {t`Remove relay`}
                     </Button>
                 ) : null}
             </Dialog>

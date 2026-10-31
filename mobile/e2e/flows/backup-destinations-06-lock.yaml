@@ -1,0 +1,12 @@
+appId: ${CRYPTEX_APP_ID}
+name: Locking uploads a waiting change before the vault closes
+---
+- launchApp:
+      stopApp: false
+- assertVisible: Search your vault
+- runFlow:
+      file: backup-destinations-add-login.yaml
+      env:
+          LOGIN_NAME: Locked Login
+- tapOn: Lock vault
+- assertVisible: Unlock vault

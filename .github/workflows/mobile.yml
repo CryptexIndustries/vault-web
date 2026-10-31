@@ -6,30 +6,38 @@ on:
     tags: ["mobile-v*"]
     paths:
       - "mobile/**"
-      - "packages/vault-core/**"
-      - "packages/api-contract/**"
-      - "packages/shared-ui/**"
+      - "packages/**"
+      - "web/src/lib/price-lists.ts"
+      - "e2e/**"
+      - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "package.json"
+      - ".npmrc"
+      - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
+      - ".github/workflows/mobile-google-play.yml"
       - "!**/*.md"
       - "!mobile/store-listing/**"
       - "!mobile/*.webm"
   pull_request:
     paths:
       - "mobile/**"
-      - "packages/vault-core/**"
-      - "packages/api-contract/**"
-      - "packages/shared-ui/**"
+      - "packages/**"
+      - "web/src/lib/price-lists.ts"
+      - "e2e/**"
+      - "compose.e2e.yaml"
       - "patches/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "package.json"
+      - ".npmrc"
+      - "scripts/install-lefthook.mjs"
       - ".github/workflows/mobile.yml"
       - ".github/workflows/mobile-fdroid.yml"
+      - ".github/workflows/mobile-google-play.yml"
       - "!**/*.md"
       - "!mobile/store-listing/**"
       - "!mobile/*.webm"
@@ -42,11 +50,11 @@ on:
         type: choice
         options: [preprod, production]
       distribution:
-        description: Preproduction only; fdroid builds arm64-v8a and x86_64 with the F-Droid recipe instead of the standard APK
+        description: fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; play builds the Google Play APK and AAB
         required: true
-        default: standard
+        default: fdroid
         type: choice
-        options: [standard, fdroid]
+        options: [fdroid, play]
 
 concurrency:
   group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}-${{ inputs.distribution || 'standard' }}
@@ -63,20 +71,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.25.0
-
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
-          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.28.9 --activate
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
@@ -111,26 +116,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: check
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v'))
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.25.0
-
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
-          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.28.9 --activate
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
@@ -209,6 +210,8 @@ jobs:
             pnpm mobile:e2e -- smoke
             pnpm mobile:e2e -- crypto
             pnpm mobile:e2e -- native
+            # Starts its own Garage in Docker.
+            pnpm mobile:e2e -- backup-destinations
 
       - name: Upload E2E artifacts
         if: always()
@@ -220,135 +223,32 @@ jobs:
             ~/.maestro/tests
           if-no-files-found: ignore
 
-  preprod_build:
-    name: build preproduction APK
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    needs: [check, smoke]
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution != 'fdroid'
-    environment: Mobile - Preproduction
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.25.0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24.21.0
-          cache: pnpm
-
-      - name: Setup Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install pinned Android build tools
-        run: |
-          test -n "$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses < <(printf 'y\n%.0s' {1..100})
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
-            "platforms;android-36" "build-tools;36.0.0" "build-tools;34.0.0" \
-            "ndk;27.1.12297006" "cmake;3.22.1"
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build unsigned preproduction APK
-        run: pnpm mobile:build -- --unsigned --profile preprod --config mobile/prerelease-config.json --clean --jobs 4 --heap 4096
-
-      - name: Prepare signing inputs
-        run: |
-          mkdir "$RUNNER_TEMP/mobile-release"
-          cp mobile/dist/cryptex-vault-preprod-unsigned.apk{,.json} "$RUNNER_TEMP/mobile-release/"
-          cp mobile/prerelease-config.json "$RUNNER_TEMP/mobile-release/release-config.json"
-
-      - name: Upload verified unsigned APK and its configuration
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: mobile-preprod-unsigned-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release/
-          if-no-files-found: error
-
-  preprod_sign:
-    name: sign preproduction APK
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: preprod_build
-    environment: Mobile - Preproduction
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24.21.0
-
-      - name: Setup Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install pinned APK inspection and signing tools
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
-
-      - name: Download verified unsigned APK and its configuration
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: mobile-preprod-unsigned-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release
-
-      - name: Sign and verify the preproduction APK
-        env:
-          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
-          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
-          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: node mobile/scripts/ci-release.mjs sign preprod "$RUNNER_TEMP/mobile-release"
-
-      - name: Upload signed preproduction APK, configuration and checksums
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: mobile-preprod-release-${{ github.run_id }}
-          path: ${{ runner.temp }}/mobile-release/
-          if-no-files-found: error
-
   fdroid:
     name: build F-Droid APKs
     needs: check
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && (inputs.profile == 'production' || inputs.distribution == 'fdroid'))
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'fdroid')
     uses: ./.github/workflows/mobile-fdroid.yml
     with:
       profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'preprod' || 'production' }}
       abis: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && '["arm64-v8a", "x86_64"]' || '["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]' }}
 
   fdroid_sign:
-    name: sign production F-Droid APKs
+    name: sign F-Droid APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [fdroid, smoke]
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
-    environment: Mobile - Production
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'fdroid')
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'Mobile - Preproduction' || 'Mobile - Production' }}
+    env:
+      RELEASE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
     steps:
       - name: Checkout release source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
 
@@ -369,12 +269,22 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/mobile-release
 
-      - name: Sign and verify the production APKs
+      - name: Sign and verify the APKs
         env:
           CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
           CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
           CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: node mobile/scripts/ci-release.mjs sign production "$RUNNER_TEMP/mobile-release"
+        run: node mobile/scripts/ci-release.mjs sign "$RELEASE_PROFILE" "$RUNNER_TEMP/mobile-release" fdroid
+
+      - name: Select the signed x86_64 APK and its package
+        # The emulator runner starts a new shell for each script line.
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          import { artifactName, getProfile } from './mobile/scripts/release-config.mjs';
+          const profile = process.env.RELEASE_PROFILE;
+          console.log(`SIGNED_APK=${process.env.RUNNER_TEMP}/mobile-release/${artifactName({ profile, distribution: 'fdroid', arch: 'x86_64' })}`);
+          console.log(`APP_PACKAGE=${getProfile(profile).applicationId}`);
+          NODE
 
       - name: Enable emulator hardware acceleration
         run: |
@@ -382,7 +292,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Smoke test signed production APK
+      - name: Smoke test signed APK
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
@@ -390,34 +300,107 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            adb -s "$ANDROID_SERIAL" install "$RUNNER_TEMP/mobile-release/$(node --input-type=module -e 'import { artifactName } from "./mobile/scripts/release-config.mjs"; console.log(artifactName({ distribution: "fdroid", arch: "x86_64" }));')"
-            adb -s "$ANDROID_SERIAL" shell am start -W -n com.cryptexindustries.vault/.MainActivity
+            adb -s "$ANDROID_SERIAL" install "$SIGNED_APK"
+            adb -s "$ANDROID_SERIAL" shell am start -W -n "$APP_PACKAGE/.MainActivity"
             sleep 10
             adb -s "$ANDROID_SERIAL" logcat -d -b crash -v brief
-            adb -s "$ANDROID_SERIAL" shell pidof com.cryptexindustries.vault
+            adb -s "$ANDROID_SERIAL" shell pidof "$APP_PACKAGE"
 
       - name: Upload signed F-Droid APKs, configuration and checksums
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-fdroid-release-${{ github.run_id }}
+          name: mobile-fdroid-${{ env.RELEASE_PROFILE == 'preprod' && 'preprod-' || '' }}release-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error
 
-  fdroid_preprod_sign:
-    name: sign preproduction F-Droid APKs
+  fdroid_release:
+    name: draft GitHub release
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: [fdroid, smoke]
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && inputs.distribution == 'fdroid'
-    environment: Mobile - Preproduction
+    timeout-minutes: 5
+    needs: [fdroid_sign, google_play_sign]
+    # mobile-v1.2.3 tags open a draft release with the 1.2.3 section of
+    # mobile/CHANGELOG.md and the signed F-Droid APKs once Play is signed too.
+    # Publishing it is a manual step.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')
+    permissions:
+      contents: write
     steps:
       - name: Checkout release source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+
+      - name: Download signed F-Droid APKs and their configuration
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: mobile-fdroid-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/mobile-release
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#mobile-v}"
+          # One signed APK per architecture, named after its version code.
+          node --input-type=module -e '
+            import { artifactName } from "./mobile/scripts/release-config.mjs";
+            const devices = {
+              "arm64-v8a": "Most Android phones, ARM64",
+              "armeabi-v7a": "Older 32-bit ARM devices",
+              x86: "32-bit Intel devices",
+              x86_64: "64-bit Intel devices",
+            };
+            for (const [arch, device] of Object.entries(devices))
+              console.log(`${device}\t${artifactName({ distribution: "fdroid", arch })}`);
+          ' > "$RUNNER_TEMP/apks.tsv"
+          assets=() downloads=""
+          while IFS=$'\t' read -r device apk; do
+            assets+=("$apk" "$apk.json")
+            downloads+="- ${device}: \`${apk}\`"$'\n'
+          done < "$RUNNER_TEMP/apks.tsv"
+          assets+=(release-config.json)
+          cd "$RUNNER_TEMP/mobile-release"
+          # The signing step's SHA256SUMS also lists the unsigned APKs, which
+          # aren't published.
+          sha256sum -- "${assets[@]}" > SHA256SUMS
+          export RELEASE_INTRO="Download the APK for your device to install Cryptex Vault ${version} on Android.
+
+          ${downloads}
+          New in ${version}:"
+          export RELEASE_OUTRO="The APKs are signed with the Cryptex Vault production key. Each APK's JSON file records its source commit and signing certificate. Checksums are in \`SHA256SUMS\`."
+          "$GITHUB_WORKSPACE/scripts/draft-release.sh" "Android ${version}" "$GITHUB_WORKSPACE/mobile/CHANGELOG.md" "${assets[@]}" SHA256SUMS
+
+  google_play:
+    name: build Google Play APK and AAB
+    needs: check
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'play')
+    uses: ./.github/workflows/mobile-google-play.yml
+    with:
+      profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+
+  google_play_sign:
+    name: sign Google Play APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [google_play, smoke]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'play')
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'preprod' && 'Mobile - Preproduction' || 'Mobile - Production' }}
+    env:
+      RELEASE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
 
@@ -431,19 +414,28 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;36.0.0" "build-tools;34.0.0"
 
-      - name: Download verified unsigned APKs and their configuration
+      - name: Download verified unsigned artifacts and their configuration
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: mobile-fdroid-unsigned-${{ github.run_id }}-*
-          merge-multiple: true
+          name: mobile-google-play-unsigned-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release
 
-      - name: Sign and verify the preproduction APKs
+      - name: Sign and verify the APK and AAB
         env:
           CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
           CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
           CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: node mobile/scripts/ci-release.mjs sign preprod "$RUNNER_TEMP/mobile-release" fdroid
+        run: node mobile/scripts/ci-release.mjs sign "$RELEASE_PROFILE" "$RUNNER_TEMP/mobile-release" play
+
+      - name: Select the signed APK and its package
+        # The emulator runner starts a new shell for each script line.
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          import { artifactName, getProfile } from './mobile/scripts/release-config.mjs';
+          const profile = process.env.RELEASE_PROFILE;
+          console.log(`SIGNED_APK=${process.env.RUNNER_TEMP}/mobile-release/${artifactName({ profile, distribution: 'play' })}`);
+          console.log(`APP_PACKAGE=${getProfile(profile).applicationId}`);
+          NODE
 
       - name: Enable emulator hardware acceleration
         run: |
@@ -451,7 +443,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Smoke test signed preproduction APK
+      - name: Smoke test signed Play APK
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
@@ -459,15 +451,15 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            adb -s "$ANDROID_SERIAL" install "$RUNNER_TEMP/mobile-release/$(node --input-type=module -e 'import { artifactName } from "./mobile/scripts/release-config.mjs"; console.log(artifactName({ profile: "preprod", distribution: "fdroid", arch: "x86_64" }));')"
-            adb -s "$ANDROID_SERIAL" shell am start -W -n com.cryptexindustries.vault.preprod/.MainActivity
+            adb -s "$ANDROID_SERIAL" install "$SIGNED_APK"
+            adb -s "$ANDROID_SERIAL" shell am start -W -n "$APP_PACKAGE/.MainActivity"
             sleep 10
             adb -s "$ANDROID_SERIAL" logcat -d -b crash -v brief
-            adb -s "$ANDROID_SERIAL" shell pidof com.cryptexindustries.vault.preprod
+            adb -s "$ANDROID_SERIAL" shell pidof "$APP_PACKAGE"
 
-      - name: Upload signed F-Droid APKs, configuration and checksums
+      - name: Upload signed APK, AAB, configuration and checksums
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-fdroid-preprod-release-${{ github.run_id }}
+          name: mobile-google-play-release-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error

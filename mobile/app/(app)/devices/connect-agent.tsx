@@ -8,6 +8,8 @@ import {
     type BarcodeScanningResult,
 } from "expo-camera";
 import { useAtomValue } from "jotai";
+import { t } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { QrCode } from "lucide-react-native";
 import {
     agentKeyOptions,
@@ -57,7 +59,7 @@ import {
 } from "@/agent/agent-storage";
 import { addAgentToVault } from "@/agent/agent-vault";
 import {
-    HOSTED_RELAY_REFUSED,
+    hostedRelayRefusedMessage,
     refusedRelayMessage,
     unknownRelayMessage,
 } from "@/agent/relay-wording";
@@ -70,15 +72,16 @@ type Stage = "scan" | "offer" | "code";
 
 function claimError(error: unknown): string {
     if (error instanceof InvalidPairingCodeError)
-        return "That isn't a cryptex-agent pairing code.";
+        return t`That isn't a cryptex-agent pairing code.`;
     if (error instanceof PairingExpiredError)
-        return "The pairing code expired. Run cryptex-agent pair again.";
+        return t`The pairing code expired. Run cryptex-agent pair again.`;
     if (error instanceof RelayStatusError)
-        return "The code expired or was already used. Run cryptex-agent pair again.";
-    return "Couldn't reach the relay. Check your connection and try again.";
+        return t`The code expired or was already used. Run cryptex-agent pair again.`;
+    return t`Couldn't reach the relay. Check your connection and try again.`;
 }
 
 export default function ConnectAgentScreen() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const showSnackbar = useUnlockedSnackbar();
     const isFocused = useIsFocused();
@@ -159,8 +162,8 @@ export default function ConnectAgentScreen() {
     }, [isFocused, pairedId]);
 
     const keys = useMemo(
-        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo),
-        [vault],
+        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo, t`SSH key`),
+        [vault, t],
     );
 
     const submitCode = useCallback(
@@ -172,7 +175,12 @@ export default function ConnectAgentScreen() {
                 setClaim(claimed);
                 setName(
                     sanitizeDisplayText(
-                        claimed.offer.hostname || "agent",
+                        claimed.offer.hostname ||
+                            t({
+                                message: "agent",
+                                comment:
+                                    "Default name for a new agent when its machine reports no hostname; the user can edit it",
+                            }),
                         NAME_LENGTH,
                     ),
                 );
@@ -205,7 +213,7 @@ export default function ConnectAgentScreen() {
                 } else {
                     const message =
                         error instanceof RelayRefusedError
-                            ? HOSTED_RELAY_REFUSED
+                            ? hostedRelayRefusedMessage()
                             : claimError(error);
                     // The Paste code sheet would cover a snackbar.
                     if (pasteOpen) setPasteError(message);
@@ -216,13 +224,13 @@ export default function ConnectAgentScreen() {
                 setBusy(false);
             }
         },
-        [busy, keys, pasteOpen, showSnackbar],
+        [busy, keys, pasteOpen, showSnackbar, t],
     );
 
     const saveRelayAndRetry = async () => {
         const origin = relayNeeded ? normalizeRelayUrlInput(relayNeeded) : null;
         if (!origin) {
-            showSnackbar("This relay needs an https:// address.");
+            showSnackbar(t`This relay needs an https:// address.`);
             return;
         }
         if (!relayToken.trim()) return;
@@ -230,7 +238,7 @@ export default function ConnectAgentScreen() {
             await saveCustomRelay({ origin, token: relayToken.trim() });
             await agentRuntime.reload();
         } catch {
-            showSnackbar("Couldn't save the relay token on this phone.");
+            showSnackbar(t`Couldn't save the relay token on this phone.`);
             return;
         }
         setRelayToken("");
@@ -301,10 +309,10 @@ export default function ConnectAgentScreen() {
             if (answered) agentRuntime.pairingFailed(claim.agentId);
             showSnackbar(
                 error instanceof PairingExpiredError
-                    ? "The pairing code expired. Run cryptex-agent pair again."
+                    ? t`The pairing code expired. Run cryptex-agent pair again.`
                     : answered
-                      ? "The agent didn't confirm the pairing."
-                      : "Couldn't connect the agent. Try again.",
+                      ? t`The agent didn't confirm the pairing.`
+                      : t`Couldn't connect the agent. Try again.`,
             );
             setStage("scan");
             setClaim(null);
@@ -330,7 +338,12 @@ export default function ConnectAgentScreen() {
         } finally {
             setBusy(false);
         }
-        showSnackbar("Connected");
+        showSnackbar(
+            t({
+                message: "Connected",
+                comment: "Snackbar after an SSH agent is paired",
+            }),
+        );
         setPairedId(id);
     };
 
@@ -349,32 +362,34 @@ export default function ConnectAgentScreen() {
                     <Button
                         testID="agent-sync-retry"
                         loading={busy}
-                        loadingLabel="Trying again…"
+                        loadingLabel={t`Trying again…`}
                         onPress={() => savedId && void finishPairing(savedId)}
                     >
-                        Try again
+                        {t`Try again`}
                     </Button>
                     <Button
                         variant="outline"
                         disabled={busy}
                         onPress={() => router.back()}
                     >
-                        Close
+                        {t`Close`}
                     </Button>
                 </View>
             ) : (
                 <Button
                     variant="outline"
                     loading={phase === "saving"}
-                    loadingLabel="Saving…"
+                    loadingLabel={t`Saving…`}
                     onPress={() => void cancelPairing()}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </Button>
             );
+        const machineName = sanitizeDisplayText(claim.offer.hostname || "");
+        const spelledCode = confirmation.split("").join(" ");
         return (
             <UnlockedTaskScreen
-                title="Connect an agent"
+                title={t`Connect an agent`}
                 onBack={
                     phase === "waiting"
                         ? () => void cancelPairing()
@@ -385,12 +400,14 @@ export default function ConnectAgentScreen() {
                 footer={footer}
             >
                 <View className="w-full max-w-[480px] self-center">
-                    <InvitationHeader title="Check the code">
-                        {`The terminal on ${sanitizeDisplayText(claim.offer.hostname || "the machine")} should show the same code. Press Enter there if it matches.`}
+                    <InvitationHeader title={t`Check the code`}>
+                        {machineName
+                            ? t`The terminal on ${machineName} should show the same code. Press Enter there if it matches.`
+                            : t`The terminal on the machine should show the same code. Press Enter there if it matches.`}
                     </InvitationHeader>
                     <View
                         className="my-4 items-center rounded-xl border border-border bg-secondary py-5"
-                        accessibilityLabel={`Confirmation code ${confirmation.split("").join(" ")}`}
+                        accessibilityLabel={t`Confirmation code ${spelledCode}`}
                     >
                         <Text
                             testID="agent-code"
@@ -404,15 +421,15 @@ export default function ConnectAgentScreen() {
                     {phase === "sync-failed" ? (
                         <InlineNotice
                             tone="error"
-                            message="The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
+                            message={t`The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock.`}
                         />
                     ) : (
                         <InlineNotice
                             tone="loading"
                             message={
                                 phase === "saving"
-                                    ? "Saving the agent in your vault…"
-                                    : "Waiting for the agent…"
+                                    ? t`Saving the agent in your vault…`
+                                    : t`Waiting for the agent…`
                             }
                         />
                     )}
@@ -425,10 +442,11 @@ export default function ConnectAgentScreen() {
         const offer = claim.offer;
         const relayHost = relayLabel(
             claim.relay.kind === "hosted" ? "" : claim.relay.url,
+            t`Online Services`,
         );
         return (
             <UnlockedTaskScreen
-                title="Connect an agent"
+                title={t`Connect an agent`}
                 onBack={() => {
                     // Also ends a Connect still waiting for the relay.
                     attempt.current++;
@@ -446,8 +464,8 @@ export default function ConnectAgentScreen() {
                                 testID="agent-no-keys"
                                 message={
                                     keys.length
-                                        ? "This agent can't use any keys yet. You can add them later with Edit keys on its page."
-                                        : "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
+                                        ? t`This agent can't use any keys yet. You can add them later with Edit keys on its page.`
+                                        : t`Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page.`
                                 }
                             />
                         )}
@@ -455,10 +473,13 @@ export default function ConnectAgentScreen() {
                             testID="agent-submit"
                             disabled={!name.trim()}
                             loading={busy}
-                            loadingLabel="Connecting…"
+                            loadingLabel={t`Connecting…`}
                             onPress={() => void connect()}
                         >
-                            Connect
+                            {t({
+                                message: "Connect",
+                                context: "button: pair the SSH agent",
+                            })}
                         </Button>
                     </View>
                 }
@@ -469,20 +490,23 @@ export default function ConnectAgentScreen() {
                     onChange={setSelected}
                     disabled={busy}
                     maxWidth={480}
-                    title="Keys this agent can use"
+                    title={t`Keys this agent can use`}
                     labelStyle={{ marginTop: 22 }}
                     header={
                         <>
                             <InfoCard
-                                label="Machine, as reported by the machine"
-                                value={offerMachineLabel(offer)}
+                                label={t`Machine, as reported by the machine`}
+                                value={offerMachineLabel(
+                                    offer,
+                                    t`Unknown machine`,
+                                )}
                             />
                             <InfoCard
-                                label="Agent"
+                                label={t`Agent`}
                                 value={`cryptex-agent ${sanitizeDisplayText(offer.agentVersion || "", 32)}, ${relayHost}`}
                             />
                             <View style={{ marginTop: 6, gap: 8 }}>
-                                <Label>Name</Label>
+                                <Label>{t`Name`}</Label>
                                 <Input
                                     testID="agent-name"
                                     value={name}
@@ -490,7 +514,7 @@ export default function ConnectAgentScreen() {
                                     maxLength={NAME_LENGTH}
                                     autoCapitalize="none"
                                     autoCorrect={false}
-                                    accessibilityLabel="Agent name"
+                                    accessibilityLabel={t`Agent name`}
                                 />
                             </View>
                         </>
@@ -503,10 +527,10 @@ export default function ConnectAgentScreen() {
     const cameraActive =
         !!permission?.granted && isFocused && !relayNeeded && !pasteOpen;
     return (
-        <UnlockedTaskScreen title="Connect an agent">
+        <UnlockedTaskScreen title={t`Connect an agent`}>
             <View className="w-full max-w-[480px] gap-4 self-center">
-                <InvitationHeader title="Scan the pairing code">
-                    Point the camera at the code in your terminal.
+                <InvitationHeader title={t`Scan the pairing code`}>
+                    {t`Point the camera at the code in your terminal.`}
                 </InvitationHeader>
                 <View
                     testID="agent-scan"
@@ -541,7 +565,7 @@ export default function ConnectAgentScreen() {
                 {permission && !permission.granted ? (
                     <InlineNotice
                         tone="warning"
-                        message="Camera access is off. Paste the code instead."
+                        message={t`Camera access is off. Paste the code instead.`}
                     />
                 ) : null}
                 {relayNeeded ? (
@@ -562,7 +586,7 @@ export default function ConnectAgentScreen() {
                                       )
                             }
                         />
-                        <Label>Access token</Label>
+                        <Label>{t`Access token`}</Label>
                         <Input
                             testID="agent-relay-token"
                             value={relayToken}
@@ -570,15 +594,15 @@ export default function ConnectAgentScreen() {
                             secureTextEntry
                             autoCapitalize="none"
                             autoCorrect={false}
-                            accessibilityLabel="Relay access token"
+                            accessibilityLabel={t`Relay access token`}
                         />
                         <Button
                             disabled={!relayToken.trim()}
                             loading={busy}
-                            loadingLabel="Checking…"
+                            loadingLabel={t`Checking…`}
                             onPress={() => void saveRelayAndRetry()}
                         >
-                            Continue
+                            {t`Continue`}
                         </Button>
                     </View>
                 ) : (
@@ -591,7 +615,7 @@ export default function ConnectAgentScreen() {
                             setPasteOpen(true);
                         }}
                     >
-                        Paste code
+                        {t`Paste code`}
                     </Button>
                 )}
                 <Text
@@ -601,14 +625,16 @@ export default function ConnectAgentScreen() {
                         lineHeight: 18,
                     }}
                 >
-                    On the Linux machine, run{" "}
-                    <Text
-                        className="font-mono"
-                        style={{ color: colors.foreground, fontSize: 12 }}
-                    >
-                        cryptex-agent pair
-                    </Text>
-                    .
+                    <Trans>
+                        On the Linux machine, run{" "}
+                        <Text
+                            className="font-mono"
+                            style={{ color: colors.foreground, fontSize: 12 }}
+                        >
+                            cryptex-agent pair
+                        </Text>
+                        .
+                    </Trans>
                 </Text>
             </View>
             <Dialog
@@ -618,10 +644,10 @@ export default function ConnectAgentScreen() {
                 scroll
             >
                 <DialogHeader>
-                    <DialogTitle>Paste code</DialogTitle>
+                    <DialogTitle>{t`Paste code`}</DialogTitle>
                 </DialogHeader>
                 <View className="gap-4">
-                    <Label>Pairing code</Label>
+                    <Label>{t`Pairing code`}</Label>
                     <Input
                         testID="agent-paste-input"
                         autoFocus
@@ -632,11 +658,12 @@ export default function ConnectAgentScreen() {
                         }}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        // i18n-ignore: pairing code prefix
                         placeholder="cryptex-pair:…"
                         multiline
                         numberOfLines={4}
                         textAlignVertical="top"
-                        accessibilityLabel="Pasted pairing code"
+                        accessibilityLabel={t`Pasted pairing code`}
                         style={{ height: 110, paddingVertical: 12 }}
                     />
                     {pasteError ? (
@@ -650,10 +677,10 @@ export default function ConnectAgentScreen() {
                         testID="agent-paste-submit"
                         disabled={!pasteDraft.trim()}
                         loading={busy}
-                        loadingLabel="Checking…"
+                        loadingLabel={t`Checking…`}
                         onPress={() => void submitCode(pasteDraft)}
                     >
-                        Continue
+                        {t`Continue`}
                     </Button>
                 </View>
             </Dialog>

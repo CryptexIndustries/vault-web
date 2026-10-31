@@ -23,12 +23,6 @@ const roadmap = [
                 target: "Q4 2026",
                 description: "Use Cryptex Vault on Android.",
             },
-            {
-                title: "Custom backup destinations",
-                target: null,
-                description:
-                    "Store backups on your own infrastructure or in commercial S3-compatible buckets.",
-            },
         ],
     },
     {
@@ -66,6 +60,12 @@ const roadmap = [
         label: "BUILT AND AVAILABLE",
         available: true,
         items: [
+            {
+                title: "Custom backup destinations",
+                target: null,
+                description:
+                    "Every device uploads encrypted backups to S3-compatible buckets you control, on your own infrastructure or with a commercial provider.",
+            },
             {
                 title: "SSH agent",
                 target: null,

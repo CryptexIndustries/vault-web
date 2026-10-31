@@ -31,7 +31,6 @@ import {
     VaultCredential,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 
-import { webcrypto } from "crypto";
 import { WebAgentHost } from "../../src/app_lib/agent/web-agent-host";
 import { lockUnlockedVault } from "../../src/utils/vault-lock";
 import { addVaultLockListener } from "../../src/utils/vault-lock-listeners";
@@ -66,7 +65,7 @@ async function startLock(host: WebAgentHost, save: () => Promise<void>) {
         clearVaultDEKFromSession,
     );
     setVaultDEKInSession(
-        await webcrypto.subtle.generateKey(
+        await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],

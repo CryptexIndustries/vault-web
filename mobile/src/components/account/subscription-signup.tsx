@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import { usePreventRemove } from "expo-router/react-navigation";
+import { useLingui } from "@lingui/react/macro";
 
 import { UnlockedDialogTitle as DialogTitle } from "@/components/unlocked/unlocked-ui";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
@@ -57,6 +58,7 @@ function SubscriptionSignupSheet({
     onPendingChange,
     onRecoveryKitSaved,
 }: SubscriptionSignupProps) {
+    const { t } = useLingui();
     const account = useAccountController();
     const mounted = useRef(true);
     useEffect(() => {
@@ -118,8 +120,8 @@ function SubscriptionSignupSheet({
 
     usePreventRemove(open && (loading || savingKit), () => {
         Alert.alert(
-            "Save your Recovery Kit",
-            "Complete account setup and save your kit before leaving.",
+            t`Save your Recovery Kit`,
+            t`Complete account setup and save your kit before leaving.`,
         );
     });
 
@@ -148,9 +150,9 @@ function SubscriptionSignupSheet({
 
     useEffect(() => {
         if (!account.message) return;
-        showFeedback("Could not set up Online Services. Please try again.");
+        showFeedback(t`Could not set up Online Services. Please try again.`);
         account.setMessage(null);
-    }, [account, showFeedback]);
+    }, [account, showFeedback, t]);
 
     const continueToPayment = async (checking = false) => {
         if (
@@ -186,7 +188,7 @@ function SubscriptionSignupSheet({
             onPendingChange?.(pending);
         };
         const recovery = {
-            label: checking ? "Check status" : "Retry",
+            label: checking ? t`Check status` : t`Retry`,
             onPress: () => {
                 if (isCurrent()) return retryPayment.current(checking);
             },
@@ -212,8 +214,8 @@ function SubscriptionSignupSheet({
                     checkoutTrialRef.current = result.offerChanged.trial;
                     showFeedback(
                         result.offerChanged.trial
-                            ? "This plan now starts with a 14-day free trial. Retry to start it."
-                            : "The free trial is no longer available for this plan. Retry to subscribe at the full price.",
+                            ? t`This plan now starts with a 14-day free trial. Retry to start it.`
+                            : t`The free trial is no longer available for this plan. Retry to subscribe at the full price.`,
                         recovery,
                     );
                 } else if (result.pending) markPending(true);
@@ -233,8 +235,8 @@ function SubscriptionSignupSheet({
             if (isCurrent())
                 showFeedback(
                     checking
-                        ? "Could not check your subscription. Please try again."
-                        : "Could not open secure payment. Please try again.",
+                        ? t`Could not check your subscription. Please try again.`
+                        : t`Could not open secure payment. Please try again.`,
                     recovery,
                 );
         } finally {
@@ -265,17 +267,17 @@ function SubscriptionSignupSheet({
             loadingLabel={
                 checkoutBusy
                     ? paymentPending
-                        ? "Checking your subscription…"
-                        : "Opening secure payment…"
+                        ? t`Checking your subscription…`
+                        : t`Opening secure payment…`
                     : account.genRecoveryPending
-                      ? "Creating your Recovery Kit…"
-                      : "Setting up Online Services…"
+                      ? t`Creating your Recovery Kit…`
+                      : t`Setting up Online Services…`
             }
         >
             <DialogHeader>
                 <DialogTitle>
                     {account.recoveryKit
-                        ? "Save your Recovery Kit"
+                        ? t`Save your Recovery Kit`
                         : "Online Services"}
                 </DialogTitle>
             </DialogHeader>

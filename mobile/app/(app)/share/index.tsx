@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Share, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
+import { plural, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { ShareClient } from "@cryptex-industries/vault-core/vault-utils/share-client";
 import {
     SHARE_EXPIRY_OPTIONS,
@@ -10,7 +12,6 @@ import {
     type ShareExpiryOption,
     type SharePayload,
 } from "@cryptex-industries/vault-core/vault-utils/share-link";
-import { describeShareError } from "@cryptex-industries/vault-core/vault-utils/share-messages";
 import {
     buildCredentialSharePayload,
     buildTextSharePayload,
@@ -37,6 +38,7 @@ import {
     hasOnlineServicesSharing,
     mobileShareDeps,
 } from "@/app_lib/share-links";
+import { shareErrorText } from "@/app_lib/share-messages";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { runSSHKeyTaskOnWorker } from "@/utils/ssh-key-worker";
@@ -49,14 +51,51 @@ type ServerState =
     | "needs-token"
     | "unreachable";
 
+const DAY = 24 * 60 * 60;
+const HOUR = 60 * 60;
+
+/** Short segment text and spoken label, from the duration rather than vault-core's English label. */
+const expiryLabels = (seconds: number) => {
+    if (seconds % DAY === 0) {
+        const days = seconds / DAY;
+        return {
+            label: t({
+                message: `${days}d`,
+                comment: "Short form of a number of days",
+            }),
+            accessibilityLabel: plural(days, { one: "# day", other: "# days" }),
+        };
+    }
+    if (seconds % HOUR === 0) {
+        const hours = seconds / HOUR;
+        return {
+            label: t({
+                message: `${hours}h`,
+                comment: "Short form of a number of hours",
+            }),
+            accessibilityLabel: plural(hours, {
+                one: "# hour",
+                other: "# hours",
+            }),
+        };
+    }
+    const minutes = Math.max(1, Math.floor(seconds / 60));
+    return {
+        label: t({
+            message: `${minutes}m`,
+            comment: "Short form of a number of minutes",
+        }),
+        accessibilityLabel: plural(minutes, {
+            one: "# minute",
+            other: "# minutes",
+        }),
+    };
+};
+
 const toSegments = (options: ShareExpiryOption[]) =>
     options.map((option) => ({
         value: String(option.seconds),
-        label: option.label
-            .replace(/ hours?/, "h")
-            .replace(/ days?/, "d")
-            .replace(/ minutes?/, "m"),
-        accessibilityLabel: option.label,
+        ...expiryLabels(option.seconds),
     }));
 
 function SwitchRow({
@@ -106,6 +145,7 @@ function SwitchRow({
 }
 
 export default function ShareScreen() {
+    const { t } = useLingui();
     const { id } = useLocalSearchParams<{ id?: string }>();
     const vault = useAtomValue(unlockedVaultAtom);
     const credential = useMemo(
@@ -125,8 +165,8 @@ export default function ShareScreen() {
     const [expiry, setExpiry] = useState(
         String(SHARE_EXPIRY_OPTIONS[1].seconds),
     );
-    const [expirySegments, setExpirySegments] = useState(() =>
-        toSegments(SHARE_EXPIRY_OPTIONS.map((option) => ({ ...option }))),
+    const [expiryOptions, setExpiryOptions] = useState<ShareExpiryOption[]>(
+        () => SHARE_EXPIRY_OPTIONS.map((option) => ({ ...option })),
     );
     const [usePassphrase, setUsePassphrase] = useState(false);
     const [passphrase, setPassphrase] = useState("");
@@ -155,7 +195,7 @@ export default function ShareScreen() {
                     if (cancelled) return;
                     // Offer only what this server keeps.
                     const options = shareExpiryOptions(info.maxTtl);
-                    setExpirySegments(toSegments(options));
+                    setExpiryOptions(options);
                     setExpiry((value) =>
                         options.some(
                             (option) => String(option.seconds) === value,
@@ -217,7 +257,7 @@ export default function ShareScreen() {
     const create = async () => {
         if (!payload) return;
         if (usePassphrase && !passphrase) {
-            setError("Enter a passphrase or turn it off.");
+            setError(t`Enter a passphrase or turn it off.`);
             return;
         }
         setError("");
@@ -235,7 +275,7 @@ export default function ShareScreen() {
             setText("");
             setPassphrase("");
         } catch (err) {
-            show(describeShareError(err));
+            show(shareErrorText(err));
         } finally {
             setCreating(false);
         }
@@ -245,7 +285,7 @@ export default function ShareScreen() {
         key: Exclude<keyof CredentialShareSelection, "customFieldIds">,
     ) => setSelection((current) => ({ ...current, [key]: !current[key] }));
 
-    const title = credential ? "Share once" : "Share a secret";
+    const title = credential ? t`Share once` : t`Share a secret`;
 
     if (link) {
         return (
@@ -261,21 +301,21 @@ export default function ShareScreen() {
                         <Button
                             onPress={() =>
                                 void Share.share({ message: link }).catch(() =>
-                                    show("Couldn't open the share sheet."),
+                                    show(t`Couldn't open the share sheet.`),
                                 )
                             }
                         >
-                            Send link
+                            {t`Send link`}
                         </Button>
                         <Button variant="outline" onPress={() => router.back()}>
-                            Done
+                            {t`Done`}
                         </Button>
                     </View>
                 }
             >
                 <View style={{ gap: 16 }}>
                     <Text style={{ fontSize: 20, fontWeight: "600" }}>
-                        Link created
+                        {t`Link created`}
                     </Text>
                     <View
                         style={{
@@ -297,19 +337,16 @@ export default function ShareScreen() {
                         onPress={() =>
                             void copySecretToClipboard(link).then((ok) => {
                                 setCopied(ok);
-                                if (!ok) show("Couldn't copy the link.");
+                                if (!ok) show(t`Couldn't copy the link.`);
                             })
                         }
                     >
-                        {copied ? "Copied" : "Copy link"}
+                        {copied ? t`Copied` : t`Copy link`}
                     </Button>
                     <Text style={{ color: colors.muted, lineHeight: 21 }}>
-                        Send it now. Cryptex Vault can&apos;t show this link
-                        again. It works once and expires if nobody opens it in
-                        time.
                         {linkPassphrase
-                            ? " Send the passphrase separately from the link."
-                            : ""}
+                            ? t`Send it now. Cryptex Vault can't show this link again. It works once and expires if nobody opens it in time. Send the passphrase separately from the link.`
+                            : t`Send it now. Cryptex Vault can't show this link again. It works once and expires if nobody opens it in time.`}
                     </Text>
                 </View>
             </UnlockedTaskScreen>
@@ -331,7 +368,7 @@ export default function ShareScreen() {
                             disabled={creating || !payload}
                             onPress={() => void create()}
                         >
-                            {creating ? "Creating…" : "Create link"}
+                            {creating ? t`Creating…` : t`Create link`}
                         </Button>
                     </View>
                 ) : null
@@ -343,15 +380,13 @@ export default function ShareScreen() {
                 pointerEvents={creating ? "none" : "auto"}
             >
                 <Text style={{ color: colors.muted, lineHeight: 21 }}>
-                    The link opens once, then it&apos;s gone. It&apos;s
-                    encrypted on this phone and the key stays in the link, so
-                    the server can&apos;t read it.
+                    {t`The link opens once, then it's gone. It's encrypted on this phone and the key stays in the link, so the server can't read it.`}
                 </Text>
 
                 {server === "checking" ? (
                     <InlineNotice
                         tone="loading"
-                        message="Checking the share server…"
+                        message={t`Checking the share server…`}
                     />
                 ) : server === "needs-account" ? (
                     <View style={{ gap: 12 }}>
@@ -359,15 +394,15 @@ export default function ShareScreen() {
                             tone="info"
                             message={
                                 mobileShareDeps().getTicket
-                                    ? "Share links on the Cryptex Vault server are part of Online Services. You can also use your own share server."
-                                    : "Sign in to Online Services to share links from the Cryptex Vault server, or use your own share server."
+                                    ? t`Share links on the Cryptex Vault server are part of Online Services. You can also use your own share server.`
+                                    : t`Sign in to Online Services to share links from the Cryptex Vault server, or use your own share server.`
                             }
                         />
                         <Button
                             variant="outline"
                             onPress={() => router.push("/(app)/share/server")}
                         >
-                            Use a self-hosted server
+                            {t`Use a self-hosted server`}
                         </Button>
                     </View>
                 ) : server === "needs-token" || server === "unreachable" ? (
@@ -376,40 +411,46 @@ export default function ShareScreen() {
                             tone={server === "unreachable" ? "error" : "info"}
                             message={
                                 server === "unreachable"
-                                    ? "Can't reach the share server. Check the address or your connection."
-                                    : "This share server needs a creation token from its operator."
+                                    ? t`Can't reach the share server. Check the address or your connection.`
+                                    : t`This share server needs a creation token from its operator.`
                             }
                         />
                         <Button
                             variant="outline"
                             onPress={() => router.push("/(app)/share/server")}
                         >
-                            Share server settings
+                            {t`Share server settings`}
                         </Button>
                     </View>
                 ) : (
                     <>
                         {credential ? (
                             <View>
-                                <Label>Include</Label>
+                                <Label>
+                                    {t({
+                                        message: "Include",
+                                        comment:
+                                            "Heading above the fields to put in the share link",
+                                    })}
+                                </Label>
                                 <SwitchRow
-                                    label="Name"
-                                    hint={credential.Name || "Untitled"}
+                                    label={t`Name`}
+                                    hint={credential.Name || t`Untitled`}
                                     value={selection.name}
                                     onValueChange={() => toggle("name")}
                                 />
                                 {credential.SSHKey ? (
                                     <>
                                         <SwitchRow
-                                            label="Private key"
-                                            hint="Anyone who opens the link can use this key on every server that accepts it."
+                                            label={t`Private key`}
+                                            hint={t`Anyone who opens the link can use this key on every server that accepts it.`}
                                             value={selection.sshPrivateKey}
                                             onValueChange={() =>
                                                 toggle("sshPrivateKey")
                                             }
                                         />
                                         <SwitchRow
-                                            label="Public key"
+                                            label={t`Public key`}
                                             value={selection.sshPublicKey}
                                             onValueChange={() =>
                                                 toggle("sshPublicKey")
@@ -419,14 +460,14 @@ export default function ShareScreen() {
                                 ) : null}
                                 {credential.Username ? (
                                     <SwitchRow
-                                        label="Username"
+                                        label={t`Username`}
                                         value={selection.username}
                                         onValueChange={() => toggle("username")}
                                     />
                                 ) : null}
                                 {credential.Password ? (
                                     <SwitchRow
-                                        label="Password"
+                                        label={t`Password`}
                                         value={selection.password}
                                         onValueChange={() => toggle("password")}
                                     />
@@ -434,15 +475,15 @@ export default function ShareScreen() {
                                 {credential.URL ||
                                 credential.AdditionalURLs.length > 0 ? (
                                     <SwitchRow
-                                        label="Website"
+                                        label={t`Website`}
                                         value={selection.url}
                                         onValueChange={() => toggle("url")}
                                     />
                                 ) : null}
                                 {credential.TOTP?.Secret ? (
                                     <SwitchRow
-                                        label="One-time code setup"
-                                        hint="Gives them the TOTP secret, so they can keep generating codes."
+                                        label={t`One-time code setup`}
+                                        hint={t`Gives them the TOTP secret, so they can keep generating codes.`}
                                         value={selection.totp}
                                         onValueChange={() => toggle("totp")}
                                     />
@@ -450,7 +491,7 @@ export default function ShareScreen() {
                                 {credential.CustomFields.map((field) => (
                                     <SwitchRow
                                         key={field.ID}
-                                        label={field.Name || "Custom field"}
+                                        label={field.Name || t`Custom field`}
                                         value={selection.customFieldIds.includes(
                                             field.ID,
                                         )}
@@ -473,7 +514,7 @@ export default function ShareScreen() {
                                 ))}
                                 {credential.Notes ? (
                                     <SwitchRow
-                                        label="Notes"
+                                        label={t`Notes`}
                                         value={selection.notes}
                                         onValueChange={() => toggle("notes")}
                                     />
@@ -487,14 +528,14 @@ export default function ShareScreen() {
                                             marginTop: 10,
                                         }}
                                     >
-                                        The passkey stays in your vault.
+                                        {t`The passkey stays in your vault.`}
                                     </Text>
                                 ) : null}
                             </View>
                         ) : (
                             <>
                                 <View style={{ gap: 8 }}>
-                                    <Label>Secret</Label>
+                                    <Label>{t`Secret`}</Label>
                                     <Input
                                         value={text}
                                         onChangeText={setText}
@@ -502,7 +543,7 @@ export default function ShareScreen() {
                                         numberOfLines={5}
                                         autoCapitalize="none"
                                         autoCorrect={false}
-                                        placeholder="Paste a password, API key or note"
+                                        placeholder={t`Paste a password, API key or note`}
                                         style={{
                                             minHeight: 120,
                                             textAlignVertical: "top",
@@ -510,21 +551,21 @@ export default function ShareScreen() {
                                     />
                                 </View>
                                 <View style={{ gap: 8 }}>
-                                    <Label>Label (only you see this)</Label>
+                                    <Label>{t`Label (only you see this)`}</Label>
                                     <Input
                                         value={label}
                                         onChangeText={setLabel}
                                         maxLength={100}
-                                        placeholder="Wi-Fi for Sam"
+                                        placeholder={t`Wi-Fi for Sam`}
                                     />
                                 </View>
                             </>
                         )}
 
                         <View style={{ gap: 8 }}>
-                            <Label>Expires if not opened within</Label>
+                            <Label>{t`Expires if not opened within`}</Label>
                             <SegmentedControl
-                                segments={expirySegments}
+                                segments={toSegments(expiryOptions)}
                                 value={expiry}
                                 onChange={setExpiry}
                             />
@@ -532,8 +573,8 @@ export default function ShareScreen() {
 
                         <View style={{ gap: 8 }}>
                             <SwitchRow
-                                label="Require a passphrase"
-                                hint="Send it another way, for example by phone. Five wrong tries destroy the link."
+                                label={t`Require a passphrase`}
+                                hint={t`Send it another way, for example by phone. Five wrong tries destroy the link.`}
                                 value={usePassphrase}
                                 onValueChange={setUsePassphrase}
                             />
@@ -545,7 +586,7 @@ export default function ShareScreen() {
                                         secureTextEntry
                                         autoCapitalize="none"
                                         autoCorrect={false}
-                                        placeholder="Passphrase"
+                                        placeholder={t`Passphrase`}
                                     />
                                 </>
                             ) : null}

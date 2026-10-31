@@ -19,6 +19,9 @@ import {
     type BarcodeScanningResult,
 } from "expo-camera";
 import { ulid } from "ulidx";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { type ChunkedQRCodeProgress } from "@ui/lib/chunked-qr";
 import { createQrScanSession } from "@/utils/qr-scan-session";
@@ -72,6 +75,7 @@ import {
     receiverSyncKeyMaterial,
 } from "@/utils/link-merge";
 import { decodeReceivedVault } from "@/utils/received-vault";
+import { linkingLogText } from "@/utils/linking-messages";
 import { onlineServicesLog } from "@/utils/logging";
 import { Screen } from "@/components/screen";
 import {
@@ -183,43 +187,43 @@ type ReceiveProgressKey =
 
 const RECEIVE_PROGRESS: Array<{
     key: ReceiveProgressKey;
-    title: string;
-    detail: string;
+    title: MessageDescriptor;
+    detail: MessageDescriptor;
 }> = [
     {
         key: "invitation",
-        title: "Open the invitation",
-        detail: "Decrypting and validating the invitation.",
+        title: msg`Open the invitation`,
+        detail: msg`Decrypting and validating the invitation.`,
     },
     {
         key: "keys",
-        title: "Prepare this device",
-        detail: "Preparing local signing and post-quantum keys.",
+        title: msg`Prepare this device`,
+        detail: msg`Preparing local signing and post-quantum keys.`,
     },
     {
         key: "signaling",
-        title: "Find the sending device",
-        detail: "Keep the linking screen open on your sending device until the transfer finishes.",
+        title: msg`Find the sending device`,
+        detail: msg`Keep the linking screen open on your sending device until the transfer finishes.`,
     },
     {
         key: "connection",
-        title: "Open a private connection",
-        detail: "Negotiating the direct WebRTC connection.",
+        title: msg`Open a private connection`,
+        detail: msg`Negotiating the direct WebRTC connection.`,
     },
     {
         key: "authentication",
-        title: "Authenticate key exchange",
-        detail: "Verifying the sender and exchanging sync keys.",
+        title: msg`Authenticate key exchange`,
+        detail: msg`Verifying the sender and exchanging sync keys.`,
     },
     {
         key: "transfer",
-        title: "Receive and verify your vault",
-        detail: "Receiving, authenticating, and decrypting the transfer.",
+        title: msg`Receive and verify your vault`,
+        detail: msg`Receiving, authenticating, and decrypting the transfer.`,
     },
     {
         key: "cleanup",
-        title: "Finish the connection",
-        detail: "Closing the private connection before local setup.",
+        title: msg`Finish the connection`,
+        detail: msg`Closing the private connection before local setup.`,
     },
 ];
 
@@ -252,6 +256,7 @@ const DEFAULT_MEM_LIMIT = 128;
 const DEFAULT_OPS_LIMIT = 3;
 
 function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
+    const { t } = useLingui();
     const navigation = useNavigation();
     const unlocked = useAtomValue(isVaultUnlockedAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
@@ -326,7 +331,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         confirm: "",
     });
     const [cameraError, setCameraError] = useState("");
-    const [vaultName, setVaultName] = useState("Linked vault");
+    const [vaultName, setVaultName] = useState(() => t`Linked vault`);
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
     const [additionalKeyProtectionChoice, setAdditionalKeyProtectionChoice] =
@@ -423,19 +428,17 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         ({ data }) => {
             if (recoveryCode != null) {
                 setConfirmRequest({
-                    title: "Finish saving your vault",
-                    description:
-                        "Save the recovery details before leaving this screen.",
-                    cancelLabel: "Continue setup",
+                    title: t`Finish saving your vault`,
+                    description: t`Save the recovery details before leaving this screen.`,
+                    cancelLabel: t`Continue setup`,
                 });
                 return;
             }
             setConfirmRequest({
-                title: "Discard received vault?",
-                description:
-                    "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed.",
-                cancelLabel: "Keep setting up",
-                confirmLabel: "Discard",
+                title: t`Discard received vault?`,
+                description: t`This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed.`,
+                cancelLabel: t`Keep setting up`,
+                confirmLabel: t`Discard`,
                 onConfirm: () => {
                     receivedVaultRef.current = null;
                     pendingLinkedSaveRef.current = null;
@@ -484,7 +487,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setValidatingInvitation(false);
             setStage("failed");
             setError(
-                "Live transfer stopped while the app was in the background. Start again.",
+                t`Live transfer stopped while the app was in the background. Start again.`,
             );
         });
         return () => subscription.remove();
@@ -517,7 +520,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setError("");
             return true;
         } catch {
-            onInvalid("This is not a valid Cryptex Vault link invitation.");
+            onInvalid(t`This is not a valid Cryptex Vault link invitation.`);
             return false;
         }
     };
@@ -550,7 +553,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 setMethod(null);
             }
         } catch {
-            setError("Could not read this link file.");
+            setError(t`Could not read this link file.`);
             setMethod(null);
         }
     };
@@ -564,7 +567,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 if (!navigation.isFocused()) return;
                 if (
                     !acceptInvitation(
-                        { source: "scan", base64, label: "Scanned QR code" },
+                        { source: "scan", base64, label: t`Scanned QR code` },
                         setCameraError,
                     )
                 )
@@ -600,7 +603,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         if (!base64) {
             setFieldError(
                 "paste",
-                "Paste the invitation data from the sending device.",
+                t`Paste the invitation data from the sending device.`,
                 pasteRef,
             );
             return;
@@ -610,7 +613,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 {
                     source: "paste",
                     base64,
-                    label: "Pasted link data",
+                    label: t`Pasted link data`,
                 },
                 (message) => setFieldError("paste", message, pasteRef),
             )
@@ -629,14 +632,14 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
 
     const getLinkingPackage = (): LinkingPackage => {
         if (!invitation) {
-            throw new Error("Choose a link invitation.");
+            throw new Error(t`Choose a link invitation.`);
         }
         if (invitation.source === "file") {
             return LinkingPackage.fromBinary(invitation.bytes);
         }
         const parsed = LinkingPackage.fromBase64(invitation.base64);
         if (parsed.isErr()) {
-            throw new Error("Invalid link package data.");
+            throw new Error(t`Invalid link package data.`);
         }
         return parsed.value;
     };
@@ -675,17 +678,19 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
     };
 
     const technicalErrorForStatus = (status: LinkingProcessStatus) => {
-        const details = status.LogMessage?.details;
+        const log = status.LogMessage;
+        const details = log?.details;
         if (details?.type === "connection_state") {
-            return `${status.LogMessage?.message ?? "Connection error"}\nConnection state: ${details.state}`;
+            const message = log ? linkingLogText(log) : t`Connection error`;
+            const state = details.state;
+            return t`${message}\nConnection state: ${state}`;
         }
         if (details?.type === "vault" || details?.type === "webrtc") {
-            return `${status.LogMessage?.message ?? "Linking error"}\n${details.error.name}: ${details.error.message}`;
+            return `${log ? linkingLogText(log) : t`Linking error`}\n${details.error.name}: ${details.error.message}`;
         }
-        return (
-            status.LogMessage?.message ??
-            "The linking process reported an error."
-        );
+        return log
+            ? linkingLogText(log)
+            : t`The linking process reported an error.`;
     };
 
     const confirmOsOverwrite = (incoming: OnlineServices, canDelete: boolean) =>
@@ -712,21 +717,21 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         setError("");
         const rawVaultBinary = receivedVaultRef.current;
         if (!rawVaultBinary) {
-            setError("No vault data to save.");
+            setError(t`No vault data to save.`);
             return;
         }
         const next = {
             vaultName: vaultName.trim()
                 ? ""
-                : "Enter a name for this linked vault.",
+                : t`Enter a name for this linked vault.`,
             password: password
                 ? ""
-                : "Enter a master password for this device.",
+                : t`Enter a master password for this device.`,
             confirm: !confirm
-                ? "Confirm your master password."
+                ? t`Confirm your master password.`
                 : password === confirm
                   ? ""
-                  : "Enter the same password again.",
+                  : t`Enter the same password again.`,
         };
         setFieldErrors((current) => ({ ...current, ...next }));
         const first = next.vaultName
@@ -799,7 +804,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     envelope.enrolledProtection.hkdfBaseKey,
             });
             if (dekRes.isErr()) {
-                throw new Error("Could not verify the new local vault.");
+                throw new Error(t`Could not verify the new local vault.`);
             }
 
             pendingLinkedSaveRef.current = {
@@ -816,7 +821,9 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setStage("recovery");
         } catch (e) {
             setError(
-                e instanceof Error ? e.message : "Failed to save linked vault.",
+                e instanceof Error
+                    ? e.message
+                    : t`Failed to save linked vault.`,
             );
         } finally {
             sealInFlightRef.current = false;
@@ -853,7 +860,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     { error: enrollmentError },
                 );
                 setSaveWarning(
-                    "The vault is encrypted and saved, but this device could not cache its protection phrase. Keep the phrase available and tap Save and open vault to try again.",
+                    t`The vault is encrypted and saved, but this device could not cache its protection phrase. Keep the phrase available and tap Save and open vault to try again.`,
                 );
                 return;
             }
@@ -901,7 +908,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setError(
                 saveError instanceof Error
                     ? saveError.message
-                    : "Failed to save linked vault.",
+                    : t`Failed to save linked vault.`,
             );
         } finally {
             saveInFlightRef.current = false;
@@ -915,12 +922,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         if (!rawVaultBinary || !senderBundle) {
             finishSessionTransition(attempt);
             setStage("failed");
-            setError("No vault data received.");
+            setError(t`No vault data received.`);
             setLinkProgress((current) => ({ ...current, transfer: "error" }));
             setLinkFailure({
-                message: "No vault data received.",
-                technical:
-                    "Vault transfer completed without usable vault data or sender key material.",
+                message: t`No vault data received.`,
+                technical: t`Vault transfer completed without usable vault data or sender key material.`,
             });
             return;
         }
@@ -941,8 +947,10 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setHasUnsavedReceivedVault(false);
             setMergeSummary(summary);
             setStage("done");
+            const { credentialsAdded, devicesAdded, credentialsSkipped } =
+                summary;
             setStatusMessage(
-                `Merged ${summary.credentialsAdded} credential(s) and ${summary.devicesAdded} device(s). Skipped ${summary.credentialsSkipped} existing.`,
+                t`Merged ${plural(credentialsAdded, { one: "# credential", other: "# credentials" })} and ${plural(devicesAdded, { one: "# device", other: "# devices" })}. Skipped ${credentialsSkipped} existing.`,
             );
         } catch (e) {
             finishSessionTransition(attempt);
@@ -950,7 +958,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             const message =
                 e instanceof Error
                     ? e.message
-                    : "Failed to merge linked vault.";
+                    : t`Failed to merge linked vault.`;
             setError(message);
             setLinkProgress((current) => ({ ...current, transfer: "error" }));
             setLinkFailure({
@@ -970,20 +978,22 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         if (mnemonic.trim().split(/\s+/).length < 12) {
             setFieldError(
                 "mnemonic",
-                "Enter all twelve verification words from the sending device.",
+                t`Enter all twelve verification words from the sending device.`,
                 mnemonicRef,
             );
             return;
         }
         if (!invitation) {
-            setError("Scan a QR code, paste link data, or choose a link file.");
+            setError(
+                t`Scan a QR code, paste link data, or choose a link file.`,
+            );
             return;
         }
 
         setValidatingInvitation(true);
         let invitationOpened = false;
         let wrongWords = false;
-        setStatusMessage("Checking verification words…");
+        setStatusMessage(t`Checking verification words…`);
         linkStartedAtRef.current = Date.now();
         setLinkDeadline(null);
         linkActivityIdRef.current = 0;
@@ -993,7 +1003,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             ...INITIAL_PROGRESS,
             invitation: "active",
         });
-        appendLinkActivity("Opening and validating the encrypted invitation.");
+        appendLinkActivity(t`Opening and validating the encrypted invitation.`);
         completedRef.current = false;
         failedRef.current = false;
         receivedVaultRef.current = null;
@@ -1009,7 +1019,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             if (decrypted.isErr()) {
                 wrongWords = true;
                 throw new Error(
-                    "Wrong verification words or corrupt invitation.",
+                    t`Wrong verification words or corrupt invitation.`,
                 );
             }
             invitationOpened = true;
@@ -1018,14 +1028,14 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setProgressState("invitation", "completed");
             setProgressState("keys", "active");
             appendLinkActivity(
-                "Invitation opened. Preparing this device's keys.",
+                t`Invitation opened. Preparing this device's keys.`,
             );
             const linkingBlob = decrypted.value;
             if (
                 !linkingBlob.SenderKeyBundle?.SyncSigningPublicKey ||
                 !linkingBlob.SenderKeyBundle.SyncKemPublicKey
             ) {
-                throw new Error("Link package missing sync key material.");
+                throw new Error(t`Link package missing sync key material.`);
             }
             const senderKeyBundle = linkingBlob.SenderKeyBundle;
 
@@ -1064,11 +1074,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         finishSessionTransition(attempt);
                         setStage("input");
                         setStatusMessage("");
-                        setError("Linking cancelled.");
+                        setError(t`Linking cancelled.`);
                         return;
                     }
                     if (choice === "delete") {
-                        setStatusMessage("Deleting this device's account…");
+                        setStatusMessage(t`Deleting this device's account…`);
                         // Refresh is paused during the link, and the session may
                         // have expired while the prompt was open.
                         await establishOnlineServicesSession({
@@ -1094,10 +1104,10 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         );
                         if (unbound.isErr()) {
                             throw new Error(
-                                "The account was deleted, but this vault could not be updated. Try linking again.",
+                                t`The account was deleted, but this vault could not be updated. Try linking again.`,
                             );
                         }
-                        appendLinkActivity("Deleted this device's account.");
+                        appendLinkActivity(t`Deleted this device's account.`);
                     }
                 }
 
@@ -1114,7 +1124,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 });
                 if (attempt !== linkAttemptRef.current) return;
                 onlineServicesRef.current = incomingOs;
-                setStatusMessage("Online Services authenticated. Connecting…");
+                setStatusMessage(t`Online Services authenticated. Connecting…`);
             } else {
                 if (attempt !== linkAttemptRef.current) return;
                 onlineServicesRef.current = null;
@@ -1139,7 +1149,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             pendingSyncKeysRef.current = receiverSyncKeys;
             setProgressState("keys", "completed");
             appendLinkActivity(
-                "Local signing and post-quantum keys are ready.",
+                t`Local signing and post-quantum keys are ready.`,
             );
 
             const onStatusChange = async (status: LinkingProcessStatus) => {
@@ -1148,9 +1158,10 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 if (status.Deadline !== undefined)
                     setLinkDeadline(status.Deadline);
                 if (status.LogMessage?.message) {
-                    setStatusMessage(status.LogMessage.message);
+                    const message = linkingLogText(status.LogMessage);
+                    setStatusMessage(message);
                     appendLinkActivity(
-                        status.LogMessage.message,
+                        message,
                         status.LogMessage.type,
                         status.LogMessage.timestamp,
                     );
@@ -1180,8 +1191,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     controllerRef.current?.abortWaitingForDevice();
                     controllerRef.current = null;
                     setStage("failed");
-                    const message =
-                        "The live transfer stopped. Keep the linking screen open on your sending device and try again.";
+                    const message = t`The live transfer stopped. Keep the linking screen open on your sending device and try again.`;
                     setError(message);
                     setLinkFailure({
                         message,
@@ -1197,8 +1207,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     setHasUnsavedReceivedVault(true);
                     setStatusMessage(
                         mergeMode
-                            ? "Vault received. Preparing merge…"
-                            : "Vault received. Set up its local password and protection.",
+                            ? t`Vault received. Preparing merge…`
+                            : t`Vault received. Set up its local password and protection.`,
                     );
                 }
                 if (
@@ -1214,14 +1224,13 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         finishSessionTransition(attempt);
                         failedRef.current = true;
                         setStage("failed");
-                        setError("No vault data received.");
+                        setError(t`No vault data received.`);
                         setProgressState("transfer", "error");
                         setLinkFailure({
-                            message: "No vault data received.",
-                            technical:
-                                "The private connection closed without a verified vault payload.",
+                            message: t`No vault data received.`,
+                            technical: t`The private connection closed without a verified vault payload.`,
                         });
-                        appendLinkActivity("No vault data received.", "error");
+                        appendLinkActivity(t`No vault data received.`, "error");
                         return;
                     }
                     if (mergeMode) {
@@ -1249,7 +1258,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             }
             controllerRef.current = controllerResult.value;
             setStatusMessage(
-                "Keep the linking screen open on your sending device until the transfer finishes.",
+                t`Keep the linking screen open on your sending device until the transfer finishes.`,
             );
         } catch (e) {
             if (attempt !== linkAttemptRef.current) return;
@@ -1257,7 +1266,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setValidatingInvitation(false);
             setStatusMessage("");
             const message =
-                e instanceof Error ? e.message : "Link receive failed.";
+                e instanceof Error ? e.message : t`Link receive failed.`;
             if (wrongWords) {
                 // The user fixes this in the field, so report it there.
                 setStage("input");
@@ -1289,11 +1298,10 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         setError("");
         if (hasUnsavedReceivedVault) {
             setConfirmRequest({
-                title: "Restart live transfer?",
-                description:
-                    "The received copy has not been saved. Restarting means this copy will be discarded.",
-                cancelLabel: "Keep received copy",
-                confirmLabel: "Discard and restart",
+                title: t`Restart live transfer?`,
+                description: t`The received copy has not been saved. Restarting means this copy will be discarded.`,
+                cancelLabel: t`Keep received copy`,
+                confirmLabel: t`Discard and restart`,
                 onConfirm: () => {
                     finishCurrentSessionTransition();
                     receivedVaultRef.current = null;
@@ -1311,11 +1319,10 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
     const abortWaiting = () => {
         if (hasUnsavedReceivedVault) {
             setConfirmRequest({
-                title: "Discard received vault?",
-                description:
-                    "This received copy has not been saved. Discarding means you will need to repeat the live transfer.",
-                cancelLabel: "Keep setting up",
-                confirmLabel: "Discard",
+                title: t`Discard received vault?`,
+                description: t`This received copy has not been saved. Discarding means you will need to repeat the live transfer.`,
+                cancelLabel: t`Keep setting up`,
+                confirmLabel: t`Discard`,
                 onConfirm: () => {
                     linkAttemptRef.current += 1;
                     receivedVaultRef.current = null;
@@ -1325,7 +1332,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     setStage("input");
                     setStatusMessage("");
                     setError(
-                        "Received copy discarded. No vault was saved on this device.",
+                        t`Received copy discarded. No vault was saved on this device.`,
                     );
                 },
             });
@@ -1337,7 +1344,9 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
         controllerRef.current = null;
         setStage("input");
         setStatusMessage("");
-        setError("Live transfer cancelled. No vault was saved on this device.");
+        setError(
+            t`Live transfer cancelled. No vault was saved on this device.`,
+        );
     };
 
     const useNewInvitation = () => {
@@ -1361,42 +1370,53 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
 
     const cameraActive =
         method === "scan" && permission?.granted && !cameraError && isFocused;
+    const qrReceived = qrChunkProgress?.received ?? 0;
+    const qrTotal = qrChunkProgress?.total ?? 0;
+    const invitationLabel = invitation?.label ?? "";
+    const credentialsAdded = mergeSummary?.credentialsAdded ?? 0;
+    const credentialsSkipped = mergeSummary?.credentialsSkipped ?? 0;
+    const devicesAdded = mergeSummary?.devicesAdded ?? 0;
+    const linkSteps = [
+        t({ message: "Invitation", comment: "Link receive step" }),
+        t({ message: "Authorize", comment: "Link receive step" }),
+        t({ message: "Protect", comment: "Link receive step" }),
+    ];
 
     const headerCopy =
         stage === "linking"
             ? {
-                  title: "Link in progress.",
-                  subtitle: "Keep Cryptex Vault open on both devices.",
+                  title: t`Link in progress.`,
+                  subtitle: t`Keep Cryptex Vault open on both devices.`,
               }
             : stage === "failed"
               ? {
-                    title: "Let's try that again.",
-                    subtitle: "The received vault has not been saved.",
+                    title: t`Let's try that again.`,
+                    subtitle: t`The received vault has not been saved.`,
                 }
               : stage === "passphrase"
                 ? {
-                      title: "Protect this copy.",
-                      subtitle: "Choose how this vault opens on this device.",
+                      title: t`Protect this copy.`,
+                      subtitle: t`Choose how this vault opens on this device.`,
                   }
                 : stage === "recovery"
                   ? {
-                        title: "Keep your way back in.",
-                        subtitle:
-                            "Save these details before opening the vault.",
+                        title: t`Keep your way back in.`,
+                        subtitle: t`Save these details before opening the vault.`,
                     }
                   : stage === "done"
                     ? {
-                          title: "Vault linked.",
-                          subtitle: "The secure connection has finished.",
+                          title: t`Vault linked.`,
+                          subtitle: t`The secure connection has finished.`,
                       }
                     : {
-                          title: "Make the connection.",
-                          subtitle:
-                              "Securely transfer a vault from a device you already use.",
+                          title: t`Make the connection.`,
+                          subtitle: t`Securely transfer a vault from a device you already use.`,
                       };
 
     const progressItems: LinkProgressItem[] = RECEIVE_PROGRESS.map((item) => ({
-        ...item,
+        key: item.key,
+        title: t(item.title),
+        detail: t(item.detail),
         state: linkProgress[item.key],
     }));
 
@@ -1453,8 +1473,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
             setError("");
         };
         const inputTitle = invitation
-            ? "Review invitation"
-            : "Receive invitation";
+            ? t`Review invitation`
+            : t`Receive invitation`;
         return (
             <View style={{ flex: 1 }}>
                 <Screen
@@ -1470,11 +1490,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 >
                     {!invitation ? (
                         <View className="gap-4">
-                            <InvitationHeader title="Scan the invitation">
-                                On your other device, choose Create invitation
-                                and point this camera at its QR code. Items
-                                received are merged with this vault; existing
-                                items are kept.
+                            <InvitationHeader title={t`Scan the invitation`}>
+                                {t`On your other device, choose Create invitation and point this camera at its QR code. Items received are merged with this vault; existing items are kept.`}
                             </InvitationHeader>
                             <View className="aspect-square w-full overflow-hidden rounded-md border border-border bg-[#111520]">
                                 {cameraActive ? (
@@ -1492,7 +1509,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         onBarcodeScanned={onBarcodeScanned}
                                         onMountError={() =>
                                             setCameraError(
-                                                "Could not start the camera. Open an invitation file or paste the invitation instead.",
+                                                t`Could not start the camera. Open an invitation file or paste the invitation instead.`,
                                             )
                                         }
                                     />
@@ -1507,8 +1524,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     tone={permission ? "warning" : "loading"}
                                     message={
                                         permission
-                                            ? "Camera access is off. Open an invitation file or paste the invitation instead."
-                                            : "Opening camera…"
+                                            ? t`Camera access is off. Open an invitation file or paste the invitation instead.`
+                                            : t`Opening camera…`
                                     }
                                 />
                             ) : null}
@@ -1521,7 +1538,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                             {qrChunkProgress ? (
                                 <InlineNotice
                                     tone="loading"
-                                    message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts.`}
+                                    message={t`Collected ${qrReceived} of ${qrTotal} QR parts.`}
                                 />
                             ) : null}
                             <View className="flex-row gap-3">
@@ -1530,14 +1547,18 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     variant="outline"
                                     onPress={() => void pickLinkFile()}
                                 >
-                                    Open file
+                                    {t`Open file`}
                                 </UnlockedButton>
                                 <UnlockedButton
                                     className="flex-1"
                                     variant="outline"
                                     onPress={() => setMethod("paste")}
                                 >
-                                    Paste
+                                    {t({
+                                        message: "Paste",
+                                        comment:
+                                            "Button: paste the invitation text",
+                                    })}
                                 </UnlockedButton>
                             </View>
                         </View>
@@ -1555,11 +1576,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         scroll
                     >
                         <DialogHeader>
-                            <DialogTitle>Paste invitation</DialogTitle>
+                            <DialogTitle>{t`Paste invitation`}</DialogTitle>
                         </DialogHeader>
                         {method === "paste" && !invitation ? (
                             <View className="gap-4">
-                                <UnlockedLabel>Invitation</UnlockedLabel>
+                                <UnlockedLabel>{t`Invitation`}</UnlockedLabel>
                                 <UnlockedInput
                                     autoFocus
                                     value={pasteDraft}
@@ -1570,18 +1591,18 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     invalid={!!fieldErrors.paste}
                                     autoCapitalize="none"
                                     autoCorrect={false}
-                                    placeholder="Paste invitation text"
+                                    placeholder={t`Paste invitation text`}
                                     multiline
                                     numberOfLines={6}
                                     textAlignVertical="top"
-                                    accessibilityLabel="Pasted invitation"
+                                    accessibilityLabel={t`Pasted invitation`}
                                     style={{ height: 140, paddingVertical: 12 }}
                                 />
                                 <VaultEntryFieldError
                                     message={fieldErrors.paste}
                                 />
                                 <UnlockedButton onPress={usePastedInvitation}>
-                                    Review invitation
+                                    {t`Review invitation`}
                                 </UnlockedButton>
                             </View>
                         ) : null}
@@ -1590,26 +1611,28 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     {invitation ? (
                         <View className="gap-4">
                             <InvitationHeader
-                                title={`Connect to ${invitation.label}`}
+                                title={t`Connect to ${invitationLabel}`}
                             >
-                                You will receive an encrypted vault and merge it
-                                with this one.
+                                {t`You will receive an encrypted vault and merge it with this one.`}
                             </InvitationHeader>
                             <View className="min-h-[52px] flex-row items-center justify-between border-b border-border">
                                 <UnlockedText className="text-sm text-muted-foreground">
-                                    Connection
+                                    {t({
+                                        message: "Connection",
+                                        comment:
+                                            "Row label; the value is the connection type",
+                                    })}
                                 </UnlockedText>
                                 <UnlockedText className="text-sm text-foreground">
-                                    Encrypted invitation
+                                    {t`Encrypted invitation`}
                                 </UnlockedText>
                             </View>
                             <View className="border-l-2 border-muted pl-3">
                                 <UnlockedText className="text-xs leading-5 text-muted-foreground">
-                                    Existing items stay in this vault. New items
-                                    from the other vault will be added.
+                                    {t`Existing items stay in this vault. New items from the other vault will be added.`}
                                 </UnlockedText>
                             </View>
-                            <UnlockedLabel>Verification words</UnlockedLabel>
+                            <UnlockedLabel>{t`Verification words`}</UnlockedLabel>
                             <UnlockedInput
                                 value={mnemonic}
                                 onChangeText={(value) => {
@@ -1619,11 +1642,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 invalid={!!fieldErrors.mnemonic}
                                 autoCapitalize="none"
                                 autoCorrect={false}
-                                placeholder="Enter the words shown on the sending device"
+                                placeholder={t`Enter the words shown on the sending device`}
                                 multiline
                                 numberOfLines={4}
                                 textAlignVertical="top"
-                                accessibilityLabel="Verification words"
+                                accessibilityLabel={t`Verification words`}
                                 style={{ height: 112, paddingVertical: 12 }}
                             />
                             <VaultEntryFieldError
@@ -1633,13 +1656,13 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 loading={validatingInvitation}
                                 onPress={beginReceive}
                             >
-                                Connect &amp; merge
+                                {t`Connect & merge`}
                             </UnlockedButton>
                             <UnlockedButton
                                 variant="secondary"
                                 onPress={resetInput}
                             >
-                                Cancel
+                                {t`Cancel`}
                             </UnlockedButton>
                         </View>
                     ) : null}
@@ -1661,11 +1684,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 taskTitle={
                     unlocked
                         ? method === "paste" && !invitation && stage === "input"
-                            ? "Paste invitation"
+                            ? t`Paste invitation`
                             : stage !== "done" &&
                                 (invitation || stage === "confirm-merge")
-                              ? "Review invitation"
-                              : "Receive invitation"
+                              ? t`Review invitation`
+                              : t`Receive invitation`
                         : undefined
                 }
                 onTaskBack={
@@ -1700,19 +1723,18 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 {stage === "input" ? (
                     <View>
                         <VaultEntrySteps
-                            labels={["Invitation", "Authorize", "Protect"]}
+                            labels={linkSteps}
                             current={invitation ? 1 : 0}
                         />
                         {mergeMode ? (
                             <InlineNotice
                                 className="mb-4"
                                 tone="info"
-                                message="Vault is unlocked. Received data will merge into the active vault. Existing credentials keep their current values; missing IDs are added."
+                                message={t`Vault is unlocked. Received data will merge into the active vault. Existing credentials keep their current values; missing IDs are added.`}
                             />
                         ) : (
                             <Text className="mb-[18px] text-xs leading-[18px] text-muted-foreground">
-                                On your other device, open Cryptex Vault and
-                                start linking. Then scan its invitation here.
+                                {t`On your other device, open Cryptex Vault and start linking. Then scan its invitation here.`}
                             </Text>
                         )}
 
@@ -1748,14 +1770,14 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                                 }
                                                 onMountError={() =>
                                                     setCameraError(
-                                                        "Could not start the camera. Try again or choose another linking method.",
+                                                        t`Could not start the camera. Try again or choose another linking method.`,
                                                     )
                                                 }
                                             />
                                         ) : (
                                             <Pressable
                                                 accessibilityRole="button"
-                                                accessibilityLabel="Scan QR code"
+                                                accessibilityLabel={t`Scan QR code`}
                                                 onPress={() => void startScan()}
                                                 className="h-full w-full items-center justify-center gap-4 active:bg-secondary"
                                             >
@@ -1765,7 +1787,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                                     className="text-primary"
                                                 />
                                                 <Text className="font-medium text-sm text-foreground">
-                                                    Tap to scan
+                                                    {t`Tap to scan`}
                                                 </Text>
                                             </Pressable>
                                         )}
@@ -1776,15 +1798,15 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         {!permission ? (
                                             <InlineNotice
                                                 tone="loading"
-                                                message="Opening camera…"
+                                                message={t`Opening camera…`}
                                             />
                                         ) : !permission.granted ? (
                                             <InlineNotice
                                                 tone="warning"
                                                 message={
                                                     permission.canAskAgain
-                                                        ? "Camera access was not granted. Tap the scanner to try again, or use a link file or pasted data."
-                                                        : "Camera access is blocked. Enable it in Android settings, or use a link file or pasted data."
+                                                        ? t`Camera access was not granted. Tap the scanner to try again, or use a link file or pasted data.`
+                                                        : t`Camera access is blocked. Enable it in Android settings, or use a link file or pasted data.`
                                                 }
                                             />
                                         ) : null}
@@ -1798,7 +1820,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         {qrChunkProgress ? (
                                             <InlineNotice
                                                 tone="loading"
-                                                message={`Collected ${qrChunkProgress.received} of ${qrChunkProgress.total} QR parts. Keep the camera pointed at the sender's code.`}
+                                                message={t`Collected ${qrReceived} of ${qrTotal} QR parts. Keep the camera pointed at the sender's code.`}
                                             />
                                         ) : null}
                                     </>
@@ -1817,7 +1839,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                                 className="text-foreground"
                                             />
                                             <Text className="font-semibold text-xs text-foreground">
-                                                Choose link file
+                                                {t`Choose link file`}
                                             </Text>
                                         </View>
                                     </Button>
@@ -1834,18 +1856,17 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                                 className="text-foreground"
                                             />
                                             <Text className="font-semibold text-xs text-foreground">
-                                                Paste link data
+                                                {t`Paste link data`}
                                             </Text>
                                         </View>
                                     </Button>
                                 </View>
 
                                 <VaultEntryNotice className="mb-3 mt-5">
-                                    Keep the linking screen open on your sending
-                                    device until the transfer finishes.
+                                    {t`Keep the linking screen open on your sending device until the transfer finishes.`}
                                 </VaultEntryNotice>
                                 <VaultEntryAssurance className="mt-2">
-                                    Encrypted from sender to receiver
+                                    {t`Encrypted from sender to receiver`}
                                 </VaultEntryAssurance>
                             </View>
                         ) : null}
@@ -1854,7 +1875,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                             <View className="gap-3">
                                 <InlineNotice
                                     tone="success"
-                                    message={`Invitation ready: ${invitation.label}`}
+                                    message={t`Invitation ready: ${invitationLabel}`}
                                 />
                                 <Button
                                     variant="outline"
@@ -1865,11 +1886,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         setError("");
                                     }}
                                 >
-                                    Replace invitation
+                                    {t`Replace invitation`}
                                 </Button>
                                 <View>
                                     <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                        Verification words
+                                        {t`Verification words`}
                                     </Label>
                                     <Input
                                         ref={mnemonicRef}
@@ -1883,17 +1904,15 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         secureTextEntry
                                         autoCapitalize="none"
                                         autoCorrect={false}
-                                        placeholder="Twelve words from the sender"
-                                        accessibilityLabel="Verification words"
+                                        placeholder={t`Twelve words from the sender`}
+                                        accessibilityLabel={t`Verification words`}
                                         className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                                     />
                                     <VaultEntryFieldError
                                         message={fieldErrors.mnemonic}
                                     />
                                     <Text className="mt-1 text-xs text-muted-foreground">
-                                        This phrase authorizes the live
-                                        transfer. It is separate from vault
-                                        recovery details.
+                                        {t`This phrase authorizes the live transfer. It is separate from vault recovery details.`}
                                     </Text>
                                 </View>
                             </View>
@@ -1920,8 +1939,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     loading={validatingInvitation}
                                 >
                                     {mergeMode
-                                        ? "Continue to merge"
-                                        : "Connect to sending device"}
+                                        ? t`Continue to merge`
+                                        : t`Connect to sending device`}
                                 </VaultEntryAction>
                                 <Button
                                     variant="ghost"
@@ -1934,7 +1953,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                             : router.back()
                                     }
                                 >
-                                    Cancel
+                                    {t`Cancel`}
                                 </Button>
                             </>
                         ) : null}
@@ -1945,17 +1964,17 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     <View className="gap-3">
                         <InlineNotice
                             tone="warning"
-                            message="Merge into the unlocked vault? This adds missing credentials, directories, connectivity servers, and linked devices. Existing records with the same ID are kept (not overwritten)."
+                            message={t`Merge into the unlocked vault? This adds missing credentials, directories, connectivity servers, and linked devices. Existing records with the same ID are kept (not overwritten).`}
                         />
                         <VaultEntryAction onPress={() => void runLinking()}>
-                            Confirm merge and start
+                            {t`Confirm merge and start`}
                         </VaultEntryAction>
                         <Button
                             variant="ghost"
                             className="min-h-[44px]"
                             onPress={() => setStage("input")}
                         >
-                            Back
+                            {t`Back`}
                         </Button>
                     </View>
                 ) : null}
@@ -1963,7 +1982,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                 {stage === "linking" || stage === "failed" ? (
                     <LinkingProgress
                         items={progressItems}
-                        status={statusMessage || "Linking in progress…"}
+                        status={statusMessage || t`Linking in progress…`}
                         deadline={stage === "linking" ? linkDeadline : null}
                         activity={linkActivity}
                         failure={linkFailure}
@@ -1983,18 +2002,14 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
 
                 {stage === "passphrase" ? (
                     <View className="gap-3">
-                        <VaultEntrySteps
-                            labels={["Invitation", "Authorize", "Protect"]}
-                            current={2}
-                        />
+                        <VaultEntrySteps labels={linkSteps} current={2} />
                         <LinkActivityLog activity={linkActivity} />
                         <Text className="text-sm text-muted-foreground">
-                            Create a master password for this local copy. It can
-                            differ from the password on the sending device.
+                            {t`Create a master password for this local copy. It can differ from the password on the sending device.`}
                         </Text>
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                Vault name
+                                {t`Vault name`}
                             </Label>
                             <Input
                                 ref={vaultNameRef}
@@ -2004,9 +2019,9 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     clearFieldError("vaultName");
                                 }}
                                 invalid={!!fieldErrors.vaultName}
-                                placeholder="Linked vault"
+                                placeholder={t`Linked vault`}
                                 autoCapitalize="words"
-                                accessibilityLabel="Linked vault name"
+                                accessibilityLabel={t`Linked vault name`}
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2015,7 +2030,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         </View>
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                Master password
+                                {t`Master password`}
                             </Label>
                             <Input
                                 ref={passwordRef}
@@ -2031,8 +2046,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 textContentType="newPassword"
-                                placeholder="Master password"
-                                accessibilityLabel="Master password"
+                                placeholder={t`Master password`}
+                                accessibilityLabel={t`Master password`}
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2045,7 +2060,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         </View>
                         <View>
                             <Label className="mb-[7px] text-xs font-normal text-muted-foreground">
-                                Confirm password
+                                {t`Confirm password`}
                             </Label>
                             <Input
                                 ref={confirmRef}
@@ -2059,8 +2074,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 secureTextEntry
                                 autoCapitalize="none"
                                 autoCorrect={false}
-                                placeholder="Confirm password"
-                                accessibilityLabel="Confirm master password"
+                                placeholder={t`Confirm password`}
+                                accessibilityLabel={t`Confirm master password`}
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2087,7 +2102,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                             loading={saving}
                             onPress={() => void sealLinkedVault()}
                         >
-                            Continue
+                            {t`Continue`}
                         </VaultEntryAction>
                     </View>
                 ) : null}
@@ -2109,12 +2124,12 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     scroll
                 >
                     <DialogHeader>
-                        <DialogTitle>Paste link data</DialogTitle>
+                        <DialogTitle>{t`Paste link data`}</DialogTitle>
                         <DialogDescription>
-                            Paste the invitation from your sending device.
+                            {t`Paste the invitation from your sending device.`}
                         </DialogDescription>
                     </DialogHeader>
-                    <Label>Link data</Label>
+                    <Label>{t`Link data`}</Label>
                     <Input
                         ref={pasteRef}
                         value={pasteDraft}
@@ -2125,12 +2140,12 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         invalid={!!fieldErrors.paste}
                         autoCapitalize="none"
                         autoCorrect={false}
-                        placeholder="Paste link data"
+                        placeholder={t`Paste link data`}
                         multiline
                         numberOfLines={4}
                         scrollEnabled
                         textAlignVertical="top"
-                        accessibilityLabel="Pasted link data"
+                        accessibilityLabel={t`Pasted link data`}
                         style={{
                             height: 112,
                             maxHeight: 112,
@@ -2145,7 +2160,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                             showArrow={false}
                             onPress={usePastedInvitation}
                         >
-                            Use pasted data
+                            {t`Use pasted data`}
                         </VaultEntryAction>
                         <Button
                             variant="ghost"
@@ -2154,7 +2169,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 clearFieldError("paste");
                             }}
                         >
-                            Cancel
+                            {t`Cancel`}
                         </Button>
                     </DialogFooter>
                 </Dialog>
@@ -2168,40 +2183,52 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         fullHeight
                     >
                         <DialogHeader>
-                            <DialogTitle>Keep your way back in</DialogTitle>
+                            <DialogTitle>{t`Keep your way back in`}</DialogTitle>
                             <DialogDescription>
-                                Store these offline before opening the linked
-                                vault.
+                                {t`Store these offline before opening the linked vault.`}
                             </DialogDescription>
                         </DialogHeader>
                         <VaultEntrySteps
-                            labels={["Invitation", "Protect", "Save recovery"]}
+                            labels={[
+                                t({
+                                    message: "Invitation",
+                                    comment: "Link receive step",
+                                }),
+                                t({
+                                    message: "Protect",
+                                    comment: "Link receive step",
+                                }),
+                                t({
+                                    message: "Save recovery",
+                                    comment: "Link receive step",
+                                }),
+                            ]}
                             current={2}
                         />
                         <InlineNotice
                             tone="warning"
-                            message="This is the recovery material for the new local vault. Recovery details from the sending device do not transfer."
+                            message={t`This is the recovery material for the new local vault. Recovery details from the sending device do not transfer.`}
                         />
                         {recoveryCode ? (
                             <SecretReveal
-                                label="Recovery code"
+                                label={t`Recovery code`}
                                 value={recoveryCode}
-                                helper="Store this offline. It can recover this local vault if you forget its master password."
+                                helper={t`Store this offline. It can recover this local vault if you forget its master password.`}
                                 requireAck
                                 defaultRevealed
-                                ackLabel="I have written down the recovery code"
+                                ackLabel={t`I have written down the recovery code`}
                                 acknowledged={recoveryAck}
                                 onAcknowledgedChange={setRecoveryAck}
                             />
                         ) : null}
                         {protectionPhrase ? (
                             <SecretReveal
-                                label="Generated protection phrase"
+                                label={t`Generated protection phrase`}
                                 value={protectionPhrase}
-                                helper="Store this separately. You will need it with the master password after restoring on a new device."
+                                helper={t`Store this separately. You will need it with the master password after restoring on a new device.`}
                                 requireAck
                                 defaultRevealed
-                                ackLabel="I have written down the protection phrase"
+                                ackLabel={t`I have written down the protection phrase`}
                                 acknowledged={additionalKeyProtectionAck}
                                 onAcknowledgedChange={
                                     setAdditionalKeyProtectionAck
@@ -2233,7 +2260,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 }
                                 onPress={() => void finishLinkedVault()}
                             >
-                                Save and open vault
+                                {t`Save and open vault`}
                             </VaultEntryAction>
                         </DialogFooter>
                     </Dialog>
@@ -2241,27 +2268,27 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
 
                 {stage === "done" && mergeMode ? (
                     <LinkResult
-                        title="Vault merged"
-                        description="Items from the other device were added to this vault. Nothing here was overwritten."
+                        title={t`Vault merged`}
+                        description={t`Items from the other device were added to this vault. Nothing here was overwritten.`}
                         rows={[
                             {
-                                label: "Credentials added",
+                                label: t`Credentials added`,
                                 value: String(
                                     mergeSummary?.credentialsAdded ?? 0,
                                 ),
                             },
                             {
-                                label: "Already in this vault",
+                                label: t`Already in this vault`,
                                 value: String(
                                     mergeSummary?.credentialsSkipped ?? 0,
                                 ),
                             },
                             {
-                                label: "Linked devices added",
+                                label: t`Linked devices added`,
                                 value: String(mergeSummary?.devicesAdded ?? 0),
                             },
                         ]}
-                        actionLabel="Back to Devices"
+                        actionLabel={t`Back to Devices`}
                         onAction={() =>
                             router.dismissTo("/(app)/(tabs)/devices")
                         }
@@ -2272,14 +2299,11 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                     <View className="gap-3">
                         <InlineNotice
                             tone="success"
-                            message={statusMessage || "Done."}
+                            message={statusMessage || t`Done.`}
                         />
                         {mergeSummary ? (
                             <Text className="text-sm text-muted-foreground">
-                                Added {mergeSummary.credentialsAdded}{" "}
-                                credentials, skipped{" "}
-                                {mergeSummary.credentialsSkipped}, linked{" "}
-                                {mergeSummary.devicesAdded} devices.
+                                {t`Added ${plural(credentialsAdded, { one: "# credential", other: "# credentials" })}, skipped ${credentialsSkipped}, linked ${plural(devicesAdded, { one: "# device", other: "# devices" })}.`}
                             </Text>
                         ) : null}
                         <VaultEntryAction
@@ -2289,7 +2313,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     : router.replace("/(app)/(tabs)/vault")
                             }
                         >
-                            {mergeMode ? "Back to Devices" : "Open vault"}
+                            {mergeMode ? t`Back to Devices` : t`Open vault`}
                         </VaultEntryAction>
                     </View>
                 ) : null}
@@ -2305,17 +2329,15 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                         <DialogHeader>
                             <DialogTitle>
                                 {osOverwriteSameAccount
-                                    ? "Overwrite Online Services?"
-                                    : "This device has its own account"}
+                                    ? t`Overwrite Online Services?`
+                                    : t`This device has its own account`}
                             </DialogTitle>
                             <DialogDescription>
                                 {osOverwriteSameAccount
-                                    ? "This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again."
-                                    : `The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. ${
-                                          osOverwriteCanDelete
-                                              ? "Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone."
-                                              : "Only that account's root device can delete it."
-                                      }`}
+                                    ? t`This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again.`
+                                    : osOverwriteCanDelete
+                                      ? t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone.`
+                                      : t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Only that account's root device can delete it.`}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
@@ -2324,7 +2346,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 variant="ghost"
                                 onPress={() => chooseOsOverwrite("cancel")}
                             >
-                                Cancel
+                                {t`Cancel`}
                             </Button>
                             {osOverwriteCanDelete ? (
                                 <>
@@ -2335,7 +2357,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                             chooseOsOverwrite("keep")
                                         }
                                     >
-                                        Keep it and link
+                                        {t`Keep it and link`}
                                     </Button>
                                     <Button
                                         className="h-[54px] min-h-[54px]"
@@ -2344,7 +2366,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                             chooseOsOverwrite("delete")
                                         }
                                     >
-                                        Delete it and link
+                                        {t`Delete it and link`}
                                     </Button>
                                 </>
                             ) : (
@@ -2354,8 +2376,8 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                     onPress={() => chooseOsOverwrite("keep")}
                                 >
                                     {osOverwriteSameAccount
-                                        ? "Overwrite"
-                                        : "Link anyway"}
+                                        ? t`Overwrite`
+                                        : t`Link anyway`}
                                 </Button>
                             )}
                         </DialogFooter>

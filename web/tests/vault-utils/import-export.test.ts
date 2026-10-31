@@ -1161,7 +1161,7 @@ describe("vault import and export", () => {
             });
             expect(
                 result.notices.some(
-                    (notice) => notice.code === "ADDITIONAL_TOTP",
+                    (notice) => (notice.code as string) === "ADDITIONAL_TOTP",
                 ),
             ).toBe(false);
             expect(result.skippedItems).toBe(1);
@@ -1482,7 +1482,10 @@ describe("vault import and export", () => {
     it("only exposes safe parser messages to the UI", () => {
         expect(
             getImportErrorMessage(
-                new ImportFileError("SAFE", "Choose an unencrypted export."),
+                new ImportFileError(
+                    "ENCRYPTED_EXPORT_UNSUPPORTED",
+                    "Choose an unencrypted export.",
+                ),
             ),
         ).toBe("Choose an unencrypted export.");
         expect(

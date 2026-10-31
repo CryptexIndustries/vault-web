@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import {
     credentialMatchesAndroidApp,
     credentialMatchesPageUrl,
@@ -24,7 +25,10 @@ export function defaultAutofillCredentialName(
         request?.webDomain?.trim() ||
         request?.applicationLabel?.trim() ||
         request?.packageName?.trim() ||
-        "New login"
+        t({
+            message: "New login",
+            comment: "Default name for a login saved from autofill",
+        })
     );
 }
 
@@ -86,7 +90,7 @@ export function buildAutofillTarget(
             domain ||
             request.applicationLabel?.trim() ||
             packageName ||
-            "Unknown app",
+            t`Unknown app`,
         warningType,
     };
 }
@@ -124,19 +128,20 @@ export function autofillAssociationWarning(
     target: AutofillTarget,
 ): string | null {
     if (target.warningType === "unverified-web-scheme") {
-        return "Browser connection type is unknown. Saved logins will not match automatically. The page may use HTTP; review the form before filling.";
+        return t`Browser connection type is unknown. Saved logins will not match automatically. The page may use HTTP; review the form before filling.`;
     }
     if (target.warningType === "unverified-field-origin") {
-        return "Android could not confirm that the browser page and login field have the same website. Review the page before filling.";
+        return t`Android could not confirm that the browser page and login field have the same website. Review the page before filling.`;
     }
     if (target.warningType === "untrusted-web-context") {
-        return `The login field is embedded from a different website than the browser page. Only continue if you trust both sites.`;
+        return t`The login field is embedded from a different website than the browser page. Only continue if you trust both sites.`;
     }
     if (target.warningType === "unverified-app") {
-        return `Cryptex Vault could not check whether ${target.displayName} is connected to the saved login. Only continue if you trust the installed app.`;
+        const appName = target.displayName;
+        return t`Cryptex Vault could not check whether ${appName} is connected to the saved login. Only continue if you trust the installed app.`;
     }
     if (target.pageUrl?.startsWith("http://")) {
-        return `This website uses an unencrypted HTTP connection. Only continue if you accept the risk of sending this login.`;
+        return t`This website uses an unencrypted HTTP connection. Only continue if you accept the risk of sending this login.`;
     }
     return null;
 }

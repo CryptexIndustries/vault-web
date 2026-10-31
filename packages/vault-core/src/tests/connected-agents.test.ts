@@ -355,6 +355,7 @@ describe("connected agent sync", () => {
             Directories: [],
             ShareLinks: [],
             ConnectedAgents: [b],
+            BackupDestinations: [],
         });
     });
 

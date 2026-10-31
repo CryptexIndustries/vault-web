@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
@@ -38,7 +39,7 @@ export async function pickSSHKeyFile(): Promise<{
         const size = asset.size ?? (info?.exists ? info.size : undefined);
         if (size != null && size > MAX_SSH_KEY_FILE_BYTES) {
             throw new SSHKeyFileError(
-                "This file is too large to be an SSH key.",
+                t`This file is too large to be an SSH key.`,
             );
         }
         const text = await FileSystem.readAsStringAsync(asset.uri, {

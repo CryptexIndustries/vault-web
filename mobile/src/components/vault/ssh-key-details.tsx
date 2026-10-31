@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { Download } from "lucide-react-native";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 
 import {
     isWeakSSHKey,
@@ -30,12 +32,13 @@ import { shareSSHKeyFile } from "@/utils/ssh-key-files";
 import { useSecretRelease } from "@/utils/secret-release";
 import { colors } from "@/theme";
 
-const SHARE_UNAVAILABLE = "Sharing isn't available on this device.";
-const SAVE_FAILED = "The key file could not be saved.";
-const LOAD_FAILED = "The private key could not be loaded.";
+const SHARE_UNAVAILABLE = msg`Sharing isn't available on this device.`;
+const SAVE_FAILED = msg`The key file could not be saved.`;
+const LOAD_FAILED = msg`The private key could not be loaded.`;
 
 /** Public key, fingerprint, type, comment and private key of an SSH key item. */
 export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
+    const { t } = useLingui();
     const showSnackbar = useUnlockedSnackbar();
     const data = credential.SSHKey;
     const info = sshKeyInfo(credential);
@@ -66,39 +69,39 @@ export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
             <InlineNotice
                 tone="error"
                 className="mb-3"
-                message="This SSH key's data is missing."
+                message={t`This SSH key's data is missing.`}
             />
         );
     }
 
     const fileName = sshKeyFileName(credential.Name);
     const publicLine = sshPublicKeyLine(data);
-    const copyFailed = () => showSnackbar("Couldn't copy to the clipboard.");
+    const copyFailed = () => showSnackbar(t`Couldn't copy to the clipboard.`);
 
     const savePublicKey = async () => {
         try {
             const shared = await shareSSHKeyFile(
                 `${fileName}.pub`,
                 `${publicLine}\n`,
-                { mimeType: "text/plain", dialogTitle: "Save public key" },
+                { mimeType: "text/plain", dialogTitle: t`Save public key` },
             );
-            if (shared === "unavailable") showSnackbar(SHARE_UNAVAILABLE);
+            if (shared === "unavailable") showSnackbar(t(SHARE_UNAVAILABLE));
         } catch {
-            showSnackbar(SAVE_FAILED);
+            showSnackbar(t(SAVE_FAILED));
         }
     };
 
     return (
         <View>
             <CopyableField
-                label="Private key"
+                label={t`Private key`}
                 value={typeof privateKey === "object" ? privateKey.text : ""}
                 secret
                 onCopyFailed={copyFailed}
                 status={
                     privateKey === "error"
                         ? {
-                              error: LOAD_FAILED,
+                              error: t(LOAD_FAILED),
                               onRetry: () => void loadPrivateKey(),
                           }
                         : privateKey === "loading"
@@ -108,14 +111,14 @@ export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
                 actions={
                     <IconButton
                         icon={Download}
-                        label="Save private key"
+                        label={t`Save private key`}
                         color={colors.muted}
                         onPress={() => setSaveOpen(true)}
                     />
                 }
             />
             <CopyableField
-                label="Public key"
+                label={t`Public key`}
                 value={publicLine}
                 publicValue
                 monospace
@@ -124,34 +127,42 @@ export function SSHKeyDetails({ credential }: { credential: VaultCredential }) {
                 actions={
                     <IconButton
                         icon={Download}
-                        label="Save public key"
+                        label={t`Save public key`}
                         color={colors.muted}
                         onPress={() => void savePublicKey()}
                     />
                 }
             />
             <CopyableField
-                label="Fingerprint"
+                label={t`Fingerprint`}
                 value={info?.fingerprint ?? ""}
                 publicValue
                 monospace
                 onCopyFailed={copyFailed}
             />
             <View className="mb-3 rounded-lg border border-border bg-secondary px-4 py-3">
-                <Text className="mb-2 text-xs text-muted-foreground">Type</Text>
+                <Text className="mb-2 text-xs text-muted-foreground">
+                    {t({
+                        message: "Type",
+                        comment: "SSH key algorithm, such as Ed25519",
+                    })}
+                </Text>
                 <Text className="text-sm leading-5 text-foreground">
-                    {info?.label ?? "Unknown"}
+                    {info?.label ?? t`Unknown`}
                 </Text>
                 {info && isWeakSSHKey(info) ? (
                     <InlineNotice
                         tone="warning"
                         className="mt-3"
-                        message="RSA keys under 3072 bits are weak. Replace this key with a new Ed25519 key."
+                        message={t`RSA keys under 3072 bits are weak. Replace this key with a new Ed25519 key.`}
                     />
                 ) : null}
             </View>
             <CopyableField
-                label="Comment"
+                label={t({
+                    message: "Comment",
+                    comment: "SSH key comment field",
+                })}
                 value={data.Comment}
                 publicValue
                 onCopyFailed={copyFailed}
@@ -177,6 +188,7 @@ function SavePrivateKeyDialog({
     credential: VaultCredential;
     fileName: string;
 }) {
+    const { t } = useLingui();
     const showSnackbar = useUnlockedSnackbar();
     const [passphrase, setPassphrase] = useState("");
     const [confirmation, setConfirmation] = useState("");
@@ -217,19 +229,19 @@ function SavePrivateKeyDialog({
         });
         close();
         if (!result.ok || result.kind !== "export") {
-            showSnackbar(SAVE_FAILED);
+            showSnackbar(t(SAVE_FAILED));
             return;
         }
         if (!isCurrent()) return;
         try {
             const shared = await shareSSHKeyFile(fileName, result.text, {
                 mimeType: "application/octet-stream",
-                dialogTitle: "Save private key",
+                dialogTitle: t`Save private key`,
                 isCurrent,
             });
-            if (shared === "unavailable") showSnackbar(SHARE_UNAVAILABLE);
+            if (shared === "unavailable") showSnackbar(t(SHARE_UNAVAILABLE));
         } catch {
-            if (isCurrent()) showSnackbar(SAVE_FAILED);
+            if (isCurrent()) showSnackbar(t(SAVE_FAILED));
         }
     };
 
@@ -241,14 +253,13 @@ function SavePrivateKeyDialog({
             scroll
         >
             <DialogHeader>
-                <DialogTitle>Save private key</DialogTitle>
+                <DialogTitle>{t`Save private key`}</DialogTitle>
                 <DialogDescription>
-                    Add a passphrase to encrypt the file. If you leave it blank,
-                    the file is not encrypted.
+                    {t`Add a passphrase to encrypt the file. If you leave it blank, the file is not encrypted.`}
                 </DialogDescription>
             </DialogHeader>
             <View>
-                <Label>Passphrase (optional)</Label>
+                <Label>{t`Passphrase (optional)`}</Label>
                 <Input
                     value={passphrase}
                     onChangeText={(value) => {
@@ -262,12 +273,12 @@ function SavePrivateKeyDialog({
                     autoCorrect={false}
                     importantForAutofill="no"
                     editable={!busy}
-                    accessibilityLabel="File passphrase"
+                    accessibilityLabel={t`File passphrase`}
                     testID="ssh-key-file-passphrase"
                 />
             </View>
             <View>
-                <Label>Confirm passphrase</Label>
+                <Label>{t`Confirm passphrase`}</Label>
                 <Input
                     value={confirmation}
                     onChangeText={(value) => {
@@ -281,43 +292,45 @@ function SavePrivateKeyDialog({
                     autoCorrect={false}
                     importantForAutofill="no"
                     editable={!busy}
-                    accessibilityLabel="Confirm file passphrase"
+                    accessibilityLabel={t`Confirm file passphrase`}
                     testID="ssh-key-file-passphrase-confirm"
                 />
             </View>
             {mismatch ? (
                 <InlineNotice
                     tone="error"
-                    message="The passphrases don't match."
+                    message={t`The passphrases don't match.`}
                 />
             ) : null}
             {!passphrase ? (
                 <InlineNotice
                     tone="warning"
-                    message="Without a passphrase, anyone who gets the file can use the key."
+                    message={t`Without a passphrase, anyone who gets the file can use the key.`}
                 />
             ) : null}
             <Text className="text-xs leading-5 text-muted-foreground">
-                The file is saved as{" "}
-                <Text className="font-mono text-xs text-foreground">
-                    {fileName}
-                </Text>
-                . Before using it with ssh, run{" "}
-                <Text className="font-mono text-xs text-foreground">
-                    chmod 600 {fileName}
-                </Text>
-                .
+                <Trans>
+                    The file is saved as{" "}
+                    <Text className="font-mono text-xs text-foreground">
+                        {fileName}
+                    </Text>
+                    . Before using it with ssh, run{" "}
+                    <Text className="font-mono text-xs text-foreground">
+                        chmod 600 {fileName}
+                    </Text>
+                    .
+                </Trans>
             </Text>
             <Button variant="secondary" onPress={close}>
-                Cancel
+                {t`Cancel`}
             </Button>
             <Button
                 loading={busy}
-                loadingLabel={passphrase ? "Encrypting…" : "Saving…"}
+                loadingLabel={passphrase ? t`Encrypting…` : t`Saving…`}
                 onPress={() => void save()}
                 testID="ssh-key-file-save"
             >
-                {passphrase ? "Save encrypted file" : "Save unencrypted file"}
+                {passphrase ? t`Save encrypted file` : t`Save unencrypted file`}
             </Button>
         </Dialog>
     );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
+import { useLingui } from "@lingui/react/macro";
 
 import { Snackbar, useSnackbar } from "@/components/snackbar";
 import { InlineNotice } from "@/components/inline-notice";
@@ -17,6 +18,7 @@ import { getUnlockedVault } from "@/utils/atoms";
 import { colors } from "@/theme";
 
 export default function ShareServerScreen() {
+    const { t } = useLingui();
     const [origin, setOrigin] = useState("");
     const [token, setToken] = useState("");
     const [error, setError] = useState("");
@@ -40,13 +42,13 @@ export default function ShareServerScreen() {
                     url.hostname === "127.0.0.1" ||
                     url.hostname === "10.0.2.2";
                 if (url.protocol !== "https:" && !local) {
-                    setError("Use an https:// address.");
+                    setError(t`Use an https:// address.`);
                     return;
                 }
                 serverOrigin = url.origin;
             } catch {
                 setError(
-                    "Enter a full address, like https://vault.example.com.",
+                    t`Enter a full address, like https://vault.example.com.`,
                 );
                 return;
             }
@@ -59,7 +61,7 @@ export default function ShareServerScreen() {
             });
             router.back();
         } catch {
-            show("Couldn't save the share server settings.");
+            show(t`Couldn't save the share server settings.`);
         } finally {
             setSaving(false);
         }
@@ -67,7 +69,7 @@ export default function ShareServerScreen() {
 
     return (
         <UnlockedTaskScreen
-            title="Share server"
+            title={t`Share server`}
             footer={
                 <View style={{ gap: 10 }}>
                     <Snackbar
@@ -76,18 +78,17 @@ export default function ShareServerScreen() {
                         floating={false}
                     />
                     <Button disabled={saving} onPress={() => void save()}>
-                        {saving ? "Saving…" : "Save"}
+                        {saving ? t`Saving…` : t`Save`}
                     </Button>
                 </View>
             }
         >
             <View style={{ gap: 18 }}>
                 <Text style={{ color: colors.muted, lineHeight: 21 }}>
-                    Use the Cryptex Vault server with Online Services, or your
-                    own share server. This setting stays on this phone.
+                    {t`Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone.`}
                 </Text>
                 <View style={{ gap: 8 }}>
-                    <Label>Share server</Label>
+                    <Label>{t`Share server`}</Label>
                     <Input
                         value={origin}
                         onChangeText={setOrigin}
@@ -97,18 +98,18 @@ export default function ShareServerScreen() {
                         placeholder={new URL(env.APP_URL).origin}
                     />
                     <Text style={{ color: colors.muted, fontSize: 13 }}>
-                        Leave empty to use the Cryptex Vault server.
+                        {t`Leave empty to use the Cryptex Vault server.`}
                     </Text>
                 </View>
                 <View style={{ gap: 8 }}>
-                    <Label>Creation token</Label>
+                    <Label>{t`Creation token`}</Label>
                     <Input
                         value={token}
                         onChangeText={setToken}
                         secureTextEntry
                         autoCapitalize="none"
                         autoCorrect={false}
-                        placeholder="Only for self-hosted servers"
+                        placeholder={t`Only for self-hosted servers`}
                     />
                 </View>
                 {error ? <InlineNotice tone="error" message={error} /> : null}

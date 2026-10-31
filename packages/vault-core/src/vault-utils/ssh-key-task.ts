@@ -10,6 +10,7 @@ import {
     importSSHPrivateKeySync,
     SSHKeyError,
     type SSHKeyErrorCode,
+    type SSHKeyErrorParams,
 } from "./ssh-key";
 import { SSH_KEY_TASK_INTERNAL_ERROR } from "./ssh-key-info";
 
@@ -40,6 +41,7 @@ export type SSHKeyTaskResult =
           /** "internal" is a bug or a broken worker, not a problem with the key. */
           code: SSHKeyErrorCode | "internal";
           message: string;
+          params?: SSHKeyErrorParams;
       };
 
 export { SSH_KEY_TASK_INTERNAL_ERROR };
@@ -58,6 +60,7 @@ export const runSSHKeyTask = (task: SSHKeyTask): SSHKeyTaskResult => {
                       ok: false,
                       code: result.error.code,
                       message: result.error.message,
+                      params: result.error.params,
                   };
         }
         return {
@@ -73,7 +76,12 @@ export const runSSHKeyTask = (task: SSHKeyTask): SSHKeyTaskResult => {
         };
     } catch (error) {
         if (error instanceof SSHKeyError) {
-            return { ok: false, code: error.code, message: error.message };
+            return {
+                ok: false,
+                code: error.code,
+                message: error.message,
+                params: error.params,
+            };
         }
         return {
             ok: false,

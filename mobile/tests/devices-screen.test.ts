@@ -336,7 +336,7 @@ jest.mock("@/agent/use-agents", () => ({
 jest.mock("@/components/agents/agent-notifications-notice", () => ({
     AgentNotificationsNotice: "AgentNotificationsNotice",
 }));
-jest.mock("@cryptex-industries/vault-core/agent/agent-format", () => ({
+jest.mock("@/agent/agent-wording", () => ({
     agentRowSubtitle: () => "1 key",
 }));
 jest.mock("@/utils/clipboard", () => ({
@@ -723,12 +723,9 @@ describe("mobile devices screen", () => {
             const summary = byId("device-selection-details");
             expect(summary.props.style.minHeight).toBe(initialHeight);
             expect(
-                summary.findAllByType("Text" as never).some((text) => {
-                    const children = text.props.children;
-                    return (
-                        Array.isArray(children) && children[0] === "Last sync "
-                    );
-                }),
+                summary
+                    .findAllByType("Text" as never)
+                    .some((text) => text.props.children === "Never synced"),
             ).toBe(true);
         },
     );

@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
+import { visibleBackupDestinations } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -39,7 +40,7 @@ import {
     type AdditionalKeyProtectionChoice,
     choiceToSource,
 } from "@/components/vault-manager/additional-key-protection-options";
-import { unlockedVaultMetadataAtom } from "@/utils/atoms";
+import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { vaultLog } from "@/utils/logging";
 import {
@@ -133,6 +134,9 @@ const KeyRotationOptions: React.FC<{
     onRotateDataKeyChange: (checked: boolean) => void;
     deleteOlderManagedBackups: boolean;
     onDeleteOlderManagedBackupsChange: (checked: boolean) => void;
+    /** Null when the vault has no backup destinations. */
+    deleteOlderDestinationBackups: boolean | null;
+    onDeleteOlderDestinationBackupsChange: (checked: boolean) => void;
     disabled: boolean;
 }> = ({
     idPrefix,
@@ -140,6 +144,8 @@ const KeyRotationOptions: React.FC<{
     onRotateDataKeyChange,
     deleteOlderManagedBackups,
     onDeleteOlderManagedBackupsChange,
+    deleteOlderDestinationBackups,
+    onDeleteOlderDestinationBackupsChange,
     disabled,
 }) => (
     <div className="space-y-3 rounded-md border p-3">
@@ -197,11 +203,38 @@ const KeyRotationOptions: React.FC<{
                 </span>
                 <span className="block text-xs text-muted-foreground">
                     If managed backups are enabled, all older restore points for
-                    this account—including linked-device snapshots—are deleted
+                    this account, including linked-device snapshots, are deleted
                     only after the new encrypted backup succeeds.
                 </span>
             </Label>
         </div>
+
+        {deleteOlderDestinationBackups != null && (
+            <div className="flex items-start gap-2">
+                <Checkbox
+                    id={`${idPrefix}-delete-old-destination-backups`}
+                    checked={deleteOlderDestinationBackups}
+                    onCheckedChange={(checked) =>
+                        onDeleteOlderDestinationBackupsChange(checked === true)
+                    }
+                    disabled={disabled}
+                />
+                <Label
+                    htmlFor={`${idPrefix}-delete-old-destination-backups`}
+                    className="space-y-1 font-normal"
+                >
+                    <span className="block font-medium">
+                        Delete older destination backups after replacement
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                        This device&apos;s older backups in your backup
+                        destinations are deleted only after the new encrypted
+                        backup uploads to each one. Other devices&apos; backups
+                        stay.
+                    </span>
+                </Label>
+            </div>
+        )}
     </div>
 );
 
@@ -242,6 +275,18 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         useState(false);
     const [deleteOldBackupsOnRecovery, setDeleteOldBackupsOnRecovery] =
         useState(false);
+    const [
+        deleteDestinationBackupsOnProtection,
+        setDeleteDestinationBackupsOnProtection,
+    ] = useState(false);
+    const [
+        deleteDestinationBackupsOnRecovery,
+        setDeleteDestinationBackupsOnRecovery,
+    ] = useState(false);
+    const hasBackupDestinations =
+        visibleBackupDestinations(
+            useAtomValue(unlockedVaultAtom).BackupDestinations ?? [],
+        ).length > 0;
     const [secretsAcknowledged, setSecretsAcknowledged] = useState(false);
 
     // Reset local state to the vault's current configuration whenever the
@@ -272,6 +317,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
         setDeleteOldBackupsOnProtection(false);
         setRotateDataKeyOnRecovery(false);
         setDeleteOldBackupsOnRecovery(false);
+        setDeleteDestinationBackupsOnProtection(false);
+        setDeleteDestinationBackupsOnRecovery(false);
         setSecretsAcknowledged(false);
     }, [open, currentKind, vaultMetadata]);
 
@@ -392,6 +439,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                 ),
                 rotateDataKey: rotateDataKeyOnProtection,
                 deleteOlderManagedBackups: deleteOldBackupsOnProtection,
+                deleteOlderDestinationBackups:
+                    deleteDestinationBackupsOnProtection,
             });
 
             clearCurrentAuthorization();
@@ -469,6 +518,8 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                     currentProtectionPhrase.trim() || undefined,
                 rotateDataKey: rotateDataKeyOnRecovery,
                 deleteOlderManagedBackups: deleteOldBackupsOnRecovery,
+                deleteOlderDestinationBackups:
+                    deleteDestinationBackupsOnRecovery,
             });
 
             clearCurrentAuthorization();
@@ -517,7 +568,7 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                     </DialogTitle>
                     <DialogDescription>
                         Change your master password, additional key protection,
-                        recovery code, and—optionally—this device&apos;s vault
+                        recovery code and, optionally, this device&apos;s vault
                         encryption key.
                     </DialogDescription>
                 </DialogHeader>
@@ -763,6 +814,14 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             onDeleteOlderManagedBackupsChange={
                                 setDeleteOldBackupsOnProtection
                             }
+                            deleteOlderDestinationBackups={
+                                hasBackupDestinations
+                                    ? deleteDestinationBackupsOnProtection
+                                    : null
+                            }
+                            onDeleteOlderDestinationBackupsChange={
+                                setDeleteDestinationBackupsOnProtection
+                            }
                             disabled={
                                 !isEnvelope || busy || hasUnacknowledgedSecrets
                             }
@@ -825,6 +884,14 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
                             }
                             onDeleteOlderManagedBackupsChange={
                                 setDeleteOldBackupsOnRecovery
+                            }
+                            deleteOlderDestinationBackups={
+                                hasBackupDestinations
+                                    ? deleteDestinationBackupsOnRecovery
+                                    : null
+                            }
+                            onDeleteOlderDestinationBackupsChange={
+                                setDeleteDestinationBackupsOnRecovery
                             }
                             disabled={
                                 !isEnvelope || busy || hasUnacknowledgedSecrets

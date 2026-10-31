@@ -1,5 +1,6 @@
 import { Tabs, Redirect } from "expo-router";
 import { useAtom, useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 import { useEffect } from "react";
 import { View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
@@ -35,6 +36,7 @@ function LockedNavIcon({
 
 /** Navigation for unlock, create, restore, and receive-link screens. */
 export default function LockedLayout() {
+    const { t } = useLingui();
     const unlocked = useAtomValue(isVaultUnlockedAtom);
     const adaptiveScreenOptions = useAdaptiveTabScreenOptions();
     const insets = useSafeAreaInsets();
@@ -93,8 +95,11 @@ export default function LockedLayout() {
                 <Tabs.Screen
                     name="unlock"
                     options={{
-                        title: "Unlock",
-                        tabBarAccessibilityLabel: "Unlock vault",
+                        title: t({
+                            message: "Unlock",
+                            comment: "Tab label on the locked screen",
+                        }),
+                        tabBarAccessibilityLabel: t`Unlock vault`,
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon
                                 icon={LockKeyhole}
@@ -106,8 +111,11 @@ export default function LockedLayout() {
                 <Tabs.Screen
                     name="create"
                     options={{
-                        title: "Create New",
-                        tabBarAccessibilityLabel: "Create new vault",
+                        title: t({
+                            message: "Create New",
+                            comment: "Tab label: create a new vault",
+                        }),
+                        tabBarAccessibilityLabel: t`Create new vault`,
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon icon={Plus} focused={focused} />
                         ),
@@ -116,8 +124,11 @@ export default function LockedLayout() {
                 <Tabs.Screen
                     name="restore"
                     options={{
-                        title: "Restore",
-                        tabBarAccessibilityLabel: "Restore backup",
+                        title: t({
+                            message: "Restore",
+                            comment: "Tab label: restore a backup",
+                        }),
+                        tabBarAccessibilityLabel: t`Restore backup`,
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon icon={RotateCcw} focused={focused} />
                         ),
@@ -126,8 +137,12 @@ export default function LockedLayout() {
                 <Tabs.Screen
                     name="link"
                     options={{
-                        title: "Use invitation",
-                        tabBarAccessibilityLabel: "Use invitation",
+                        title: t({
+                            message: "Use invitation",
+                            comment:
+                                "Tab label: link this device using an invitation",
+                        }),
+                        tabBarAccessibilityLabel: t`Use invitation`,
                         tabBarIcon: ({ focused }) => (
                             <LockedNavIcon icon={Link2} focused={focused} />
                         ),

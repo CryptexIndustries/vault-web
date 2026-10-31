@@ -40,6 +40,7 @@ const reconfigureRequest = {
     kdf: { memLimit: 64, opsLimit: 3 },
     rotateDataKey: true,
     deleteOlderManagedBackups: false,
+    deleteOlderDestinationBackups: true,
 };
 
 describe("extension vault-security request validation", () => {
@@ -52,6 +53,7 @@ describe("extension vault-security request validation", () => {
                 currentMasterPassword: "current",
                 rotateDataKey: false,
                 deleteOlderManagedBackups: true,
+                deleteOlderDestinationBackups: false,
             }),
         ).toEqual({
             ok: true,
@@ -59,6 +61,7 @@ describe("extension vault-security request validation", () => {
                 currentMasterPassword: "current",
                 rotateDataKey: false,
                 deleteOlderManagedBackups: true,
+                deleteOlderDestinationBackups: false,
             },
         });
     });
@@ -118,6 +121,7 @@ describe("extension vault-security service", () => {
             currentProtectionPhrase: "phrase",
             rotateDataKey: false,
             deleteOlderManagedBackups: false,
+            deleteOlderDestinationBackups: false,
         };
 
         const result = await rotateExtensionVaultRecoveryCode(

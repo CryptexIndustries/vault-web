@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t as translate } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import {
     ActivityIndicator,
     AppState,
@@ -60,10 +62,11 @@ function TurnstileChallengeDialog({
     onOpenChange,
     action,
     onToken,
-    title = "Verify you are human",
-    description = "Complete the challenge to continue. The verification token is used once and never stored.",
+    title,
+    description,
     placement = "center",
 }: TurnstileChallengeDialogProps) {
+    const { t } = useLingui();
     const [instanceNonce, setInstanceNonce] = useState("");
     const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
     const [status, setStatus] = useState<ChallengeStatus>("loading");
@@ -82,7 +85,7 @@ function TurnstileChallengeDialog({
             setBridgeUrl(null);
             setStatus("error");
             setErrorMessage(
-                "Turnstile bridge URL must be the app origin over HTTPS (http localhost allowed in development).",
+                translate`Turnstile bridge URL must be the app origin over HTTPS (http localhost allowed in development).`,
             );
             return;
         }
@@ -159,12 +162,12 @@ function TurnstileChallengeDialog({
             case "expired":
                 deliveredRef.current = false;
                 setStatus("expired");
-                setErrorMessage("Challenge expired. Retry to continue.");
+                setErrorMessage(t`Challenge expired. Retry to continue.`);
                 break;
             case "timeout":
                 deliveredRef.current = false;
                 setStatus("timeout");
-                setErrorMessage("Challenge timed out. Retry to continue.");
+                setErrorMessage(t`Challenge timed out. Retry to continue.`);
                 break;
         }
     };
@@ -194,8 +197,11 @@ function TurnstileChallengeDialog({
             placement={placement}
         >
             <DialogHeader>
-                <DialogTitle>{title}</DialogTitle>
-                <DialogDescription>{description}</DialogDescription>
+                <DialogTitle>{title ?? t`Verify you are human`}</DialogTitle>
+                <DialogDescription>
+                    {description ??
+                        t`Complete the challenge to continue. The verification token is used once and never stored.`}
+                </DialogDescription>
             </DialogHeader>
             <DialogContent className="gap-3">
                 {status === "loading" || status === "ready" ? (
@@ -204,12 +210,12 @@ function TurnstileChallengeDialog({
                             <>
                                 <ActivityIndicator color={colors.primary} />
                                 <Text className="text-sm text-muted-foreground">
-                                    Loading verification…
+                                    {t`Loading verification…`}
                                 </Text>
                             </>
                         ) : (
                             <Text className="text-sm text-muted-foreground">
-                                Complete the challenge below.
+                                {t`Complete the challenge below.`}
                             </Text>
                         )}
                     </View>
@@ -249,16 +255,16 @@ function TurnstileChallengeDialog({
                             onError={() => {
                                 setStatus("error");
                                 setErrorMessage(
-                                    "Could not load verification page.",
+                                    t`Could not load verification page.`,
                                 );
                             }}
                             onHttpError={() => {
                                 setStatus("error");
                                 setErrorMessage(
-                                    "Verification page returned an error.",
+                                    t`Verification page returned an error.`,
                                 );
                             }}
-                            accessibilityLabel="Cloudflare Turnstile verification"
+                            accessibilityLabel={t`Cloudflare Turnstile verification`}
                         />
                     </View>
                 ) : null}
@@ -269,14 +275,14 @@ function TurnstileChallengeDialog({
                     variant="secondary"
                     onPress={handleClose}
                 >
-                    Cancel
+                    {t`Cancel`}
                 </Button>
                 {showRetry ? (
                     <Button
                         className="h-[54px] min-h-[54px]"
                         onPress={resetChallenge}
                     >
-                        Retry
+                        {t`Retry`}
                     </Button>
                 ) : null}
             </DialogFooter>

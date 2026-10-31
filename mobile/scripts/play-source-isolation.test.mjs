@@ -50,6 +50,7 @@ async function metroConfig(
                             assetExts: ["wasm"],
                             sourceExts: ["js"],
                         },
+                        transformer: {},
                     }),
                 };
             if (name === "nativewind/metro")

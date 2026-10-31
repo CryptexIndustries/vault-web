@@ -524,6 +524,7 @@ test("actual SDK fingerprint stays compatible for JS/revision changes and reject
             "plugins",
             "modules/cryptex-android-credentials/android",
             "modules/cryptex-agent-service/android",
+            "modules/cryptex-app-locale/android",
             "config",
             "fdroid",
             "android/app/src/main/assets",

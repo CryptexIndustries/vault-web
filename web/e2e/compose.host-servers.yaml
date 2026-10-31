@@ -1,0 +1,10 @@
+# Publishes the signaling and TURN servers from compose.e2e.yaml on loopback,
+# for Playwright runs on the host. global-setup.ts starts and stops them.
+services:
+    signaling:
+        ports:
+            - "127.0.0.1:${E2E_SIGNALING_PORT:-6001}:6001"
+    turn:
+        ports:
+            - "127.0.0.1:${E2E_TURN_PORT:-3478}:3478/udp"
+            - "127.0.0.1:${E2E_TURN_PORT:-3478}:3478/tcp"

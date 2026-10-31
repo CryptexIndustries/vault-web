@@ -16,6 +16,10 @@ import {
     flushManagedBackupBeforeLock,
     stopManagedBackup,
 } from "@/app_lib/managed-backup-hooks";
+import {
+    flushBackupDestinationsBeforeLock,
+    stopBackupDestinations,
+} from "@/app_lib/backup-destination-hooks";
 
 type SetUnlockedVault = (
     vault: Vault | ((previous: Vault) => Vault | Promise<Vault>),
@@ -85,12 +89,16 @@ function lockVaultNow({
             return err(saveRes.error);
         }
 
-        await flushManagedBackupBeforeLock();
+        await Promise.all([
+            flushManagedBackupBeforeLock(),
+            flushBackupDestinationsBeforeLock(),
+        ]);
 
         try {
             syncConnectionController?.teardown();
             clearVaultDEKFromSession();
             stopManagedBackup();
+            stopBackupDestinations();
 
             await logoutOnlineServicesSession();
             setUnlockedVaultMetadata(null);

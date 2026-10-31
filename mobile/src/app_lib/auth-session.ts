@@ -1,4 +1,5 @@
 import { createTRPCClient } from "@trpc/client";
+import { t } from "@lingui/core/macro";
 import type { VersionedRouter } from "@cryptex-industries/api-contract";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import {
@@ -101,7 +102,7 @@ export function establishOnlineServicesSession(options: {
     privateKeyJWK: string;
 }): Promise<void> {
     if (!isCloudServicesEnabled())
-        return Promise.reject(new Error("Online Services are disabled."));
+        return Promise.reject(new Error(t`Online Services are disabled.`));
     const vaultGeneration = getVaultSessionGeneration();
     signedOutVaultGeneration = null;
     if (
@@ -122,7 +123,7 @@ export function establishOnlineServicesSession(options: {
                 options,
             );
             if (!isCurrent(epoch, vaultGeneration))
-                throw new Error("Online Services session changed.");
+                throw new Error(t`Online Services session changed.`);
             const previous = data();
             applyTokens(
                 {

@@ -3,7 +3,7 @@
 | Field                      | Value                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------- |
 | Product                    | Cryptex Vault Chromium Extension                                                          |
-| Updated                    | 21 October 2026                                                                           |
+| Updated                    | 28 October 2026                                                                           |
 | Audience                   | Engineering and security reviewers                                                        |
 | Status                     | Internal engineering review                                                               |
 | Risk owners and acceptance | Milivoj Bošnjak (8l4cksmith) owns every risk below; acceptance requires an assigned owner |
@@ -46,6 +46,8 @@ architecture docs under `extension/docs/`.
 | Clipboard                     | OS clipboard after copy actions                                                 | Credential field exposure                               |
 | One-time share link           | Popup memory and clipboard after the user copies it                             | Opens the share once                                    |
 | Share manage tokens, settings | Vault `ShareLinks` and `ShareSettings` (in `UV` while unlocked)                 | Revoke shares; use a self-hosted creation token         |
+| Backup destination keys       | Vault `BackupDestinations` (in `UV` while unlocked), synced and in every backup | Read, overwrite or delete bucket objects the key allows |
+| Backup device ID, marker key  | Vault `LinkedDevices` (device-local); marker HMAC in `chrome.storage.local`     | Folder name and change detection; no vault contents     |
 
 ## Trust boundaries
 
@@ -252,6 +254,53 @@ opens the share for whoever gets it first. Links on a custom server are only as
 trustworthy as that server's recipient page. See the
 [share server threat model](../../services/cmd/share-server/threat-model.md).
 
+### B7: Service worker and backup destination buckets
+
+**Trust assumption:** The bucket belongs to the user. Its provider stores
+ciphertext, sees request metadata and is not trusted with plaintext. The access
+key stored in the vault can do whatever the bucket policy allows.
+
+**Controls:**
+
+- The SW uploads the same encrypted `.cryx` a manual backup produces, using
+  native `fetch` (`credentials: "omit"`, no Online Services JWT) and SigV4. The
+  signed payload hash lets the provider reject a corrupted body
+- Endpoints must be `https://` origins with no path, user info, query or
+  fragment. Plain `http://` is accepted only for `localhost`, `127.0.0.1`,
+  `[::1]` and `10.0.2.2`
+- Object keys are `<prefix><destination ID>/<device ID>/<timestamp>.cryx`. The
+  prefix rejects `.` and `..` segments and control characters, the destination
+  ID is a ULID and the device ID is `extension-<ULID>`. Pruning lists only this
+  device's folder and deletes only keys in it that parse as backups
+- Pruning keeps every backup from the last 24 hours, the newest per UTC day for
+  30 days and the newest per UTC month for a year, unless the destination keeps
+  everything. A pruning run stops deleting once its session ends (lock or
+  another vault)
+- After a security change, "Delete older destination backups" uploads the
+  replacement first and deletes this device's other backups only after that
+  upload succeeds
+- Destination records go through popup-only SW messages
+  (`GetBackupDestinations`, `SaveBackupDestinations`, `BackupDestinationNow`)
+  that the SW validates with zod. Synced records merge by version: a removal is
+  final and erases the record's keys
+- The device ID and marker key live in `LinkedDevices`, which never syncs and
+  never goes into a backup. The per-destination state in
+  `chrome.storage.local` holds an HMAC of the vault keyed with the marker key,
+  so it reveals nothing about the contents without the vault
+
+**Residual:** The provider sees ciphertext size, upload times, device folder
+names and how many devices back up. Bucket keys sync to every linked device and
+are inside every backup, so a linked device, or anyone who opens a backup, can
+overwrite or delete whatever the key allows. A key without delete rights plus
+"Keep every backup" limits that. Backups made under an old master password stay
+in other devices' folders, and in this one unless the user chose to delete
+older destination backups. The production extension can still reach plain
+`http://` at the four local hosts, because its content scripts grant access to
+every site. A synced record can therefore send ciphertext, the access key ID
+and request signatures in the clear to whatever answers at `10.0.2.2` on the
+user's network. Only a linked device can add such a record, and it already
+holds the whole vault.
+
 ## Attacker models
 
 ### A1 — Malicious website (top frame, user has extension installed)
@@ -356,6 +405,9 @@ trustworthy as that server's recipient page. See the
 | Client-side share encryption        | Share server reading shared secrets       | `share-link.ts`, `share-service.ts`             |
 | Ticket audience check               | Tickets handed to a foreign share server  | `share-service.ts`                              |
 | Popup-only, validated share records | CS/link writes; malformed or hostile sync | `background/share-links.ts`, `share-records.ts` |
+| Device-folder-only pruning          | Deleting other devices' or foreign keys   | `backup-destination-transfers.ts`               |
+| Session-bound destination scheduler | Pruning after lock or vault switch        | `backup-destination-scheduler.ts`               |
+| Endpoint and prefix validation      | Plain http, key injection via prefix      | `backup-destinations.ts`                        |
 
 ## Residual risks (prioritized)
 
@@ -381,6 +433,9 @@ trustworthy as that server's recipient page. See the
 | P3       | Share link intercepted before the recipient         | Accepted          | One view; optional passphrase; sender sees "Opened"                                                | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Custom share server serves the recipient page       | Accepted          | Inherent to self-hosting; managed tickets never go to it                                           | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Synced share record names an attacker's server      | Accepted          | Only a linked device can add one, and it already holds the whole vault                             | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Backup destination keys sync and go into backups    | Accepted          | Linked devices can delete what the key allows; no delete rights plus Keep every backup limit it    | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Plain http to local hosts in production             | Accepted          | `10.0.2.2` and loopback stay allowed so emulators and local buckets work; see B7                   | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Old-password backups in destination folders         | Accepted          | Optional deletion covers this device's folder only; other devices keep theirs                      | Milivoj Bošnjak (8l4cksmith) |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    | Milivoj Bošnjak (8l4cksmith) |
 | P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      | Milivoj Bošnjak (8l4cksmith) |
 

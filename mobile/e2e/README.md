@@ -64,6 +64,7 @@ pnpm mobile:e2e -- devices
 pnpm mobile:e2e -- import-export
 pnpm mobile:e2e -- ssh-keys
 pnpm mobile:e2e -- ssh-agent
+pnpm mobile:e2e -- backup-destinations
 ```
 
 Maestro options can follow the suite, for example
@@ -85,6 +86,32 @@ publication release. It rebuilds `mobile/android/app/build/outputs/apk/e2e/app-e
 and leaves production APKs under `mobile/dist` untouched. The artifact audit checks
 a production APK built separately with `pnpm mobile:build`, or
 `pnpm mobile:build -- --unsigned` for reproduction.
+
+## Backup destinations suite
+
+`pnpm mobile:e2e -- backup-destinations` starts a throwaway Garage in Docker,
+makes a bucket with a read-write and a read-only key, and forwards Garage's
+https proxy to the device with `adb reverse`. The app reaches it at
+`https://127.0.0.1`; only E2E builds trust the proxy's test CA
+(`e2e/garage/tls/ca.pem`), so install a fresh E2E APK after it changes.
+Between the Maestro phases, the runner lists the bucket to check what the app
+uploaded or deleted.
+
+The phases add a destination (an http endpoint that isn't loopback and the
+read-only key both fail first) and upload after a vault change. Then a change
+waits to upload while the app is stopped, sent to the background or locked:
+the stopped one goes up after the next unlock, the other two at once. The
+suite then backs up on demand, pauses and resumes, changes the master
+password with key rotation and deletion of older backups, and removes the
+destination. A backup planted in another device's folder must survive the
+deletion. The restore phase opens this device's remaining backup in a clean
+installation with the read-only key; the old password fails and the new one
+opens it. The last phase plants the web and extension backups from
+`e2e/fixtures/backups/` in other devices' folders and restores each one.
+
+Uploads wait 30 seconds after a change, so the suite takes about 20 minutes. Set
+`E2E_GARAGE_PORT`, `E2E_GARAGE_ADMIN_PORT` and `E2E_GARAGE_TLS_PORT` if the
+default ports 3910, 3913 and 3943 are taken.
 
 ## Conventional autofill suite
 

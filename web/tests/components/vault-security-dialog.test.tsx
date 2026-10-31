@@ -157,6 +157,7 @@ describe("VaultSecurityDialog", () => {
             currentProtectionPhrase: undefined,
             rotateDataKey: true,
             deleteOlderManagedBackups: true,
+            deleteOlderDestinationBackups: false,
         });
         expect(
             (

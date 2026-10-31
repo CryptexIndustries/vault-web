@@ -814,6 +814,7 @@ describe("vault-envelope-ops re-keying", () => {
             ).toBe(true);
         });
 
+        // Migration derives two keys with the production Argon2 settings.
         it("migrates legacy bytes through envelope creation", async () => {
             const migrated = await migrateLegacyBlobToEnvelope(
                 PLAINTEXT,
@@ -824,7 +825,7 @@ describe("vault-envelope-ops re-keying", () => {
 
             expect(migrated.blob.Envelope?.Version).toBe(3);
             expect(migrated.recoveryCode).toBeTruthy();
-        });
+        }, 30_000);
 
         it("creates WebAuthn primary slots only when metadata is complete", async () => {
             const key = await importHkdfBaseKey(

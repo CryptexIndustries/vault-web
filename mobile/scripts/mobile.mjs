@@ -42,7 +42,7 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
-  pnpm mobile:check [-- lint | types | unit | cli | export]
+  pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
   pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
   pnpm mobile:install [-- --profile production|preprod] [--arch <abi>] --device <serial> [apk]
@@ -66,7 +66,9 @@ Pass the same --distribution to mobile:dev so Metro bundles the matching billing
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
-        ssh-keys, ssh-agent, sync, fixture, cloud-fixture, target, qr, crypto, crypto-audit, native
+        ssh-keys, ssh-agent, backup-destinations, sync, fixture, cloud-fixture, target, qr, crypto,
+        crypto-audit, native
+backup-destinations starts its own Garage in Docker (E2E_GARAGE_TLS_PORT, default 3943).
 Sync requires E2E_SYNC_SENDER, E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.
 CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 `;
@@ -335,12 +337,17 @@ export function runMobile(
     }
     if (command === "check") {
         const selection = args.shift();
-        const checks = ["lint", "types", "unit", "cli", "export"];
+        const checks = ["lint", "i18n", "types", "unit", "cli", "export"];
         if (selection && !checks.includes(selection))
             throw new Error(`Unknown check: ${selection}`);
         if (selection !== "unit") rejectArguments();
         for (const check of selection ? [selection] : checks) {
             if (check === "lint") exec(["oxlint"]);
+            if (check === "i18n") {
+                execute(process.execPath, ["scripts/check-i18n-literals.mjs"]);
+                exec(["lingui", "check", "sync"]);
+                exec(["lingui", "check", "missing", "--locale", "hr"]);
+            }
             if (check === "types") {
                 // The worker bundles aren't tracked; their imports need the files.
                 execute(process.execPath, ["scripts/build-workers.cjs"]);
@@ -518,6 +525,14 @@ export function runMobile(
     } else if (suite === "ssh-keys") {
         requireDevice();
         execute("bash", ["e2e/run-ssh-keys.sh", ...args], deviceEnv);
+    } else if (suite === "backup-destinations") {
+        rejectArguments();
+        requireDevice();
+        execute(
+            process.execPath,
+            ["e2e/run-backup-destinations.mjs"],
+            deviceEnv,
+        );
     } else if (suite === "ssh-agent") {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });

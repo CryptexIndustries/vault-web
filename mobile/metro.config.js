@@ -95,7 +95,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 config.resolver.assetExts = config.resolver.assetExts.filter(
     (ext) => ext !== "wasm",
 );
-config.resolver.sourceExts = [...config.resolver.sourceExts, "wasm"];
+config.resolver.sourceExts = [...config.resolver.sourceExts, "wasm", "po"];
+// Compiles the imported .po catalogs at bundle time.
+config.transformer.babelTransformerPath =
+    require.resolve("@lingui/metro-transformer/expo");
 
 // Generate the isolated workers from shared source whenever Metro starts.
 module.exports = require("./scripts/build-workers.cjs")

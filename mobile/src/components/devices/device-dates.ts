@@ -1,3 +1,6 @@
+import { i18n } from "@lingui/core";
+import { t } from "@lingui/core/macro";
+
 type DeviceDate = Date | string | number | null | undefined;
 
 function validDate(value: DeviceDate) {
@@ -8,8 +11,8 @@ function validDate(value: DeviceDate) {
 
 export function formatDeviceDateTime(value: DeviceDate, compact = false) {
     const date = validDate(value);
-    if (!date) return "Not available";
-    return date.toLocaleString(undefined, {
+    if (!date) return t`Not available`;
+    return date.toLocaleString(i18n.locale, {
         day: "2-digit",
         month: "short",
         year:
@@ -26,12 +29,19 @@ export function formatDeviceDateTime(value: DeviceDate, compact = false) {
 
 export function formatDeviceActivity(value: DeviceDate) {
     const date = validDate(value);
-    if (!date) return "Not available";
+    if (!date) return t`Not available`;
     const age = Math.max(0, Date.now() - date.getTime());
     if (age >= 86_400_000) return formatDeviceDateTime(date, true);
     const minutes = Math.floor(age / 60_000);
-    if (minutes < 1) return "Just now";
-    return minutes < 60
-        ? `${minutes}m ago`
-        : `${Math.floor(minutes / 60)}h ago`;
+    if (minutes < 1) return t`Just now`;
+    if (minutes < 60)
+        return t({
+            message: `${minutes}m ago`,
+            comment: "Short: minutes since a device was last active",
+        });
+    const hours = Math.floor(minutes / 60);
+    return t({
+        message: `${hours}h ago`,
+        comment: "Short: hours since a device was last active",
+    });
 }

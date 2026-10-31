@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { useLingui } from "@lingui/react/macro";
 
 import { ConnectivityPanel } from "@/components/devices/connectivity-panel";
 import { InlineNotice } from "@/components/inline-notice";
@@ -11,6 +12,7 @@ import {
 import { unlockedVaultAtom } from "@/utils/atoms";
 
 export default function SignalingServerEditorScreen() {
+    const { t } = useLingui();
     const { id } = useLocalSearchParams<{ id: string }>();
     const vault = useAtomValue(unlockedVaultAtom);
     const [deletingServerId, setDeletingServerId] = useState<string | null>(
@@ -21,7 +23,7 @@ export default function SignalingServerEditorScreen() {
         id === "new" ||
         vault.LinkedDevices.SignalingServers.some((server) => server.ID === id);
     return (
-        <UnlockedTaskScreen title="Signaling servers">
+        <UnlockedTaskScreen title={t`Signaling servers`}>
             {/* A local deletion publishes the vault before the editor finishes navigating. */}
             {exists || deletingServerId === id ? (
                 <ConnectivityPanel
@@ -40,10 +42,10 @@ export default function SignalingServerEditorScreen() {
                 <>
                     <InlineNotice
                         tone="info"
-                        message="This signaling server no longer exists."
+                        message={t`This signaling server no longer exists.`}
                     />
                     <Button className="mt-6" onPress={() => router.back()}>
-                        Back to signaling servers
+                        {t`Back to signaling servers`}
                     </Button>
                 </>
             )}

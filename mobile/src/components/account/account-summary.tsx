@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     UnlockedButton as Button,
@@ -68,13 +70,13 @@ type AccountSummaryProps = {
     onPendingChange: (pending: boolean) => void;
 };
 
-function formatAccountDate(value?: Date | string | null) {
+function formatAccountDate(locale: string, value?: Date | string | null) {
     if (!value) return null;
     const date = new Date(value);
     // Numeric dates read differently across regions.
     return Number.isNaN(date.getTime())
         ? null
-        : date.toLocaleDateString("en-US", {
+        : date.toLocaleDateString(locale, {
               month: "long",
               day: "numeric",
               year: "numeric",
@@ -149,6 +151,7 @@ export function AccountSummary({
     pendingConfirmation,
     onPendingChange,
 }: AccountSummaryProps) {
+    const { t, i18n } = useLingui();
     const billingInFlight = useRef(false);
     const accountScope = `${userId ?? ""}:${deviceId ?? ""}`;
     const accountScopeRef = useRef(accountScope);
@@ -175,49 +178,59 @@ export function AccountSummary({
             ? linkedDeviceLimit != null &&
               Number.isFinite(linkedDeviceLimit) &&
               linkedDeviceLimit > 0
-                ? `${linkedDeviceCount} of ${linkedDeviceLimit} linked devices`
-                : `${linkedDeviceCount} linked device${linkedDeviceCount === 1 ? "" : "s"}`
-            : "Usage unavailable";
+                ? plural(linkedDeviceLimit, {
+                      one: `${linkedDeviceCount} of # linked devices`,
+                      other: `${linkedDeviceCount} of # linked devices`,
+                  })
+                : plural(linkedDeviceCount, {
+                      one: "# linked device",
+                      other: "# linked devices",
+                  })
+            : t`Usage unavailable`;
     const trialing = subscriptionStatus.toLowerCase() === "trialing";
     const billingDateLabel = subscription?.cancelAtPeriodEnd
         ? trialing
-            ? "Access ends"
-            : "Expires"
+            ? t`Access ends`
+            : t`Expires`
         : trialing
-          ? "Trial ends"
-          : "Renews";
+          ? t`Trial ends`
+          : t`Renews`;
     const management = billingManagement(subscription?.provider);
     const canManageBilling =
         hasSession && !!subscription?.nonFree && management !== null;
     const billedElsewhere =
         hasSession && !!subscription?.nonFree && management === null
             ? subscription.provider === "app_store"
-                ? "Billed through the App Store"
-                : "Billed outside Google Play"
+                ? t`Billed through the App Store`
+                : t`Billed outside Google Play`
             : null;
     const managementCaption =
         management === "google_play"
-            ? "Manage or cancel in Google Play Subscriptions"
-            : "Billing opens in your browser";
+            ? t`Manage or cancel in Google Play Subscriptions`
+            : t`Billing opens in your browser`;
+    const managementNote =
+        management === "google_play"
+            ? t`Manage or cancel in Google Play Subscriptions. Your membership updates when you return.`
+            : t`Billing opens in your browser. Your membership updates when you return.`;
     const canUpgrade =
         hasSession && subscription?.nonFree === false && !pending;
     const displayTierName = subscription
         ? subscription.nonFree
             ? "Online Services"
-            : "Free"
+            : t({ message: "Free", comment: "Membership tier name" })
         : formatDisplayName(tierName);
     const status = subscriptionStatus.toLowerCase();
     const billingWarning =
         status === "past_due" || status === "unpaid"
-            ? "Your payment needs attention. Open Manage billing to review it."
+            ? t`Your payment needs attention. Open Manage billing to review it.`
             : status === "canceled" || status === "cancelled"
-              ? "Your subscription has ended."
+              ? t`Your subscription has ended.`
               : status === "paused"
-                ? "Your subscription is paused."
+                ? t`Your subscription is paused.`
                 : trialing
                   ? subscription?.cancelAtPeriodEnd
-                      ? "Free trial canceled. You won't be charged."
-                      : "Free trial. You'll be charged when it ends unless you cancel before then."
+                      ? t`Free trial canceled. You won't be charged.`
+                      : t`Free trial. You'll be charged when it ends unless you cancel before then.`
                   : null;
 
     const handleBilling = async (
@@ -261,7 +274,7 @@ export function AccountSummary({
                         "retryable" in result && result.retryable === false
                             ? undefined
                             : {
-                                  label: "Retry",
+                                  label: t`Retry`,
                                   onPress: () => {
                                       if (isCurrent())
                                           return handleBillingRef.current(
@@ -281,8 +294,8 @@ export function AccountSummary({
             }
         } catch {
             if (isCurrent())
-                onMessage("Could not complete billing. Please try again.", {
-                    label: "Retry",
+                onMessage(t`Could not complete billing. Please try again.`, {
+                    label: t`Retry`,
                     onPress: () => {
                         if (isCurrent())
                             return handleBillingRef.current(operation);
@@ -308,7 +321,7 @@ export function AccountSummary({
                         disabled={refreshing}
                         onPress={() => void handleBilling("restore")}
                     >
-                        Restore Google Play purchases
+                        {t`Restore Google Play purchases`}
                     </Button>
                 ) : null}
                 {!subscription?.nonFree ? (
@@ -317,14 +330,22 @@ export function AccountSummary({
                         disabled={billingBusy || refreshing}
                         onPress={() => void handleBilling()}
                     >
-                        Manage Google Play subscriptions
+                        {t`Manage Google Play subscriptions`}
                     </Button>
                 ) : null}
             </View>
         ) : null;
     const billingDate = formatAccountDate(
+        i18n.locale,
         (trialing && subscription?.trialEndsAt) || subscription?.expiresAt,
     );
+    const billingDateLine = subscription?.cancelAtPeriodEnd
+        ? trialing
+            ? t`Access ends ${billingDate}`
+            : t`Expires ${billingDate}`
+        : trialing
+          ? t`Trial ends ${billingDate}`
+          : t`Renews ${billingDate}`;
 
     if (mode === "overview") {
         return (
@@ -340,8 +361,8 @@ export function AccountSummary({
                     accessibilityRole="button"
                     accessibilityLabel={
                         subscription
-                            ? `${displayTierName} membership, view details`
-                            : "View membership details"
+                            ? t`${displayTierName} membership, view details`
+                            : t`View membership details`
                     }
                     onPress={onOpenMembership}
                     android_ripple={{ color: colors.border }}
@@ -363,8 +384,8 @@ export function AccountSummary({
                                 }}
                             >
                                 {!hasSession && subscription
-                                    ? "LAST KNOWN MEMBERSHIP"
-                                    : "CURRENT MEMBERSHIP"}
+                                    ? t`LAST KNOWN MEMBERSHIP`
+                                    : t`CURRENT MEMBERSHIP`}
                             </Text>
                             <Text
                                 style={{
@@ -378,10 +399,10 @@ export function AccountSummary({
                                 {subscription
                                     ? displayTierName
                                     : refreshing
-                                      ? "Loading membership…"
+                                      ? t`Loading membership…`
                                       : hasSession
-                                        ? "Membership unavailable"
-                                        : "Reconnect to view membership"}
+                                        ? t`Membership unavailable`
+                                        : t`Reconnect to view membership`}
                             </Text>
                         </View>
                         {!subscription && refreshing ? (
@@ -409,7 +430,7 @@ export function AccountSummary({
                                         lineHeight: 18,
                                     }}
                                 >
-                                    {billingDateLabel} {billingDate}
+                                    {billingDateLine}
                                 </Text>
                             ) : null}
                         </View>
@@ -429,8 +450,8 @@ export function AccountSummary({
                             }
                         >
                             {canUpgrade
-                                ? "Upgrade membership"
-                                : "Manage billing"}
+                                ? t`Upgrade membership`
+                                : t`Manage billing`}
                         </Button>
                         {canManageBilling ? (
                             <Text
@@ -463,7 +484,7 @@ export function AccountSummary({
                         className="mt-3"
                         onPress={onOpenMembership}
                     >
-                        View membership
+                        {t`View membership`}
                     </Button>
                 ) : null}
             </View>
@@ -473,35 +494,51 @@ export function AccountSummary({
     if (mode === "details") {
         return (
             <View>
-                <Detail label="User ID" value={userId ?? "Unavailable"} mono />
+                <Detail
+                    label={t`User ID`}
+                    value={
+                        userId ??
+                        t({
+                            message: "Unavailable",
+                            comment: "Missing ID value",
+                        })
+                    }
+                    mono
+                />
                 {userId ? (
                     <Button
                         className="my-4"
                         variant="secondary"
                         onPress={() => void copyTextToClipboard(userId)}
                     >
-                        Copy user ID
+                        {t`Copy user ID`}
                     </Button>
                 ) : null}
                 <Detail
-                    label="Device ID"
-                    value={deviceId ?? "Unavailable"}
+                    label={t`Device ID`}
+                    value={
+                        deviceId ??
+                        t({
+                            message: "Unavailable",
+                            comment: "Missing ID value",
+                        })
+                    }
                     mono
                 />
                 <Detail
-                    label="Account role"
+                    label={t`Account role`}
                     value={
                         remoteConfig?.root
-                            ? "Administrator device"
-                            : "Member device"
+                            ? t`Administrator device`
+                            : t`Member device`
                     }
                 />
                 <Detail
-                    label="This vault"
+                    label={t`This vault`}
                     value={
                         onlineServicesBound
-                            ? "Connected to Online Services"
-                            : "Not connected"
+                            ? t`Connected to Online Services`
+                            : t`Not connected`
                     }
                 />
                 <View
@@ -519,8 +556,7 @@ export function AccountSummary({
                             lineHeight: 18,
                         }}
                     >
-                        Your User ID and account recovery phrase are both needed
-                        to recover your Online Services account.
+                        {t`Your User ID and account recovery phrase are both needed to recover your Online Services account.`}
                     </Text>
                 </View>
             </View>
@@ -538,10 +574,10 @@ export function AccountSummary({
                     }}
                 >
                     {refreshing
-                        ? "Loading membership…"
+                        ? t`Loading membership…`
                         : hasSession
-                          ? "Membership unavailable."
-                          : "Reconnect to view your membership details."}
+                          ? t`Membership unavailable.`
+                          : t`Reconnect to view your membership details.`}
                 </Text>
                 {restoreButton}
                 {!hasSession ? (
@@ -550,7 +586,10 @@ export function AccountSummary({
                         loading={refreshing}
                         onPress={onRefresh}
                     >
-                        Reconnect
+                        {t({
+                            message: "Reconnect",
+                            comment: "Button: reconnect to Online Services",
+                        })}
                     </Button>
                 ) : null}
             </View>
@@ -585,11 +624,11 @@ export function AccountSummary({
                     }}
                 >
                     {subscription.nonFree
-                        ? "Managed services for your connected devices."
-                        : "Your vault essentials, free forever."}
+                        ? t`Managed services for your connected devices.`
+                        : t`Your vault essentials, free forever.`}
                 </Text>
             </View>
-            <Detail label="Usage" value={usage} />
+            <Detail label={t`Usage`} value={usage} />
             {subscription.nonFree && billingDate !== null ? (
                 <Detail label={billingDateLabel} value={billingDate} />
             ) : null}
@@ -617,7 +656,7 @@ export function AccountSummary({
                                 : () => void handleBilling()
                         }
                     >
-                        {canUpgrade ? "Upgrade" : "Manage billing"}
+                        {canUpgrade ? t`Upgrade` : t`Manage billing`}
                     </Button>
                     {canManageBilling ? (
                         <Text
@@ -628,8 +667,7 @@ export function AccountSummary({
                                 textAlign: "center",
                             }}
                         >
-                            {managementCaption}. Your membership updates when
-                            you return.
+                            {managementNote}
                         </Text>
                     ) : null}
                 </View>

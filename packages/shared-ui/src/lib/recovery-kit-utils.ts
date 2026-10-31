@@ -57,9 +57,33 @@ function escapeHtml(value: string): string {
         .replaceAll("'", "&#39;");
 }
 
+/** The printed kit's wording. `warning` may use <strong> tags; everything else is escaped. */
+export type RecoveryKitPrintText = {
+    lang: string;
+    title: string;
+    generated: string;
+    warning: string;
+    userIdLabel: string;
+    recoveryPhraseLabel: string;
+    footer: string;
+};
+
+const englishPrintText = (): RecoveryKitPrintText => ({
+    lang: "en",
+    title: "Cryptex Vault Recovery Kit",
+    generated: `Generated ${new Date().toLocaleString()}`,
+    warning: `<strong>Important:</strong> Store this document offline in a safe place.
+    Account recovery requires <strong>both</strong> your User ID and recovery phrase.
+    Cryptex Vault shows this once and cannot retrieve it for you later.`,
+    userIdLabel: "User ID",
+    recoveryPhraseLabel: "Recovery phrase",
+    footer: "Do not store in cloud drives, email, or password managers tied to this account.",
+});
+
 export function buildRecoveryKitPrintHtml(
     userId: string,
     recoveryPhrase: string,
+    text: RecoveryKitPrintText = englishPrintText(),
 ): string {
     const words = splitRecoveryPhrase(recoveryPhrase);
     const wordGrid = words
@@ -70,10 +94,10 @@ export function buildRecoveryKitPrintHtml(
         .join("");
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(text.lang)}">
 <head>
   <meta charset="utf-8" />
-  <title>Cryptex Vault Recovery Kit</title>
+  <title>${escapeHtml(text.title)}</title>
   <style>
     html, body { margin: 0; padding: 0; min-height: 100%; }
     body {
@@ -150,19 +174,17 @@ export function buildRecoveryKitPrintHtml(
 </head>
 <body>
   <main class="kit">
-  <h1>Cryptex Vault Recovery Kit</h1>
-  <p class="meta">Generated ${escapeHtml(new Date().toLocaleString())}</p>
+  <h1>${escapeHtml(text.title)}</h1>
+  <p class="meta">${escapeHtml(text.generated)}</p>
   <div class="warn">
-    <strong>Important:</strong> Store this document offline in a safe place.
-    Account recovery requires <strong>both</strong> your User ID and recovery phrase.
-    Cryptex Vault shows this once and cannot retrieve it for you later.
+    ${escapeHtml(text.warning).replaceAll("&lt;strong&gt;", "<strong>").replaceAll("&lt;/strong&gt;", "</strong>")}
   </div>
-  <label>User ID</label>
+  <label>${escapeHtml(text.userIdLabel)}</label>
   <div class="userid">${escapeHtml(userId)}</div>
-  <label>Recovery phrase</label>
+  <label>${escapeHtml(text.recoveryPhraseLabel)}</label>
   <ol class="words">${wordGrid}</ol>
   <footer>
-    Do not store in cloud drives, email, or password managers tied to this account.
+    ${escapeHtml(text.footer)}
   </footer>
   </main>
 </body>

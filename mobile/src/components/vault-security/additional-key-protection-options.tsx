@@ -1,4 +1,7 @@
 import { Pressable, View } from "react-native";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import type { AdditionalKeyProtectionSource } from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
@@ -51,13 +54,13 @@ export function describeKind(
 ): string {
     switch (kind) {
         case AdditionalKeyProtectionKind.PROTECTION_PHRASE_128:
-            return "Generated protection phrase (128-bit)";
+            return t`Generated protection phrase (128-bit)`;
         case AdditionalKeyProtectionKind.PROTECTION_PHRASE_256:
-            return "Generated protection phrase (256-bit)";
+            return t`Generated protection phrase (256-bit)`;
         case AdditionalKeyProtectionKind.WEBAUTHN_PRF:
-            return "Security key (WebAuthn PRF)";
+            return t`Security key (WebAuthn PRF)`;
         default:
-            return "No additional key protection";
+            return t`No additional key protection`;
     }
 }
 
@@ -79,22 +82,22 @@ type Props = {
 
 const OPTIONS: {
     id: AdditionalKeyProtectionChoice;
-    label: string;
+    label: MessageDescriptor;
     enabled: boolean;
 }[] = [
     {
         id: "none",
-        label: "No additional key protection",
+        label: msg`No additional key protection`,
         enabled: true,
     },
     {
         id: "protectionPhrase128",
-        label: "Generated protection phrase (128-bit)",
+        label: msg`Generated protection phrase (128-bit)`,
         enabled: true,
     },
     {
         id: "protectionPhrase256",
-        label: "Generated protection phrase (256-bit)",
+        label: msg`Generated protection phrase (256-bit)`,
         enabled: true,
     },
 ];
@@ -105,6 +108,7 @@ export function AdditionalKeyProtectionOptions({
     disabled,
     unlocked = false,
 }: Props) {
+    const { t } = useLingui();
     const ChoiceButton = unlocked ? UnlockedButton : Button;
     const Copy = unlocked ? UnlockedText : Text;
     if (unlocked) {
@@ -114,10 +118,10 @@ export function AdditionalKeyProtectionOptions({
                     const selected = value === opt.id;
                     const label =
                         opt.id === "none"
-                            ? opt.label
+                            ? t(opt.label)
                             : opt.id === "protectionPhrase128"
-                              ? "Generated phrase (128-bit)"
-                              : "Generated phrase (256-bit)";
+                              ? t`Generated phrase (128-bit)`
+                              : t`Generated phrase (256-bit)`;
                     return (
                         <Pressable
                             key={opt.id}
@@ -174,7 +178,7 @@ export function AdditionalKeyProtectionOptions({
     return (
         <View className="gap-2">
             <Copy className="font-medium text-sm text-foreground">
-                Additional key protection
+                {t`Additional key protection`}
             </Copy>
             <View className="flex-row flex-wrap gap-2">
                 {OPTIONS.map((opt) => (
@@ -192,14 +196,12 @@ export function AdditionalKeyProtectionOptions({
                             disabled: disabled || !opt.enabled,
                         }}
                     >
-                        {opt.label}
+                        {t(opt.label)}
                     </ChoiceButton>
                 ))}
             </View>
             <Copy className="text-xs text-muted-foreground">
-                Your master password is always required. A generated protection
-                phrase adds another secret and is shown once during setup. Store
-                it separately; you will need it when restoring on a new device.
+                {t`Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device.`}
             </Copy>
         </View>
     );

@@ -465,13 +465,13 @@ test("release verification selects the intended application identity and an expl
     assertProductionManifest(preprod, { profile: "preprod" });
     assert.throws(() => assertProductionManifest(preprod), /profile ID/);
     const bumped = manifest
-        .replace(`="${appConfig.version}"`, '="0.5.0"')
+        .replace(`="${appConfig.version}"`, '="0.6.0"')
         .replace(
             `versionCode(0x0101021b)=${appVersionCode}`,
             `versionCode(0x0101021b)=${appVersionCode + 1}`,
         );
     assertProductionManifest(bumped, {
-        version: { name: "0.5.0", code: appVersionCode + 1 },
+        version: { name: "0.6.0", code: appVersionCode + 1 },
     });
     assert.throws(() => assertProductionManifest(bumped), /version/);
 });

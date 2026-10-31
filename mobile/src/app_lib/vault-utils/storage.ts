@@ -208,6 +208,11 @@ export async function listVaults(): Promise<VaultMetadata[]> {
     return vaults;
 }
 
+/** Synchronous `listVaults().length > 0`, for picking the first screen. */
+export function hasSavedVaults(): boolean {
+    return readVaultIds().some((id) => mmkv.contains(vaultDataKey(id)));
+}
+
 export class VaultMetadata implements VaultUtilTypes.VaultMetadata {
     public Version: number;
     public DBIndex?: number;

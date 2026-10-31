@@ -1,3 +1,4 @@
+import { t } from "@lingui/core/macro";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { err, ok, type Result } from "neverthrow";
@@ -78,7 +79,7 @@ async function readDeviceWrapKey(
 ): Promise<CryptoKey | null> {
     const existing = await SecureStore.getItemAsync(storage.wrapKey, {
         requireAuthentication: true,
-        authenticationPrompt: "Authenticate to access vault unlock key",
+        authenticationPrompt: t`Authenticate to access vault unlock key`,
         ...storage.options,
     });
 
@@ -109,7 +110,7 @@ async function createDeviceWrapKey(
     try {
         await SecureStore.setItemAsync(storage.wrapKey, uint8ToBase64(raw), {
             requireAuthentication: true,
-            authenticationPrompt: "Authenticate to enable biometric unlock",
+            authenticationPrompt: t`Authenticate to enable biometric unlock`,
             ...storage.options,
         });
         return await crypto.subtle.importKey(

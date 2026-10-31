@@ -1,0 +1,15 @@
+appId: ${CRYPTEX_APP_ID}
+name: Restore backups the web app and the extension made
+---
+- runFlow: backup-destinations-find.yaml
+- runFlow:
+      file: backup-destinations-restore-fixture.yaml
+      env:
+          BACKUP: .*\(Web app BBBBBB\)
+          LOGIN_NAME: Web Fixture Login
+- runFlow: backup-destinations-find.yaml
+- runFlow:
+      file: backup-destinations-restore-fixture.yaml
+      env:
+          BACKUP: .*\(Browser extension CCCCCC\)
+          LOGIN_NAME: Extension Fixture Login

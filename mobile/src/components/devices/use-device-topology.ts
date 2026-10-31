@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     LinkedDevices,
@@ -29,6 +30,7 @@ import {
 } from "@/utils/vault-session";
 
 export function useDeviceTopology() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const session = useAtomValue(onlineServicesDataAtom, {
         store: onlineServicesStore,
@@ -50,6 +52,8 @@ export function useDeviceTopology() {
     const topology = trpcReact.v1.device.topology.useQuery(undefined, {
         enabled: isRoot,
     });
+    const currentName = t`This device`;
+    const unnamedName = t`Unnamed linked device`;
     const map = useMemo(
         () =>
             buildDeviceRelationshipMap(
@@ -60,6 +64,7 @@ export function useDeviceTopology() {
                 deviceId,
                 {
                     currentRoot: isRoot,
+                    names: { current: currentName, unnamed: unnamedName },
                     topologyVerified:
                         isRoot &&
                         config.isSuccess &&
@@ -81,6 +86,8 @@ export function useDeviceTopology() {
             topology.isError,
             topology.isFetching,
             vault.LinkedDevices?.Devices,
+            currentName,
+            unnamedName,
         ],
     );
     const remove = trpcReact.v1.device.remove.useMutation();
@@ -99,7 +106,7 @@ export function useDeviceTopology() {
                 deviceId
         ) {
             throw new Error(
-                "The vault session changed. Unlock the vault and try again.",
+                t`The vault session changed. Unlock the vault and try again.`,
             );
         }
     }
@@ -108,7 +115,7 @@ export function useDeviceTopology() {
         action: (generation: number) => Promise<T>,
     ): Promise<T> {
         if (pending.current)
-            throw new Error("A device update is already in progress.");
+            throw new Error(t`A device update is already in progress.`);
         const generation = getVaultSessionGeneration();
         assertSession(generation);
         pending.current = true;
@@ -137,7 +144,7 @@ export function useDeviceTopology() {
                 assertSession(generation);
                 if (!result.data || result.data.deviceId !== deviceId) {
                     throw new Error(
-                        "Account information does not match this device. Sign in again.",
+                        t`Account information does not match this device. Sign in again.`,
                     );
                 }
                 if (result.data.root) {
@@ -149,7 +156,7 @@ export function useDeviceTopology() {
             setActionError(
                 error instanceof Error
                     ? error.message
-                    : "Could not refresh devices.",
+                    : t`Could not refresh devices.`,
             );
         }
     }
@@ -157,12 +164,12 @@ export function useDeviceTopology() {
     function requireAccountDevice(id: string) {
         if (!isRoot || !map.topologyVerified) {
             throw new Error(
-                "Refresh device information from a root device before changing account access.",
+                t`Refresh device information from a root device before changing account access.`,
             );
         }
         const node = map.nodes.find((entry) => entry.serverId === id);
         if (!node)
-            throw new Error("This account device is no longer available.");
+            throw new Error(t`This account device is no longer available.`);
         return node;
     }
 
@@ -173,12 +180,12 @@ export function useDeviceTopology() {
     ) {
         const outcome =
             completed === "device-removed"
-                ? "Account device removed."
-                : "Account connection unlinked.";
+                ? t`Account device removed.`
+                : t`Account connection unlinked.`;
         const cleanupMessage =
             completed === "device-removed"
-                ? "Remove its remaining saved links from device details."
-                : "Forget its remaining saved link from connection details.";
+                ? t`Remove its remaining saved links from device details.`
+                : t`Forget its remaining saved link from connection details.`;
         let localCleanupRequired = localIds.length > 0;
         let cleanupFailed = false;
         try {
@@ -199,7 +206,7 @@ export function useDeviceTopology() {
                 ? cleanupMessage
                 : error instanceof Error
                   ? error.message
-                  : "Account data could not be refreshed. Refresh devices to verify the change.";
+                  : t`Account data could not be refreshed. Refresh devices to verify the change.`;
             throw new DeviceActionError(
                 `${outcome} ${reason}`,
                 completed,
@@ -219,7 +226,7 @@ export function useDeviceTopology() {
             const node = requireAccountDevice(id);
             if (node.current || node.root) {
                 throw new Error(
-                    "Only another device without root access can be removed.",
+                    t`Only another device without root access can be removed.`,
                 );
             }
             const syncIds = new Set(
@@ -253,7 +260,7 @@ export function useDeviceTopology() {
         await run(async (generation) => {
             if (!isRoot || !map.topologyVerified) {
                 throw new Error(
-                    "Refresh device information from a root device before changing account connections.",
+                    t`Refresh device information from a root device before changing account connections.`,
                 );
             }
             const relationship = map.relationships.find(
@@ -261,7 +268,7 @@ export function useDeviceTopology() {
             );
             if (!relationship?.recordedOnServer || !relationship.syncId) {
                 throw new Error(
-                    "This account connection is no longer available. Refresh devices before unlinking.",
+                    t`This account connection is no longer available. Refresh devices before unlinking.`,
                 );
             }
             // Capture the records before invalidating topology. A custom signaling
@@ -289,9 +296,13 @@ export function useDeviceTopology() {
         await run(async (generation) => {
             const node = requireAccountDevice(id);
             if (!canPromote)
-                throw new Error("This account cannot change root permissions.");
+                throw new Error(
+                    t`This account cannot change root permissions.`,
+                );
             if (!root && node.root && map.rootCount <= 1) {
-                throw new Error("At least one device must retain root access.");
+                throw new Error(
+                    t`At least one device must retain root access.`,
+                );
             }
             if (root === node.root) return;
             await setRoot.mutateAsync({ id, root });
@@ -305,7 +316,7 @@ export function useDeviceTopology() {
                 assertSession(generation);
             } catch {
                 throw new Error(
-                    "Root access changed, but account information could not be refreshed. Refresh to verify the current permissions.",
+                    t`Root access changed, but account information could not be refreshed. Refresh to verify the current permissions.`,
                 );
             }
         });
@@ -314,9 +325,9 @@ export function useDeviceTopology() {
     const error =
         actionError ??
         (hasSession && config.isError
-            ? "Could not load account permissions. Refresh to try again."
+            ? t`Could not load account permissions. Refresh to try again.`
             : isRoot && topology.isError
-              ? "Could not load account devices. Saved links are still available."
+              ? t`Could not load account devices. Saved links are still available.`
               : null);
 
     return {

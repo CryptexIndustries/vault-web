@@ -1,0 +1,81 @@
+appId: ${CRYPTEX_APP_ID}
+# Opens a clean installation's restore screen and lists the bucket's backups
+# with the read-only key, which is all restoring needs.
+---
+- clearState
+- launchApp
+- assertVisible: Vault name
+- tapOn: Restore backup
+- runFlow:
+      when:
+          notVisible: Your own storage
+      commands:
+          - tapOn: Restore backup
+- tapOn: Your own storage
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-Endpoint
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-Endpoint
+- inputText: ${S3_ENDPOINT}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-Bucket
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-Bucket
+- inputText: ${S3_BUCKET}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-Region
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-Region
+- inputText: garage
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-Prefix
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-Prefix
+- inputText: ${S3_PREFIX}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-PathStyle
+      direction: DOWN
+# The first tap can land while the keyboard closes; tap until it's on.
+- retry:
+      maxRetries: 2
+      commands:
+          - tapOn:
+                id: restore-bucket-PathStyle
+          - assertVisible:
+                id: restore-bucket-PathStyle
+                checked: true
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-AccessKeyID
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-AccessKeyID
+- inputText: ${S3_RO_KEY_ID}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-SecretAccessKey
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-SecretAccessKey
+- inputText: ${S3_RO_SECRET}
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-bucket-find
+      direction: DOWN
+- tapOn:
+      id: restore-bucket-find

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Tabs } from "expo-router";
+import { useLingui } from "@lingui/react/macro";
 
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { UnlockedTabBar } from "@/components/unlocked/unlocked-ui";
@@ -7,6 +8,11 @@ import { AddItemSheet } from "@/components/vault/add-item-sheet";
 import { colors } from "@/theme";
 
 export default function UnlockedTabsLayout() {
+    const { t } = useLingui();
+    const more = t({
+        message: "More",
+        comment: "Tab name for settings and other options",
+    });
     const reducedMotion = useReducedMotion();
     const [addDirectoryId, setAddDirectoryId] = useState<string | null>(null);
 
@@ -35,29 +41,29 @@ export default function UnlockedTabsLayout() {
                 <Tabs.Screen
                     name="vault"
                     options={{
-                        title: "Vault",
-                        tabBarAccessibilityLabel: "Vault",
+                        title: t`Vault`,
+                        tabBarAccessibilityLabel: t`Vault`,
                     }}
                 />
                 <Tabs.Screen
                     name="account"
                     options={{
-                        title: "Account",
-                        tabBarAccessibilityLabel: "Account",
+                        title: t`Account`,
+                        tabBarAccessibilityLabel: t`Account`,
                     }}
                 />
                 <Tabs.Screen
                     name="devices"
                     options={{
-                        title: "Devices",
-                        tabBarAccessibilityLabel: "Devices",
+                        title: t`Devices`,
+                        tabBarAccessibilityLabel: t`Devices`,
                     }}
                 />
                 <Tabs.Screen
                     name="settings"
                     options={{
-                        title: "More",
-                        tabBarAccessibilityLabel: "More",
+                        title: more,
+                        tabBarAccessibilityLabel: more,
                     }}
                 />
             </Tabs>

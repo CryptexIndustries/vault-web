@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
@@ -19,23 +20,28 @@ export function KdfBelowRecommendedAck({
     acknowledged,
     onAcknowledgedChange,
 }: Props) {
+    const { t } = useLingui();
     if (!isBelowOwaspRecommendedArgon2id(memLimit, opsLimit)) {
         return null;
     }
+    const recommendedMemory =
+        KeyDerivationConfig_Argon2ID.RECOMMENDED_MEM_LIMIT;
+    const recommendedPasses =
+        KeyDerivationConfig_Argon2ID.RECOMMENDED_OPS_LIMIT;
 
     return (
         <View className="gap-2">
             <InlineNotice
                 tone="warning"
-                message={`Memory and/or operations are below the OWASP-recommended Argon2id minimum (${KeyDerivationConfig_Argon2ID.RECOMMENDED_MEM_LIMIT} MiB, ${KeyDerivationConfig_Argon2ID.RECOMMENDED_OPS_LIMIT} passes). Weaker settings make offline cracking of a stolen backup much faster.`}
+                message={t`Memory and/or operations are below the OWASP-recommended Argon2id minimum (${recommendedMemory} MiB, ${recommendedPasses} passes). Weaker settings make offline cracking of a stolen backup much faster.`}
             />
             <Checkbox
                 checked={acknowledged}
                 onCheckedChange={onAcknowledgedChange}
-                label="I understand the risk and want to use these key derivation settings anyway."
+                label={t`I understand the risk and want to use these key derivation settings anyway.`}
             />
             <Text className="text-xs text-muted-foreground">
-                Mobile recommended default is 128 MiB / ops 3.
+                {t`Mobile recommended default is 128 MiB / ops 3.`}
             </Text>
         </View>
     );

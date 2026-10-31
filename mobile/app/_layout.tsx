@@ -1,4 +1,5 @@
 import "../src/polyfills";
+import "../src/i18n";
 import "../src/vault-core-runtime";
 import "../global.css";
 
@@ -7,6 +8,10 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
 import * as SplashScreen from "expo-splash-screen";
+import { useLocales } from "expo-localization";
+import { i18n } from "@lingui/core";
+import { I18nProvider } from "@lingui/react";
+import { useLingui } from "@lingui/react/macro";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider as JotaiProvider, useAtomValue } from "jotai";
@@ -39,6 +44,7 @@ import { colors } from "@/theme";
 import { ensureSecretTempFilesReady } from "@/utils/secret-temp-files";
 import { bindOnlineServicesQueryCache } from "@/utils/online-services-query-cache";
 import { AgentRuntimeBridge } from "@/agent/agent-runtime-bridge";
+import { activateAppLocale } from "@/i18n";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
     /* already prevented / unavailable */
@@ -96,7 +102,24 @@ function CredentialProviderBridge() {
     return null;
 }
 
+/** Follows device language changes, including Android's per-app language setting. */
+function LocaleSync() {
+    const locales = useLocales();
+    useEffect(() => activateAppLocale(), [locales]);
+    return null;
+}
+
 export default function RootLayout() {
+    return (
+        <I18nProvider i18n={i18n}>
+            <LocaleSync />
+            <RootStack />
+        </I18nProvider>
+    );
+}
+
+function RootStack() {
+    const { t } = useLingui();
     const [autoLockSettingsLoaded, setAutoLockSettingsLoaded] = useState(false);
     useEffect(() => {
         void ensureSecretTempFilesReady().catch(() => undefined);
@@ -158,7 +181,7 @@ export default function RootLayout() {
                                         color: colors.foreground,
                                     },
                                     headerShadowVisible: false,
-                                    headerBackTitle: "Back",
+                                    headerBackTitle: t`Back`,
                                 }}
                             >
                                 <Stack.Screen name="index" />

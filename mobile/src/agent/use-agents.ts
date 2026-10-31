@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 import type { AgentIdentity } from "@cryptex-industries/vault-core/agent/envelope";
 import type { ConnectedAgent } from "@cryptex-industries/vault-core/proto";
 import { isApprovedHere } from "@cryptex-industries/vault-core/agent/vault-agents";
@@ -33,6 +34,7 @@ function useApproverIdentity(): AgentIdentity | null {
  * (its device-local list), so a record from another device can't claim it.
  */
 export function useConnectedAgents() {
+    const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const identity = useApproverIdentity();
     // Re-renders when the runtime's local list or relay state changes.
@@ -47,9 +49,12 @@ export function useConnectedAgents() {
     /** Devices list subtitle when something needs attention, else null. */
     const statusLabel = (agent: ConnectedAgent) =>
         approvedHere(agent) && agentRuntime.relayForgot(agent.ID)
-            ? "The relay no longer knows this agent"
+            ? t`The relay no longer knows this agent`
             : agent.Paused
-              ? "Paused"
+              ? t({
+                    message: "Paused",
+                    comment: "SSH agent status in the devices list",
+                })
               : null;
     return { agents, approvedHere, statusLabel };
 }

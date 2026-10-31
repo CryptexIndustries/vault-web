@@ -25,7 +25,7 @@
         "./vault-utils/*": "./src/vault-utils/*.ts",
         "./agent/*": "./src/agent/*.ts"
     },
-    "packageManager": "pnpm@11.25.0",
+    "packageManager": "pnpm@11.28.9",
     "scripts": {
         "protogen": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=. src/proto/vault.proto src/proto/agent.proto --ts_proto_opt=oneof=unions,unrecognizedEnum=false,useOptionals=none,initializeFieldsAsUndefined=false,esModuleInterop=true,useDate=false,stringEnums=false,outputEncodeMethods=true,outputJsonMethods=false",
         "lint-tsc": "tsgo --noEmit --strict",
@@ -38,6 +38,7 @@
         "@noble/hashes": "2.2.0",
         "@noble/post-quantum": "0.6.1",
         "@scure/bip39": "2.2.0",
+        "aws4fetch": "1.0.20",
         "jszip": "3.10.1",
         "libsodium-wrappers-sumo": "0.7.15",
         "neverthrow": "8.2.0",

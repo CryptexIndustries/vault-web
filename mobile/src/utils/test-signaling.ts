@@ -2,6 +2,7 @@
  * Smoke-test custom Pusher-compatible signaling via vault-core init + HMAC auth.
  * Does not log secrets.
  */
+import { t } from "@lingui/core/macro";
 import * as Synchronization from "@cryptex-industries/vault-core/synchronization";
 import type { SignalingServerConfiguration } from "@cryptex-industries/vault-core/proto";
 import { constructLinkPresenceChannelName } from "@cryptex-industries/vault-core/presence";
@@ -50,14 +51,13 @@ export async function testSignalingServerConnection(
         if (!connected) {
             return {
                 ok: false,
-                message:
-                    "Could not connect or authorize presence channel. Check host, ports, key, and secret.",
+                message: t`Could not connect or authorize presence channel. Check host, ports, key, and secret.`,
             };
         }
 
         return {
             ok: true,
-            message: "Signaling server reachable and presence auth succeeded.",
+            message: t`Signaling server reachable and presence auth succeeded.`,
         };
     } catch (error) {
         return {
@@ -65,7 +65,7 @@ export async function testSignalingServerConnection(
             message:
                 error instanceof Error
                     ? error.message
-                    : "Signaling test failed.",
+                    : t`Signaling test failed.`,
         };
     } finally {
         try {

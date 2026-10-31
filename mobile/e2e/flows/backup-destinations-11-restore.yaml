@@ -1,0 +1,44 @@
+appId: ${CRYPTEX_APP_ID}
+name: Restore this device's backup from the bucket into a clean installation
+---
+- runFlow: backup-destinations-find.yaml
+# This device's one backup, and the one planted in another device's folder.
+- extendedWaitUntil:
+      visible: .*\(Web app AAAAAA\)
+      timeout: 30000
+- tapOn: .*\(Android .*\)
+- assertVisible: After restore, unlock with the existing master password.*
+- scrollUntilVisible:
+      element:
+          text: Restored vault name
+      direction: DOWN
+- tapOn: Restored vault name
+- eraseText: 100
+- inputText: Garage Restored Vault
+- hideKeyboard
+- scrollUntilVisible:
+      element:
+          id: restore-vault
+      direction: DOWN
+- tapOn:
+      id: restore-vault
+- assertVisible: Backup restored. Unlock it to continue.
+- extendedWaitUntil:
+      visible: Master password
+      timeout: 10000
+# The backup left behind was made after the password change.
+- tapOn: Master password
+- inputText: CorrectHorseBatteryStaple42
+- hideKeyboard
+- tapOn:
+      id: unlock-vault
+- assertVisible: That password could not unlock this vault. Check it and try again.
+- tapOn: Master password
+- eraseText: 100
+- inputText: GarageRotatedPassword77
+- hideKeyboard
+- tapOn:
+      id: unlock-vault
+- assertVisible: Paused Login.*
+- assertVisible: Garage Login One.*
+- assertNotVisible: After Removal.*

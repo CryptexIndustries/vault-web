@@ -6,6 +6,7 @@ module.exports = function (api) {
             "nativewind/babel",
         ],
         plugins: [
+            "@lingui/babel-plugin-lingui-macro",
             [
                 "module-resolver",
                 {

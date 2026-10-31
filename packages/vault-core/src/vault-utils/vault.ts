@@ -39,6 +39,7 @@ export class Vault implements VaultUtilTypes.Vault {
     public ConnectedAgents: VaultUtilTypes.ConnectedAgent[] = [];
     /** This device's SSH agent approver keys. Device-local, never leaves it. */
     public AgentApprover?: VaultUtilTypes.AgentApproverSettings;
+    public BackupDestinations: VaultUtilTypes.BackupDestination[] = [];
 
     constructor(seedData = false, seedCount = 0) {
         this.Version = this.LATEST_VERSION;
@@ -295,6 +296,8 @@ export class LinkedDevices implements VaultUtilTypes.LinkedDevices {
     public SyncSigningPrivateKey = "";
     public SyncKemPublicKey = "";
     public SyncKemPrivateKey = "";
+    public BackupDeviceID = "";
+    public BackupMarkerKey = "";
 
     public static fromGeneric(rawOnlineServices: VaultUtilTypes.LinkedDevices) {
         // TODO: Remove this
@@ -557,6 +560,13 @@ export const CredentialFormBaseSchema = z.object({
     ),
 });
 
+/** `params.code` of the custom issues CredentialFormSchema adds. */
+export type CredentialFormIssueCode =
+    | "PASSKEY_INCOMPLETE"
+    | "SSH_KEY_DAMAGED"
+    | "SSH_KEY_MISSING"
+    | "URL_INVALID";
+
 export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
     (form, context) => {
         if (form.Type === VaultUtilTypes.ItemType.Passkey || form.Passkey) {
@@ -569,6 +579,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                     code: z.ZodIssueCode.custom,
                     path: ["Passkey"],
                     message: "Passkey credential material is incomplete.",
+                    params: { code: "PASSKEY_INCOMPLETE" },
                 });
             }
         }
@@ -581,6 +592,11 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                     message: form.SSHKey
                         ? "This SSH key's data is damaged."
                         : "Generate a new key or import an existing one.",
+                    params: {
+                        code: form.SSHKey
+                            ? "SSH_KEY_DAMAGED"
+                            : "SSH_KEY_MISSING",
+                    },
                 });
             }
         }
@@ -595,6 +611,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                 path: ["URL"],
                 message:
                     "Enter a valid website, Android app, or safe wildcard pattern.",
+                params: { code: "URL_INVALID" },
             });
         }
 
@@ -605,6 +622,7 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
                 path: ["AdditionalURLs", index, "URL"],
                 message:
                     "Enter a valid website, Android app, or safe wildcard pattern.",
+                params: { code: "URL_INVALID" },
             });
         });
     },
@@ -1230,8 +1248,9 @@ export const packageForLinking = (
     // would let the other device answer for agents paired here.
     clearDeviceLocalFields(vaultCopy);
 
-    // ShareLinks and ConnectedAgents are synced data and travel with the copy,
-    // so the new device can list and revoke agents paired elsewhere.
+    // ShareLinks, ConnectedAgents and BackupDestinations are synced data and
+    // travel with the copy, so the new device can list and revoke agents
+    // paired elsewhere and back up to the same buckets.
 
     // Copy over only the used STUN and TURN servers, and the signaling server
     vaultCopy.LinkedDevices.STUNServers =

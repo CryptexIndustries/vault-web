@@ -2,79 +2,17 @@
  * Links a second browser that has no vault yet through the "Use invitation"
  * tab, over the self-hosted signaling and TURN servers from compose.e2e.yaml,
  * so neither browser needs an Online Services account.
- *
- * Skips when the signaling host doesn't resolve, as in host runs. Point
- * E2E_SIGNALING_HOST and E2E_TURN_HOST at your own servers to run it there.
  */
-import { expect, test, type Page } from "@playwright/test";
-import { lookup } from "node:dns/promises";
+import { expect, test } from "@playwright/test";
 
+import {
+    addLinkingServers,
+    createInvitation,
+    openServerSettings,
+} from "../linking-servers";
 import { createVault, finishVaultSetup } from "../vault-helpers";
 
-const signalingHost = process.env.E2E_SIGNALING_HOST ?? "signaling";
-const turnHost = process.env.E2E_TURN_HOST ?? "turn";
 const credentialName = "Linked example login";
-
-test.beforeAll(async () => {
-    const resolves = await lookup(signalingHost).then(
-        () => true,
-        () => false,
-    );
-    test.skip(!resolves, `signaling host ${signalingHost} doesn't resolve`);
-});
-
-async function addLinkingServers(page: Page) {
-    await page
-        .getByRole("button", { name: "Configure vault signaling" })
-        .click();
-    const config = page.getByRole("dialog", { name: "Vault signaling" });
-
-    await config.getByRole("tab", { name: "TURN" }).click();
-    await config.getByRole("button", { name: "Add TURN" }).click();
-    await config.getByLabel("Name", { exact: true }).fill("E2E TURN");
-    await config.getByLabel("Host or TURN URL").fill(`${turnHost}:3478`);
-    await config.getByLabel("Username", { exact: true }).fill("e2e");
-    await config
-        .getByLabel("Password", { exact: true })
-        .fill("e2e-turn-password");
-
-    await config.getByRole("tab", { name: "Signaling" }).click();
-    await config.getByRole("button", { name: "Add signaling" }).click();
-    await config.getByLabel("Name", { exact: true }).fill("E2E signaling");
-    await config.getByLabel("Host", { exact: true }).fill(signalingHost);
-    await config.getByLabel("App ID", { exact: true }).fill("e2e-app");
-    await config.getByLabel("Key", { exact: true }).fill("e2e-key");
-    await config.getByLabel("Secret", { exact: true }).fill("e2e-secret");
-
-    await config.getByRole("button", { name: "Save configuration" }).click();
-    await expect(config).toBeHidden();
-}
-
-/** Starts a file invitation, saves it to invitationPath and returns the verification words. */
-async function createInvitation(page: Page, invitationPath: string) {
-    await page.getByRole("button", { name: "Link new device" }).click();
-    await page.getByRole("menuitem", { name: /Create invitation/ }).click();
-    const send = page.getByRole("dialog", { name: "Link new device" });
-    await send.getByLabel("Device name").fill("Second browser");
-    await send.getByRole("button", { name: /^File/ }).click();
-
-    await send.getByRole("button", { name: "Advanced connection" }).click();
-    await send.getByRole("combobox").click();
-    await page.getByRole("option", { name: "E2E signaling" }).click();
-    // STUN comes first, then TURN.
-    await send.getByRole("button", { name: "Select servers" }).last().click();
-    await page.getByRole("menuitemcheckbox", { name: "E2E TURN" }).click();
-    await page.keyboard.press("Escape");
-
-    const download = page.waitForEvent("download");
-    await send.getByRole("button", { name: "Start linking" }).click();
-    await (await download).saveAs(invitationPath);
-
-    await send.getByRole("button", { name: "Verification words" }).click();
-    const words = send.locator(".select-all");
-    await expect(words).toHaveText(/\w+( \w+)+/);
-    return (await words.innerText()).trim();
-}
 
 test("a browser with no vault receives one through Use invitation", async ({
     page,
@@ -151,4 +89,21 @@ test("a browser with no vault receives one through Use invitation", async ({
         receiver.getByText(credentialName, { exact: true }),
     ).toBeVisible();
     await receiverContext.close();
+
+    // The sender's new device uses the signaling server, so deleting it warns.
+    const linked = page.getByRole("dialog", { name: "Device linked" });
+    await page.keyboard.press("Escape");
+    await expect(linked).toBeHidden();
+    const settings = await openServerSettings(page);
+    await settings.getByRole("tab", { name: "Signaling" }).click();
+    await settings
+        .getByRole("button", { name: "Delete E2E signaling" })
+        .click();
+    await expect(settings).toContainText(
+        "Used by Second browser. It may stop syncing until you choose another server for it.",
+    );
+    await settings.getByRole("button", { name: "Keep server" }).click();
+    await expect(
+        settings.getByRole("button", { name: "Delete E2E signaling" }),
+    ).toBeVisible();
 });

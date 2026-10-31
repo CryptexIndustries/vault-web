@@ -114,6 +114,21 @@ export default function ThreatModel() {
                                 </td>
                             </tr>
                             <tr>
+                                <td>Control of a backup destination bucket</td>
+                                <td>
+                                    Devices upload only the encrypted backup
+                                    file, over HTTPS, signed with the bucket
+                                    key.
+                                </td>
+                                <td>
+                                    The provider sees file sizes, upload times
+                                    and device folder names. Anyone with the
+                                    bucket key can delete what it allows. That
+                                    includes every linked device, since the key
+                                    syncs with the vault.
+                                </td>
+                            </tr>
+                            <tr>
                                 <td>A website using extension autofill</td>
                                 <td>
                                     Credential-matching rules and extension
@@ -180,7 +195,9 @@ export default function ThreatModel() {
                     Copied passwords, screenshots, and cleartext exports are
                     outside the encrypted vault. Changing a vault secret also
                     leaves older backup copies protected by their original
-                    secrets. The{" "}
+                    secrets. After a password change you can delete this
+                    device&apos;s older backups in a backup destination, but
+                    other devices keep theirs. The{" "}
                     <Link href="/docs/cryptography#changes">
                         key-change comparison
                     </Link>{" "}

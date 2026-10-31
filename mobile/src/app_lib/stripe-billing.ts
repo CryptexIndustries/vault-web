@@ -1,5 +1,6 @@
 import { Linking } from "react-native";
 import Constants from "expo-constants";
+import { t } from "@lingui/core/macro";
 
 import { trpc } from "@/utils/trpc";
 import { onlineServicesLog } from "@/utils/logging";
@@ -27,7 +28,7 @@ export async function openCustomerPortalExternal(): Promise<
         if (!customerPortalURL) {
             return {
                 ok: false,
-                message: "Billing portal is not available yet.",
+                message: t`Billing portal is not available yet.`,
             };
         }
 
@@ -45,7 +46,7 @@ export async function openCustomerPortalExternal(): Promise<
         if (!canOpen) {
             return {
                 ok: false,
-                message: "Cannot open billing portal URL on this device.",
+                message: t`Cannot open billing portal URL on this device.`,
             };
         }
 
@@ -55,7 +56,7 @@ export async function openCustomerPortalExternal(): Promise<
         return { ok: true };
     } catch {
         onlineServicesLog.error("Failed to open customer portal");
-        return { ok: false, message: "Could not open billing portal." };
+        return { ok: false, message: t`Could not open billing portal.` };
     }
 }
 
@@ -91,13 +92,13 @@ export async function openCheckoutExternal(
         if (!(await Linking.canOpenURL(url))) {
             return {
                 ok: false,
-                message: "Cannot open Stripe Checkout on this device.",
+                message: t`Cannot open Stripe Checkout on this device.`,
             };
         }
         if (!isSameActiveVaultSession(generation)) {
             return {
                 ok: false,
-                message: "Unlock your vault again before opening checkout.",
+                message: t`Unlock your vault again before opening checkout.`,
             };
         }
         await Linking.openURL(url);
@@ -106,7 +107,7 @@ export async function openCheckoutExternal(
         onlineServicesLog.error("Failed to open Stripe Checkout");
         return {
             ok: false,
-            message: "Could not open Stripe Checkout. Please try again.",
+            message: t`Could not open Stripe Checkout. Please try again.`,
         };
     }
 }

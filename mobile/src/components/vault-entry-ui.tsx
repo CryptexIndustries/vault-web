@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react-native";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowUpRight, ShieldCheck } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 import {
     Pressable,
     View,
@@ -11,6 +12,8 @@ import {
 import { BrandIcon } from "@/components/brand";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { LanguageDialog } from "@/components/language-dialog";
+import { APP_LOCALES, appLocaleChoiceAvailable, matchAppLocale } from "@/i18n";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { colors } from "@/theme";
@@ -31,13 +34,20 @@ export function VaultEntryHeader({
     className,
     ...props
 }: VaultEntryHeaderProps) {
+    const { t, i18n } = useLingui();
+    const activeLocale = matchAppLocale([i18n.locale]);
+    const [languageOpen, setLanguageOpen] = useState(false);
     return (
         <View className={cn("mb-[37px]", className)} {...props}>
+            <LanguageDialog
+                open={languageOpen}
+                onOpenChange={setLanguageOpen}
+            />
             <View className="-mx-5 mb-6 h-16 flex-row items-center gap-2.5 border-b border-border px-5">
                 {showBack ? (
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Back to unlock"
+                        accessibilityLabel={t`Back to unlock`}
                         className="-ml-3 h-12 w-12 items-center justify-center rounded-full"
                         onPress={onBack}
                     >
@@ -51,12 +61,28 @@ export function VaultEntryHeader({
                 <BrandIcon size={31} />
                 <View className="flex-1 flex-row items-baseline gap-1.5">
                     <Text className="font-semibold text-[13px] tracking-[1.7px] text-foreground">
+                        {/* i18n-ignore: brand wordmark */}
                         CRYPTEX
                     </Text>
                     <Text className="font-semibold text-[13px] tracking-[1.7px] text-primary">
+                        {/* i18n-ignore: brand wordmark */}
                         VAULT
                     </Text>
                 </View>
+                {appLocaleChoiceAvailable ? (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t`Language`}
+                        accessibilityValue={{ text: APP_LOCALES[activeLocale] }}
+                        testID="vault-entry-language"
+                        className="-mr-3 h-12 min-w-12 items-center justify-center px-3"
+                        onPress={() => setLanguageOpen(true)}
+                    >
+                        <Text className="font-semibold text-[13px] tracking-[1.7px] text-muted-foreground">
+                            {activeLocale.toUpperCase()}
+                        </Text>
+                    </Pressable>
+                ) : null}
             </View>
             <View className="border-b border-border pb-6">
                 <Text

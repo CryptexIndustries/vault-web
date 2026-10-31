@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { Copy, RefreshCw } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import {
     Dialog,
@@ -47,13 +48,14 @@ export function PasswordGeneratorDialog({
     onPasswordSelect,
     placement = "center",
 }: PasswordGeneratorDialogProps) {
+    const { t } = useLingui();
     const [options, setOptions] = useState<GeneratorOptions>(DEFAULT_OPTIONS);
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [noCharacterTypes, setNoCharacterTypes] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const regenerate = useCallback(() => {
-        setError("");
+        setNoCharacterTypes(false);
         if (
             options.type === "random" &&
             !options.includeUppercase &&
@@ -61,7 +63,7 @@ export function PasswordGeneratorDialog({
             !options.includeNumbers &&
             !options.includeSymbols
         ) {
-            setError("Select at least one character type");
+            setNoCharacterTypes(true);
             setPassword("");
             return;
         }
@@ -91,17 +93,30 @@ export function PasswordGeneratorDialog({
             scroll
         >
             <DialogHeader>
-                <DialogTitle>Password generator</DialogTitle>
+                <DialogTitle>{t`Password generator`}</DialogTitle>
                 <DialogDescription>
-                    Create a strong password or memorable passphrase.
+                    {t`Create a strong password or memorable passphrase.`}
                 </DialogDescription>
             </DialogHeader>
 
             <View className="gap-3">
                 <SegmentedControl
                     segments={[
-                        { value: "random", label: "Random" },
-                        { value: "memorable", label: "Memorable" },
+                        {
+                            value: "random",
+                            label: t({
+                                message: "Random",
+                                comment: "Password generator mode",
+                            }),
+                        },
+                        {
+                            value: "memorable",
+                            label: t({
+                                message: "Memorable",
+                                comment:
+                                    "Password generator mode: passphrase of words",
+                            }),
+                        },
                     ]}
                     value={options.type}
                     onChange={(type) => {
@@ -115,7 +130,9 @@ export function PasswordGeneratorDialog({
 
                 <View>
                     <Label>
-                        {options.type === "memorable" ? "Word count" : "Length"}
+                        {options.type === "memorable"
+                            ? t`Word count`
+                            : t`Length`}
                     </Label>
                     <Input
                         value={String(options.length)}
@@ -127,8 +144,8 @@ export function PasswordGeneratorDialog({
                         keyboardType="number-pad"
                         accessibilityLabel={
                             options.type === "memorable"
-                                ? "Word count"
-                                : "Password length"
+                                ? t`Word count`
+                                : t`Password length`
                         }
                     />
                 </View>
@@ -137,10 +154,10 @@ export function PasswordGeneratorDialog({
                     <View className="gap-2">
                         {(
                             [
-                                ["includeLowercase", "Lowercase"],
-                                ["includeUppercase", "Uppercase"],
-                                ["includeNumbers", "Numbers"],
-                                ["includeSymbols", "Symbols"],
+                                ["includeLowercase", t`Lowercase`],
+                                ["includeUppercase", t`Uppercase`],
+                                ["includeNumbers", t`Numbers`],
+                                ["includeSymbols", t`Symbols`],
                             ] as const
                         ).map(([key, label]) => (
                             <View
@@ -162,7 +179,7 @@ export function PasswordGeneratorDialog({
                     <View className="gap-2">
                         <View className="min-h-[44px] flex-row items-center justify-between">
                             <Text className="text-sm text-foreground">
-                                Capitalize words
+                                {t`Capitalize words`}
                             </Text>
                             <Switch
                                 value={options.includeUppercase}
@@ -173,7 +190,7 @@ export function PasswordGeneratorDialog({
                         </View>
                         <View className="min-h-[44px] flex-row items-center justify-between">
                             <Text className="text-sm text-foreground">
-                                Append digits
+                                {t`Append digits`}
                             </Text>
                             <Switch
                                 value={options.includeNumbers}
@@ -183,14 +200,27 @@ export function PasswordGeneratorDialog({
                             />
                         </View>
                         <Text className="text-xs text-muted-foreground">
-                            Word separator
+                            {t`Word separator`}
                         </Text>
                         <SegmentedControl
                             segments={[
-                                { value: "space", label: "Space" },
+                                {
+                                    value: "space",
+                                    label: t({
+                                        message: "Space",
+                                        comment:
+                                            "Word separator: space character",
+                                    }),
+                                },
                                 { value: "dash", label: "-" },
                                 { value: "underscore", label: "_" },
-                                { value: "none", label: "None" },
+                                {
+                                    value: "none",
+                                    label: t({
+                                        message: "None",
+                                        comment: "Word separator: no separator",
+                                    }),
+                                },
                             ]}
                             value={options.wordSeparator}
                             onChange={(wordSeparator) =>
@@ -205,19 +235,19 @@ export function PasswordGeneratorDialog({
                         <Text
                             className="min-w-0 flex-1 font-mono text-sm leading-5 text-foreground"
                             selectable
-                            accessibilityLabel="Generated password. Value hidden from accessibility tree until copied."
+                            accessibilityLabel={t`Generated password. Value hidden from accessibility tree until copied.`}
                             importantForAccessibility="no-hide-descendants"
                         >
-                            {password || "No password generated"}
+                            {password || t`No password generated`}
                         </Text>
                         <IconButton
                             icon={RefreshCw}
-                            label="Regenerate password"
+                            label={t`Regenerate password`}
                             onPress={regenerate}
                         />
                         <IconButton
                             icon={Copy}
-                            label="Copy generated password"
+                            label={t`Copy generated password`}
                             color={copied ? colors.primary : colors.foreground}
                             onPress={() => {
                                 void copySecretToClipboard(password).then(
@@ -241,14 +271,16 @@ export function PasswordGeneratorDialog({
                     ) : null}
                 </View>
 
-                {error ? (
-                    <Text className="text-sm text-destructive">{error}</Text>
+                {noCharacterTypes ? (
+                    <Text className="text-sm text-destructive">
+                        {t`Select at least one character type`}
+                    </Text>
                 ) : null}
             </View>
 
             <DialogFooter>
                 <Button variant="ghost" onPress={() => onOpenChange(false)}>
-                    Close
+                    {t`Close`}
                 </Button>
                 {onPasswordSelect ? (
                     <Button
@@ -258,7 +290,7 @@ export function PasswordGeneratorDialog({
                             onOpenChange(false);
                         }}
                     >
-                        Use password
+                        {t`Use password`}
                     </Button>
                 ) : null}
             </DialogFooter>

@@ -229,12 +229,12 @@ export function AgentRow({
     );
 }
 
-/** A picker row: 56 px, so the list knows its height before measuring. */
-const KEY_ROW_HEIGHT = 56;
-/** The list shows this many rows before it scrolls; the half row hints at more. */
-const KEY_LIST_ROWS = 5.5;
-/** Fewer keys than this need no search box. */
-const KEY_SEARCH_FROM = 6;
+/** A list row: 56 px, so the list knows its height before measuring. */
+export const LIST_ROW_HEIGHT = 56;
+/** A list shows this many rows before it scrolls; the half row hints at more. */
+export const LIST_ROWS = 5.5;
+/** Fewer items than this need no search box. */
+export const LIST_SEARCH_FROM = 6;
 
 /**
  * The key picker: the whole row toggles a key, a filled check circle marks
@@ -290,7 +290,7 @@ export function KeyPicker({
                     ) : undefined
                 }
             />
-            {keys.length >= KEY_SEARCH_FROM ? (
+            {keys.length >= LIST_SEARCH_FROM ? (
                 <div className="relative mb-2">
                     <Search
                         className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -313,12 +313,12 @@ export function KeyPicker({
                     className="rounded-lg border border-border"
                     style={{
                         height:
-                            Math.min(shown.length, KEY_LIST_ROWS) *
-                                KEY_ROW_HEIGHT +
+                            Math.min(shown.length, LIST_ROWS) *
+                                LIST_ROW_HEIGHT +
                             2,
                     }}
                     data={shown}
-                    fixedItemHeight={KEY_ROW_HEIGHT}
+                    fixedItemHeight={LIST_ROW_HEIGHT}
                     computeItemKey={(_, option) => option.id}
                     itemContent={(index, option) => {
                         const chosen = selected.includes(option.id);

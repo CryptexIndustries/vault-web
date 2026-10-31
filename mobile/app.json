@@ -2,7 +2,7 @@
     "expo": {
         "name": "Cryptex Vault",
         "slug": "cryptex-vault",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "orientation": "default",
         "icon": "./assets/icon.png",
         "scheme": "cryptex",
@@ -30,7 +30,7 @@
                 "monochromeImage": "./assets/android-icon-monochrome.png"
             },
             "package": "com.cryptexindustries.vault",
-            "versionCode": 5,
+            "versionCode": 6,
             "allowBackup": false,
             "permissions": [
                 "android.permission.CAMERA",
@@ -84,6 +84,12 @@
                 }
             ],
             "expo-font",
+            [
+                "expo-localization",
+                {
+                    "supportedLocales": ["en", "hr"]
+                }
+            ],
             "./plugins/with-splash-wordmark",
             [
                 "expo-camera",

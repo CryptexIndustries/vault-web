@@ -20,6 +20,8 @@ import {
     Smartphone,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import type { VaultCredential } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type {
@@ -45,7 +47,7 @@ import { colors } from "@/theme";
 export function AutofillRequestShell({
     title,
     onBack,
-    backLabel = "Back",
+    backLabel,
     footer,
     scroll = true,
     compact = false,
@@ -59,6 +61,7 @@ export function AutofillRequestShell({
     compact?: boolean;
     children: React.ReactNode;
 }) {
+    const { t } = useLingui();
     React.useEffect(() => {
         const subscription = BackHandler.addEventListener(
             "hardwareBackPress",
@@ -108,7 +111,7 @@ export function AutofillRequestShell({
             >
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={backLabel}
+                    accessibilityLabel={backLabel ?? t`Back`}
                     onPress={onBack}
                     style={{
                         width: 44,
@@ -128,6 +131,7 @@ export function AutofillRequestShell({
                             letterSpacing: 1.7,
                         }}
                     >
+                        {/* i18n-ignore: brand wordmark */}
                         CRYPTEX
                     </UnlockedText>
                     <UnlockedText
@@ -138,6 +142,7 @@ export function AutofillRequestShell({
                             letterSpacing: 1.7,
                         }}
                     >
+                        {/* i18n-ignore: brand wordmark */}
                         VAULT
                     </UnlockedText>
                 </View>
@@ -193,6 +198,7 @@ export function RequestDestination({
     detail?: string;
     compact?: boolean;
 }) {
+    const { t } = useLingui();
     const Icon = kind === "website" ? Globe2 : Smartphone;
     return (
         <View style={{ gap: compact ? 0 : 10 }}>
@@ -234,10 +240,10 @@ export function RequestDestination({
                         >
                             {detail ??
                                 (kind === "website"
-                                    ? "Website reported by Android"
+                                    ? t`Website reported by Android`
                                     : kind === "app"
-                                      ? "App reported by Android"
-                                      : "Relying party")}
+                                      ? t`App reported by Android`
+                                      : t`Relying party`)}
                         </UnlockedText>
                     )}
                 </View>
@@ -280,10 +286,13 @@ function CredentialRow({
     disabled: boolean;
     onPress: (credential: VaultCredential) => void;
 }) {
+    const { t } = useLingui();
     const { credential, isMatch } = row;
     const [pressed, setPressed] = React.useState(false);
     const rawTarget =
-        credential.URL || credential.AdditionalURLs?.[0]?.URL || "Saved login";
+        credential.URL || credential.AdditionalURLs?.[0]?.URL || t`Saved login`;
+    const name = credential.Name;
+    const username = credential.Username || t`Password only`;
     const target = (() => {
         try {
             const parsed = new URL(rawTarget);
@@ -297,7 +306,11 @@ function CredentialRow({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${credential.Name}, ${credential.Username || "Password only"}${isMatch ? ", matches destination" : ""}`}
+            accessibilityLabel={
+                isMatch
+                    ? t`${name}, ${username}, matches destination`
+                    : `${name}, ${username}`
+            }
             disabled={disabled}
             onPress={() => onPress(credential)}
             onPressIn={() => setPressed(true)}
@@ -364,7 +377,11 @@ function CredentialRow({
                         <UnlockedText
                             style={{ color: colors.primary, fontSize: 10 }}
                         >
-                            Match
+                            {t({
+                                message: "Match",
+                                comment:
+                                    "Badge on a login that matches the app or website",
+                            })}
                         </UnlockedText>
                     ) : null}
                 </View>
@@ -376,7 +393,7 @@ function CredentialRow({
                         lineHeight: 17,
                     }}
                 >
-                    {credential.Username || "Password only"}
+                    {username}
                 </UnlockedText>
                 <UnlockedText
                     numberOfLines={1}
@@ -393,7 +410,10 @@ function CredentialRow({
                 style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
             >
                 <UnlockedText style={{ color: colors.primary, fontSize: 12 }}>
-                    Fill
+                    {t({
+                        message: "Fill",
+                        comment: "verb: fills this login into the form",
+                    })}
                 </UnlockedText>
                 <ArrowUpRight size={12} color={colors.primary} />
             </View>
@@ -452,13 +472,17 @@ export function AutofillPicker({
     onAdd: () => void;
     onCancel: () => void;
 }) {
+    const { t } = useLingui();
     const showingGlobalResults = expanded || query.trim().length > 0;
     const visibleMatchCount = rows.filter((row) => row.isMatch).length;
     const compact = useCompactPickerLayout();
+    const displayName = target.displayName;
+    const destination = target.pageUrl ?? target.appUri ?? t`Reported target`;
+    const loginCount = rows.length;
     return (
         <AutofillRequestShell
-            title="Choose a login"
-            backLabel="Cancel autofill"
+            title={t`Choose a login`}
+            backLabel={t`Cancel autofill`}
             onBack={onCancel}
             scroll={false}
             compact={compact}
@@ -470,7 +494,7 @@ export function AutofillPicker({
                             disabled={busy}
                             onPress={onCancel}
                         >
-                            Cancel autofill
+                            {t`Cancel autofill`}
                         </UnlockedButton>
                     </View>
                     <View style={{ flex: 1 }}>
@@ -487,7 +511,7 @@ export function AutofillPicker({
                                     fontWeight: "600",
                                 }}
                             >
-                                Add login
+                                {t`Add login`}
                             </UnlockedText>
                         </UnlockedButton>
                     </View>
@@ -501,8 +525,8 @@ export function AutofillPicker({
                     warning={warning}
                     detail={
                         target.warningType === "unverified-web-scheme"
-                            ? `Browser address: ${target.displayName} (scheme unavailable)`
-                            : `Reported destination: ${target.pageUrl ?? target.appUri ?? "Reported target"}`
+                            ? t`Browser address: ${displayName} (scheme unavailable)`
+                            : t`Reported destination: ${destination}`
                     }
                     compact={compact}
                 />
@@ -525,8 +549,8 @@ export function AutofillPicker({
                     <UnlockedInput
                         value={query}
                         onChangeText={onQueryChange}
-                        placeholder="Search all logins"
-                        accessibilityLabel="Search all autofill logins"
+                        placeholder={t`Search all logins`}
+                        accessibilityLabel={t`Search all autofill logins`}
                         autoCapitalize="none"
                         autoCorrect={false}
                         style={{ paddingLeft: 42 }}
@@ -541,10 +565,7 @@ export function AutofillPicker({
                     }}
                 >
                     <UnlockedText style={{ color: colors.muted, fontSize: 12 }}>
-                        {rows.length} {rows.length === 1 ? "login" : "logins"}
-                        {" ("}
-                        {visibleMatchCount}{" "}
-                        {visibleMatchCount === 1 ? "match" : "matches"})
+                        {t`${plural(loginCount, { one: "# login", other: "# logins" })} (${plural(visibleMatchCount, { one: "# match", other: "# matches" })})`}
                     </UnlockedText>
                     {eligibleCount > matchCount && !query.trim() ? (
                         <Pressable
@@ -560,8 +581,8 @@ export function AutofillPicker({
                                 style={{ color: colors.primary, fontSize: 13 }}
                             >
                                 {expanded
-                                    ? "Show less"
-                                    : `Show all (${eligibleCount})`}
+                                    ? t`Show less`
+                                    : t`Show all (${eligibleCount})`}
                             </UnlockedText>
                         </Pressable>
                     ) : null}
@@ -602,8 +623,8 @@ export function AutofillPicker({
                         <View style={{ paddingVertical: 24, gap: 6 }}>
                             <UnlockedText style={{ fontSize: 15 }}>
                                 {query.trim()
-                                    ? "No logins match your search."
-                                    : `No login saved for ${target.displayName}`}
+                                    ? t`No logins match your search.`
+                                    : t`No login saved for ${displayName}`}
                             </UnlockedText>
                             <UnlockedText
                                 style={{
@@ -613,8 +634,8 @@ export function AutofillPicker({
                                 }}
                             >
                                 {showingGlobalResults
-                                    ? "Try another search or add a login."
-                                    : "Show all logins or add one for this destination."}
+                                    ? t`Try another search or add a login.`
+                                    : t`Show all logins or add one for this destination.`}
                             </UnlockedText>
                         </View>
                     }
@@ -643,17 +664,18 @@ export function FillDecisionScreen({
     onFillOnce: () => void;
     onAssociate: () => void;
 }) {
+    const { t } = useLingui();
     if (!credential) return null;
     const kind = target.pageUrl ? "website" : "app";
     return (
         <AutofillRequestShell
-            title="Review destination"
+            title={t`Review destination`}
             onBack={onClose}
-            backLabel="Back to logins"
+            backLabel={t`Back to logins`}
             footer={
                 <View style={{ gap: 10 }}>
                     <UnlockedButton loading={busy} onPress={onFillOnce}>
-                        Fill once
+                        {t`Fill once`}
                     </UnlockedButton>
                     {canAssociate ? (
                         <UnlockedButton
@@ -661,7 +683,9 @@ export function FillDecisionScreen({
                             disabled={busy}
                             onPress={onAssociate}
                         >
-                            {`Fill and associate ${kind}`}
+                            {kind === "website"
+                                ? t`Fill and associate website`
+                                : t`Fill and associate app`}
                         </UnlockedButton>
                     ) : null}
                     <UnlockedButton
@@ -669,7 +693,7 @@ export function FillDecisionScreen({
                         disabled={busy}
                         onPress={onClose}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </UnlockedButton>
                 </View>
             }
@@ -688,17 +712,17 @@ export function FillDecisionScreen({
                             letterSpacing: 1,
                         }}
                     >
-                        SAVED LOGIN
+                        {t`SAVED LOGIN`}
                     </UnlockedText>
                     <UnlockedText style={{ fontSize: 17, fontWeight: "600" }}>
                         {credential.Name}
                     </UnlockedText>
                     <UnlockedText style={{ color: colors.muted, fontSize: 13 }}>
-                        {credential.Username || "Password only"}
+                        {credential.Username || t`Password only`}
                     </UnlockedText>
                 </View>
                 <UnlockedText style={{ fontSize: 13, lineHeight: 20 }}>
-                    Fill once leaves the login's saved targets unchanged.
+                    {t`Fill once leaves the login's saved targets unchanged.`}
                 </UnlockedText>
             </View>
         </AutofillRequestShell>
@@ -720,14 +744,16 @@ export function AssociationConsentScreen({
     onBack: () => void;
     onConfirm: () => void;
 }) {
+    const { t } = useLingui();
     const [consented, setConsented] = React.useState(false);
+    const name = credential.Name;
     const association = target.pageUrl ?? target.appUri ?? "";
     const kind = target.pageUrl ? "website" : "app";
     return (
         <AutofillRequestShell
-            title={`Associate ${kind}`}
+            title={kind === "website" ? t`Associate website` : t`Associate app`}
             onBack={onBack}
-            backLabel="Back to destination review"
+            backLabel={t`Back to destination review`}
             footer={
                 <View style={{ gap: 10 }}>
                     <UnlockedButton
@@ -735,14 +761,14 @@ export function AssociationConsentScreen({
                         disabled={!consented}
                         onPress={onConfirm}
                     >
-                        Save association and fill
+                        {t`Save association and fill`}
                     </UnlockedButton>
                     <UnlockedButton
                         variant="ghost"
                         disabled={busy}
                         onPress={onBack}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </UnlockedButton>
                 </View>
             }
@@ -753,8 +779,9 @@ export function AssociationConsentScreen({
                     kind={target.pageUrl ? "website" : "app"}
                 />
                 <UnlockedText style={{ fontSize: 14, lineHeight: 21 }}>
-                    Add this exact {kind === "website" ? "hostname" : "package"}{" "}
-                    to {credential.Name}. Existing targets stay in place.
+                    {kind === "website"
+                        ? t`Add this exact hostname to ${name}. Existing targets stay in place.`
+                        : t`Add this exact package to ${name}. Existing targets stay in place.`}
                 </UnlockedText>
                 <UnlockedText
                     selectable
@@ -769,13 +796,16 @@ export function AssociationConsentScreen({
                         lineHeight: 19,
                     }}
                 >
-                    Association changes where Cryptex Vault can offer this
-                    login. It does not verify the app or website.
+                    {t`Association changes where Cryptex Vault can offer this login. It does not verify the app or website.`}
                 </UnlockedText>
                 <UnlockedCheckbox
                     checked={consented}
                     onCheckedChange={(value) => setConsented(value === true)}
-                    label={`Add this exact ${kind === "website" ? "hostname" : "app package"}`}
+                    label={
+                        kind === "website"
+                            ? t`Add this exact hostname`
+                            : t`Add this exact app package`
+                    }
                 />
                 {error ? (
                     <UnlockedText
@@ -801,6 +831,7 @@ export function SaveFailureSheet({
     onClose: () => void;
     onRetry: () => void;
 }) {
+    const { t } = useLingui();
     const [details, setDetails] = React.useState(false);
     React.useEffect(() => {
         if (!open) setDetails(false);
@@ -812,10 +843,9 @@ export function SaveFailureSheet({
             placement="bottom"
         >
             <DialogHeader>
-                <UnlockedDialogTitle>Could not save item</UnlockedDialogTitle>
+                <UnlockedDialogTitle>{t`Could not save item`}</UnlockedDialogTitle>
                 <DialogDescription>
-                    The vault update could not be saved. Your changes are still
-                    in the editor.
+                    {t`The vault update could not be saved. Your changes are still in the editor.`}
                 </DialogDescription>
             </DialogHeader>
             <Pressable
@@ -825,7 +855,7 @@ export function SaveFailureSheet({
                 style={{ minHeight: 44, justifyContent: "center" }}
             >
                 <UnlockedText style={{ color: colors.primary, fontSize: 13 }}>
-                    {details ? "Hide failure details" : "Failure details"}
+                    {details ? t`Hide failure details` : t`Failure details`}
                 </UnlockedText>
             </Pressable>
             {details ? (
@@ -837,8 +867,7 @@ export function SaveFailureSheet({
                             lineHeight: 19,
                         }}
                     >
-                        The local encrypted save did not finish. No changes were
-                        confirmed as saved, and no login was filled.
+                        {t`The local encrypted save did not finish. No changes were confirmed as saved, and no login was filled.`}
                     </UnlockedText>
                     <UnlockedText
                         selectable
@@ -848,14 +877,16 @@ export function SaveFailureSheet({
                             fontSize: 11,
                         }}
                     >
-                        Failure code: {code}
+                        {t`Failure code: ${code}`}
                     </UnlockedText>
                 </View>
             ) : null}
             <DialogFooter>
-                <UnlockedButton onPress={onRetry}>Try again</UnlockedButton>
+                <UnlockedButton onPress={onRetry}>
+                    {t`Try again`}
+                </UnlockedButton>
                 <UnlockedButton variant="secondary" onPress={onClose}>
-                    Back to editing
+                    {t`Back to editing`}
                 </UnlockedButton>
             </DialogFooter>
         </Dialog>

@@ -21,6 +21,10 @@ import {
     flushManagedBackupBeforeLock,
     stopManagedBackup,
 } from "@/app_lib/managed-backup-hooks";
+import {
+    flushBackupDestinationsBeforeLock,
+    stopBackupDestinations,
+} from "@/app_lib/backup-destination-hooks";
 import { err, ok, type Result } from "neverthrow";
 import { androidCredentials } from "@/utils/android-credentials";
 import { purgeSecretTempFiles } from "@/utils/secret-temp-files";
@@ -111,7 +115,10 @@ export async function lockUnlockedVault({
                     return err(saveRes.error);
                 }
 
-                await flushManagedBackupBeforeLock();
+                await Promise.all([
+                    flushManagedBackupBeforeLock(),
+                    flushBackupDestinationsBeforeLock(),
+                ]);
                 clearVaultDEKFromSession();
                 teardownActiveSyncControllers(syncConnectionController);
                 try {
@@ -129,6 +136,7 @@ export async function lockUnlockedVault({
                 await logoutOnlineServicesSession();
                 vaultLogger.clearAll();
                 stopManagedBackup();
+                stopBackupDestinations();
                 void purgeSecretTempFiles().catch((error) => {
                     vaultLog.error("Failed to purge secret temporary files", {
                         error,
@@ -177,6 +185,7 @@ export async function lockVaultWithoutSaving(
         );
         await cleanup(() => androidCredentials.clearProviderCredentials());
         await cleanup(() => stopManagedBackup());
+        await cleanup(() => stopBackupDestinations());
         await cleanup(() => logoutOnlineServicesSession());
         await cleanup(() => clearPendingSecretFromClipboard());
         await cleanup(() => purgeSecretTempFiles());

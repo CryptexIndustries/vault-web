@@ -14,6 +14,9 @@ const config: Config = {
         "^@cryptex-industries/vault-core/(.*)$":
             "<rootDir>/../packages/vault-core/src/$1",
         "^expo-clipboard$": "<rootDir>/tests/mocks/expo-clipboard.ts",
+        "^@lingui/(core|react)/macro$": "<rootDir>/tests/mocks/lingui-macro.ts",
+        "^@lingui/core$": "<rootDir>/tests/mocks/lingui-core.ts",
+        "\\.po$": "<rootDir>/tests/mocks/po-catalog.ts",
     },
     transform: {
         "^.+\\.m?[tj]sx?$": [

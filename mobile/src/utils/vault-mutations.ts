@@ -15,6 +15,7 @@ import {
     getVaultSessionGeneration,
     type VaultSessionError,
 } from "@/utils/vault-session";
+import { markBackupDestinationsDirty } from "@/app_lib/backup-destination-hooks";
 import { markManagedBackupDirty } from "@/app_lib/managed-backup-hooks";
 import { isAutoLockDue } from "@/utils/session-timeout";
 
@@ -58,6 +59,7 @@ export async function persistVaultMutation<T>(
 
         vaultStore.set(unlockedVaultAtom, mutation.vault);
         markManagedBackupDirty();
+        markBackupDestinationsDirty();
         return ok(mutation.result);
     });
 }

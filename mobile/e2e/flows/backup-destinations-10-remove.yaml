@@ -1,0 +1,22 @@
+appId: ${CRYPTEX_APP_ID}
+name: A removed destination gets no more uploads
+---
+- launchApp:
+      stopApp: false
+- runFlow: backup-destinations-open.yaml
+- tapOn: E2E Garage, .*
+- scrollUntilVisible:
+      element:
+          text: Remove destination
+      direction: DOWN
+- tapOn: Remove destination
+- tapOn: Remove
+- extendedWaitUntil:
+      visible: Destination removed
+      timeout: 10000
+- assertNotVisible: E2E Garage, .*
+- runFlow: backup-destinations-close.yaml
+- runFlow:
+      file: backup-destinations-add-login.yaml
+      env:
+          LOGIN_NAME: After Removal

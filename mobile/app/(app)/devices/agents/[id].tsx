@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
+import { i18n } from "@lingui/core";
+import { useLingui } from "@lingui/react/macro";
+import { useLingui as useActiveLocale } from "@lingui/react";
 import {
     ChevronDown,
     ChevronRight,
@@ -16,13 +19,9 @@ import {
     setAgentPaused,
     updateAgentKeys,
 } from "@cryptex-industries/vault-core/agent/agent-actions";
-import { RELAY_FORGOT_AGENT_TEXT } from "@cryptex-industries/vault-core/agent/runtime";
 import {
     agentKeyOptions,
-    formatAgo,
-    historyTitle,
     machineLabel,
-    outcomeLabel,
     relayLabel,
 } from "@cryptex-industries/vault-core/agent/agent-format";
 import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
@@ -57,6 +56,7 @@ import { AgentNotificationsNotice } from "@/components/agents/agent-notification
 import { agentRuntime } from "@/agent/agent-app";
 import { changeAgent, revokeAgentInVault } from "@/agent/agent-vault";
 import { useConnectedAgents } from "@/agent/use-agents";
+import { formatAgo, historyTitle, outcomeLabel } from "@/agent/agent-wording";
 import { env } from "@/env";
 import { sshKeyInfo } from "@/utils/ssh-keys";
 import { unlockedVaultAtom } from "@/utils/atoms";
@@ -72,6 +72,8 @@ function HistoryRow({ entry }: { entry: AgentRequestRecord }) {
                 ? GitCommitHorizontal
                 : PenLine
             : KeyRound;
+    // FlatList rows only re-render on a language change when they subscribe.
+    useActiveLocale();
     return (
         <View
             style={{
@@ -111,6 +113,7 @@ function HistoryRow({ entry }: { entry: AgentRequestRecord }) {
 }
 
 export default function AgentScreen() {
+    const { t } = useLingui();
     const { id } = useLocalSearchParams<{ id: string }>();
     const vault = useAtomValue(unlockedVaultAtom);
     const { agents, approvedHere } = useConnectedAgents();
@@ -125,22 +128,22 @@ export default function AgentScreen() {
     const [pausing, setPausing] = useState(false);
     const agent = agents.find((item) => item.ID === id);
     const keys = useMemo(
-        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo),
-        [vault],
+        () => agentKeyOptions(sshKeyItems(vault), sshKeyInfo, t`SSH key`),
+        [vault, t],
     );
 
     if (!agent) {
         return (
-            <UnlockedTaskScreen title="Agent">
+            <UnlockedTaskScreen title={t`Agent`}>
                 <Text style={{ color: colors.muted }}>
-                    This agent was revoked or isn't in this vault anymore.
+                    {t`This agent was revoked or isn't in this vault anymore.`}
                 </Text>
             </UnlockedTaskScreen>
         );
     }
 
     const here = approvedHere(agent);
-    const name = sanitizeDisplayText(agent.Name || "Agent");
+    const name = sanitizeDisplayText(agent.Name || t`Agent`);
 
     const saveKeys = async () => {
         setSaving(true);
@@ -155,10 +158,10 @@ export default function AgentScreen() {
                 },
             );
             setEditing(false);
-            showSnackbar("Keys updated");
+            showSnackbar(t`Keys updated`);
         } catch {
             showSnackbar(
-                "Couldn't update the keys. Check your connection and try again.",
+                t`Couldn't update the keys. Check your connection and try again.`,
             );
         } finally {
             setSaving(false);
@@ -178,22 +181,21 @@ export default function AgentScreen() {
             });
             showSnackbar(
                 relayRevoked
-                    ? "Agent revoked"
-                    : "Agent revoked. The relay will be told when the approving device syncs.",
+                    ? t`Agent revoked`
+                    : t`Agent revoked. The relay will be told when the approving device syncs.`,
             );
             router.back();
         } catch {
-            showSnackbar("Couldn't revoke the agent. Try again.");
+            showSnackbar(t`Couldn't revoke the agent. Try again.`);
         }
     };
 
     const confirmRevoke = () =>
         confirm({
-            title: `Revoke ${name}?`,
-            description:
-                "The agent can't ask for signatures anymore. To use it again, pair it again with cryptex-agent pair.",
-            confirmLabel: "Revoke agent",
-            cancelLabel: "Cancel",
+            title: t`Revoke ${name}?`,
+            description: t`The agent can't ask for signatures anymore. To use it again, pair it again with cryptex-agent pair.`,
+            confirmLabel: t`Revoke agent`,
+            cancelLabel: t`Cancel`,
             destructive: true,
             onConfirm: () => void revoke(),
         });
@@ -208,12 +210,12 @@ export default function AgentScreen() {
                 changeAgent,
                 runtime: agentRuntime,
             });
-            showSnackbar(paused ? "Agent resumed" : "Agent paused");
+            showSnackbar(paused ? t`Agent resumed` : t`Agent paused`);
         } catch {
             showSnackbar(
                 paused
-                    ? "Couldn't resume the agent. Try again."
-                    : "Couldn't pause the agent. Try again.",
+                    ? t`Couldn't resume the agent. Try again.`
+                    : t`Couldn't pause the agent. Try again.`,
             );
         } finally {
             setPausing(false);
@@ -223,7 +225,7 @@ export default function AgentScreen() {
     if (editing) {
         return (
             <UnlockedTaskScreen
-                title="Edit keys"
+                title={t`Edit keys`}
                 onBack={() => setEditing(false)}
                 scroll={false}
                 footer={
@@ -232,16 +234,16 @@ export default function AgentScreen() {
                             <InlineNotice
                                 tone="warning"
                                 testID="agent-no-keys"
-                                message="With no keys, this agent can't sign anything until you add some again."
+                                message={t`With no keys, this agent can't sign anything until you add some again.`}
                             />
                         )}
                         <Button
                             testID="agent-keys-save"
                             loading={saving}
-                            loadingLabel="Saving…"
+                            loadingLabel={t`Saving…`}
                             onPress={() => void saveKeys()}
                         >
-                            Save keys
+                            {t`Save keys`}
                         </Button>
                     </View>
                 }
@@ -252,7 +254,7 @@ export default function AgentScreen() {
                     onChange={setDraft}
                     disabled={saving}
                     maxWidth={720}
-                    title="Keys this agent can use"
+                    title={t`Keys this agent can use`}
                     header={
                         <>
                             <Text
@@ -262,7 +264,7 @@ export default function AgentScreen() {
                                     lineHeight: 20,
                                 }}
                             >
-                                {`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
+                                {t`${name} can ask to sign with the keys you pick. It gets the new list the next time it connects.`}
                             </Text>
                         </>
                     }
@@ -271,12 +273,21 @@ export default function AgentScreen() {
         );
     }
 
+    const approverName = sanitizeDisplayText(
+        agent.ApproverName || (here ? t`This device` : t`Another device`),
+    );
+    const keyCount = agent.CredentialIDs.length;
+    const machine = machineLabel(agent, t`Unknown machine`);
+    const pairedDate = new Date(agent.PairedAtTimestamp).toLocaleDateString(
+        i18n.locale,
+        { month: "short", day: "numeric", year: "numeric" },
+    );
     const history = showAll
         ? agent.History
         : agent.History.slice(0, RECENT_COUNT);
     return (
         <UnlockedTaskScreen
-            title="Agent"
+            title={t`Agent`}
             scroll={false}
             actions={
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -284,7 +295,7 @@ export default function AgentScreen() {
                         <Pressable
                             testID="agent-edit-keys"
                             accessibilityRole="button"
-                            accessibilityLabel="Edit keys"
+                            accessibilityLabel={t`Edit keys`}
                             onPress={() => {
                                 setDraft(agent.CredentialIDs);
                                 setEditing(true);
@@ -302,14 +313,14 @@ export default function AgentScreen() {
                                     fontWeight: "600",
                                 }}
                             >
-                                Edit keys
+                                {t`Edit keys`}
                             </Text>
                         </Pressable>
                     ) : null}
                     <Pressable
                         testID="agent-menu"
                         accessibilityRole="button"
-                        accessibilityLabel="More agent actions"
+                        accessibilityLabel={t`More agent actions`}
                         onPress={() => setMenuOpen(true)}
                         style={{
                             width: 48,
@@ -354,8 +365,8 @@ export default function AgentScreen() {
                                 </Text>
                                 <Text className="mt-1 text-xs text-muted-foreground">
                                     {agent.AgentVersion
-                                        ? `${machineLabel(agent)}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
-                                        : machineLabel(agent)}
+                                        ? `${machine}, cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
+                                        : machine}
                                 </Text>
                                 <View className="mt-1.5 flex-row items-center gap-1.5">
                                     <Clock size={13} color={colors.muted} />
@@ -363,13 +374,7 @@ export default function AgentScreen() {
                                         testID="agent-paired"
                                         className="text-xs text-muted-foreground"
                                     >
-                                        {`Paired ${new Date(
-                                            agent.PairedAtTimestamp,
-                                        ).toLocaleDateString(undefined, {
-                                            month: "short",
-                                            day: "numeric",
-                                            year: "numeric",
-                                        })}`}
+                                        {t`Paired ${pairedDate}`}
                                     </Text>
                                 </View>
                             </View>
@@ -379,9 +384,9 @@ export default function AgentScreen() {
                                 testID="agent-relay-forgot"
                                 tone="warning"
                                 className="mb-3"
-                                message={RELAY_FORGOT_AGENT_TEXT}
+                                message={t`The relay no longer knows this agent. Pair it again or remove it.`}
                                 action={{
-                                    label: "Remove agent",
+                                    label: t`Remove agent`,
                                     testID: "agent-relay-forgot-remove",
                                     onPress: confirmRevoke,
                                 }}
@@ -392,9 +397,9 @@ export default function AgentScreen() {
                                 testID="agent-paused"
                                 tone="info"
                                 className="mb-3"
-                                message="Paused. Requests from this agent are refused without asking."
+                                message={t`Paused. Requests from this agent are refused without asking.`}
                                 action={{
-                                    label: pausing ? "Resuming…" : "Resume",
+                                    label: pausing ? t`Resuming…` : t`Resume`,
                                     testID: "agent-resume",
                                     onPress: () => {
                                         if (!pausing) void togglePaused();
@@ -408,30 +413,34 @@ export default function AgentScreen() {
                             />
                         ) : null}
                         <InfoCard
-                            label="Approver"
+                            label={t({
+                                message: "Approver",
+                                comment:
+                                    "The device that approves this agent's sign requests",
+                            })}
                             value={
                                 here
-                                    ? `${sanitizeDisplayText(agent.ApproverName || "This device")} (this device)`
-                                    : sanitizeDisplayText(
-                                          agent.ApproverName ||
-                                              "Another device",
-                                      )
+                                    ? t`${approverName} (this device)`
+                                    : approverName
                             }
                         />
                         <InfoCard
-                            label="Relay"
-                            value={relayLabel(agent.RelayOrigin)}
+                            label={t`Relay`}
+                            value={relayLabel(
+                                agent.RelayOrigin,
+                                t`Online Services`,
+                            )}
                         />
                         <Pressable
                             testID="agent-keys-toggle"
                             accessibilityRole="button"
-                            accessibilityLabel={`Keys, ${agent.CredentialIDs.length}`}
+                            accessibilityLabel={t`Keys, ${keyCount}`}
                             accessibilityState={{ expanded: keysOpen }}
                             onPress={() => setKeysOpen((open) => !open)}
                             hitSlop={8}
                         >
                             <AgentSectionLabel
-                                title="Keys"
+                                title={t`Keys`}
                                 right={
                                     <View
                                         style={{
@@ -471,10 +480,10 @@ export default function AgentScreen() {
                                 return (
                                     <KeyRow
                                         key={credentialId}
-                                        name={key?.name ?? "Deleted item"}
+                                        name={key?.name ?? t`Deleted item`}
                                         detail={
                                             key?.detail ??
-                                            "No longer in the vault"
+                                            t`No longer in the vault`
                                         }
                                     />
                                 );
@@ -487,11 +496,11 @@ export default function AgentScreen() {
                                     paddingVertical: 14,
                                 }}
                             >
-                                No keys.
+                                {t`No keys.`}
                             </Text>
                         )}
                         <AgentSectionLabel
-                            title="Recent requests"
+                            title={t`Recent requests`}
                             right={
                                 agent.History.length > RECENT_COUNT ? (
                                     <Pressable
@@ -508,7 +517,9 @@ export default function AgentScreen() {
                                                 fontWeight: "600",
                                             }}
                                         >
-                                            {showAll ? "Show less" : "See all"}
+                                            {showAll
+                                                ? t`Show less`
+                                                : t`See all`}
                                         </Text>
                                     </Pressable>
                                 ) : undefined
@@ -524,7 +535,7 @@ export default function AgentScreen() {
                             paddingVertical: 14,
                         }}
                     >
-                        No requests yet.
+                        {t`No requests yet.`}
                     </Text>
                 }
             />
@@ -537,7 +548,7 @@ export default function AgentScreen() {
                 <DialogHeader>
                     <DialogTitle>{name}</DialogTitle>
                     <DialogDescription>
-                        Choose an action for this agent.
+                        {t`Choose an action for this agent.`}
                     </DialogDescription>
                 </DialogHeader>
                 <Button
@@ -549,7 +560,7 @@ export default function AgentScreen() {
                         void togglePaused();
                     }}
                 >
-                    {paused ? "Resume agent" : "Pause agent"}
+                    {paused ? t`Resume agent` : t`Pause agent`}
                 </Button>
                 <Button
                     testID="agent-revoke"
@@ -559,7 +570,7 @@ export default function AgentScreen() {
                         confirmRevoke();
                     }}
                 >
-                    Revoke agent
+                    {t`Revoke agent`}
                 </Button>
             </Dialog>
         </UnlockedTaskScreen>

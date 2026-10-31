@@ -50,15 +50,17 @@ source commit. Publish APKs as release assets.
 
 ## Release CI
 
-[Mobile](../../.github/workflows/mobile.yml) runs checks on relevant pushes to
-`development` or `master` and on pull requests. Android smoke tests and release
-builds run only on manual dispatch or `mobile-v*` release tags.
+[Mobile](../../.github/workflows/mobile.yml) runs checks and Android smoke tests
+on relevant pushes to `development` or `master` and on pull requests. A newer
+push to the same branch or pull request cancels the older run. Release builds
+run only on manual dispatch or `mobile-v*` release tags.
 
 Manual dispatch defaults to `preprod` and builds the selected branch using the
 `Mobile - Preproduction` GitHub environment. Selecting `production` requires
 dispatch on an existing `mobile-v` tag matching `app.json`. Pushing that tag
 automatically selects production and calls
-[Mobile F-Droid](../../.github/workflows/mobile-fdroid.yml) after checks and smoke tests.
+[Mobile F-Droid](../../.github/workflows/mobile-fdroid.yml) once checks pass, in
+parallel with the smoke tests.
 The F-Droid workflow runs four parallel jobs inside the pinned official
 build-server container, one for each Android ABI. Each job compiles Skia and
 the app only for its ABI. A separate signing job verifies and signs all four
@@ -75,16 +77,15 @@ available. Tag runs use the workflow in the tagged commit.
 
 ```sh
 gh workflow run mobile.yml --ref development -f profile=preprod
-gh workflow run mobile.yml --ref development -f profile=preprod -f distribution=fdroid
 gh workflow run mobile.yml --ref mobile-v0.1.0 -f profile=production
 ```
 
-`distribution=fdroid` tests the F-Droid recipe before a release. Instead of the
-standard preproduction APK, it runs the same recipe as
-`com.cryptexindustries.vault.preprod` for `arm64-v8a` and `x86_64` only. The
-preproduction key signs the APKs, the x86_64 APK gets the same emulator launch
-check as a release, and they land in `mobile-fdroid-preprod-release-<run-id>`.
-Production ignores `distribution`.
+`distribution` defaults to `fdroid`; `play` builds
+[Google Play](../docs/GOOGLE_PLAY.md) instead. A preproduction F-Droid run tests
+the recipe before a release: it builds `com.cryptexindustries.vault.preprod` for
+`arm64-v8a` and `x86_64` only. The preproduction key signs the APKs, the x86_64
+APK gets the same emulator launch check as a release, and they land in
+`mobile-fdroid-preprod-release-<run-id>`.
 
 Production builds read `mobile/release-config.json`; preproduction builds,
 including preproduction F-Droid runs, read `mobile/prerelease-config.json`. Both
@@ -96,8 +97,8 @@ configuration snapshot from the build job. They use environment secrets
 The alias comes from the public signing identity. Signing uses build-tools 34,
 checks the certificate pin and APK policy, and never rebuilds the application.
 
-The `mobile-preprod-release-<run-id>` and `mobile-fdroid-release-<run-id>` artifacts
-contain signed and unsigned APKs, public configuration, verification receipts and
+The `mobile-fdroid-release-<run-id>` and `mobile-fdroid-preprod-release-<run-id>`
+artifacts contain signed and unsigned APKs, public configuration, verification receipts and
 checksums. Each `mobile-fdroid-submission-<run-id>-<abi>` contains scanner/build logs and
 submission metadata with the exact source commit and srclib definitions.
 

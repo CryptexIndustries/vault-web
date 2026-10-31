@@ -4,6 +4,9 @@ import { InlineNotice } from "@/components/inline-notice";
 import { useCallback, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
 import { writeSecretTempFile } from "@/utils/secret-temp-files";
@@ -36,13 +39,56 @@ type EventFilter =
     | "info"
     | "debug";
 
-const FILTER_OPTIONS: Array<{ value: EventFilter; label: string }> = [
-    { value: "all", label: "All events" },
-    { value: "problems", label: "Problems" },
-    { value: "errors", label: "Errors" },
-    { value: "warnings", label: "Warnings" },
-    { value: "info", label: "Info" },
-    { value: "debug", label: "Debug" },
+const FILTER_OPTIONS: Array<{
+    value: EventFilter;
+    label: MessageDescriptor;
+    showLabel: MessageDescriptor;
+}> = [
+    {
+        value: "all",
+        label: msg`All events`,
+        showLabel: msg`Show all events`,
+    },
+    {
+        value: "problems",
+        label: msg({
+            message: "Problems",
+            comment: "Diagnostics filter: errors and warnings",
+        }),
+        showLabel: msg`Show problems`,
+    },
+    {
+        value: "errors",
+        label: msg({
+            message: "Errors",
+            comment: "Diagnostics filter: error log level",
+        }),
+        showLabel: msg`Show errors`,
+    },
+    {
+        value: "warnings",
+        label: msg({
+            message: "Warnings",
+            comment: "Diagnostics filter: warning log level",
+        }),
+        showLabel: msg`Show warnings`,
+    },
+    {
+        value: "info",
+        label: msg({
+            message: "Info",
+            comment: "Diagnostics filter: info log level",
+        }),
+        showLabel: msg`Show info`,
+    },
+    {
+        value: "debug",
+        label: msg({
+            message: "Debug",
+            comment: "Diagnostics filter: debug log level",
+        }),
+        showLabel: msg`Show debug`,
+    },
 ];
 
 function matchesFilter(entry: MobileLogEntry, filter: EventFilter): boolean {
@@ -92,6 +138,7 @@ function detailsText(entry: MobileLogEntry): string {
 }
 
 export default function DiagnosticsScreen() {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<EventFilter>("all");
@@ -105,6 +152,7 @@ export default function DiagnosticsScreen() {
     const [exporting, setExporting] = useState(false);
     const [exportError, setExportError] = useState("");
     const [copyMessage, setCopyMessage] = useState("");
+    const [copySucceeded, setCopySucceeded] = useState(false);
     useFocusEffect(
         useCallback(() => {
             setRevision((value) => value + 1);
@@ -134,9 +182,16 @@ export default function DiagnosticsScreen() {
     const warningCount = allLogs.filter(
         (entry) => entry.level === "WARN",
     ).length;
-    const activeFilterLabel =
+    const activeFilterLabel = t(
         FILTER_OPTIONS.find((option) => option.value === filter)?.label ??
-        "All events";
+            msg`All events`,
+    );
+    const recentCount = logs.length;
+    const appVersion =
+        Constants.expoConfig?.version ??
+        Constants.nativeAppVersion ??
+        t({ message: "Unknown", comment: "App version is not known" });
+    const buildVersion = Constants.nativeBuildVersion;
     const exportEventCount = exportSnapshot
         ? (JSON.parse(exportSnapshot) as { events: MobileLogEntry[] }).events
               .length
@@ -144,10 +199,11 @@ export default function DiagnosticsScreen() {
 
     const copyLogs = async () => {
         const copied = await copySecretToClipboard(createDiagnosticsExport());
+        setCopySucceeded(copied);
         setCopyMessage(
             copied
-                ? "Copied. The clipboard will clear after 30 seconds."
-                : "Could not copy diagnostics.",
+                ? t`Copied. The clipboard will clear after 30 seconds.`
+                : t`Could not copy diagnostics.`,
         );
     };
 
@@ -170,12 +226,12 @@ export default function DiagnosticsScreen() {
                 { isCurrent: release.current, mimeType: "application/json" },
             );
             if (shared === "unavailable")
-                setExportError("Sharing is unavailable on this device.");
+                setExportError(t`Sharing is unavailable on this device.`);
         } catch (error) {
             setExportError(
                 error instanceof Error
                     ? error.message
-                    : "Could not export diagnostics.",
+                    : t`Could not export diagnostics.`,
             );
         } finally {
             setExporting(false);
@@ -184,14 +240,14 @@ export default function DiagnosticsScreen() {
 
     return (
         <UnlockedTaskScreen
-            title={reviewExport ? "Review diagnostic export" : "Diagnostics"}
+            title={reviewExport ? t`Review diagnostic export` : t`Diagnostics`}
             onBack={reviewExport ? () => setReviewExport(false) : undefined}
             scroll={false}
             actions={
                 reviewExport ? undefined : (
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Refresh diagnostics"
+                        accessibilityLabel={t`Refresh diagnostics`}
                         onPress={() => setRevision((value) => value + 1)}
                         style={{
                             width: 48,
@@ -218,24 +274,24 @@ export default function DiagnosticsScreen() {
             >
                 <DialogHeader>
                     <UnlockedDialogTitle>
-                        Export diagnostics
+                        {t`Export diagnostics`}
                     </UnlockedDialogTitle>
                 </DialogHeader>
                 <Text className="text-sm leading-5 text-muted-foreground">
-                    A JSON file containing app version, device information, and{" "}
-                    {exportEventCount} diagnostic{" "}
-                    {exportEventCount === 1 ? "event" : "events"}. Known secret
-                    fields are redacted, but review the contents before sharing.
+                    {plural(exportEventCount, {
+                        one: "A JSON file containing app version, device information, and # diagnostic event. Known secret fields are redacted, but review the contents before sharing.",
+                        other: "A JSON file containing app version, device information, and # diagnostic events. Known secret fields are redacted, but review the contents before sharing.",
+                    })}
                 </Text>
                 <Button
                     variant="outline"
                     disabled={exporting}
                     onPress={() => setReviewExport(true)}
                 >
-                    Review file contents
+                    {t`Review file contents`}
                 </Button>
                 <Button loading={exporting} onPress={() => void exportLogs()}>
-                    Save diagnostic file
+                    {t`Save diagnostic file`}
                 </Button>
                 {exportError ? (
                     <InlineNotice tone="error" message={exportError} />
@@ -251,11 +307,10 @@ export default function DiagnosticsScreen() {
                     }}
                 >
                     <Text className="font-medium text-[22px] text-foreground">
-                        Check before sharing
+                        {t`Check before sharing`}
                     </Text>
                     <Text className="mt-2 text-[13px] leading-5 text-muted-foreground">
-                        The file contains diagnostic events, app version, and
-                        device information.
+                        {t`The file contains diagnostic events, app version, and device information.`}
                     </Text>
                     <View className="my-5 rounded-md border border-border bg-[#111520] p-[18px]">
                         <ScrollView
@@ -273,8 +328,7 @@ export default function DiagnosticsScreen() {
                     </View>
                     <View className="border-l-2 border-muted pl-3">
                         <Text className="text-xs leading-5 text-muted-foreground">
-                            Known secret fields are redacted. Review the
-                            contents before sharing them with support.
+                            {t`Known secret fields are redacted. Review the contents before sharing them with support.`}
                         </Text>
                     </View>
                     <Button
@@ -282,7 +336,7 @@ export default function DiagnosticsScreen() {
                         loading={exporting}
                         onPress={() => void exportLogs()}
                     >
-                        Save diagnostic file
+                        {t`Save diagnostic file`}
                     </Button>
                     {exportError ? (
                         <InlineNotice
@@ -311,15 +365,15 @@ export default function DiagnosticsScreen() {
                                     value={query}
                                     onChangeText={setQuery}
                                     onFocus={() => setFilterOpen(false)}
-                                    placeholder="Search diagnostics"
+                                    placeholder={t`Search diagnostics`}
                                     autoCapitalize="none"
                                     autoCorrect={false}
-                                    accessibilityLabel="Search diagnostic events"
+                                    accessibilityLabel={t`Search diagnostic events`}
                                 />
                             </View>
                             <Pressable
                                 accessibilityRole="button"
-                                accessibilityLabel={`Filter diagnostics, ${activeFilterLabel}`}
+                                accessibilityLabel={t`Filter diagnostics, ${activeFilterLabel}`}
                                 accessibilityState={{ expanded: filterOpen }}
                                 onPress={() => setFilterOpen((open) => !open)}
                                 style={{
@@ -361,29 +415,35 @@ export default function DiagnosticsScreen() {
                     >
                         <View className="rounded-md border border-border bg-[#111520] p-4">
                             <Text className="text-[11px] uppercase tracking-[1px] text-muted-foreground">
-                                This session
+                                {t`This session`}
                             </Text>
                             <Text className="mt-2 text-sm text-foreground">
-                                {allLogs.length}{" "}
-                                {allLogs.length === 1 ? "event" : "events"} ·{" "}
-                                {errorCount} errors · {warningCount} warnings
+                                {plural(allLogs.length, {
+                                    one: "# event",
+                                    other: "# events",
+                                })}{" "}
+                                ·{" "}
+                                {plural(errorCount, {
+                                    one: "# error",
+                                    other: "# errors",
+                                })}{" "}
+                                ·{" "}
+                                {plural(warningCount, {
+                                    one: "# warning",
+                                    other: "# warnings",
+                                })}
                             </Text>
                             <Text className="mt-2 text-xs text-muted-foreground">
-                                App{" "}
-                                {Constants.expoConfig?.version ??
-                                    Constants.nativeAppVersion ??
-                                    "Unknown"}
-                                {Constants.nativeBuildVersion
-                                    ? ` (build ${Constants.nativeBuildVersion})`
-                                    : ""}
+                                {buildVersion
+                                    ? t`App ${appVersion} (build ${buildVersion})`
+                                    : t`App ${appVersion}`}
                                 {Platform.OS === "android"
                                     ? ` · Android ${Platform.constants.Release} · API ${Platform.Version}`
                                     : ` · ${Platform.OS} ${Platform.Version}`}
                             </Text>
                         </View>
                         <Text className="mt-3 text-xs leading-5 text-muted-foreground">
-                            Events stay in memory for this session. Review
-                            details before copying or sharing them.
+                            {t`Events stay in memory for this session. Review details before copying or sharing them.`}
                         </Text>
                         <View className="mt-5 flex-row gap-3">
                             <Button
@@ -398,7 +458,7 @@ export default function DiagnosticsScreen() {
                             >
                                 <Download size={18} color={colors.foreground} />
                                 <Text className="font-semibold text-sm">
-                                    Export file
+                                    {t`Export file`}
                                 </Text>
                             </Button>
                             <Button
@@ -408,27 +468,24 @@ export default function DiagnosticsScreen() {
                             >
                                 <Copy size={18} color={colors.foreground} />
                                 <Text className="font-semibold text-sm">
-                                    Copy JSON
+                                    {t`Copy JSON`}
                                 </Text>
                             </Button>
                         </View>
                         {copyMessage ? (
                             <InlineNotice
-                                tone={
-                                    copyMessage.startsWith("Copied")
-                                        ? "success"
-                                        : "error"
-                                }
+                                tone={copySucceeded ? "success" : "error"}
                                 message={copyMessage}
                                 className="mt-3"
                             />
                         ) : null}
                         <Text className="mb-2 mt-7 text-[11px] uppercase tracking-[1px] text-muted-foreground">
-                            Recent events ({logs.length})
+                            {t`Recent events (${recentCount})`}
                             {filter !== "all" ? ` · ${activeFilterLabel}` : ""}
                         </Text>
                         {logs.map((entry) => {
                             const details = detailsText(entry);
+                            const message = entry.message;
                             const expanded =
                                 expandedDetails[entry.id] ??
                                 (entry.level === "ERROR" ||
@@ -441,7 +498,7 @@ export default function DiagnosticsScreen() {
                                     <Text className="text-[13px] leading-[19px] text-muted-foreground">
                                         {new Date(
                                             entry.timestamp,
-                                        ).toLocaleString()}{" "}
+                                        ).toLocaleString(i18n.locale)}{" "}
                                         [{entry.group}] {entry.level}
                                     </Text>
                                     <Text className="mt-1 text-sm leading-5 text-foreground">
@@ -451,7 +508,11 @@ export default function DiagnosticsScreen() {
                                         <>
                                             <Pressable
                                                 accessibilityRole="button"
-                                                accessibilityLabel={`${expanded ? "Hide" : "Show"} details for ${entry.message}`}
+                                                accessibilityLabel={
+                                                    expanded
+                                                        ? t`Hide details for ${message}`
+                                                        : t`Show details for ${message}`
+                                                }
                                                 onPress={() =>
                                                     setExpandedDetails(
                                                         (current) => ({
@@ -465,8 +526,8 @@ export default function DiagnosticsScreen() {
                                             >
                                                 <Text className="text-sm text-primary">
                                                     {expanded
-                                                        ? "Hide details"
-                                                        : "Show details"}
+                                                        ? t`Hide details`
+                                                        : t`Show details`}
                                                 </Text>
                                             </Pressable>
                                             {expanded ? (
@@ -487,8 +548,8 @@ export default function DiagnosticsScreen() {
                         {!logs.length ? (
                             <Text className="py-5 text-sm text-muted-foreground">
                                 {allLogs.length
-                                    ? "No events match this search and filter."
-                                    : "No diagnostic events yet."}
+                                    ? t`No events match this search and filter.`
+                                    : t`No diagnostic events yet.`}
                             </Text>
                         ) : null}
                         <Button
@@ -496,11 +557,10 @@ export default function DiagnosticsScreen() {
                             className="mt-6"
                             onPress={() => {
                                 confirm({
-                                    title: "Clear diagnostic logs?",
-                                    description:
-                                        "Remove the in-memory log history from this session.",
-                                    cancelLabel: "Cancel",
-                                    confirmLabel: "Clear logs",
+                                    title: t`Clear diagnostic logs?`,
+                                    description: t`Remove the in-memory log history from this session.`,
+                                    cancelLabel: t`Cancel`,
+                                    confirmLabel: t`Clear logs`,
                                     onConfirm: () => {
                                         vaultLogger.clearAll();
                                         setExpandedDetails({});
@@ -509,14 +569,14 @@ export default function DiagnosticsScreen() {
                                 });
                             }}
                         >
-                            Clear logs
+                            {t`Clear logs`}
                         </Button>
                     </ScrollView>
                     {filterOpen ? (
                         <>
                             <Pressable
                                 accessibilityRole="button"
-                                accessibilityLabel="Close diagnostic filters"
+                                accessibilityLabel={t`Close diagnostic filters`}
                                 onPress={() => setFilterOpen(false)}
                                 style={{
                                     position: "absolute",
@@ -545,7 +605,7 @@ export default function DiagnosticsScreen() {
                                     <Pressable
                                         key={option.value}
                                         accessibilityRole="button"
-                                        accessibilityLabel={`Show ${option.label.toLowerCase()}`}
+                                        accessibilityLabel={t(option.showLabel)}
                                         accessibilityState={{
                                             selected: filter === option.value,
                                         }}
@@ -568,7 +628,7 @@ export default function DiagnosticsScreen() {
                                         }}
                                     >
                                         <Text className="flex-1 text-sm">
-                                            {option.label}
+                                            {t(option.label)}
                                         </Text>
                                         <Text className="text-xs text-muted-foreground">
                                             {

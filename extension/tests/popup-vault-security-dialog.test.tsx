@@ -155,6 +155,7 @@ describe("PopupVaultSecurityDialog", () => {
                 currentMasterPassword: "current-password",
                 rotateDataKey: true,
                 deleteOlderManagedBackups: true,
+                deleteOlderDestinationBackups: false,
             },
         );
         expect(

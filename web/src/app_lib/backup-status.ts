@@ -1,4 +1,7 @@
 import { base64ToUint8, uint8ToBase64 } from "@cryptex-industries/vault-core";
+import type * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
+import type { BackupDestinationStatus } from "@cryptex-industries/vault-core/vault-utils/backup-destination-scheduler";
+import { visibleBackupDestinations } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 
 export const BACKUP_REMINDER_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 export const LOCAL_BACKUP_STATUS_EVENT = "cryptex:local-backup-status";
@@ -13,7 +16,12 @@ const MAX_STORED_RECEIPT_CHARS = 512;
 type Receipt = { at: number; source: string };
 
 export type LocalBackupReceipt = { completedAt: Date; isCurrent: boolean };
-export type BackupSource = "local" | "managed";
+export type BackupSource = "local" | "managed" | "destination";
+export const BACKUP_SOURCE_LABELS: Record<BackupSource, string> = {
+    local: "Local",
+    managed: "Managed",
+    destination: "Bucket",
+};
 export type BackupOverview = {
     latestBackupAt: Date | null;
     latestSource: BackupSource | null;
@@ -149,25 +157,31 @@ export async function recordLocalBackupCompleted(
 export function getBackupOverview({
     localBackupAt,
     managedBackupAt,
+    destinationBackupAt = null,
     managedEnabled,
     managedEntitled,
     now = new Date(),
 }: {
     localBackupAt: Date | null;
     managedBackupAt: Date | null;
+    destinationBackupAt?: Date | null;
     managedEnabled: boolean;
     managedEntitled: boolean;
     now?: Date;
 }): BackupOverview {
-    const localIsLatest =
-        localBackupAt != null &&
-        (managedBackupAt == null || localBackupAt >= managedBackupAt);
-    const latestBackupAt = localIsLatest ? localBackupAt : managedBackupAt;
-    const latestSource = latestBackupAt
-        ? localIsLatest
-            ? "local"
-            : "managed"
-        : null;
+    // On a tie the earlier source wins, so a local file beats a managed one.
+    let latestBackupAt: Date | null = null;
+    let latestSource: BackupSource | null = null;
+    for (const [source, at] of [
+        ["local", localBackupAt],
+        ["managed", managedBackupAt],
+        ["destination", destinationBackupAt],
+    ] as const) {
+        if (at && (!latestBackupAt || at > latestBackupAt)) {
+            latestBackupAt = at;
+            latestSource = source;
+        }
+    }
     const age = latestBackupAt
         ? Math.max(0, now.getTime() - latestBackupAt.getTime())
         : Infinity;
@@ -178,6 +192,20 @@ export function getBackupOverview({
         isStale,
         needsReminder: managedEntitled && !managedEnabled && isStale,
     };
+}
+
+/** Newest successful upload from this device to a destination still in the vault. */
+export function latestDestinationBackupAt(
+    destinations: readonly VaultUtilTypes.BackupDestination[],
+    statuses: Record<string, BackupDestinationStatus>,
+): Date | null {
+    const latest = Math.max(
+        0,
+        ...visibleBackupDestinations(destinations).map(
+            (destination) => statuses[destination.ID]?.lastSuccessAt ?? 0,
+        ),
+    );
+    return latest ? new Date(latest) : null;
 }
 
 export function formatBackupAge(completedAt: Date, now = new Date()): string {

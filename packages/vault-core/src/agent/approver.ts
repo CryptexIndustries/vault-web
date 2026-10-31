@@ -93,8 +93,13 @@ export class RelayRefusedError extends Error {
  * may be crafted, so nothing suggests the user owes it a token.
  */
 export function unknownRelayText(relayUrl: string, device = "device") {
-    const host = /^[a-z]+:\/\/([^/?#]+)/i.exec(relayUrl)?.[1] ?? relayUrl;
+    const host = relayUrlHost(relayUrl);
     return `This code uses a relay at ${host} that this ${device} doesn't know.`;
+}
+
+/** The host[:port] of a relay URL, or the text itself when it has none. */
+export function relayUrlHost(relayUrl: string) {
+    return /^[a-z]+:\/\/([^/?#]+)/i.exec(relayUrl)?.[1] ?? relayUrl;
 }
 
 /** accept(): the pairing was cancelled before the agent was registered. */

@@ -355,7 +355,7 @@ describe("vault-utils/storage", () => {
         mockEncryptDataBlob.mockResolvedValue(EncryptedBlob.CreateDefault());
         mockDecryptDataBlob.mockResolvedValue(err("DECRYPTION_FAILED"));
         mockOpenEnvelopeBlob.mockImplementation(async () => {
-            const dek = await webcrypto.subtle.generateKey(
+            const dek = await crypto.subtle.generateKey(
                 { name: "AES-GCM", length: 256 },
                 false,
                 ["encrypt", "decrypt"],
@@ -440,7 +440,7 @@ describe("vault-utils/storage", () => {
             VaultID: "test-vault",
         };
         const { update: updateMock } = getVaultTableMocks();
-        const dek = await webcrypto.subtle.generateKey(
+        const dek = await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],
@@ -564,7 +564,7 @@ describe("vault-utils/storage", () => {
         credential.Password = "pw";
         vault.Credentials = [credential];
         const encodedVault = VaultUtilTypes.Vault.encode(vault).finish();
-        const dek = await webcrypto.subtle.generateKey(
+        const dek = await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],
@@ -680,7 +680,7 @@ describe("vault-utils/storage", () => {
         };
         const vault = new Vault();
         Object.assign(vault.LinkedDevices, { ID: "linked" });
-        const dek = await webcrypto.subtle.generateKey(
+        const dek = await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],
@@ -727,7 +727,7 @@ describe("vault-utils/storage", () => {
                 { AgentID: "agent-a", Keys: [new Uint8Array([1, 2])] },
             ],
         };
-        const dek = await webcrypto.subtle.generateKey(
+        const dek = await crypto.subtle.generateKey(
             { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"],
@@ -1010,7 +1010,7 @@ describe("vault-utils/storage", () => {
                         }
                     ).additionalKeyProtectionHkdfBase,
                 ).toBeTruthy();
-                const dek = await webcrypto.subtle.generateKey(
+                const dek = await crypto.subtle.generateKey(
                     { name: "AES-GCM", length: 256 },
                     false,
                     ["encrypt", "decrypt"],
@@ -1072,7 +1072,7 @@ describe("vault-utils/storage", () => {
             serializeVault(
                 new Vault(),
                 EncryptedBlob.CreateDefault(),
-                await webcrypto.subtle.generateKey(
+                await crypto.subtle.generateKey(
                     { name: "AES-GCM", length: 256 },
                     false,
                     ["encrypt", "decrypt"],

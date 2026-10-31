@@ -1,6 +1,7 @@
 import * as React from "react";
 import { AppState, Pressable, TextInput, View } from "react-native";
 import { Dices, Eye, EyeOff } from "lucide-react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { useScrollFocusedInput } from "@/components/keyboard-scroll";
 import { Icon } from "@/components/ui/icon";
@@ -35,6 +36,7 @@ const Input = React.forwardRef<TextInput, InputProps>(function Input(
     },
     forwardedRef,
 ) {
+    const { t } = useLingui();
     const inputRef = React.useRef<TextInput>(null);
     const selectionRef = React.useRef({ start: 0, end: 0 });
     const [revealed, setRevealed] = React.useState(false);
@@ -129,9 +131,26 @@ const Input = React.forwardRef<TextInput, InputProps>(function Input(
 
     if (!revealable && !onGenerate) return textInput;
 
-    const fieldName = String(
-        props.accessibilityLabel ?? props.placeholder ?? "value",
-    );
+    const label = props.accessibilityLabel ?? props.placeholder;
+    const fieldName = label ? String(label) : null;
+    const generateLabel = fieldName
+        ? t({
+              message: `Generate ${fieldName}`,
+              comment: "Button beside a field; fieldName is the field's label",
+          })
+        : t`Generate value`;
+    const showLabel = fieldName
+        ? t({
+              message: `Show ${fieldName}`,
+              comment: "Reveals a hidden field; fieldName is the field's label",
+          })
+        : t`Show value`;
+    const hideLabel = fieldName
+        ? t({
+              message: `Hide ${fieldName}`,
+              comment: "Hides a revealed field; fieldName is the field's label",
+          })
+        : t`Hide value`;
     return (
         <View className="relative w-full">
             {textInput}
@@ -144,7 +163,7 @@ const Input = React.forwardRef<TextInput, InputProps>(function Input(
                         height: revealButtonHeight ?? 48,
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={`Generate ${fieldName}`}
+                    accessibilityLabel={generateLabel}
                     disabled={props.editable === false}
                     onPress={onGenerate}
                 >
@@ -171,9 +190,7 @@ const Input = React.forwardRef<TextInput, InputProps>(function Input(
                             : undefined
                     }
                     accessibilityRole="button"
-                    accessibilityLabel={
-                        revealed ? `Hide ${fieldName}` : `Show ${fieldName}`
-                    }
+                    accessibilityLabel={revealed ? hideLabel : showLabel}
                     onPress={toggleReveal}
                 >
                     <Icon

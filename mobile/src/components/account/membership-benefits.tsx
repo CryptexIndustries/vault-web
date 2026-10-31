@@ -1,5 +1,7 @@
 import { View } from "react-native";
 import { Check, Minus } from "lucide-react-native";
+import { msg, plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 
 import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
 import { colors } from "@/theme";
@@ -15,16 +17,16 @@ export type MembershipAccess = {
 };
 
 const vaultBenefits = [
-    "Local encrypted vault",
-    "Web app, Android app & Chromium extension",
-    "Autofill",
-    "Passkey support",
-    "Basic security reports",
-    "Imports & exports",
-    "Manual encrypted backups",
-    "Peer-to-peer synchronization",
-    "Self-hosted sync infrastructure",
-    "SSH keys and the SSH agent on your own relay",
+    msg`Local encrypted vault`,
+    msg`Web app, Android app & Chromium extension`,
+    msg`Autofill`,
+    msg`Passkey support`,
+    msg`Basic security reports`,
+    msg`Imports & exports`,
+    msg`Manual encrypted backups`,
+    msg`Peer-to-peer synchronization`,
+    msg`Self-hosted sync infrastructure`,
+    msg`SSH keys and the SSH agent on your own relay`,
 ];
 
 export function MembershipBenefits({
@@ -34,36 +36,38 @@ export function MembershipBenefits({
     access?: MembershipAccess | null;
     upgrading?: boolean;
 }) {
+    const { t } = useLingui();
+    const maxSshAgents = access?.maxSshAgents;
+    const vaultBenefitTitles = vaultBenefits.map((benefit) => t(benefit));
     const managedBenefits = [
         {
-            title: "Managed P2P infrastructure",
-            description:
-                "Hosted signaling and relay services. Both devices must be online and unlocked to sync.",
+            title: t`Managed P2P infrastructure`,
+            description: t`Hosted signaling and relay services. Both devices must be online and unlocked to sync.`,
             included: upgrading || access?.canLink === true,
         },
         {
-            title: "Managed encrypted backups",
-            description:
-                "150 MB of encrypted backup storage, with version history and Recovery Kit access.",
+            title: t`Managed encrypted backups`,
+            description: t`150 MB of encrypted backup storage, with version history and Recovery Kit access.`,
             included: upgrading || access?.managedEncryptedBackups === true,
         },
         {
-            title: "One-time share links",
-            description:
-                "Send a secret to anyone, even people without Cryptex Vault. It opens once, then it's deleted.",
+            title: t`One-time share links`,
+            description: t`Send a secret to anyone, even people without Cryptex Vault. It opens once, then it's deleted.`,
             included: upgrading || access?.passwordSharing === true,
         },
         {
-            title: "Hosted SSH agent relay",
-            description: access?.maxSshAgents
-                ? `Approve SSH logins on up to ${access.maxSshAgents} Linux machines without running your own relay.`
-                : "Approve SSH logins on your Linux machines without running your own relay.",
+            title: t`Hosted SSH agent relay`,
+            description: maxSshAgents
+                ? plural(maxSshAgents, {
+                      one: "Approve SSH logins on up to # Linux machine without running your own relay.",
+                      other: "Approve SSH logins on up to # Linux machines without running your own relay.",
+                  })
+                : t`Approve SSH logins on your Linux machines without running your own relay.`,
             included: upgrading || access?.sshAgentRelay === true,
         },
         {
-            title: "Online Services device management",
-            description:
-                "Manage registered devices and linking relationships, promote trusted devices, and revoke access.",
+            title: t`Online Services device management`,
+            description: t`Manage registered devices and linking relationships, promote trusted devices, and revoke access.`,
             included: upgrading || access?.canPromoteDevices === true,
         },
     ];
@@ -80,12 +84,18 @@ export function MembershipBenefits({
                         marginBottom: 10,
                     }}
                 >
-                    {upgrading ? "Your upgrade includes" : "Managed services"}
+                    {upgrading ? t`Your upgrade includes` : t`Managed services`}
                 </Text>
                 {managedBenefits.map(({ title, description, included }) => (
                     <View
                         key={title}
-                        accessibilityLabel={`${title}, ${included ? "included" : access ? "Online Services tier only" : "access unavailable"}`}
+                        accessibilityLabel={
+                            included
+                                ? t`${title}, included`
+                                : access
+                                  ? t`${title}, Online Services tier only`
+                                  : t`${title}, access unavailable`
+                        }
                         style={{
                             flexDirection: "row",
                             gap: 12,
@@ -145,8 +155,8 @@ export function MembershipBenefits({
                                         }}
                                     >
                                         {access
-                                            ? "Online Services tier only"
-                                            : "Access unavailable"}
+                                            ? t`Online Services tier only`
+                                            : t`Access unavailable`}
                                     </Text>
                                 </View>
                             ) : null}
@@ -164,12 +174,12 @@ export function MembershipBenefits({
                         marginBottom: 10,
                     }}
                 >
-                    Always included with your vault
+                    {t`Always included with your vault`}
                 </Text>
-                {vaultBenefits.map((title) => (
+                {vaultBenefitTitles.map((title) => (
                     <View
                         key={title}
-                        accessibilityLabel={`${title}, included`}
+                        accessibilityLabel={t`${title}, included`}
                         style={{
                             flexDirection: "row",
                             alignItems: "center",

@@ -82,4 +82,41 @@ describe("VaultWriteCoordinator", () => {
             "write-2",
         ]);
     });
+
+    it("reads again when a key change runs during the read, and doesn't wait for other writes", async () => {
+        const coordinator = new VaultWriteCoordinator();
+        let key = "old";
+        let releaseLock!: () => void;
+        // A lock holds the queue while it waits for the read.
+        const lock = coordinator.run(
+            "vault.lock",
+            () => new Promise<void>((resolve) => (releaseLock = resolve)),
+        );
+        const reads: string[] = [];
+        let releaseRead!: () => void;
+        const readGate = new Promise<void>((resolve) => {
+            releaseRead = resolve;
+        });
+        const read = coordinator.readBetweenKeyChanges(async () => {
+            const seen = key;
+            reads.push(seen);
+            if (reads.length === 1) await readGate;
+            return seen;
+        });
+        await Promise.resolve();
+        expect(reads).toEqual(["old"]);
+
+        const change = coordinator.run(
+            "vault.security.reconfigure",
+            async () => {
+                key = "new";
+            },
+        );
+        releaseLock();
+        await Promise.all([lock, change]);
+        releaseRead();
+
+        await expect(read).resolves.toBe("new");
+        expect(reads).toEqual(["old", "new"]);
+    });
 });

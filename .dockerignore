@@ -17,3 +17,8 @@ web/e2e
 cryptex-vault-cloud
 pending_work.html
 **/.cursor
+# The web build's changelog page reads these.
+!web/CHANGELOG.md
+!extension/CHANGELOG.md
+!mobile/CHANGELOG.md
+!services/cmd/*/CHANGELOG.md

@@ -151,12 +151,13 @@ public signature and embedded update identity, then checks exact APK bytes.
 
 ## Checks and device tests
 
-`mobile:check` runs lint, types, unit tests, CLI tests and a temporary Android
-JavaScript export. Select an individual check as follows:
+`mobile:check` runs lint, translation checks, types, unit tests, CLI tests and a
+temporary Android JavaScript export. Select an individual check as follows:
 
 ```sh
 pnpm mobile:check
 pnpm mobile:check -- lint
+pnpm mobile:check -- i18n
 pnpm mobile:check -- types
 pnpm mobile:check -- unit --runInBand
 pnpm mobile:check -- cli
@@ -172,6 +173,27 @@ pnpm mobile:e2e -- --help
 Device tests require `--device`, `ANDROID_SERIAL` or `MAESTRO_DEVICE`.
 `--e2e` builds the test APK with screenshot access for Maestro.
 See [e2e/README.md](e2e/README.md) for fixtures and suite setup.
+
+## Translations
+
+The app is in English and Croatian. UI text goes through
+[Lingui](https://lingui.dev) macros: `t` from `useLingui()`
+(`@lingui/react/macro`) in components, `t` from `@lingui/core/macro` in other
+code, and `msg` for module-level constants. Messages are English source text;
+the catalogs live in `src/locales/<locale>/messages.po`.
+
+After adding or changing text, update the catalogs from `mobile/` and translate
+the new `hr` entries:
+
+```sh
+pnpm exec lingui extract --clean
+```
+
+`mobile:check -- i18n` fails when JSX text or label props skip the macros
+(`scripts/check-i18n-literals.mjs`; mark deliberate English with an
+`i18n-ignore` comment), when the catalogs are out of date, or when a Croatian
+translation is missing. Log messages stay English. Native Android strings live
+in each module's `res/values` and `res/values-hr`.
 
 ## OTA updates through EAS
 

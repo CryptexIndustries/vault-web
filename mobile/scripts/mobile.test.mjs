@@ -266,8 +266,12 @@ test("dev forwards Expo options and cannot inherit the E2E bridge", () => {
     assert.equal(options.env.EXPO_PUBLIC_CRYPTEX_E2E, "0");
 });
 
-test("check runs lint, strict types, Jest, CLI tests, and a temporary export", () => {
-    const calls = capture(["check"]);
+test("check runs lint, translation checks, strict types, Jest, CLI tests, and a temporary export", () => {
+    const calls = capture(["check"]).filter(
+        (call) =>
+            call[1][0] !== "scripts/check-i18n-literals.mjs" &&
+            call[1][1] !== "lingui",
+    );
     assert.deepEqual(
         calls.slice(0, 4).map((call) => call[1]),
         [
@@ -310,6 +314,14 @@ test("granular checks retain Jest argument forwarding", () => {
         ],
     );
     assert.equal(capture(["check", "lint"]).length, 1);
+    assert.deepEqual(
+        capture(["check", "i18n"]).map((call) => call[1]),
+        [
+            ["scripts/check-i18n-literals.mjs"],
+            ["exec", "lingui", "check", "sync"],
+            ["exec", "lingui", "check", "missing", "--locale", "hr"],
+        ],
+    );
     const cliTests = capture(["check", "cli"])[0][1];
     for (const oracle of [
         "scripts/passkey-verifier.test.mjs",
@@ -422,6 +434,7 @@ test("every device suite requires explicit selection before running anything", (
         "provider-auto-lock",
         "ssh-keys",
         "ssh-agent",
+        "backup-destinations",
     ]) {
         assert.throws(() => capture(["e2e", suite]), /Select a device/);
     }
@@ -487,6 +500,7 @@ test("protected devices fail before any device command, including either sync ro
         "provider-auto-lock",
         "ssh-keys",
         "ssh-agent",
+        "backup-destinations",
     ]) {
         assert.throws(() => capture(["e2e", suite], env), /protected device/);
     }

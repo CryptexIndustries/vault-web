@@ -1,5 +1,6 @@
 import { memo, useMemo, type ComponentProps } from "react";
 import { Platform } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 import {
     Canvas,
     Circle,
@@ -93,6 +94,7 @@ const DeviceMapDrawing = memo(function DeviceMapDrawing({
     flowVisible: SharedValue<number>;
     viewport: { width: number; height: number };
 }) {
+    const { t } = useLingui();
     const geometry = useMemo(
         () => ({
             nodes: nodes.flatMap((node) => {
@@ -187,6 +189,10 @@ const DeviceMapDrawing = memo(function DeviceMapDrawing({
             ...geometry.edges.filter((item) => !dimmed(item.edge)),
         ];
     }, [geometry.edges, selection]);
+    const rootLabel = t({
+        message: "Root",
+        comment: "Badge on a device map node with root access",
+    });
     const nodeView = ({
         node,
         point,
@@ -212,8 +218,8 @@ const DeviceMapDrawing = memo(function DeviceMapDrawing({
             : local
               ? deviceLiveStatus(local, statuses)
               : isolatedIds.has(node.id)
-                ? "No recorded links"
-                : "No local link";
+                ? t`No recorded links`
+                : t`No local link`;
         return (
             <Group key={node.id}>
                 <RoundedRect
@@ -302,10 +308,10 @@ const DeviceMapDrawing = memo(function DeviceMapDrawing({
                             <Text
                                 x={
                                     point.x -
-                                    fonts.root.measureText("Root").width / 2
+                                    fonts.root.measureText(rootLabel).width / 2
                                 }
                                 y={point.y - 32}
-                                text="Root"
+                                text={rootLabel}
                                 font={fonts.root}
                                 color={colors.foreground}
                             />
@@ -342,7 +348,7 @@ const DeviceMapDrawing = memo(function DeviceMapDrawing({
                         <Text
                             x={isolatedBounds.x + 18}
                             y={isolatedBounds.y + 25}
-                            text={`No recorded links (${isolatedCount})`}
+                            text={t`No recorded links (${isolatedCount})`}
                             font={fonts.isolated}
                             color={colors.muted}
                         />

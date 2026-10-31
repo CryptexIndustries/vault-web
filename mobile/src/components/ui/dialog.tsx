@@ -18,6 +18,7 @@ import ActionSheet, {
     type ActionSheetRef,
 } from "react-native-actions-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLingui } from "@lingui/react/macro";
 import { Portal } from "@rn-primitives/portal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -84,12 +85,14 @@ function Dialog({
     placement = "center",
     modal = true,
     loading = false,
-    loadingLabel = "Loading…",
+    loadingLabel: loadingLabelProp,
     scrollResetKey,
     bottomSheetVariant,
     footer,
     children,
 }: DialogProps) {
+    const { t } = useLingui();
+    const loadingLabel = loadingLabelProp ?? t`Loading…`;
     const scrollRef = React.useRef<RNScrollView>(null);
     const sheetRef = React.useRef<ActionSheetRef>(null);
     const insets = useSafeAreaInsets();
@@ -276,6 +279,10 @@ function Dialog({
             style={fullHeight ? { flex: 1 } : { flexShrink: 1 }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            // The sheet turns scrolling off mid-drag to take over a pull at
+            // the top. Android then never releases its overscroll stretch,
+            // and the next tap only catches it instead of reaching the content.
+            overScrollMode="never"
             showsVerticalScrollIndicator={false}
             contentContainerClassName={bottomContentClassName}
         >
@@ -353,7 +360,7 @@ function Dialog({
                         dismissible
                             ? {
                                   accessibilityRole: "button",
-                                  accessibilityLabel: "Close dialog",
+                                  accessibilityLabel: t`Close dialog`,
                               }
                             : {
                                   accessible: false,
@@ -454,7 +461,7 @@ function Dialog({
                                     className="absolute inset-0"
                                     onPress={() => handleOpenChange(false)}
                                     accessibilityRole="button"
-                                    accessibilityLabel="Close dialog"
+                                    accessibilityLabel={t`Close dialog`}
                                 />
                             ) : (
                                 <View className="absolute inset-0" />
@@ -528,7 +535,7 @@ function Dialog({
                     {open && preparingDeviceSheet ? (
                         <View
                             accessibilityRole="progressbar"
-                            accessibilityLabel="Opening…"
+                            accessibilityLabel={t`Opening…`}
                             accessibilityLiveRegion="polite"
                             pointerEvents="none"
                             style={[

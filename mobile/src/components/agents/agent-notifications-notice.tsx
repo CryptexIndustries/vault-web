@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppState, View } from "react-native";
+import { useLingui } from "@lingui/react/macro";
 
 import { InlineNotice } from "@/components/inline-notice";
 import { agentService } from "@/agent/agent-service";
@@ -14,6 +15,7 @@ function notificationsOff() {
  * back.
  */
 export function AgentNotificationsNotice({ style }: { style?: object }) {
+    const { t } = useLingui();
     const [off, setOff] = useState(notificationsOff);
     useEffect(() => {
         setOff(notificationsOff());
@@ -28,9 +30,9 @@ export function AgentNotificationsNotice({ style }: { style?: object }) {
             <InlineNotice
                 testID="agent-notifications-off"
                 tone="warning"
-                message="Notifications are off for Cryptex Vault. SSH requests that come in while the app is closed or locked can't reach you."
+                message={t`Notifications are off for Cryptex Vault. SSH requests that come in while the app is closed or locked can't reach you.`}
                 action={{
-                    label: "Open notification settings",
+                    label: t`Open notification settings`,
                     testID: "agent-notifications-settings",
                     onPress: () => void agentService.openNotificationSettings(),
                 }}

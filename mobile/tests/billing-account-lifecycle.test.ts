@@ -115,8 +115,10 @@ jest.mock("@/utils/atoms", () => {
             remoteData: {},
         }),
         onlineServicesAuthConnectionStatusAtom: atom({
+            status: "CONNECTED",
             statusDescription: "Connected",
         }),
+        onlineServicesAuthStatusLabel: () => "Connected",
         onlineServicesStore: createStore(),
     };
 });

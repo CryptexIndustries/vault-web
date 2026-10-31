@@ -1,4 +1,5 @@
-import { unknownRelayText } from "@cryptex-industries/vault-core/agent/approver";
+import { plural, t } from "@lingui/core/macro";
+import { relayUrlHost } from "@cryptex-industries/vault-core/agent/approver";
 import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
 
 /**
@@ -10,14 +11,19 @@ export function unknownRelayMessage(
     relayUrl: string,
     savedRelays: readonly string[],
 ): string {
-    const others =
-        savedRelays.length === 1
-            ? ` You already use your own relay at ${sanitizeDisplayText(savedRelays[0]!, 120)}. Check that this code came from your machine.`
-            : savedRelays.length > 1
-              ? ` You already use ${savedRelays.length} relays of your own. Check that this code came from your machine.`
-              : "";
-    const intro = unknownRelayText(sanitizeDisplayText(relayUrl, 160), "phone");
-    return `${intro}${others} Enter an access token only if you run this relay yourself. The token stays on this phone.`;
+    const host = relayUrlHost(sanitizeDisplayText(relayUrl, 160));
+    const intro = t`This code uses a relay at ${host} that this phone doesn't know.`;
+    if (savedRelays.length === 1) {
+        const relay = sanitizeDisplayText(savedRelays[0]!, 120);
+        return t`${intro} You already use your own relay at ${relay}. Check that this code came from your machine. Enter an access token only if you run this relay yourself. The token stays on this phone.`;
+    }
+    const count = savedRelays.length;
+    if (count > 1)
+        return plural(count, {
+            one: `${intro} You already use # relay of your own. Check that this code came from your machine. Enter an access token only if you run this relay yourself. The token stays on this phone.`,
+            other: `${intro} You already use # relays of your own. Check that this code came from your machine. Enter an access token only if you run this relay yourself. The token stays on this phone.`,
+        });
+    return t`${intro} Enter an access token only if you run this relay yourself. The token stays on this phone.`;
 }
 
 /**
@@ -25,10 +31,11 @@ export function unknownRelayMessage(
  * changed. Only shown for relays the user saved themselves.
  */
 export function refusedRelayMessage(relayUrl: string): string {
-    const host = /^[a-z]+:\/\/([^/?#]+)/i.exec(relayUrl)?.[1] ?? relayUrl;
-    return `The relay at ${sanitizeDisplayText(host, 160)} didn't accept the access token saved on this phone. Enter its current access token.`;
+    const host = sanitizeDisplayText(relayUrlHost(relayUrl), 160);
+    return t`The relay at ${host} didn't accept the access token saved on this phone. Enter its current access token.`;
 }
 
 /** The hosted relay refused this phone's relay pass. */
-export const HOSTED_RELAY_REFUSED =
-    "The Cryptex Vault relay didn't accept this phone. Check that Online Services is active, then try again.";
+export function hostedRelayRefusedMessage(): string {
+    return t`The Cryptex Vault relay didn't accept this phone. Check that Online Services is active, then try again.`;
+}

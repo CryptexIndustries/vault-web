@@ -4,6 +4,7 @@ import type {
     VaultMetadata,
     VaultSecurityUpdate,
 } from "@/app_lib/vault-utils/storage";
+import { replaceBackupDestinationsAfterSecurityChange } from "@/app_lib/backup-destination-hooks";
 import { queueManagedBackupNow } from "@/app_lib/managed-backup-hooks";
 import { unlockedVaultMetadataAtom, vaultStore } from "@/utils/atoms";
 import { setVaultDEKInSession } from "@/utils/vault-session";
@@ -31,6 +32,7 @@ async function runSecurityMutation(
         metadata: VaultMetadata,
     ) => Promise<Result<VaultSecurityUpdate, string>>,
     deleteOlderManagedBackups: boolean,
+    deleteOlderDestinationBackups: boolean,
 ): Promise<Result<PublishedVaultSecurityUpdate, VaultSecurityMutationError>> {
     return vaultWriteCoordinator.run(kind, async () => {
         const metadata = vaultStore.get(unlockedVaultMetadataAtom);
@@ -48,6 +50,9 @@ async function runSecurityMutation(
         if (sessionDek) setVaultDEKInSession(sessionDek);
         publishMetadata(metadata);
         queueManagedBackupNow(deleteOlderManagedBackups);
+        void replaceBackupDestinationsAfterSecurityChange(
+            deleteOlderDestinationBackups,
+        ).catch(() => undefined);
         return ok(published);
     });
 }
@@ -55,25 +60,37 @@ async function runSecurityMutation(
 export function reconfigureUnlockedVaultSecurity(
     params: Parameters<VaultMetadata["reconfigureSecurity"]>[0] & {
         deleteOlderManagedBackups?: boolean;
+        deleteOlderDestinationBackups?: boolean;
     },
 ): Promise<Result<PublishedVaultSecurityUpdate, VaultSecurityMutationError>> {
-    const { deleteOlderManagedBackups = false, ...securityParams } = params;
+    const {
+        deleteOlderManagedBackups = false,
+        deleteOlderDestinationBackups = false,
+        ...securityParams
+    } = params;
     return runSecurityMutation(
         "vault.security.reconfigure",
         (metadata) => metadata.reconfigureSecurity(securityParams),
         deleteOlderManagedBackups,
+        deleteOlderDestinationBackups,
     );
 }
 
 export function rotateUnlockedVaultRecoveryCode(
     params: Parameters<VaultMetadata["resetRecoveryCode"]>[0] & {
         deleteOlderManagedBackups?: boolean;
+        deleteOlderDestinationBackups?: boolean;
     },
 ): Promise<Result<PublishedVaultSecurityUpdate, VaultSecurityMutationError>> {
-    const { deleteOlderManagedBackups = false, ...securityParams } = params;
+    const {
+        deleteOlderManagedBackups = false,
+        deleteOlderDestinationBackups = false,
+        ...securityParams
+    } = params;
     return runSecurityMutation(
         "vault.recovery.rotate",
         (metadata) => metadata.resetRecoveryCode(securityParams),
         deleteOlderManagedBackups,
+        deleteOlderDestinationBackups,
     );
 }

@@ -42,6 +42,35 @@ services:
             - --no-cli
             - --log-file=stdout
 
+    # S3-compatible storage for the backup destination tests. Each test makes
+    # its own bucket and keys through the admin API.
+    garage:
+        image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
+        command: ["/garage", "server", "--single-node"]
+        volumes:
+            - ./e2e/garage/garage.toml:/etc/garage.toml:ro
+        tmpfs:
+            - /var/lib/garage
+        healthcheck:
+            test: ["CMD", "/garage", "status"]
+            interval: 1s
+            timeout: 5s
+            retries: 30
+
+    garage-tls:
+        image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+        volumes:
+            - ./e2e/garage/Caddyfile:/etc/caddy/Caddyfile:ro
+            - ./e2e/garage/tls:/etc/caddy/tls:ro
+        depends_on:
+            garage:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "nc", "-z", "127.0.0.1", "8443"]
+            interval: 1s
+            timeout: 5s
+            retries: 30
+
     web-e2e:
         build:
             context: .
@@ -56,12 +85,18 @@ services:
                 condition: service_started
             turn:
                 condition: service_started
+            garage-tls:
+                condition: service_healthy
         environment:
             CI: "true"
             HOME: /tmp
             E2E_BASE_URL: http://127.0.0.1:4174
             E2E_UPSTREAM_URL: http://web:3000
+            E2E_GARAGE_S3_URL: http://garage:3900
+            E2E_GARAGE_ADMIN_URL: http://garage:3903
+            E2E_GARAGE_TLS_URL: https://garage-tls:8443
         volumes:
             - ./web/e2e:/app/web/e2e:ro
+            - ./e2e:/app/e2e:ro
             - ./test-results:/app/test-results
             - ./playwright-report:/app/playwright-report

@@ -2,18 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
+import { useLingui } from "@lingui/react/macro";
 import { ShieldCheck } from "lucide-react-native";
 import { setAgentPaused } from "@cryptex-industries/vault-core/agent/agent-actions";
 import {
     checkKnownHost,
     forwardedViaLabel,
     isDestinationUnknown,
-    rememberLabel,
-    knownHostWarnings,
     requestHasHiddenCharacters,
-    requestTitle,
     serverName,
-    serverNameNote,
     shortFingerprint,
 } from "@cryptex-industries/vault-core/agent/agent-format";
 import {
@@ -24,7 +21,11 @@ import {
     type RememberChoice,
 } from "@cryptex-industries/vault-core/agent/remember";
 import { sanitizeDisplayText } from "@cryptex-industries/vault-core/agent/request-check";
-import { RequestGoneError } from "@cryptex-industries/vault-core/agent/runtime";
+import {
+    ApprovalInProgressError,
+    RequestGoneError,
+    VaultLockedError,
+} from "@cryptex-industries/vault-core/agent/runtime";
 import { liveAgent } from "@cryptex-industries/vault-core/agent/vault-agents";
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 
@@ -44,6 +45,12 @@ import {
     RadioRow,
 } from "@/components/agents/agent-rows";
 import { agentRuntime } from "@/agent/agent-app";
+import {
+    knownHostWarnings,
+    rememberLabel,
+    requestTitle,
+    serverNameNote,
+} from "@/agent/agent-wording";
 import { useAgentRuntimeVersion } from "@/agent/agent-runtime-bridge";
 import { agentService } from "@/agent/agent-service";
 import { changeAgent } from "@/agent/agent-vault";
@@ -72,6 +79,7 @@ function PromptCard(props: Omit<Parameters<typeof InfoCard>[0], "selectable">) {
 }
 
 function VerifiedBadge() {
+    const { t } = useLingui();
     return (
         <View
             style={{
@@ -86,7 +94,11 @@ function VerifiedBadge() {
         >
             <ShieldCheck size={11} color={colors.success} />
             <Text style={{ fontSize: 11, color: colors.success }}>
-                verified
+                {t({
+                    message: "verified",
+                    comment:
+                        "Badge next to the SSH server's host key fingerprint: the server proved it holds this key",
+                })}
             </Text>
         </View>
     );
@@ -106,6 +118,7 @@ export default function AgentRequestScreen() {
 function AgentRequestView() {
     const params = useLocalSearchParams<{ id: string }>();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
+    const { t } = useLingui();
     useAgentRuntimeVersion();
     const vault = useAtomValue(unlockedVaultAtom);
     const showSnackbar = useUnlockedSnackbar();
@@ -184,10 +197,14 @@ function AgentRequestView() {
         } catch (error) {
             showSnackbar(
                 error instanceof RequestGoneError
-                    ? "This request is no longer waiting."
-                    : error instanceof Error
-                      ? error.message
-                      : "Couldn't sign this request.",
+                    ? t`This request is no longer waiting.`
+                    : error instanceof VaultLockedError
+                      ? t`Unlock your vault to approve this request.`
+                      : error instanceof ApprovalInProgressError
+                        ? t`This request is being approved already.`
+                        : error instanceof Error
+                          ? error.message
+                          : t`Couldn't sign this request.`,
             );
             if (error instanceof RequestGoneError) finish();
         } finally {
@@ -216,9 +233,9 @@ function AgentRequestView() {
                 changeAgent,
                 runtime: agentRuntime,
             });
-            showSnackbar("Agent paused");
+            showSnackbar(t`Agent paused`);
         } catch {
-            showSnackbar("Couldn't pause the agent. Try again.");
+            showSnackbar(t`Couldn't pause the agent. Try again.`);
         } finally {
             setBusy(null);
             finish();
@@ -228,12 +245,12 @@ function AgentRequestView() {
     if (!request) {
         return (
             <UnlockedTaskScreen
-                title="SSH request"
+                title={t`SSH request`}
                 onBack={leave}
                 footer={
                     waited ? (
                         <Button variant="outline" onPress={leave}>
-                            Close
+                            {t`Close`}
                         </Button>
                     ) : undefined
                 }
@@ -246,8 +263,7 @@ function AgentRequestView() {
                             lineHeight: 21,
                         }}
                     >
-                        This request is no longer waiting. It was answered,
-                        withdrawn or it expired.
+                        {t`This request is no longer waiting. It was answered, withdrawn or it expired.`}
                     </Text>
                 ) : (
                     <View
@@ -259,7 +275,7 @@ function AgentRequestView() {
                     >
                         <ActivityIndicator color={colors.muted} size="small" />
                         <Text style={{ color: colors.muted, fontSize: 13 }}>
-                            Waiting for the request…
+                            {t`Waiting for the request…`}
                         </Text>
                     </View>
                 )}
@@ -273,11 +289,15 @@ function AgentRequestView() {
     );
     const caller = callerProcess(request.sign.processes);
     const keyName = key
-        ? sanitizeDisplayText(key.name || "SSH key", 40)
-        : "Unknown";
+        ? sanitizeDisplayText(key.name || t`SSH key`, 40)
+        : t({
+              message: "Unknown",
+              comment:
+                  "Name of the requested SSH key when it isn't one this agent may use",
+          });
     const keyLabel = key
-        ? `${keyName}, ${sshKeyInfo({ Type: ItemType.SSHKey, SSHKey: key.sshKey })?.label ?? "SSH key"}`
-        : "Not granted to this agent";
+        ? `${keyName}, ${sshKeyInfo({ Type: ItemType.SSHKey, SSHKey: key.sshKey })?.label ?? t`SSH key`}`
+        : t`Not granted to this agent`;
     const choices = rememberChoices(request);
     const unknown = isDestinationUnknown(request);
     const signature = check.kind === "signature";
@@ -304,10 +324,10 @@ function AgentRequestView() {
             variant={unknown ? "outline" : "default"}
             disabled={!key || !armed || busy !== null}
             loading={busy === "approve"}
-            loadingLabel="Signing…"
+            loadingLabel={t`Signing…`}
             onPress={() => void approve()}
         >
-            {unknown ? "Approve once" : "Approve"}
+            {unknown ? t`Approve once` : t`Approve`}
         </Button>
     );
     const denyButton = (
@@ -317,16 +337,16 @@ function AgentRequestView() {
             variant={unknown ? "default" : "outline"}
             disabled={busy !== null}
             loading={busy === "deny"}
-            loadingLabel="Denying…"
+            loadingLabel={t`Denying…`}
             onPress={() => void deny()}
         >
-            Deny
+            {t`Deny`}
         </Button>
     );
 
     return (
         <UnlockedTaskScreen
-            title="SSH request"
+            title={t`SSH request`}
             onBack={leave}
             footer={
                 <View style={{ flexDirection: "row", gap: 10 }}>
@@ -345,7 +365,11 @@ function AgentRequestView() {
                             marginBottom: 6,
                         }}
                     >
-                        {`${position} of ${waitingCount}`}
+                        {t({
+                            message: `${position} of ${waitingCount}`,
+                            comment:
+                                "Which of the waiting SSH requests this is, for example 2 of 3",
+                        })}
                     </Text>
                 ) : null}
                 <Text
@@ -365,7 +389,11 @@ function AgentRequestView() {
                         className="mb-3"
                         testID="agent-host-warning"
                         tone="error"
-                        message={`${warning} Approve only if you expected this change.`}
+                        message={t({
+                            message: `${warning} Approve only if you expected this change.`,
+                            comment:
+                                "{warning} is a full sentence saying the server's host key or name changed since it was last approved",
+                        })}
                     />
                 ))}
                 {hidden ? (
@@ -373,31 +401,50 @@ function AgentRequestView() {
                         className="mb-3"
                         testID="agent-hidden-characters"
                         tone="warning"
-                        message={
-                            "Contains hidden characters. Text from the machine had invisible characters, shown here as \uFFFD."
-                        }
+                        message={t({
+                            message:
+                                "Contains hidden characters. Text from the machine had invisible characters, shown here as \uFFFD.",
+                            comment:
+                                "The last character is the Unicode replacement character, which stands in for each invisible character",
+                        })}
                     />
                 ) : null}
                 {unknown ? (
                     <InlineNotice
                         className="mb-3"
                         tone="warning"
-                        message="This client didn't say which server it is logging in to. Approve only if you just started this login yourself."
+                        message={t`This client didn't say which server it is logging in to. Approve only if you just started this login yourself.`}
                     />
                 ) : null}
                 {forwarded ? (
                     <InlineNotice
                         className="mb-3"
                         tone="warning"
-                        message={`This request came through agent forwarding on ${via}. A server you're logged in to is asking to use your key.`}
+                        message={t({
+                            message: `This request came through agent forwarding on ${via}. A server you're logged in to is asking to use your key.`,
+                            comment:
+                                "SSH agent forwarding; {via} is the machine the request was forwarded through",
+                        })}
                     />
                 ) : null}
-                <PromptCard label="Agent" value={agentName} />
-                {forwarded ? <PromptCard label="Via" value={via} /> : null}
+                <PromptCard label={t`Agent`} value={agentName} />
+                {forwarded ? (
+                    <PromptCard
+                        label={t({
+                            message: "Via",
+                            comment:
+                                "The machine an SSH agent-forwarded request came through",
+                        })}
+                        value={via}
+                    />
+                ) : null}
                 {check.kind === "login" && check.verifiedHost ? (
                     <>
                         <PromptCard
-                            label="Server"
+                            label={t({
+                                message: "Server",
+                                comment: "The SSH server the login is for",
+                            })}
                             value={
                                 hostCheck?.name ??
                                 serverName(check.verifiedHost)
@@ -410,42 +457,76 @@ function AgentRequestView() {
                             }
                         />
                         <PromptCard
-                            label="Host key"
+                            label={t({
+                                message: "Host key",
+                                comment:
+                                    "SSH host key of the server; the value is its fingerprint",
+                            })}
                             value={shortFingerprint(
                                 check.verifiedHost.fingerprint,
                             )}
                             badge={<VerifiedBadge />}
-                            note="The server proved it holds this key"
+                            note={t({
+                                message: "The server proved it holds this key",
+                                comment:
+                                    "Note under the SSH host key fingerprint",
+                            })}
                             monospace
                         />
                     </>
                 ) : null}
                 {check.user ? (
                     <PromptCard
-                        label="User"
+                        label={t({
+                            message: "User",
+                            comment: "The user name the SSH login is for",
+                        })}
                         value={sanitizeDisplayText(check.user)}
                         monospace={hidden}
                     />
                 ) : null}
-                <PromptCard label="Key" value={keyLabel} />
+                <PromptCard
+                    label={t({
+                        message: "Key",
+                        comment: "The SSH key the request wants to sign with",
+                    })}
+                    value={keyLabel}
+                />
                 {signature ? (
                     <PromptCard
-                        label="Namespace"
+                        label={t({
+                            message: "Namespace",
+                            comment:
+                                "SSH signature namespace (ssh-keygen -n), for example git or file",
+                        })}
                         value={sanitizeDisplayText(
-                            check.namespace || "none",
+                            check.namespace ||
+                                t({
+                                    message: "none",
+                                    comment:
+                                        "Shown as the SSH signature namespace when the request names none",
+                                }),
                             32,
                         )}
                         monospace
                     />
                 ) : null}
                 <PromptCard
-                    label="Process"
-                    value={`${processLabel(caller)}${caller ? ` (pid ${caller.pid})` : ""}`}
+                    label={t({
+                        message: "Process",
+                        comment:
+                            "The program on the machine that made the request",
+                    })}
+                    value={`${processLabel(caller, t`Unknown program`)}${caller ? ` (pid ${caller.pid})` : ""}`}
                     monospace={hidden}
                 />
                 {signature && caller?.cwd ? (
                     <PromptCard
-                        label="Folder"
+                        label={t({
+                            message: "Folder",
+                            comment:
+                                "Working folder of the program that asked for the signature",
+                        })}
                         value={sanitizeDisplayText(caller.cwd, 120)}
                         monospace={hidden}
                     />
@@ -460,15 +541,21 @@ function AgentRequestView() {
                 >
                     {signature
                         ? isGitSignature(request)
-                            ? "The phone sees only a hash of the commit. Process and folder are reported by the machine, and the repository isn't verified."
-                            : "Process and folder are reported by the machine."
+                            ? t`The phone sees only a hash of the commit. Process and folder are reported by the machine, and the repository isn't verified.`
+                            : t`Process and folder are reported by the machine.`
                         : unknown
-                          ? "Requests like this are never remembered. Process details are reported by the machine."
-                          : "Process details are reported by the machine."}
+                          ? t`Requests like this are never remembered. Process details are reported by the machine.`
+                          : t`Process details are reported by the machine.`}
                 </Text>
                 {choices.length && key ? (
                     <>
-                        <AgentSectionLabel title="Remember" />
+                        <AgentSectionLabel
+                            title={t({
+                                message: "Remember",
+                                comment:
+                                    "Section heading: choices for remembering this approval",
+                            })}
+                        />
                         {choices.map((item) => (
                             <RadioRow
                                 key={item}
@@ -491,10 +578,10 @@ function AgentRequestView() {
                     className="mt-4"
                     disabled={busy !== null}
                     loading={busy === "pause"}
-                    loadingLabel="Pausing…"
+                    loadingLabel={t`Pausing…`}
                     onPress={() => void pause()}
                 >
-                    {`Pause ${agentName}`}
+                    {t`Pause ${agentName}`}
                 </Button>
                 <Text
                     style={{
@@ -504,7 +591,7 @@ function AgentRequestView() {
                         textAlign: "center",
                     }}
                 >
-                    Refuses its requests without asking until you resume it.
+                    {t`Refuses its requests without asking until you resume it.`}
                 </Text>
             </View>
         </UnlockedTaskScreen>

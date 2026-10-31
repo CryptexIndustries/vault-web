@@ -93,7 +93,7 @@ it("saves the share server for this device", async () => {
 
 it("merges share records received from a linked device", async () => {
     const incoming = await record("ZyXwVuTsRqPoNmLkJiHgFe");
-    await createVaultOperations().updateItems([], [], [incoming], []);
+    await createVaultOperations().updateItems([], [], [incoming], [], []);
 
     expect(vaultStore.get(unlockedVaultAtom).ShareLinks).toEqual([incoming]);
     await expect(
@@ -120,7 +120,7 @@ it("merges connected agents received from a linked device", async () => {
         CredentialIDs: ["key"],
         KeysRevision: 1,
     });
-    await createVaultOperations().updateItems([], [], [], [agent]);
+    await createVaultOperations().updateItems([], [], [], [agent], []);
 
     expect(vaultStore.get(unlockedVaultAtom).ConnectedAgents).toEqual([agent]);
     await expect(

@@ -1,18 +1,14 @@
 name: Mobile Google Play
 
-# A mobile-v tag builds production. Run it by hand for preprod on any branch,
-# or to rebuild production on a mobile-v tag.
+# Builds the unsigned Play APK and AAB for the Mobile workflow, which signs them
+# once the Android e2e suite passes.
 on:
-  push:
-    tags: ["mobile-v*"]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       profile:
-        description: Production requires a mobile-v release tag; preprod builds the selected branch
-        required: true
+        description: production for releases; preprod builds com.cryptexindustries.vault.preprod
+        type: string
         default: production
-        type: choice
-        options: [production, preprod]
 
 permissions:
   contents: read
@@ -23,28 +19,24 @@ concurrency:
 
 jobs:
   build:
-    name: Build and sign Google Play APK and AAB
+    name: Build unsigned Google Play APK and AAB
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    environment: ${{ (github.event_name == 'push' || inputs.profile == 'production') && 'Mobile - Production' || 'Mobile - Preproduction' }}
     env:
-      RELEASE_PROFILE: ${{ github.event_name == 'push' && 'production' || inputs.profile }}
+      RELEASE_PROFILE: ${{ inputs.profile }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.25.0
-
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.21.0
-          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.28.9 --activate
 
       - name: Setup Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
@@ -82,24 +74,15 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Check mobile
-        run: pnpm mobile:check
-
       - name: Build and verify unsigned Play artifacts
         run: pnpm mobile:build:play -- --profile "$RELEASE_PROFILE" --config "$RELEASE_CONFIG" --unsigned --clean --jobs 2 --heap 4096
 
-      - name: Sign and verify APK and AAB
-        env:
-          CRYPTEX_KEYSTORE_BASE64: ${{ secrets.CRYPTEX_KEYSTORE_BASE64 }}
-          CRYPTEX_KEYSTORE_PASSWORD: ${{ secrets.CRYPTEX_KEYSTORE_PASSWORD }}
-          CRYPTEX_KEY_PASSWORD: ${{ secrets.CRYPTEX_KEY_PASSWORD }}
-        run: |
-          cp "$RELEASE_CONFIG" mobile/dist/release-config.json
-          node mobile/scripts/ci-release.mjs sign "$RELEASE_PROFILE" mobile/dist play
+      - name: Prepare signing inputs
+        run: cp "$RELEASE_CONFIG" mobile/dist/release-config.json
 
-      - name: Upload signed artifacts, receipts and checksums
+      - name: Upload verified unsigned artifacts and their configuration
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mobile-google-play-release-${{ github.run_id }}
+          name: mobile-google-play-unsigned-${{ github.run_id }}
           path: mobile/dist/
           if-no-files-found: error

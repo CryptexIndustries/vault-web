@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Keyboard, View } from "react-native";
 import { useAtomValue } from "jotai";
 import { err, type Result } from "neverthrow";
+import { useLingui } from "@lingui/react/macro";
 
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { visibleBackupDestinations } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 import { KeyDerivationConfig_Argon2ID } from "@cryptex-industries/vault-core/vault-utils/encryption";
 import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import {
@@ -17,6 +19,7 @@ import {
     getVaultSessionGeneration,
     setVaultDEKInSession,
 } from "@/utils/vault-session";
+import { replaceBackupDestinationsAfterSecurityChange } from "@/app_lib/backup-destination-hooks";
 import { queueManagedBackupNow } from "@/app_lib/managed-backup-hooks";
 import {
     VaultMetadata,
@@ -33,10 +36,10 @@ import { PasswordGeneratorDialog } from "@/components/vault/password-generator";
 import { InlineNotice } from "@/components/inline-notice";
 import {
     UnlockedButton as Button,
-    UnlockedCheckbox as Checkbox,
     UnlockedDialogTitle,
     UnlockedInput as Input,
     UnlockedLabel as Label,
+    UnlockedSwitchRow,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
@@ -61,47 +64,54 @@ function KeyRotationOptions({
     onRotateDataKeyChange,
     deleteOlderManagedBackups,
     onDeleteOlderManagedBackupsChange,
+    deleteOlderDestinationBackups,
+    onDeleteOlderDestinationBackupsChange,
     disabled,
 }: {
     rotateDataKey: boolean;
     onRotateDataKeyChange: (checked: boolean) => void;
     deleteOlderManagedBackups: boolean;
     onDeleteOlderManagedBackupsChange: (checked: boolean) => void;
+    /** Null when the vault has no backup destinations. */
+    deleteOlderDestinationBackups: boolean | null;
+    onDeleteOlderDestinationBackupsChange: (checked: boolean) => void;
     disabled: boolean;
 }) {
+    const { t } = useLingui();
     return (
         <View className="gap-3 rounded-md border border-border p-3">
-            <Checkbox
-                checked={rotateDataKey}
-                onCheckedChange={onRotateDataKeyChange}
+            <UnlockedSwitchRow
+                value={rotateDataKey}
+                onValueChange={onRotateDataKeyChange}
                 disabled={disabled}
-                label="Rotate this device's vault encryption key"
+                label={t`Rotate this device's vault encryption key`}
+                hint={t`Off by default. Rotation re-encrypts this vault with a fresh data key and generates a new recovery code. Linked devices keep their own vault keys.`}
             />
-            <Text className="text-xs leading-5 text-muted-foreground">
-                Off by default. Rotation re-encrypts this vault with a fresh
-                data key and generates a new recovery code. Linked devices keep
-                their own vault keys.
-            </Text>
             {rotateDataKey ? (
                 <InlineNotice
                     tone="warning"
-                    message="Save the new recovery code before leaving this screen."
+                    message={t`Save the new recovery code before leaving this screen.`}
                 />
             ) : null}
             <Text className="text-xs leading-5 text-muted-foreground">
-                Downloaded backup files are independent copies and may still
-                open with the credentials that protected them when downloaded.
+                {t`Downloaded backup files are independent copies and may still open with the credentials that protected them when downloaded.`}
             </Text>
-            <Checkbox
-                checked={deleteOlderManagedBackups}
-                onCheckedChange={onDeleteOlderManagedBackupsChange}
+            <UnlockedSwitchRow
+                value={deleteOlderManagedBackups}
+                onValueChange={onDeleteOlderManagedBackupsChange}
                 disabled={disabled}
-                label="Delete older managed backups after replacement"
+                label={t`Delete older managed backups after replacement`}
+                hint={t`If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds.`}
             />
-            <Text className="text-xs leading-5 text-muted-foreground">
-                If managed backups are enabled, older restore points are deleted
-                only after the replacement upload succeeds.
-            </Text>
+            {deleteOlderDestinationBackups != null ? (
+                <UnlockedSwitchRow
+                    value={deleteOlderDestinationBackups}
+                    onValueChange={onDeleteOlderDestinationBackupsChange}
+                    disabled={disabled}
+                    label={t`Delete older destination backups after replacement`}
+                    hint={t`This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay.`}
+                />
+            ) : null}
         </View>
     );
 }
@@ -119,6 +129,7 @@ export function VaultSecurityDialog({
     onStageChange,
     onCanLeaveChange,
 }: Props) {
+    const { t } = useLingui();
     const confirm = useUnlockedConfirmation();
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const currentKind = vaultMetadata?.Blob?.Envelope?.PrimaryProtectionKind;
@@ -155,6 +166,18 @@ export function VaultSecurityDialog({
         useState(false);
     const [deleteOldBackupsOnRecovery, setDeleteOldBackupsOnRecovery] =
         useState(false);
+    const [
+        deleteDestinationBackupsOnProtection,
+        setDeleteDestinationBackupsOnProtection,
+    ] = useState(false);
+    const [
+        deleteDestinationBackupsOnRecovery,
+        setDeleteDestinationBackupsOnRecovery,
+    ] = useState(false);
+    const hasBackupDestinations =
+        visibleBackupDestinations(
+            useAtomValue(unlockedVaultAtom).BackupDestinations ?? [],
+        ).length > 0;
     const [error, setError] = useState("");
     const [status, setStatus] = useState("");
     const [warning, setWarning] = useState("");
@@ -222,46 +245,53 @@ export function VaultSecurityDialog({
         ) => Promise<Result<VaultSecurityUpdate, string>>,
     ): Promise<Result<VaultSecurityUpdate, string>> => {
         const generation = getVaultSessionGeneration();
-        return vaultWriteCoordinator.run("vault.configuration", async () => {
-            if (generation !== getVaultSessionGeneration())
-                return err("VAULT_SESSION_CHANGED");
-            const metadata = vaultStore.get(unlockedVaultMetadataAtom);
-            const dek = getVaultDEKFromSession();
-            if (!metadata) return err("VAULT_METADATA_MISSING");
-            if (dek.isErr()) return err(dek.error);
-            const result = await change(
-                metadata,
-                vaultStore.get(unlockedVaultAtom),
-                dek.value,
-            );
-            if (generation !== getVaultSessionGeneration())
-                return err("VAULT_SESSION_CHANGED");
-            if (result.isErr()) return result;
-            if (result.value.sessionDek) {
-                setVaultDEKInSession(result.value.sessionDek);
-            }
-            vaultStore.set(
-                unlockedVaultMetadataAtom,
-                Object.assign(new VaultMetadata(), metadata),
-            );
-            return result;
-        });
+        return vaultWriteCoordinator.run(
+            "vault.security.reconfigure",
+            async () => {
+                if (generation !== getVaultSessionGeneration())
+                    return err("VAULT_SESSION_CHANGED");
+                const metadata = vaultStore.get(unlockedVaultMetadataAtom);
+                const dek = getVaultDEKFromSession();
+                if (!metadata) return err("VAULT_METADATA_MISSING");
+                if (dek.isErr()) return err(dek.error);
+                const result = await change(
+                    metadata,
+                    vaultStore.get(unlockedVaultAtom),
+                    dek.value,
+                );
+                if (generation !== getVaultSessionGeneration())
+                    return err("VAULT_SESSION_CHANGED");
+                if (result.isErr()) return result;
+                if (result.value.sessionDek) {
+                    setVaultDEKInSession(result.value.sessionDek);
+                }
+                vaultStore.set(
+                    unlockedVaultMetadataAtom,
+                    Object.assign(new VaultMetadata(), metadata),
+                );
+                return result;
+            },
+        );
     };
 
     const queueSecurityBackup = (
         deleteOlderSnapshots: boolean,
+        deleteOlderDestinationBackups: boolean,
         localSuccessMessage: string,
     ) => {
-        setStatus(`${localSuccessMessage} Updating managed backup…`);
+        void replaceBackupDestinationsAfterSecurityChange(
+            deleteOlderDestinationBackups,
+        ).catch(() => undefined);
+        setStatus(t`${localSuccessMessage} Updating managed backup…`);
         void queueManagedBackupNow(deleteOlderSnapshots)
             .then(() => {
-                setStatus(`${localSuccessMessage} Managed backup updated.`);
+                setStatus(t`${localSuccessMessage} Managed backup updated.`);
             })
             .catch((backupError: unknown) => {
                 const message =
                     backupError instanceof Error
                         ? backupError.message
-                        : "Managed backup did not complete.";
+                        : t`Managed backup did not complete.`;
                 setStatus(`${localSuccessMessage} ${message}`);
             });
     };
@@ -273,41 +303,43 @@ export function VaultSecurityDialog({
 
     const handleSaveSecurity = async () => {
         if (!vaultMetadata) {
-            setError("Vault metadata is unavailable.");
+            setError(t`Vault metadata is unavailable.`);
             return;
         }
         if (!currentPassword.trim()) {
             setError(
-                "Enter your current master password to authorize this change.",
+                t`Enter your current master password to authorize this change.`,
             );
             return;
         }
         if (webauthnVault) {
             setError(
-                "This vault uses WebAuthn PRF. Reconfigure security from desktop until mobile WebAuthn is available.",
+                t`This vault uses WebAuthn PRF. Reconfigure security from desktop until mobile WebAuthn is available.`,
             );
             return;
         }
         if (factorChoice === "webauthn") {
-            setError("WebAuthn PRF is not available on mobile yet.");
+            setError(t`WebAuthn PRF is not available on mobile yet.`);
             return;
         }
 
         const changingPassword = newPassword.length > 0;
         if (changingPassword && newPassword !== confirmPassword) {
-            setError("New password and confirmation do not match.");
+            setError(t`New password and confirmation do not match.`);
             return;
         }
         if (invalidKdf) {
-            setError("Memory and operations limits must be whole numbers.");
+            setError(t`Memory and operations limits must be whole numbers.`);
             return;
         }
         if (
             mem < KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT ||
             mem > KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT
         ) {
+            const minMemory = KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT;
+            const maxMemory = KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT;
             setError(
-                `Memory limit must be between ${KeyDerivationConfig_Argon2ID.MIN_MEM_LIMIT} and ${KeyDerivationConfig_Argon2ID.MAX_MEM_LIMIT} MiB.`,
+                t`Memory limit must be between ${minMemory} and ${maxMemory} MiB.`,
             );
             return;
         }
@@ -315,8 +347,10 @@ export function VaultSecurityDialog({
             ops < KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT ||
             ops > KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT
         ) {
+            const minOperations = KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT;
+            const maxOperations = KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT;
             setError(
-                `Operations limit must be between ${KeyDerivationConfig_Argon2ID.MIN_OPS_LIMIT} and ${KeyDerivationConfig_Argon2ID.MAX_OPS_LIMIT}.`,
+                t`Operations limit must be between ${minOperations} and ${maxOperations}.`,
             );
             return;
         }
@@ -353,12 +387,13 @@ export function VaultSecurityDialog({
                     res.error === "KEK_DERIVATION_FAILED"
                 ) {
                     setError(
-                        "Incorrect current master password or protection phrase.",
+                        t`Incorrect current master password or protection phrase.`,
                     );
                 } else if (res.error === "WEBAUTHN_PRF_UNSUPPORTED") {
-                    setError("WebAuthn PRF is not available on mobile yet.");
+                    setError(t`WebAuthn PRF is not available on mobile yet.`);
                 } else {
-                    setError(`Failed to update security: ${res.error}`);
+                    const code = res.error;
+                    setError(t`Failed to update security: ${code}`);
                 }
                 return;
             }
@@ -377,14 +412,18 @@ export function VaultSecurityDialog({
                 reveal.deviceKeyProtectionCached === false
                     ? reveal.additionalKeyProtectionKind ===
                       AdditionalKeyProtectionKind.NONE
-                        ? " The obsolete device protection cache could not be cleared."
-                        : " This device could not cache the new protection key, so the protection phrase will be required on the next unlock."
+                        ? t`The obsolete device protection cache could not be cleared.`
+                        : t`This device could not cache the new protection key, so the protection phrase will be required on the next unlock.`
                     : "";
+            const successMessage = reveal.dataKeyRotated
+                ? t`Security settings and vault encryption key updated.`
+                : t`Security settings updated.`;
             queueSecurityBackup(
                 deleteOldBackupsOnProtection,
-                (reveal.dataKeyRotated
-                    ? "Security settings and vault encryption key updated."
-                    : "Security settings updated.") + cacheWarning,
+                deleteDestinationBackupsOnProtection,
+                cacheWarning
+                    ? `${successMessage} ${cacheWarning}`
+                    : successMessage,
             );
             if (reveal.dataKeyRotated) {
                 try {
@@ -394,13 +433,13 @@ export function VaultSecurityDialog({
                     );
                 } catch {
                     setWarning(
-                        "The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings.",
+                        t`The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings.`,
                     );
                 }
             }
         } catch {
             clearCurrentAuthorization();
-            setError("Failed to update security settings.");
+            setError(t`Failed to update security settings.`);
         } finally {
             setIsSaving(false);
         }
@@ -408,18 +447,18 @@ export function VaultSecurityDialog({
 
     const handleResetRecovery = async () => {
         if (!vaultMetadata) {
-            setError("Vault metadata is unavailable.");
+            setError(t`Vault metadata is unavailable.`);
             return;
         }
         if (!currentPassword.trim()) {
             setError(
-                "Enter your current master password to authorize this change.",
+                t`Enter your current master password to authorize this change.`,
             );
             return;
         }
         if (webauthnVault) {
             setError(
-                "This vault uses WebAuthn PRF. Reset recovery from desktop until mobile WebAuthn is available.",
+                t`This vault uses WebAuthn PRF. Reset recovery from desktop until mobile WebAuthn is available.`,
             );
             return;
         }
@@ -449,10 +488,11 @@ export function VaultSecurityDialog({
                     res.error === "KEK_DERIVATION_FAILED"
                 ) {
                     setError(
-                        "Incorrect current master password or protection phrase.",
+                        t`Incorrect current master password or protection phrase.`,
                     );
                 } else {
-                    setError(`Failed to reset recovery code: ${res.error}`);
+                    const code = res.error;
+                    setError(t`Failed to reset recovery code: ${code}`);
                 }
                 return;
             }
@@ -461,9 +501,10 @@ export function VaultSecurityDialog({
             setRevealRecovery(res.value.recoveryCode);
             queueSecurityBackup(
                 deleteOldBackupsOnRecovery,
+                deleteDestinationBackupsOnRecovery,
                 res.value.dataKeyRotated
-                    ? "Recovery code and vault encryption key replaced."
-                    : "New recovery code generated.",
+                    ? t`Recovery code and vault encryption key replaced.`
+                    : t`New recovery code generated.`,
             );
             if (res.value.dataKeyRotated) {
                 try {
@@ -473,13 +514,13 @@ export function VaultSecurityDialog({
                     );
                 } catch {
                     setWarning(
-                        "The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings.",
+                        t`The vault key was rotated, but biometric unlock could not be refreshed and was disabled. Re-enable it from Security settings.`,
                     );
                 }
             }
         } catch {
             clearCurrentAuthorization();
-            setError("Failed to reset recovery code.");
+            setError(t`Failed to reset recovery code.`);
         } finally {
             setIsRotating(false);
         }
@@ -506,20 +547,20 @@ export function VaultSecurityDialog({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Save this phrase separately
+                        {t`Save this phrase separately`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        You will need it when restoring on a new device.
+                        {t`You will need it when restoring on a new device.`}
                     </Text>
                 </View>
                 <SecretReveal
-                    label="Protection phrase"
+                    label={t`Protection phrase`}
                     value={revealProtectionPhrase}
                     requireAck
                     defaultRevealed
                     alwaysShowAcknowledgement
                     flat
-                    ackLabel="I saved the protection phrase separately."
+                    ackLabel={t`I saved the protection phrase separately.`}
                     acknowledged={protectionPhraseAck}
                     onAcknowledgedChange={setProtectionPhraseAck}
                 />
@@ -527,7 +568,7 @@ export function VaultSecurityDialog({
                     disabled={!protectionPhraseAck}
                     onPress={() => setRevealProtectionPhrase(null)}
                 >
-                    Finish
+                    {t`Finish`}
                 </Button>
             </View>
         );
@@ -545,20 +586,20 @@ export function VaultSecurityDialog({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Save your new code
+                        {t`Save your new code`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Keep this code somewhere safe, outside this vault.
+                        {t`Keep this code somewhere safe, outside this vault.`}
                     </Text>
                 </View>
                 <SecretReveal
-                    label="Vault recovery code"
+                    label={t`Vault recovery code`}
                     value={revealRecovery}
                     requireAck
                     defaultRevealed
                     alwaysShowAcknowledgement
                     flat
-                    ackLabel="I saved my new vault recovery code."
+                    ackLabel={t`I saved my new vault recovery code.`}
                     acknowledged={recoveryAck}
                     onAcknowledgedChange={setRecoveryAck}
                 />
@@ -566,40 +607,43 @@ export function VaultSecurityDialog({
                     disabled={!recoveryAck}
                     onPress={() => setRevealRecovery(null)}
                 >
-                    Finish
+                    {t`Finish`}
                 </Button>
             </View>
         );
     }
 
+    const currentProtection = describeKind(currentKind);
+    const preferredMemory = MOBILE_MEM_LIMIT;
+    const preferredOperations = MOBILE_OPS_LIMIT;
     const kdfFields = (
         <View className="gap-3">
             <View className="gap-3">
                 <View>
-                    <Label>Memory (MiB)</Label>
+                    <Label>{t`Memory (MiB)`}</Label>
                     <Input
                         value={memLimit}
                         onChangeText={setMemLimit}
                         keyboardType="number-pad"
                         editable={isEnvelope && !busy && !webauthnVault}
-                        accessibilityLabel="Argon2 memory limit in mebibytes"
+                        accessibilityLabel={t`Argon2 memory limit in mebibytes`}
                     />
                 </View>
                 <View>
-                    <Label>Iterations</Label>
+                    <Label>{t`Iterations`}</Label>
                     <Input
                         value={opsLimit}
                         onChangeText={setOpsLimit}
                         keyboardType="number-pad"
                         editable={isEnvelope && !busy && !webauthnVault}
-                        accessibilityLabel="Argon2 operations limit"
+                        accessibilityLabel={t`Argon2 operations limit`}
                     />
                 </View>
             </View>
             {mem > MOBILE_MEM_LIMIT ? (
                 <InlineNotice
                     tone="warning"
-                    message={`High Argon2 memory (${mem} MiB) may OOM or stall unlock on phones. Prefer ${MOBILE_MEM_LIMIT} MiB / ops ${MOBILE_OPS_LIMIT}.`}
+                    message={t`High Argon2 memory (${mem} MiB) may OOM or stall unlock on phones. Prefer ${preferredMemory} MiB / ops ${preferredOperations}.`}
                 />
             ) : null}
             <KdfBelowRecommendedAck
@@ -614,7 +658,7 @@ export function VaultSecurityDialog({
     const authorizationFields = (
         <>
             <View>
-                <Label>Current master password</Label>
+                <Label>{t`Current master password`}</Label>
                 <Input
                     value={currentPassword}
                     onChangeText={setCurrentPassword}
@@ -623,13 +667,13 @@ export function VaultSecurityDialog({
                     autoCorrect={false}
                     textContentType="password"
                     editable={isEnvelope && !busy && !webauthnVault}
-                    placeholder="Required to authorize changes"
-                    accessibilityLabel="Current master password"
+                    placeholder={t`Required to authorize changes`}
+                    accessibilityLabel={t`Current master password`}
                 />
             </View>
             {isProtectionPhraseKind(currentKind) ? (
                 <View>
-                    <Label>Current protection phrase</Label>
+                    <Label>{t`Current protection phrase`}</Label>
                     <Input
                         value={currentProtectionPhrase}
                         onChangeText={setCurrentProtectionPhrase}
@@ -637,7 +681,7 @@ export function VaultSecurityDialog({
                         autoCapitalize="none"
                         autoCorrect={false}
                         editable={isEnvelope && !busy}
-                        accessibilityLabel="Current protection phrase"
+                        accessibilityLabel={t`Current protection phrase`}
                     />
                 </View>
             ) : null}
@@ -656,11 +700,10 @@ export function VaultSecurityDialog({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Add a protection phrase
+                        {t`Add a protection phrase`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Your master password is always required. A generated
-                        phrase adds a second secret.
+                        {t`Your master password is always required. A generated phrase adds a second secret.`}
                     </Text>
                 </View>
             ) : mode === "recovery" ? (
@@ -673,11 +716,10 @@ export function VaultSecurityDialog({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Recover this vault
+                        {t`Recover this vault`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Your recovery code can restore access to the encrypted
-                        vault if you forget the password.
+                        {t`Your recovery code can restore access to the encrypted vault if you forget the password.`}
                     </Text>
                 </View>
             ) : mode === "kdf" ? (
@@ -690,25 +732,24 @@ export function VaultSecurityDialog({
                             letterSpacing: -0.5,
                         }}
                     >
-                        Key derivation
+                        {t`Key derivation`}
                     </Text>
                     <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                        Argon2id makes password guessing more expensive. These
-                        settings affect unlock time.
+                        {t`Argon2id makes password guessing more expensive. These settings affect unlock time.`}
                     </Text>
                 </View>
             ) : null}
             {!isEnvelope ? (
                 <InlineNotice
                     tone="warning"
-                    message="This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
+                    message={t`This vault uses a legacy format. Unlock it once to upgrade before changing security settings.`}
                 />
             ) : null}
 
             {webauthnVault ? (
                 <InlineNotice
                     tone="warning"
-                    message="This vault uses WebAuthn PRF, whose derived output Android does not expose. Reconfigure from desktop or use recovery to re-key it on Android."
+                    message={t`This vault uses WebAuthn PRF, whose derived output Android does not expose. Reconfigure from desktop or use recovery to re-key it on Android.`}
                 />
             ) : null}
 
@@ -718,7 +759,7 @@ export function VaultSecurityDialog({
                 {mode === "password" ? (
                     <>
                         <View>
-                            <Label>New master password</Label>
+                            <Label>{t`New master password`}</Label>
                             <Input
                                 value={newPassword}
                                 onChangeText={setNewPassword}
@@ -734,14 +775,14 @@ export function VaultSecurityDialog({
                                 autoCorrect={false}
                                 textContentType="newPassword"
                                 editable={isEnvelope && !busy && !webauthnVault}
-                                accessibilityLabel="New master password"
+                                accessibilityLabel={t`New master password`}
                             />
                             {newPassword.length > 0 ? (
                                 <PasswordStrengthMeter password={newPassword} />
                             ) : null}
                         </View>
                         <View>
-                            <Label>Confirm new password</Label>
+                            <Label>{t`Confirm new password`}</Label>
                             <Input
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
@@ -750,15 +791,13 @@ export function VaultSecurityDialog({
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 editable={isEnvelope && !busy && !webauthnVault}
-                                placeholder="Repeat new password"
-                                accessibilityLabel="Confirm new master password"
+                                placeholder={t`Repeat new password`}
+                                accessibilityLabel={t`Confirm new master password`}
                             />
                         </View>
                         <View className="border-l-2 border-muted pl-3">
                             <Text className="text-xs leading-5 text-muted-foreground">
-                                Use a unique password. Keep an up-to-date
-                                encrypted backup after changing vault
-                                protection.
+                                {t`Use a unique password. Keep an up-to-date encrypted backup after changing vault protection.`}
                             </Text>
                         </View>
                     </>
@@ -773,7 +812,7 @@ export function VaultSecurityDialog({
                             onChange={setFactorChoice}
                         />
                         <Text className="text-xs text-muted-foreground">
-                            Current protection: {describeKind(currentKind)}
+                            {t`Current protection: ${currentProtection}`}
                         </Text>
                         {authorizationFields}
                     </>
@@ -783,9 +822,14 @@ export function VaultSecurityDialog({
                     <>
                         <View className="min-h-[54px] flex-row items-center justify-between border-b border-border">
                             <Text className="text-[13px] text-muted-foreground">
-                                Cipher
+                                {t({
+                                    message: "Cipher",
+                                    comment:
+                                        "Label for the encryption algorithm row",
+                                })}
                             </Text>
                             <Text className="text-[13px] text-foreground">
+                                {/* i18n-ignore: algorithm name */}
                                 AES-256
                             </Text>
                         </View>
@@ -793,9 +837,7 @@ export function VaultSecurityDialog({
                         {authorizationFields}
                         <View className="border-l-2 border-muted pl-[13px]">
                             <Text className="text-xs leading-[18px] text-muted-foreground">
-                                Lower settings can weaken password protection.
-                                Higher settings need more memory and may unlock
-                                more slowly.
+                                {t`Lower settings can weaken password protection. Higher settings need more memory and may unlock more slowly.`}
                             </Text>
                         </View>
                     </>
@@ -808,6 +850,14 @@ export function VaultSecurityDialog({
                         deleteOlderManagedBackups={deleteOldBackupsOnProtection}
                         onDeleteOlderManagedBackupsChange={
                             setDeleteOldBackupsOnProtection
+                        }
+                        deleteOlderDestinationBackups={
+                            hasBackupDestinations
+                                ? deleteDestinationBackupsOnProtection
+                                : null
+                        }
+                        onDeleteOlderDestinationBackupsChange={
+                            setDeleteDestinationBackupsOnProtection
                         }
                         disabled={
                             !isEnvelope || busy || hasUnacknowledgedSecrets
@@ -831,20 +881,20 @@ export function VaultSecurityDialog({
                                 return;
                             }
                             confirm({
-                                title: "Review encryption changes",
-                                description: `Argon2id memory: ${mem} MiB\nIterations: ${ops}\n\nHigher settings use more time and memory whenever this vault is unlocked.`,
-                                cancelLabel: "Keep editing",
-                                confirmLabel: "Save changes",
+                                title: t`Review encryption changes`,
+                                description: t`Argon2id memory: ${mem} MiB\nIterations: ${ops}\n\nHigher settings use more time and memory whenever this vault is unlocked.`,
+                                cancelLabel: t`Keep editing`,
+                                confirmLabel: t`Save changes`,
                                 destructive: false,
                                 onConfirm: () => void handleSaveSecurity(),
                             });
                         }}
                     >
                         {mode === "password"
-                            ? "Change password"
+                            ? t`Change password`
                             : mode === "protection"
-                              ? "Apply protection"
-                              : "Review changes"}
+                              ? t`Apply protection`
+                              : t`Review changes`}
                     </Button>
                 ) : null}
 
@@ -852,9 +902,7 @@ export function VaultSecurityDialog({
                     <>
                         <View className="my-5 border-l-2 border-primary pl-[13px]">
                             <Text className="text-xs leading-[18px] text-muted-foreground">
-                                Replacing the code invalidates the previous code
-                                for the updated vault. Older backups may still
-                                need their original code.
+                                {t`Replacing the code invalidates the previous code for the updated vault. Older backups may still need their original code.`}
                             </Text>
                         </View>
 
@@ -866,6 +914,14 @@ export function VaultSecurityDialog({
                             }
                             onDeleteOlderManagedBackupsChange={
                                 setDeleteOldBackupsOnRecovery
+                            }
+                            deleteOlderDestinationBackups={
+                                hasBackupDestinations
+                                    ? deleteDestinationBackupsOnRecovery
+                                    : null
+                            }
+                            onDeleteOlderDestinationBackupsChange={
+                                setDeleteDestinationBackupsOnRecovery
                             }
                             disabled={
                                 !isEnvelope || busy || hasUnacknowledgedSecrets
@@ -889,7 +945,7 @@ export function VaultSecurityDialog({
                                 setRecoveryAuthOpen(true);
                             }}
                         >
-                            Replace recovery code
+                            {t`Replace recovery code`}
                         </Button>
                     </>
                 ) : null}
@@ -926,11 +982,10 @@ export function VaultSecurityDialog({
             >
                 <DialogHeader>
                     <UnlockedDialogTitle>
-                        Replace recovery code
+                        {t`Replace recovery code`}
                     </UnlockedDialogTitle>
                     <Text className="text-[13px] leading-5 text-muted-foreground">
-                        Enter your current master password before replacing the
-                        recovery code.
+                        {t`Enter your current master password before replacing the recovery code.`}
                     </Text>
                 </DialogHeader>
                 <View className="gap-5">{authorizationFields}</View>
@@ -944,14 +999,14 @@ export function VaultSecurityDialog({
                             setError("");
                         }}
                     >
-                        Cancel
+                        {t`Cancel`}
                     </Button>
                     <Button
                         loading={isRotating}
                         disabled={!isEnvelope || busy || webauthnVault}
                         onPress={() => void handleResetRecovery()}
                     >
-                        Replace recovery code
+                        {t`Replace recovery code`}
                     </Button>
                 </DialogFooter>
             </Dialog>

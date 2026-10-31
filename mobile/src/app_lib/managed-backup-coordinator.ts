@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { t } from "@lingui/core/macro";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { vaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 import { trpc } from "@/utils/trpc";
 import {
     unlockedVaultAtom,
@@ -106,11 +108,11 @@ export class ManagedBackupCoordinator {
     }
 
     async backupNow(deleteOlderSnapshots = false) {
-        if (!this.enabled) throw new Error("Managed backups are not enabled.");
+        if (!this.enabled) throw new Error(t`Managed backups are not enabled.`);
         if (deleteOlderSnapshots && this.inFlight) {
             await this.inFlight.catch(() => undefined);
             if (!this.enabled) {
-                throw new Error("Managed backups are not enabled.");
+                throw new Error(t`Managed backups are not enabled.`);
             }
         }
         if (deleteOlderSnapshots) this.deleteOlderSnapshotsAfterUpload = true;
@@ -166,7 +168,7 @@ export class ManagedBackupCoordinator {
     private async upload(signal: AbortSignal) {
         const assertActive = () => {
             if (!this.active(signal))
-                throw new Error("Backup session changed.");
+                throw new Error(t`Backup session changed.`);
         };
         assertActive();
         if (this.pendingHistoryPurgeSnapshot) {
@@ -180,26 +182,33 @@ export class ManagedBackupCoordinator {
         const purgeAfterUpload =
             this.deleteOlderSnapshotsAfterUpload ||
             this.pendingHistoryPurgeSnapshot != null;
-        const metadata = vaultStore.get(unlockedVaultMetadataAtom);
-        const vault = vaultStore.get(unlockedVaultAtom);
-        const dek = getVaultDEKFromSession();
-        if (!metadata?.Blob || dek.isErr())
-            throw new Error("Vault is unavailable.");
-        const source = EncryptedBlob.encode(metadata.Blob).finish();
-        const sourceHash = await sha256Base64Url(source);
-        assertActive();
-        const uploadAttempt =
-            this.uploadAttempt?.sourceHash === sourceHash
-                ? this.uploadAttempt
-                : {
-                      sourceHash,
-                      idempotencyKey: crypto.randomUUID(),
-                      bytes: await createEncryptedBackupBytes(
-                          vault,
-                          metadata,
-                          dek.value,
-                      ),
-                  };
+        // A key rotation publishes the new envelope before the new key.
+        const { vault, vaultId, uploadAttempt } =
+            await vaultWriteCoordinator.readBetweenKeyChanges(async () => {
+                const metadata = vaultStore.get(unlockedVaultMetadataAtom);
+                const vault = vaultStore.get(unlockedVaultAtom);
+                const dek = getVaultDEKFromSession();
+                if (!metadata?.Blob || dek.isErr())
+                    throw new Error(t`Vault is unavailable.`);
+                const vaultId = metadata.Blob.Envelope?.VaultID ?? "unknown";
+                const source = EncryptedBlob.encode(metadata.Blob).finish();
+                const sourceHash = await sha256Base64Url(source);
+                assertActive();
+                const uploadAttempt =
+                    this.uploadAttempt?.sourceHash === sourceHash
+                        ? this.uploadAttempt
+                        : {
+                              sourceHash,
+                              idempotencyKey: crypto.randomUUID(),
+                              bytes: await createEncryptedBackupBytes(
+                                  vault,
+                                  metadata,
+                                  dek.value,
+                              ),
+                          };
+                return { vault, vaultId, uploadAttempt };
+            });
+        const { sourceHash } = uploadAttempt;
         assertActive();
         this.uploadAttempt = uploadAttempt;
         const snapshot = await uploadEncryptedBackup(
@@ -212,7 +221,6 @@ export class ManagedBackupCoordinator {
         );
         assertActive();
         if (this.uploadAttempt === uploadAttempt) this.uploadAttempt = null;
-        const vaultId = metadata.Blob.Envelope?.VaultID ?? "unknown";
         await AsyncStorage.setItem(
             `cryptex:managed-backup-source:${vaultId}`,
             sourceHash,
@@ -221,7 +229,7 @@ export class ManagedBackupCoordinator {
             const onlineServicesDeviceId = vault.OnlineServices?.DeviceId;
             if (!onlineServicesDeviceId) {
                 throw new Error(
-                    "Managed backup account binding is unavailable.",
+                    t`Managed backup account binding is unavailable.`,
                 );
             }
             this.deleteOlderSnapshotsAfterUpload = false;
@@ -256,7 +264,7 @@ export class ManagedBackupCoordinator {
         const onlineServicesDeviceId =
             vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId;
         if (onlineServicesDeviceId !== replacement.onlineServicesDeviceId) {
-            throw new Error("Managed backup account binding changed.");
+            throw new Error(t`Managed backup account binding changed.`);
         }
         await deleteManagedBackupHistoryBefore(replacement, {
             signal,

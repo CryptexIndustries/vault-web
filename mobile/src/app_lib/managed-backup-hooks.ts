@@ -1,3 +1,5 @@
+import { t } from "@lingui/core/macro";
+
 type ManagedBackupHooks = {
     markDirty: () => void;
     backupNow: (deleteOlderSnapshots: boolean) => Promise<void>;
@@ -19,7 +21,7 @@ export function queueManagedBackupNow(
     deleteOlderSnapshots = false,
 ): Promise<void> {
     if (!hooks)
-        return Promise.reject(new Error("Managed backups are unavailable."));
+        return Promise.reject(new Error(t`Managed backups are unavailable.`));
     return hooks.backupNow(deleteOlderSnapshots);
 }
 

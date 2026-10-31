@@ -119,6 +119,7 @@ flowchart LR
     Associations[RP website and explicit association include hosts]
     Turnstile[Cloudflare Turnstile]
     ShareServer[Share server]
+    Bucket[User's S3-compatible bucket]
 
     subgraph Device[Android device]
         subgraph App[Cryptex application process]
@@ -171,6 +172,7 @@ flowchart LR
     UI <--> Cloud
     WebView <--> Turnstile
     UI <--> ShareServer
+    UI <--> Bucket
     Native <--> Associations
 ```
 
@@ -210,6 +212,8 @@ flowchart LR
 | Turnstile token                                  | Confidential, ephemeral         | WebView to one API request                              | Validate origin and nonce; do not persist or log                                   |
 | One-time share link and its key                  | Restricted                      | Share screen memory; clipboard or sharesheet recipient  | Copy as a sensitive clip; never log; one view on the server                        |
 | Share manage tokens and share settings           | Restricted                      | Encrypted vault, synced between the user's devices      | Validate synced records; keep creation tokens off linked devices                   |
+| Backup destination keys                          | Restricted                      | Encrypted vault, synced and inside every backup         | Validate synced records; send only to the destination's HTTPS endpoint             |
+| Backup device ID and marker key                  | Confidential                    | Vault `LinkedDevices`, never synced or backed up        | Keep device-local; the stored marker is an HMAC, not a plain hash                  |
 | SSH approver identity seeds                      | Restricted                      | SecureStore outside the vault, after first unlock       | Never sync or log; enough for Deny and notifications, not for signing              |
 | Approved agent cache                             | Public, integrity-sensitive     | Plain app storage outside the vault                     | Holds only agent IDs, names and public keys; names feed notifications              |
 | Relay pass and custom relay tokens               | Restricted                      | SecureStore outside the vault                           | Send only to the relay they were issued for; never log                             |
@@ -237,6 +241,7 @@ flowchart LR
 | TB-13 | Application to share server                   | Share ciphertext, token hashes, manage tokens, subscriber tickets | Client-side AES-256-GCM, key only in the link fragment, ticket audience check, HTTPS-only production network policy          | An intercepted link opens the share; a custom server serves its own recipient page                    |
 | TB-14 | Approver to SSH agent relay and paired agents | Encrypted sign requests and answers, relay pass, relay tokens     | End-to-end encryption to paired agent keys, relay pass bound to the identity key, connection only while an agent is approved | The relay sees connection metadata and timing and can drop or delay requests                          |
 | TB-15 | Lock screen and notification shade            | Agent name, request ID, Review and Deny actions                   | Private notifications with a public "Approval needed" version, non-exported Deny receiver, signing needs the unlocked vault  | Anyone holding the unlocked phone can see the agent name and tap Deny                                 |
+| TB-16 | Application to backup destination bucket      | Encrypted `.cryx`, bucket listings, SigV4-signed requests         | HTTPS-only production network policy, endpoint and prefix validation, pruning limited to this device's folder                | Provider sees metadata; synced keys let any linked device delete what the key allows                  |
 
 ## 8. Entry points
 
@@ -259,6 +264,7 @@ flowchart LR
 | EP-15 | Share server responses and synced share records                         | External service and other user devices        | Forged status reports, records pointing at another server, oversized lists  |
 | EP-16 | SSH agent relay messages and paired agent requests                      | External service and user-paired computer      | Forged or replayed requests, misleading names, request floods               |
 | EP-17 | Agent notification actions, boot and app-update broadcasts              | Android-mediated                               | Spoofed Deny or Review, unwanted service restart                            |
+| EP-18 | Backup destination listings, downloads and synced destination records   | User's bucket and other user devices           | Hostile object keys, oversized downloads, records pointing at another host  |
 
 ## 9. Threat actors
 
@@ -455,6 +461,8 @@ Required invariants:
 3. They exchange versioned vault changes over WebRTC data channels.
 4. The write coordinator serializes merges and persistence.
 
+The server editor's Test connection can run before a server is saved. It sends the typed TURN username and password, or a presence signature made with the typed signaling secret, to the host in the form.
+
 Required invariants:
 
 - Only current linked-device keys may establish a session.
@@ -543,6 +551,24 @@ Required invariants:
 - Remembered approvals live in memory only and end when the vault locks. Forwarded, destination-unknown and non-git SSHSIG requests are never remembered.
 - The service and relay connection stop when no agent is approved on this device.
 
+### 12.12 Backup destinations
+
+1. The user adds an S3-compatible bucket with an endpoint, region, bucket, optional folder and access key. The record is stored in the encrypted vault and syncs to linked devices like share records.
+2. After a vault change, the app waits 30 seconds, then uploads the same encrypted `.cryx` a manual backup produces to `<folder><destination ID>/<device ID>/<timestamp>.cryx`, signed with SigV4. The signed payload hash lets the provider reject a corrupted body.
+3. It then prunes its own folder: every backup from the last 24 hours, the newest per UTC day for 30 days and the newest per UTC month for a year stay, like managed backups. "Keep every backup" turns pruning off.
+4. Before locking, the app tries for up to 5 seconds to finish a pending upload, then stops the scheduler.
+5. After a security change, "Delete older destination backups" uploads the replacement first and deletes this device's other backups only after the upload succeeds.
+6. Restore lists a bucket's backups, downloads the chosen one and opens it through the normal backup restore path as a new vault.
+
+Required invariants:
+
+- Only encrypted vault bytes leave the device. Bucket keys go only to the destination's endpoint, as SigV4 signatures; the secret key itself is never sent.
+- Endpoints must be `https://` origins without path, user info, query or fragment. The validator also accepts plain `http://` for `localhost`, `127.0.0.1`, `[::1]` and `10.0.2.2`, but production builds block cleartext at the network layer.
+- Pruning and deletion touch only keys that parse as backups in this device's folder. A scheduler session stops deleting once it ends, at lock or when another vault opens.
+- Synced destination records can't be undeleted, a removal erases the record's keys, and records that fail validation are dropped.
+- The device ID and marker key stay in `LinkedDevices`, which never syncs or goes into a backup. The per-destination state in app storage holds only an HMAC of the vault keyed with the marker key, timestamps and error text.
+- Residual: bucket keys sync to every linked device and are inside every backup, so a linked device, or anyone who opens a backup, can overwrite or delete what the key allows. A key without delete rights plus "Keep every backup" limits that. Backups made under an old master password stay in other devices' folders, and in this device's folder unless the user turned that option on. A bucket restore downloads into JavaScript memory without the 1 GB file-intake limit (MOB-T08).
+
 ## 13. STRIDE coverage summary
 
 | STRIDE category        | Mobile examples                                                                     | Principal controls                                                                                             | Open risk IDs    |
@@ -599,6 +625,7 @@ Required invariants:
 
 - **Risk statement:** A selected file, QR sequence, backup, or participating peer can cause excessive allocation, recursion, decompression, decoding, or message processing before the application applies a useful limit.
 - **Existing controls:** Mobile rejects a selected file larger than 1 GB using picker or filesystem metadata before base64 reading. The rejection path deletes the picker cache copy. Shared parsers also enforce format-specific checks after intake.
+- Bucket restores download straight into JavaScript memory, so the 1 GB file-intake limit does not apply to them. Only someone who can write to the user's bucket can plant an oversized object.
 - Managed backup downloads stream to an app-owned native temporary file. Transfers cancel when progress exceeds the snapshot's declared size, and the completed file must match that size before JavaScript decoding. Checksums remain mandatory. Progress cancellation can briefly overshoot on disk; an independent mobile snapshot-size limit remains absent. Account and recovery downloads, oversized responses, upload round trips, and temporary-file cleanup passed against the local API on port 3001 in a hardware-accelerated development emulator.
 - **Required response:** Keep the outer-file check and define tighter per-format compressed bytes, expanded bytes, nesting depth, item and string counts, QR frames, accumulated QR bytes, collection time, wire-message bytes, and per-peer rates before materialization.
 - **Verification:** Add zip-bomb, deep-XML, oversized JSON, excessive-frame, fragmented-message, and high-rate peer tests. Record the exact limit and rejection code for each entry point.
@@ -680,6 +707,7 @@ Review this threat model when any of the following changes:
 - Device linking, QR transport, sync authentication, signaling, STUN, TURN, WebRTC, or merge logic.
 - Cloud authentication, tokens, account recovery, managed backup, billing, or Turnstile.
 - One-time share links: envelope, token derivation, share server endpoints, ticket handling, or share record sync rules.
+- Backup destinations: object key layout, retention, deletion after a security change, endpoint validation, or destination record sync rules.
 - SSH agent approval: relay protocol, approver identity storage, notifications, remembered approvals, or the foreground service.
 - Import and export formats, parsers, document picker, cache handling, clipboard, screenshots, logs, or diagnostics.
 - Shared code aliases, native libraries, package versions, Gradle plugins, CI actions, signing, or release channels.
@@ -709,6 +737,7 @@ Primary implementation anchors for this model:
 - Cloud sessions and transport: `mobile/src/app_lib/auth-session.ts`, `mobile/src/utils/online-services-transport.ts`, `packages/vault-core/src/online-services-session/`.
 - Managed backup: `mobile/src/app_lib/managed-backup-coordinator.ts`, `mobile/src/app_lib/managed-backup-hooks.ts`, `mobile/app/(app)/settings/backup-center/`.
 - Turnstile: `mobile/src/components/account/turnstile-bridge.ts`, `mobile/src/components/account/turnstile-challenge.tsx`.
+- Backup destinations: `mobile/src/app_lib/backup-destinations.ts`, `mobile/src/components/backup-destinations/`, `mobile/src/components/vault-manager/restore-bucket-panel.tsx`, `packages/vault-core/src/vault-utils/backup-destinations.ts`, `packages/vault-core/src/vault-utils/backup-destination-transfers.ts`, `packages/vault-core/src/vault-utils/backup-destination-scheduler.ts`, `packages/vault-core/src/vault-utils/s3-client.ts`.
 - One-time share links: `mobile/app/(app)/share/`, `mobile/src/app_lib/share-links.ts`, `packages/vault-core/src/vault-utils/share-link.ts`, `packages/vault-core/src/vault-utils/share-service.ts`, `packages/vault-core/src/vault-utils/share-records.ts`.
 - SSH agent approval: `mobile/src/agent/`, `mobile/modules/cryptex-agent-service/`, `packages/vault-core/src/agent/`.
 - Import, export, and temporary files: `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/secret-temp-files.ts`, `mobile/app/(app)/settings/import-export/index.tsx`, `mobile/src/components/vault-import/`, `packages/vault-core/src/vault-utils/import-export.ts`.

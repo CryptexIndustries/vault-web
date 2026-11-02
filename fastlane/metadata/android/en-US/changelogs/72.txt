@@ -1,0 +1,1 @@
+Sync skips devices linked before sync IDs existed instead of failing on them, and signs in to Online Services again only when the session has expired.

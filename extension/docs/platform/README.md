@@ -76,15 +76,15 @@ worker's logs. See [../ui/README.md](../ui/README.md).
 Channels: `uiLog`, `vaultLog`, `signalingLog`, `webrtcLog`, `onlineServicesLog`,
 `importLog`, `generalLog`, `syncLog`.
 
-Optional `data` fields may contain deviceId, vaultId, or error context — not
-credential secrets by policy, but not enforced at runtime.
+Optional `data` fields may hold a device ID, a vault ID or error details. Policy
+keeps credential secrets out of them, but nothing enforces that at runtime.
 
-`vaultLogger` prints to the console only in development builds, so
-`ext-logging.ts` prints warnings and errors in release builds. Production
-Terser drops `console.log/info/debug` but retains `warn`/`error`. Report
-through these channels instead of `console.warn`/`console.error` so the log
-viewer shows it. `sw-envelope-client.ts` is the exception, because content
-scripts load it too.
+`vaultLogger` prints to the console only in development builds. In release
+builds `ext-logging.ts` prints warnings and errors itself, and production Terser
+keeps `console.warn` and `console.error` while it drops `console.log`, `info` and
+`debug`. Report through these channels instead of calling `console.warn` or
+`console.error` directly. The log viewer only shows what goes through them.
+`sw-envelope-client.ts` is the exception, because content scripts load it too.
 
 ## Idle lock
 

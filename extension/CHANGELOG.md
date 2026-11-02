@@ -2,6 +2,19 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
+## 1.10.0 - 2026-11-02
+
+### Added
+
+- Diagnostic logs in the vault actions menu show recent logs from the popup and the extension's background service, and can export them.
+
+### Fixed
+
+- Typing in the popup no longer stalls. The extension used to write every log line to browser storage, and now keeps logs in memory only. Updating deletes the logs that older versions stored.
+- The copy button in the password generator on web pages now copies the password. After a copy, the button shows a check mark.
+- Sync skips a device that was linked before devices had sync IDs instead of failing on it. That device syncs again once it is relinked.
+- Sync signs in to Online Services again only when the session has expired, not after every failed request.
+
 ## 1.9.0 - 2026-10-31
 
 ### Added

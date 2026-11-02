@@ -2,6 +2,18 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## 1.10.0 - 2026-11-02
+
+### Added
+
+- The terms now cover what happens if Cryptex Industries closes.
+
+### Fixed
+
+- The password generator shows an error when copying fails, and a check mark on the copy button when it works.
+- Sync skips a device that was linked before devices had sync IDs instead of failing on it. That device syncs again once it is relinked.
+- Sync signs in to Online Services again only when the session has expired, not after every failed request.
+
 ## 1.9.0 - 2026-10-31
 
 ### Added

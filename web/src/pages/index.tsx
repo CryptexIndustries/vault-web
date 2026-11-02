@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
     ArrowRight,
@@ -268,7 +268,7 @@ function Walkthrough({
         </div>
     );
 }
-const faqs = [
+const faqs: [string, ReactNode][] = [
     [
         "Does Cryptex Vault store my passwords?",
         "Your encrypted vault lives locally on your devices. If you choose managed backups, Online Services also store an encrypted copy. Vault contents and passwords are not sent to the infrastructure in plaintext.",
@@ -295,7 +295,21 @@ const faqs = [
     ],
     [
         "What if Cryptex Industries d.o.o. shuts down? Can I self-host?",
-        "Your locally stored vault remains yours. You can export your data and restore manual backups. The source code is public, so you can build the software and run your own sync infrastructure. Managed services depend on Cryptex Industries d.o.o. remaining operational, so keep a separate manual backup.",
+        <>
+            Your locally stored vault remains yours. You can export your data
+            and restore manual backups. The source code is public, so you can
+            build the software and run your own sync infrastructure. If Cryptex
+            Industries d.o.o. closes, subscribers get at least 90 days of notice
+            in the app, free Online Services until the shutdown date and time to
+            download their managed backups. See{" "}
+            <Link
+                href="/terms#closure"
+                className="text-[var(--ink)] !underline underline-offset-[3px]"
+            >
+                the closure terms
+            </Link>
+            . Keep a separate manual backup as well.
+        </>,
     ],
     [
         "Has Cryptex Vault been independently audited?",
@@ -497,20 +511,35 @@ export default function Home() {
                     </p>
                 </div>
                 <div className={s.recoveryGrid}>
-                    {[
+                    {(
                         [
-                            "One device lost",
-                            "Your other devices keep their complete vault. Revoke the lost device’s Online Services permissions. Its local encrypted vault is not remotely erased.",
-                        ],
-                        [
-                            "Every device lost",
-                            "Restore a manual encrypted backup, or retrieve your managed backup through Online Services. You still need the required recovery information.",
-                        ],
-                        [
-                            "Cryptex Industries d.o.o. shuts down",
-                            "Keep using your local vault, export your data and restore manual backups. The public source code lets you build the software and run your own sync infrastructure. Keep a manual backup independent of Online Services.",
-                        ],
-                    ].map(([title, text]) => (
+                            [
+                                "One device lost",
+                                "Your other devices keep their complete vault. Revoke the lost device’s Online Services permissions. Its local encrypted vault is not remotely erased.",
+                            ],
+                            [
+                                "Every device lost",
+                                "Restore a manual encrypted backup, or retrieve your managed backup through Online Services. You still need the required recovery information.",
+                            ],
+                            [
+                                "Cryptex Industries d.o.o. shuts down",
+                                <>
+                                    Keep using your local vault, export your
+                                    data and restore manual backups. Subscribers
+                                    get at least 90 days of notice to download
+                                    managed backups and move to their own
+                                    servers. See{" "}
+                                    <Link
+                                        href="/terms#closure"
+                                        className="text-[var(--navy)] !underline underline-offset-[3px]"
+                                    >
+                                        the closure terms
+                                    </Link>
+                                    .
+                                </>,
+                            ],
+                        ] as [string, ReactNode][]
+                    ).map(([title, text]) => (
                         <article key={title}>
                             <h3>{title}</h3>
                             <p>{text}</p>

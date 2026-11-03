@@ -647,6 +647,10 @@ export default function Home() {
                                 manual backups
                             </Link>
                             ,{" "}
+                            <Link href="/docs/backup-destinations">
+                                custom backup destinations
+                            </Link>
+                            ,{" "}
                             <Link href="/docs/sharing">
                                 one-time share links
                             </Link>{" "}
@@ -659,19 +663,17 @@ export default function Home() {
                     </article>
                     <article>
                         <Label>IN DEVELOPMENT</Label>
-                        <h3>Custom backup destinations.</h3>
+                        <h3>Granular device-linking permissions.</h3>
                         <p>
-                            Back up to your own S3-compatible bucket, straight
-                            from your devices.
+                            More control over permissions when linking devices.
                         </p>
                     </article>
                     <article>
                         <Label>PLANNED</Label>
                         <h3>What comes next.</h3>
                         <p>
-                            Advanced Security Report, Firefox and iOS support,
-                            and granular device-linking permissions. Priorities
-                            and target dates may change.
+                            Advanced Security Report, and Firefox and iOS
+                            support. Priorities and target dates may change.
                         </p>
                     </article>
                 </div>

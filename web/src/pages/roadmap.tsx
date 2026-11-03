@@ -23,6 +23,12 @@ const roadmap = [
                 target: "Q4 2026",
                 description: "Use Cryptex Vault on Android.",
             },
+            {
+                title: "Granular device-linking permissions",
+                target: "Q4 2026",
+                description:
+                    "More control over permissions when linking devices.",
+            },
         ],
     },
     {
@@ -41,12 +47,6 @@ const roadmap = [
                 target: null,
                 description:
                     "Use the Cryptex Vault browser extension in Firefox.",
-            },
-            {
-                title: "Granular device-linking permissions",
-                target: null,
-                description:
-                    "More control over permissions when linking devices.",
             },
             {
                 title: "iOS application",

@@ -2,6 +2,13 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
+## 0.5.1 - 2026-11-02
+
+### Fixed
+
+- Sync skips a device that was linked before devices had sync IDs instead of failing on it. That device syncs again once it is relinked.
+- Sync signs in to Online Services again only when the session has expired, not after every failed request.
+
 ## 0.5.0 - 2026-10-31
 
 ### Added

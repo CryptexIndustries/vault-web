@@ -59,6 +59,7 @@ it("closes a native peer whose setup finishes after teardown", async () => {
     config.Devices = [
         Object.assign(Object.create(LinkedDevice.prototype) as LinkedDevice, {
             ID: "peer",
+            SyncID: "sync",
             SignalingServerID: "server",
         }),
     ];

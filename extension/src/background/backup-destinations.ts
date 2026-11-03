@@ -13,6 +13,7 @@ import {
 import { S3Error } from "@cryptex-industries/vault-core/vault-utils/s3-client";
 import { vaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
 
+import { vaultLog } from "../utils/ext-logging";
 import { createEncryptedBackupBytes } from "./backup-service";
 
 export const BACKUP_DESTINATION_ALARM = "backup-destinations";
@@ -213,7 +214,7 @@ export function createServiceWorkerBackupDestinations(
             };
         },
         onError: (destinationID, error) =>
-            console.warn("[SW] Backup destination upload failed", {
+            vaultLog.warn("Backup destination upload failed", {
                 destinationID,
                 code: error instanceof S3Error ? error.code : undefined,
             }),

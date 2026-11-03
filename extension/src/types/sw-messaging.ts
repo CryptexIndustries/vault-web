@@ -6,6 +6,7 @@ import type {
     AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
 import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
+import type { LogEntry } from "@/utils/logging";
 
 export enum MessageType {
     GetState = 0,
@@ -202,6 +203,12 @@ export enum MessageType {
 
     /** Popup: upload to one backup destination now. */
     BackupDestinationNow = 57,
+
+    /** Popup: the worker's in-memory logs, optionally only newer ones. */
+    GetLogs = 58,
+
+    /** Popup: clear the worker's in-memory logs. */
+    ClearLogs = 59,
 }
 
 /**
@@ -511,6 +518,17 @@ export interface SaveCredentialDraftRequest {
 export interface GetCredentialDraftResponse {
     ok: true;
     draft: CredentialDraft | null;
+}
+
+/** A worker log entry as it crosses the JSON envelope. */
+export type TransportLogEntry = Omit<LogEntry, "timestamp"> & {
+    timestamp: string;
+};
+
+/** Response for `MessageType.GetLogs`. */
+export interface GetLogsResponse {
+    ok: true;
+    logs: TransportLogEntry[];
 }
 
 /** Response for `MessageType.GenerateTOTP`. */

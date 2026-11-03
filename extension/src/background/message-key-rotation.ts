@@ -1,5 +1,6 @@
 import * as Storage from "@/app_lib/vault-utils/storage";
 import { generateECDHKeyPair } from "../utils/crypto-utils";
+import { generalLog } from "../utils/ext-logging";
 
 /**
  * Rotates the active ECDH key pair, marking the old one as decommissioned.
@@ -34,7 +35,7 @@ export async function rotateKeyPair(): Promise<void> {
         // TODO: Broadcast KEY_ROTATED to all connected clients (popup)
         // For now, clients will discover rotation on next request via STALE_KEY error
     } catch (error) {
-        console.error("[SW] Failed to rotate key pair:", error);
+        generalLog.error("Failed to rotate key pair", error);
         throw error;
     }
 }

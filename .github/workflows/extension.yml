@@ -154,10 +154,13 @@ jobs:
                       extension/CHANGELOG.md
                       scripts/draft-release.sh
                   sparse-checkout-cone-mode: false
+            # The artifact is the bare ZIP (archive: false above). Without
+            # skip-decompress, download-artifact unpacks it into dist/.
             - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: cryptex-vault-chromium-*
                   merge-multiple: true
+                  skip-decompress: true
                   path: dist
             - name: Create draft release
               env:

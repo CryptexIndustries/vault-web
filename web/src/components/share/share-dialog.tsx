@@ -253,7 +253,7 @@ export function ShareDialog({
     };
 
     const copyLink = async () => {
-        if (await copySecretToClipboard(link, { showToast: false })) {
+        if (await copySecretToClipboard(link, { showSuccessToast: false })) {
             setCopied(true);
             window.setTimeout(() => setCopied(false), 2000);
         }

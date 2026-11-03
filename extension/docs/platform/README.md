@@ -58,25 +58,33 @@ save-on-submit. See [content-scripts.md](content-scripts.md) and
 | IndexedDB `cryptex-backup-staging` | one-shot `.cryx` blobs                              | Until take / next create / lock           |
 | IndexedDB `vaultKeyStore`          | `deviceAdditionalKeyProtections`                    | Persistent; replaced on protection change |
 | `chrome.storage.session`           | `UV`, `OS_SESSION`, `PENDING_SAVE`, `SESSION_DEK:*` | Browser session                           |
-| `chrome.storage.local`             | `extLogs`, `cryptex:local-backup-receipt:*`         | Persistent until cleared                  |
+| `chrome.storage.local`             | `cryptex:local-backup-receipt:*`                    | Persistent until cleared                  |
 | `localStorage`                     | `extension-last-selected-vault`                     | Persistent; non-secret                    |
 
 See [persistence.md](persistence.md).
 
 ## Logging
 
-`ext-logging.ts` forwards to shared `vaultLogger` and persists to
-`chrome.storage.local` (`extLogs`, max 2000 entries).
+`ext-logging.ts` forwards to the shared in-memory `vaultLogger` (500 entries
+per group). Each extension page and the SW keeps its own logs until it closes or
+stops. An extension update deletes the `extLogs` key that older versions kept in
+`chrome.storage.local`.
+
+While unlocked, Vault actions > Diagnostic logs shows the page's and the
+worker's logs. See [../ui/README.md](../ui/README.md).
 
 Channels: `uiLog`, `vaultLog`, `signalingLog`, `webrtcLog`, `onlineServicesLog`,
 `importLog`, `generalLog`, `syncLog`.
 
-Logs survive popup close and browser restart until the extension's local data
-is cleared. Optional `data` fields may contain
-deviceId, vaultId, or error context — not credential secrets by policy, but not
-enforced at runtime.
+Optional `data` fields may hold a device ID, a vault ID or error details. Policy
+keeps credential secrets out of them, but nothing enforces that at runtime.
 
-Production Terser drops `console.log/info/debug` but retains `warn`/`error`.
+`vaultLogger` prints to the console only in development builds. In release
+builds `ext-logging.ts` prints warnings and errors itself, and production Terser
+keeps `console.warn` and `console.error` while it drops `console.log`, `info` and
+`debug`. Report through these channels instead of calling `console.warn` or
+`console.error` directly. The log viewer only shows what goes through them.
+`sw-envelope-client.ts` is the exception, because content scripts load it too.
 
 ## Idle lock
 
@@ -91,7 +99,7 @@ extension inactivity. Closing popup alone does not lock.
 | `vite.config.ts`                | Main build + prod manifest rewrite |
 | `vite.config.content.ts`        | Content script IIFE                |
 | `src/env.ts`                    | Env shim                           |
-| `src/utils/ext-logging.ts`      | Log adapter + persistence          |
+| `src/utils/ext-logging.ts`      | Log adapter                        |
 | `src/content/autofill-cs.ts`    | Content script entry               |
 | `src/content/field-detector.ts` | Field heuristics                   |
 | `src/content/origin-utils.ts`   | Origin helpers                     |

@@ -98,6 +98,14 @@ function onlineServicesSessionPort() {
     return getVaultCoreRuntime().onlineServicesSessionPort;
 }
 
+/** Only an UNAUTHORIZED tRPC error can be fixed by a fresh session. */
+function isUnauthorizedError(error: unknown): boolean {
+    return (
+        (error as { data?: { code?: unknown } } | null)?.data?.code ===
+        "UNAUTHORIZED"
+    );
+}
+
 /**
  * Interface for vault operations that the VaultItemSynchronization class needs
  */
@@ -189,6 +197,7 @@ export const initWebRTC = async (
         try {
             turnCredentials = await fetchTurnCredentials();
         } catch (error) {
+            if (!isUnauthorizedError(error)) throw error;
             const reauthenticated =
                 await onlineServicesSessionPort().forceReauthenticate();
             if (!reauthenticated) {
@@ -250,7 +259,8 @@ const onlineServicesPusherInstance = (_syncID: string): Pusher => {
                     return next(null, data);
                 } catch (e) {
                     const reauthenticated =
-                        await onlineServicesSessionPort().forceReauthenticate();
+                        isUnauthorizedError(e) &&
+                        (await onlineServicesSessionPort().forceReauthenticate());
                     if (reauthenticated) {
                         try {
                             const data = await authorizeChannel();
@@ -352,6 +362,7 @@ export const initPusherInstance = (
 export class SyncConnectionController {
     private _lifecycleGeneration = 0;
     private _connectAttempts = new Map<string, Promise<boolean>>();
+    private _missingSyncIdLogged = new Set<string>();
     private _syncOnOpen = new Set<string>();
     // Immutable signaling server event name, over which we transport the signaling data
     private readonly _signalingEventName = "client-private-connection-setup";
@@ -1092,6 +1103,18 @@ export class SyncConnectionController {
 
         if (!device) {
             syncLog.error("Device not found", { deviceId: deviceID });
+            return false;
+        }
+
+        // Devices linked before sync IDs existed decode with SyncID "", and the server rejects "presence-sync-".
+        if (!device.SyncID) {
+            if (!this._missingSyncIdLogged.has(device.ID)) {
+                this._missingSyncIdLogged.add(device.ID);
+                syncLog.warn(
+                    "Skipping linked device without a sync ID; relink it to sync",
+                    { deviceId: device.ID, deviceName: device.Name },
+                );
+            }
             return false;
         }
 

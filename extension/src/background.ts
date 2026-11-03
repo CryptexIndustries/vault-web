@@ -121,6 +121,13 @@ import {
 } from "./background/backup-service";
 import { createIndexedDbBackupBlobStore } from "./utils/backup-staging";
 import {
+    generalLog,
+    LEGACY_EXT_LOGS_STORAGE_KEY,
+    onlineServicesLog,
+} from "./utils/ext-logging";
+import { vaultLogger } from "@/utils/logging";
+import { readWorkerLogs } from "./background/worker-logs";
+import {
     getLatestSecurityBackupJobId,
     getSecurityBackupJob,
     queueSecurityManagedBackup,
@@ -285,6 +292,8 @@ const POPUP_MESSAGE_TYPES = new Set<MessageType>([
     MessageType.BackupDestinationNow,
     MessageType.RotateVaultRecoveryCode,
     MessageType.GetSecurityBackupJob,
+    MessageType.GetLogs,
+    MessageType.ClearLogs,
 ]);
 
 const ALLOWED_ENCRYPTED_MESSAGE_TYPES_BY_ORIGIN: Record<
@@ -483,7 +492,7 @@ async function processEnvelope(
                 "cryptex-extension-session",
             );
         } catch (error) {
-            console.error("[SW] Failed to decrypt envelope:", error);
+            generalLog.error("Failed to decrypt envelope", error);
             return createPlaintextEnvelope(
                 envelope.type,
                 {
@@ -674,14 +683,14 @@ async function processMessageUncoordinated(
                 void ensureOnlineServicesSessionFromUnlockedVault()
                     .then((established) => {
                         if (!established && vault.OnlineServices) {
-                            console.warn(
-                                "[SW] OS session bootstrap on unlock did not establish a session",
+                            onlineServicesLog.warn(
+                                "Online Services session bootstrap on unlock did not establish a session",
                             );
                         }
                     })
                     .catch((error) => {
-                        console.warn(
-                            "[SW] OS session bootstrap on unlock failed",
+                        onlineServicesLog.warn(
+                            "Online Services session bootstrap on unlock failed",
                             error,
                         );
                     });
@@ -1634,6 +1643,23 @@ async function processMessageUncoordinated(
                 return { ok: true };
             }
 
+            // Logs hold device and vault IDs, so only while unlocked. The
+            // viewer polls every second: check the index, not the whole vault.
+            case MessageType.GetLogs: {
+                if ((await getActiveVaultDbIndex()) == null) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+                return readWorkerLogs(payload);
+            }
+
+            case MessageType.ClearLogs: {
+                if ((await getActiveVaultDbIndex()) == null) {
+                    return { ok: false, error: "VAULT_NOT_UNLOCKED" };
+                }
+                vaultLogger.clearAll();
+                return { ok: true };
+            }
+
             case MessageType.OpenPopup: {
                 await recordPageOrigin(sender);
                 return await handleOpenPopup();
@@ -1984,8 +2010,8 @@ async function processMessageUncoordinated(
                 return { ok: false, error: "UNKNOWN_ENCRYPTED_MESSAGE_TYPE" };
         }
     } catch (error) {
-        console.error(
-            `[SW] Error processing encrypted message type "${MessageType[type]}":`,
+        generalLog.error(
+            `Error processing encrypted message type "${MessageType[type]}"`,
             error,
         );
         return {
@@ -2027,7 +2053,7 @@ async function retrieveActivePublicKey(): Promise<
             createdAt: activeKey.createdAt,
         };
     } catch (error) {
-        console.error("[SW] Failed to retrieve active public key:", error);
+        generalLog.error("Failed to retrieve active public key", error);
         return { ok: false, error: "FAILED_TO_RETRIEVE_ACTIVE_PUBLIC_KEY" };
     }
 }
@@ -2051,7 +2077,7 @@ async function checkAndRotateKeysIfNeeded(): Promise<void> {
             await rotateKeyPair();
         }
     } catch (error) {
-        console.error("[SW] Failed to check key rotation:", error);
+        generalLog.error("Failed to check key rotation", error);
     }
 }
 
@@ -2086,7 +2112,7 @@ async function ensureActiveKeyPair(): Promise<void> {
             `[SW] Generated new ECDH key pair with ID: ${keyPair.keyId}`,
         );
     } catch (error) {
-        console.error("[SW] Failed to ensure active key pair:", error);
+        generalLog.error("Failed to ensure active key pair", error);
         throw error;
     }
 }
@@ -2194,16 +2220,16 @@ chrome.runtime.onMessage.addListener(
 
                 // Legacy message handling (for backward compatibility during transition)
                 // This can be removed once all clients use envelope-based messaging
-                console.warn(
-                    "[SW] Received legacy message format, should migrate to envelope-based messaging",
-                    message,
+                // Not the message itself: the viewer can export it.
+                generalLog.warn(
+                    "Received legacy message format, should migrate to envelope-based messaging",
                 );
                 sendResponse({
                     type: -1,
                     payload: { error: "LEGACY_MESSAGE_FORMAT_NOT_SUPPORTED" },
                 });
             } catch (e) {
-                console.error("[SW] Message handling error:", e);
+                generalLog.error("Message handling error", e);
                 sendResponse({
                     type: -1,
                     payload: { error: "An unknown error occurred." },
@@ -2223,6 +2249,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     await ensureActiveKeyPair();
     // Also check if rotation is needed on install/update
     await checkAndRotateKeysIfNeeded();
+    await chrome.storage.local.remove(LEGACY_EXT_LOGS_STORAGE_KEY);
 });
 
 // Also ensure key pair exists on startup

@@ -36,6 +36,7 @@ import {
     replaceOnlineServicesSession,
     type OnlineServicesSessionRecord,
 } from "../utils/online-services-session-storage";
+import { onlineServicesLog } from "../utils/ext-logging";
 import { getExtensionOnlineServicesTrpcUrl } from "../utils/online-services-api-url";
 
 let forcedReauthGate = createForcedReauthGate();
@@ -221,7 +222,7 @@ async function refreshOnlineServicesSession(): Promise<boolean> {
         refreshToken,
     );
     if (!refreshed) {
-        console.warn("[SW] OS session refresh failed");
+        onlineServicesLog.warn("Online Services session refresh failed");
         return false;
     }
 
@@ -280,7 +281,10 @@ export async function establishOnlineServicesSession(args: {
 
         return { ok: true };
     } catch (error) {
-        console.error("[SW] OS session establish failed", error);
+        onlineServicesLog.error(
+            "Online Services session establish failed",
+            error,
+        );
         return {
             ok: false,
             error: error instanceof Error ? error.message : "ESTABLISH_FAILED",

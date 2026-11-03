@@ -25,6 +25,7 @@ import type {
     ProxyFetchRequestPayload,
     ProxyFetchResponsePayload,
 } from "../types/sw-messaging";
+import { onlineServicesLog } from "../utils/ext-logging";
 import { getExtensionOnlineServicesApiBaseUrl } from "../utils/online-services-api-url";
 import {
     isTrpcApiRequest,
@@ -162,7 +163,7 @@ export async function handleProxyFetch(
             body,
         };
     } catch (error) {
-        console.error("[SW] Proxy fetch failed", error);
+        onlineServicesLog.error("Proxy fetch failed", error);
         return {
             ok: false,
             status: 0,

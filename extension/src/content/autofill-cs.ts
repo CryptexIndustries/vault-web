@@ -463,6 +463,8 @@ async function openGeneratorForField(icon: IconHandle): Promise<void> {
     const iframe = document.createElement("iframe");
     iframe.src = withAutofillFrameMount(GENERATOR_URL, bootstrap.mountId);
     iframe.setAttribute("data-cryptex-autofill", "generator");
+    // Chromium blocks clipboard writes in cross-origin frames unless delegated.
+    iframe.allow = "clipboard-write";
     iframe.style.cssText = [
         "position: absolute",
         "border: 0",

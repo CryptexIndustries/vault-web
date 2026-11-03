@@ -86,13 +86,13 @@ and are reused unchanged where possible. Extension-specific bridges:
 
 ## Storage split
 
-| Layer                              | What                                                    | Lifetime                              |
-| ---------------------------------- | ------------------------------------------------------- | ------------------------------------- |
-| IndexedDB `vaultDB`                | Encrypted vault blobs, ECDH key pairs                   | Persistent                            |
-| IndexedDB `cryptex-backup-staging` | One-shot encrypted `.cryx` (take/lock clears)           | Until take, next create, or lock      |
-| `chrome.storage.session`           | Decrypted vault, DEK, OS JWT, pending save              | Browser session; cleared on lock/idle |
-| `chrome.storage.local`             | Diagnostic logs (`extLogs`); DEK-sealed backup receipts | Persistent until cleared              |
-| `localStorage`                     | Last-selected vault index (popup unlock)                | Persistent; non-secret                |
+| Layer                              | What                                          | Lifetime                              |
+| ---------------------------------- | --------------------------------------------- | ------------------------------------- |
+| IndexedDB `vaultDB`                | Encrypted vault blobs, ECDH key pairs         | Persistent                            |
+| IndexedDB `cryptex-backup-staging` | One-shot encrypted `.cryx` (take/lock clears) | Until take, next create, or lock      |
+| `chrome.storage.session`           | Decrypted vault, DEK, OS JWT, pending save    | Browser session; cleared on lock/idle |
+| `chrome.storage.local`             | DEK-sealed backup receipts                    | Persistent until cleared              |
+| `localStorage`                     | Last-selected vault index (popup unlock)      | Persistent; non-secret                |
 
 See [platform/persistence.md](../platform/persistence.md).
 

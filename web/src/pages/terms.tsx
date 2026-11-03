@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Label, Section, Site, s } from "@/components/marketing/site";
+import { Label, REPO, Section, Site, s } from "@/components/marketing/site";
 import p from "@/styles/Privacy.module.css";
 
 export default function TermsOfService() {
@@ -16,7 +16,7 @@ export default function TermsOfService() {
                     These terms cover Cryptex Vault and the optional Online
                     Services operated by Cryptex Industries d.o.o., Croatia.
                 </p>
-                <p>Last updated: 22 October 2026</p>
+                <p>Last updated: 2 November 2026</p>
             </section>
 
             <Section
@@ -306,8 +306,81 @@ export default function TermsOfService() {
 
             <Section
                 className={p.content}
-                id="contact"
+                id="closure"
                 number="07"
+                label="IF WE CLOSE"
+            >
+                <h2>If Cryptex Industries d.o.o. closes</h2>
+                <p>
+                    This section applies if Cryptex Industries d.o.o. closes or
+                    permanently ends Online Services. Your local vault does not
+                    depend on Online Services and keeps working after the
+                    shutdown.
+                </p>
+                <h3>Notice</h3>
+                <p>
+                    We will announce the closure in the application at least 90
+                    days before Online Services stops. The notice gives the
+                    shutdown date and explains how to download your managed
+                    backups, export your vault and switch to your own servers.
+                    We will also publish it on this website.
+                </p>
+                <h3>Service until the shutdown date</h3>
+                <p>
+                    From the day we announce the closure, no new subscription or
+                    free trial starts and no subscription renews. Every
+                    subscription and free trial active on that day keeps full
+                    Online Services until the shutdown date, at no further
+                    charge. This includes managed signaling, STUN/TURN and
+                    backup uploads. A monthly subscription or a trial that would
+                    have ended sooner stays active until the shutdown date.
+                </p>
+                <h3>Refunds</h3>
+                <p>
+                    If you paid for time after the shutdown date, we refund the
+                    unused part pro rata to your original payment method. Your
+                    statutory consumer rights remain unaffected.
+                </p>
+                <h3>Managed backups</h3>
+                <p>
+                    Backups stored on the day we announce the closure stay
+                    available to download or delete until the shutdown date,
+                    subject to normal retention. After the shutdown date, we
+                    delete hosted backups and Online Services account data. Your
+                    local vaults and downloaded backups are not affected.
+                </p>
+                <h3>Funds for the notice period</h3>
+                <p>
+                    We keep funds set aside to run Online Services through the
+                    full 90-day notice period.
+                </p>
+                <h3>After the shutdown</h3>
+                <p>
+                    We will release a final update of the applications. It tells
+                    you that Online Services has ended and points you to your
+                    backups, data export and self-hosting.
+                </p>
+                <p>
+                    The <a href={REPO}>source code repository</a> will be
+                    archived, not deleted. It also holds this website, including
+                    the <Link href="/docs/self-hosting">self-hosting</Link> and{" "}
+                    <Link href="/docs/recovery">recovery</Link> guides, so you
+                    can still build the applications, run your own servers and
+                    read the guides after this website goes offline.
+                </p>
+                <h3>Sale or transfer</h3>
+                <p>
+                    If we sell or transfer the company or Online Services, the
+                    new operator must take over these terms, including this
+                    section. If it does not, we follow the closure process above
+                    before the transfer.
+                </p>
+            </Section>
+
+            <Section
+                className={p.content}
+                id="contact"
+                number="08"
                 label="PRIVACY AND CONTACT"
             >
                 <h2>Contact and privacy</h2>

@@ -70,7 +70,6 @@ only at submit time.
 
 | Key                                      | Owner                          | Contents                                    |
 | ---------------------------------------- | ------------------------------ | ------------------------------------------- |
-| `extLogs`                                | `ext-logging.ts`               | Up to 2000 diagnostic log entries           |
 | `cryptex:local-backup-receipt:{vaultId}` | `background/backup-service.ts` | DEK-authenticated last-local-backup receipt |
 
 Survives browser restart and vault lock. Receipts are AES-GCM sealed with the

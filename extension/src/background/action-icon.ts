@@ -1,3 +1,5 @@
+import { uiLog } from "../utils/ext-logging";
+
 const VAULT_METADATA_SESSION_KEY = "UVM";
 
 const ICON_PATHS = {
@@ -42,11 +44,11 @@ export function registerVaultActionStateIndicator(): void {
         void setVaultActionState(
             Boolean(changes[VAULT_METADATA_SESSION_KEY].newValue),
         ).catch((error) => {
-            console.warn("[SW] Failed to update vault action icon", error);
+            uiLog.warn("Failed to update vault action icon", error);
         });
     });
 
     void syncVaultActionState().catch((error) => {
-        console.warn("[SW] Failed to synchronize vault action icon", error);
+        uiLog.warn("Failed to synchronize vault action icon", error);
     });
 }

@@ -15,6 +15,7 @@ import {
     isEncryptedEnvelope,
 } from "./utils/session-utils";
 import { createPopupEnvelope } from "./utils/sw-envelope-client";
+import { syncLog } from "./utils/ext-logging";
 
 export type ServerPublicKey = {
     keyId: string;
@@ -77,16 +78,16 @@ const getItems = async (
               }
         >(res);
         if (!decryptedPayload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemCredentials):",
+            syncLog.error(
+                "Failed to decrypt encrypted response (SyncGetItemCredentials)",
                 decryptedPayload.error,
             );
             return emptySyncItems();
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to get credentials (SyncGetItemCredentials):",
+            syncLog.error(
+                "Failed to get credentials (SyncGetItemCredentials)",
                 decryptedPayload.payload.error,
             );
             return emptySyncItems();
@@ -104,8 +105,8 @@ const getItems = async (
         };
     }
 
-    console.error(
-        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials):",
+    syncLog.error(
+        "Received a plaintext, but expected an encrypted envelope (SyncGetItemCredentials)",
         res.payload,
     );
     return emptySyncItems();
@@ -141,8 +142,8 @@ const getVersionVectors = async (
               }
         >(res);
         if (!decryptedPayload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetItemVersionVectors):",
+            syncLog.error(
+                "Failed to decrypt encrypted response (SyncGetItemVersionVectors)",
                 decryptedPayload.error,
             );
             return {
@@ -155,8 +156,8 @@ const getVersionVectors = async (
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to get item version vectors (SyncGetItemVersionVectors):",
+            syncLog.error(
+                "Failed to get item version vectors (SyncGetItemVersionVectors)",
                 decryptedPayload.payload.error,
             );
             return {
@@ -179,8 +180,8 @@ const getVersionVectors = async (
         };
     }
 
-    console.error(
-        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors):",
+    syncLog.error(
+        "Received a plaintext, but expected an encrypted envelope (SyncGetItemVersionVectors)",
         res.payload,
     );
     return {
@@ -209,16 +210,16 @@ export const getSynchronizationConfig = async (
             | { ok: true; config: VaultUtilTypes.LinkedDevices }
         >(res);
         if (!decryptedPayload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to decrypt encrypted response (SyncGetConfiguration):",
+            syncLog.error(
+                "Failed to decrypt encrypted response (SyncGetConfiguration)",
                 decryptedPayload.error,
             );
             return null as unknown as VaultUtilTypes.LinkedDevices;
         }
 
         if (!decryptedPayload.payload.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to get synchronization configuration (SyncGetConfiguration):",
+            syncLog.error(
+                "Failed to get synchronization configuration (SyncGetConfiguration)",
                 decryptedPayload.payload.error,
             );
             return null as unknown as VaultUtilTypes.LinkedDevices;
@@ -227,8 +228,8 @@ export const getSynchronizationConfig = async (
         return decryptedPayload.payload.config;
     }
 
-    console.error(
-        "[SYNCHRONIZATION-POPUP] Received a plaintext, but expected an encrypted envelope (SyncGetConfiguration):",
+    syncLog.error(
+        "Received a plaintext, but expected an encrypted envelope (SyncGetConfiguration)",
         res.payload,
     );
     return null as unknown as VaultUtilTypes.LinkedDevices;
@@ -262,8 +263,8 @@ const updateItems = async (
             { ok: true } | { ok: false; error: string }
         >(res);
         if (!decryptedPayload?.ok) {
-            console.error(
-                "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
+            syncLog.error(
+                "Failed to update credentials and diffs",
                 decryptedPayload?.error,
             );
             throw new Error("Failed to authenticate the sync save response.");
@@ -272,10 +273,7 @@ const updateItems = async (
             throw new Error(decryptedPayload.payload.error);
         }
     } else {
-        console.error(
-            "[SYNCHRONIZATION-POPUP] Failed to update credentials and diffs:",
-            res.payload,
-        );
+        syncLog.error("Failed to update credentials and diffs", res.payload);
         throw new Error("Expected an encrypted sync save response.");
     }
 };

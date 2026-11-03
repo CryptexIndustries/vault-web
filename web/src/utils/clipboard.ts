@@ -3,25 +3,21 @@ import { toast } from "sonner";
 const SECRET_CLIPBOARD_MESSAGE =
     "Copied to clipboard. Clear it when done to stay on the safe side.";
 
-type CopyOptions = { showToast?: boolean; toastId?: string };
+type CopyOptions = { showSuccessToast?: boolean; toastId?: string };
 
 async function writeToClipboard(
     text: string,
     options: CopyOptions,
     showCopied: (id?: string) => void,
 ) {
-    const showToast = options.showToast ?? true;
-
     try {
         await navigator.clipboard.writeText(text);
     } catch {
-        if (showToast) {
-            toast.error("Clipboard unavailable. Copy it manually.");
-        }
+        toast.error("Clipboard unavailable. Copy it manually.");
         return false;
     }
 
-    if (showToast) showCopied(options.toastId);
+    if (options.showSuccessToast ?? true) showCopied(options.toastId);
     return true;
 }
 

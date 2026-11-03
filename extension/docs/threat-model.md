@@ -40,7 +40,7 @@ architecture docs under `extension/docs/`.
 | Device signing key JWK        | `OS_SESSION`, vault `OnlineServices`                                            | Re-auth without user gesture                            |
 | ECDH messaging private key    | IndexedDB `keyPairs` (non-extractable)                                          | Decrypt captured envelopes                              |
 | Mnemonic (link receive)       | Link page memory during flow                                                    | Decrypt link package                                    |
-| Diagnostic logs               | `chrome.storage.local` `extLogs`                                                | Metadata leakage (deviceId, vaultId, errors)            |
+| Diagnostic logs               | In-memory `vaultLogger` per page and SW; unlocked log inspector; console        | Metadata leakage (deviceId, vaultId, errors)            |
 | Encrypted `.cryx` ciphertext  | IndexedDB `cryptex-backup-staging` (one-shot); popup after take; user Downloads | Vault at rest if the vault secret is also stolen        |
 | Local backup receipt          | `chrome.storage.local` `cryptex:local-backup-receipt:{vaultId}`                 | Last-backup time and blob fingerprint; not vault bytes  |
 | Clipboard                     | OS clipboard after copy actions                                                 | Credential field exposure                               |
@@ -588,7 +588,7 @@ Ordered by threat-model priority:
 1. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
 2. Broadcast `KEY_ROTATED` on ECDH rotation.
 3. Schema validation on `SyncUpdateCredentials` inbound credentials.
-4. Document contributor policy: never log credential fields to `extLogs`.
+4. Document contributor policy: never log credential fields.
 
 ## Related documentation
 

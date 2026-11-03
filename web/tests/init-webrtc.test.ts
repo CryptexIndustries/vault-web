@@ -197,8 +197,24 @@ describe("initWebRTC", () => {
         }
     });
 
+    it("does not reauthenticate when turnCredentials fails for another reason", async () => {
+        const badRequest = Object.assign(new Error("BAD_REQUEST"), {
+            data: { code: "BAD_REQUEST" },
+        });
+        turnCredentialsMutate.mockRejectedValueOnce(badRequest);
+
+        await expect(initWebRTC([], [], { syncId: "sync_rel_1" })).rejects.toBe(
+            badRequest,
+        );
+
+        expect(turnCredentialsMutate).toHaveBeenCalledTimes(1);
+        expect(forceReauthenticate).not.toHaveBeenCalled();
+    });
+
     it("propagates turnCredentials failure when reauthentication fails", async () => {
-        const unauthorized = new Error("UNAUTHORIZED");
+        const unauthorized = Object.assign(new Error("UNAUTHORIZED"), {
+            data: { code: "UNAUTHORIZED" },
+        });
         turnCredentialsMutate.mockRejectedValueOnce(unauthorized);
         forceReauthenticate.mockResolvedValueOnce(false);
 
@@ -212,7 +228,11 @@ describe("initWebRTC", () => {
 
     it("retries turnCredentials after successful reauthentication", async () => {
         turnCredentialsMutate
-            .mockRejectedValueOnce(new Error("UNAUTHORIZED"))
+            .mockRejectedValueOnce(
+                Object.assign(new Error("UNAUTHORIZED"), {
+                    data: { code: "UNAUTHORIZED" },
+                }),
+            )
             .mockResolvedValueOnce({
                 iceServers: [
                     {

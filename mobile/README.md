@@ -48,8 +48,48 @@ The helper backs up the old tree under
 `$HOME/.cache/cryptex-development/native-backups/`. Keep native changes in
 `mobile/plugins/` and `mobile/modules/`.
 
-For iOS, run `pnpm --dir mobile exec expo prebuild --platform ios --no-clean`,
-then `pnpm --dir mobile ios`. The release build helper targets Android.
+## iOS Simulator
+
+iOS builds need macOS. Install Xcode from the App Store and open it once, then
+install the command line tools:
+
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+xcodebuild -runFirstLaunch
+xcodebuild -downloadPlatform iOS
+brew install cocoapods node@24
+echo 'export PATH="/opt/homebrew/opt/node@24/bin:$PATH"' >> ~/.zprofile
+exec zsh -l
+corepack enable
+```
+
+Then build the development client and start Metro:
+
+```sh
+pnpm install
+cp mobile/.env.example mobile/.env
+pnpm mobile:build -- --dev --platform ios
+pnpm mobile:dev
+```
+
+The build generates `mobile/ios`, installs CocoaPods, compiles with Xcode, and
+installs and opens the app on the booted Simulator. If none is booted, Expo picks
+one. Choose a specific one with `--device "iPhone 17"` or a UDID from
+`xcrun simctl list devices available`. Once Metro runs, press `i` or select the
+server in the development launcher.
+
+The first build downloads about 300 MB of prebuilt React Native, Hermes and
+OpenSSL and compiles every native module. Later builds are incremental. `--profile preprod` and `--regenerate-native` work as
+they do for Android; the backup holds the old `ios` tree.
+
+The Simulator shares the Mac's network, so the `localhost` URLs in
+`.env.example` reach a local web container without `adb reverse`. For Face ID,
+open the Simulator's Features menu and turn on Face ID enrollment, then use
+Matching Face when the app asks. The Simulator has no camera, so QR scanning
+needs a physical device. The autofill and passkey provider, the SSH agent
+service, the in-app language picker and Google Play Billing are Android-only.
+On iOS the Autofill settings screen still opens but its switches do nothing.
+There are no iOS E2E or release builds yet.
 
 ## Build and install an APK
 

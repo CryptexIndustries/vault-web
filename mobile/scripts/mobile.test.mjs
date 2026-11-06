@@ -192,6 +192,87 @@ for (const flag of ["--dev", "--e2e"]) {
     });
 }
 
+function captureIos(args, { host = "darwin", identity = () => {} } = {}) {
+    const calls = [];
+    runMobile(["build", "--dev", "--platform", "ios", ...args], {
+        env: { EXPO_PUBLIC_CRYPTEX_E2E: "1" },
+        host,
+        checkNativeIdentity: () => {
+            throw new Error("Android identity checked for iOS");
+        },
+        checkIosIdentity: identity,
+        regenerateNative: (profile, project) =>
+            calls.push(["regenerate", project]),
+        run: (...parameters) => {
+            calls.push(parameters);
+            return { status: 0 };
+        },
+    });
+    return calls;
+}
+
+test("iOS dev builds prebuild in place, then build and launch on a Simulator", () => {
+    const calls = captureIos(["--profile", "preprod", "--device", "iPhone 17"]);
+    assert.deepEqual(
+        calls.map((call) => call[1]),
+        [
+            [
+                "exec",
+                "expo",
+                "prebuild",
+                "--platform",
+                "ios",
+                "--no-install",
+                "--no-clean",
+            ],
+            [
+                "exec",
+                "expo",
+                "run:ios",
+                "--no-bundler",
+                "--device",
+                "iPhone 17",
+            ],
+        ],
+    );
+    for (const [, , options] of calls) {
+        assert.equal(options.cwd, mobile);
+        assert.equal(options.env.NODE_ENV, "development");
+        assert.equal(options.env.EXPO_PUBLIC_CRYPTEX_E2E, "0");
+        assert.equal(options.env.CRYPTEX_APP_PROFILE, "preprod");
+        assert.equal(options.env.CRYPTEX_DISTRIBUTION, "standard");
+    }
+    assert.deepEqual(captureIos(["--regenerate-native"])[0], [
+        "regenerate",
+        join(mobile, "ios"),
+    ]);
+});
+
+test("iOS dev builds fail before any command off macOS or with Android-only options", () => {
+    for (const [args, host, message] of [
+        [[], "linux", /macOS with Xcode/],
+        [["--distribution", "play"], "darwin", /Android-only/],
+        [["--e2e"], "darwin", /only --dev/],
+        [["--device"], "darwin", /Simulator name or UDID/],
+        [["--platform", "ios"], "darwin", /--platform android or ios/],
+    ]) {
+        assert.throws(() => captureIos(args, { host }), message);
+    }
+    assert.throws(
+        () => capture(["build", "--dev", "--platform", "web"]),
+        /--platform android or ios/,
+    );
+    assert.throws(
+        () =>
+            captureIos([], {
+                identity: () => {
+                    throw new Error("wrong iOS profile");
+                },
+            }),
+        /wrong iOS profile/,
+    );
+});
+
 test("autolinking refresh removes only the cached React Native config", () => {
     const project = mkdtempSync(join(tmpdir(), "cryptex-autolinking-"));
     try {

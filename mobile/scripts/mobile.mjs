@@ -9,12 +9,13 @@ import {
     rmSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getProfile, parseReleaseOptions } from "./release-config.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const android = join(mobile, "android");
+const ios = join(mobile, "ios");
 const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
@@ -42,6 +43,7 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
+  pnpm mobile:build -- --dev --platform ios [--profile <name>] [--device <simulator>] [--regenerate-native]
   pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
   pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
@@ -62,7 +64,8 @@ Local release builds reuse .mobile-build/ in the current checkout and use all av
 --dev builds a secure debug APK; --e2e builds the test-only Maestro APK.
 Dev and E2E builds use the standard distribution; --distribution play adds Google Play Billing.
 Pass the same --distribution to mobile:dev so Metro bundles the matching billing modules.
---regenerate-native backs up the existing Android tree before a fresh dev/E2E prebuild.
+--regenerate-native backs up the existing native tree before a fresh dev/E2E prebuild.
+--platform ios builds the dev client on macOS and installs it on an iOS Simulator.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
@@ -97,6 +100,24 @@ export function requireNativeIdentity(profile, project = android) {
         );
 }
 
+export function requireIosIdentity(profile, project = ios) {
+    const xcodeproj = existsSync(project)
+        ? readdirSync(project).find((name) => name.endsWith(".xcodeproj"))
+        : undefined;
+    if (!xcodeproj) return;
+    const source = readFileSync(
+        join(project, xcodeproj, "project.pbxproj"),
+        "utf8",
+    );
+    const values = [
+        ...source.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([^";]+)"?;/g),
+    ].map((match) => match[1]);
+    if (values.some((value) => value !== profile.applicationId))
+        throw new Error(
+            `Existing iOS project identity (${[...new Set(values)].join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --dev --platform ios --profile ${profile.name} --regenerate-native.`,
+        );
+}
+
 export function regenerateNativeProject(
     profile,
     project = android,
@@ -105,11 +126,10 @@ export function regenerateNativeProject(
     if (!existsSync(project)) return;
     mkdirSync(backupRoot, { recursive: true, mode: 0o700 });
     const backup = mkdtempSync(join(backupRoot, `${profile.name}-`));
-    renameSync(project, join(backup, "android"));
-    console.log(
-        `Existing native project preserved at ${join(backup, "android")}.`,
-    );
-    return join(backup, "android");
+    const preserved = join(backup, basename(project));
+    renameSync(project, preserved);
+    console.log(`Existing native project preserved at ${preserved}.`);
+    return preserved;
 }
 
 // React Native caches autolinking until package.json or react-native.config.js
@@ -128,6 +148,8 @@ export function runMobile(
         env = process.env,
         checkAndroid = requireAndroid,
         checkNativeIdentity = requireNativeIdentity,
+        checkIosIdentity = requireIosIdentity,
+        host = process.platform,
         regenerateNative = regenerateNativeProject,
         clearAutolinking = clearAutolinkingCache,
     } = {},
@@ -296,6 +318,65 @@ export function runMobile(
             const distribution = takeDistribution();
             const regenerate = args.includes("--regenerate-native");
             if (regenerate) args.splice(args.indexOf("--regenerate-native"), 1);
+            let platform = "android";
+            const platformIndex = args.indexOf("--platform");
+            if (platformIndex >= 0) {
+                platform = args[platformIndex + 1];
+                if (
+                    args.lastIndexOf("--platform") !== platformIndex ||
+                    !["android", "ios"].includes(platform)
+                )
+                    throw new Error("Specify --platform android or ios once.");
+                args.splice(platformIndex, 2);
+            }
+            if (platform === "ios") {
+                const deviceIndex = args.indexOf("--device");
+                const device = deviceIndex >= 0 ? args[deviceIndex + 1] : null;
+                if (deviceIndex >= 0) {
+                    if (
+                        !device ||
+                        device.startsWith("-") ||
+                        args.lastIndexOf("--device") !== deviceIndex
+                    )
+                        throw new Error(
+                            "--device requires one iOS Simulator name or UDID.",
+                        );
+                    args.splice(deviceIndex, 2);
+                }
+                if (args.length !== 1 || !development)
+                    throw new Error(
+                        "iOS supports only --dev builds for the Simulator.",
+                    );
+                if (distribution !== "standard")
+                    throw new Error("Google Play Billing is Android-only.");
+                if (host !== "darwin")
+                    throw new Error("iOS builds need macOS with Xcode.");
+                if (regenerate) regenerateNative(profile, ios);
+                checkIosIdentity(profile);
+                const buildEnv = developmentEnvironment(profile);
+                exec(
+                    [
+                        "expo",
+                        "prebuild",
+                        "--platform",
+                        "ios",
+                        "--no-install",
+                        "--no-clean",
+                    ],
+                    buildEnv,
+                );
+                // Installs pods, builds for the Simulator, installs and launches.
+                exec(
+                    [
+                        "expo",
+                        "run:ios",
+                        "--no-bundler",
+                        ...(device ? ["--device", device] : []),
+                    ],
+                    buildEnv,
+                );
+                return;
+            }
             if (args.length !== 1)
                 throw new Error("Choose only --dev or --e2e for a test build.");
             if (regenerate) regenerateNative(profile);

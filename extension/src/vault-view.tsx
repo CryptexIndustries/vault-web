@@ -1029,7 +1029,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             const decryptedPayload = await decryptResponseEnvelope<
                 | { ok: true; credential: LiteCredential }
                 | { ok: false; error: string }
-            >(res);
+            >(res, envelope.requestId);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
                     return err(
@@ -1147,7 +1147,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
                 { ok: true } | { ok: false; error: string }
-            >(res);
+            >(res, envelope.requestId);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
                     return err(
@@ -1266,7 +1266,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
                 { ok: true } | { ok: false; error: string }
-            >(res);
+            >(res, envelope.requestId);
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {
                     return err(
@@ -1307,7 +1307,7 @@ const VaultView: React.FC<VaultViewProps> = ({
         const decrypted = await decryptResponseEnvelope<
             | { ok: true; directories: VaultUtilTypes.Directory[] }
             | { ok: false; error: string }
-        >(response);
+        >(response, envelope.requestId);
         if (decrypted.ok && decrypted.payload.ok) {
             setDirectories(decrypted.payload.directories);
         }
@@ -1335,7 +1335,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                       ok: false;
                       error: string;
                   }
-            >(res);
+            >(res, envelope.requestId);
 
             if (!decryptedPayload?.ok) {
                 vaultLog.error(
@@ -1572,7 +1572,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                       ok: false;
                       error: string;
                   }
-            >(res);
+            >(res, envelope.requestId);
 
             if (!decryptedPayload?.ok) {
                 syncLog.error(
@@ -1624,7 +1624,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                 const decryptedPayload = await decryptResponseEnvelope<{
                     ok: boolean;
                     error?: string;
-                }>(res);
+                }>(res, envelope.requestId);
 
                 if (!decryptedPayload?.ok) {
                     syncLog.warn(
@@ -1744,7 +1744,7 @@ const VaultView: React.FC<VaultViewProps> = ({
             const decryptedPayload = await decryptResponseEnvelope<
                 | { ok: true; credential: VaultCredential }
                 | { ok: false; error: string }
-            >(res);
+            >(res, envelope.requestId);
 
             if (!decryptedPayload?.ok || !decryptedPayload?.payload) {
                 if (!decryptedPayload?.ok) {

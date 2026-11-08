@@ -147,7 +147,10 @@ async function sendOnce<T>(
         await chrome.runtime.sendMessage(envelope);
 
     if (isEncryptedEnvelope(response)) {
-        const decrypted = await decryptResponseEnvelope<T>(response);
+        const decrypted = await decryptResponseEnvelope<T>(
+            response,
+            envelope.requestId,
+        );
         if (!decrypted.ok) {
             return { kind: "error", error: "RESPONSE_DECRYPTION_FAILED" };
         }

@@ -76,7 +76,7 @@ const getItems = async (
                   connectedAgents?: string[];
                   backupDestinations?: VaultUtilTypes.BackupDestination[];
               }
-        >(res);
+        >(res, envelope.requestId);
         if (!decryptedPayload.ok) {
             syncLog.error(
                 "Failed to decrypt encrypted response (SyncGetItemCredentials)",
@@ -140,7 +140,7 @@ const getVersionVectors = async (
                   connectedAgentVersionVectors?: VaultUtilTypes.VersionVector[];
                   backupDestinationVersionVectors?: VaultUtilTypes.VersionVector[];
               }
-        >(res);
+        >(res, envelope.requestId);
         if (!decryptedPayload.ok) {
             syncLog.error(
                 "Failed to decrypt encrypted response (SyncGetItemVersionVectors)",
@@ -208,7 +208,7 @@ export const getSynchronizationConfig = async (
         const decryptedPayload = await decryptResponseEnvelope<
             | { ok: false; error: string }
             | { ok: true; config: VaultUtilTypes.LinkedDevices }
-        >(res);
+        >(res, envelope.requestId);
         if (!decryptedPayload.ok) {
             syncLog.error(
                 "Failed to decrypt encrypted response (SyncGetConfiguration)",
@@ -261,7 +261,7 @@ const updateItems = async (
     if (isEncryptedEnvelope(res)) {
         const decryptedPayload = await decryptResponseEnvelope<
             { ok: true } | { ok: false; error: string }
-        >(res);
+        >(res, envelope.requestId);
         if (!decryptedPayload?.ok) {
             syncLog.error(
                 "Failed to update credentials and diffs",

@@ -325,12 +325,21 @@ export function discardSessionKey(requestId: string): void {
 /**
  * Decrypts an encrypted envelope using the cached session key derived during the request.
  * @param envelope The encrypted envelope returned by the service worker
+ * @param requestId The ID of the request this envelope must answer
  * @returns The decrypted payload
  */
 export async function decryptResponseEnvelope<T>(
     envelope: EncryptedEnvelope,
+    requestId: string,
 ): Promise<DecryptedEnvelope<T>> {
-    const sessionKey = sessionKeyCache.get(envelope.requestId);
+    if (envelope.requestId !== requestId) {
+        return {
+            ok: false,
+            error: err("RESPONSE_REQUEST_MISMATCH"),
+        };
+    }
+
+    const sessionKey = sessionKeyCache.get(requestId);
 
     if (!sessionKey) {
         return {

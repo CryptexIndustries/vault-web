@@ -109,6 +109,7 @@ export function resolveValidRpId(
 
 function senderBinding(
     sender: chrome.runtime.MessageSender,
+    documentToken: string | undefined,
 ): SenderBinding | null {
     const tabId = sender.tab?.id;
     if (typeof tabId !== "number" || typeof sender.frameId !== "number") {
@@ -117,15 +118,18 @@ function senderBinding(
     return {
         tabId,
         frameId: sender.frameId,
-        documentId: sender.documentId,
+        // Firefox has no sender.documentId, so the content script sends an ID
+        // that only its own document holds.
+        documentId: sender.documentId ?? documentToken,
     };
 }
 
 function bindingMatches(
     stored: SenderBinding,
     sender: chrome.runtime.MessageSender,
+    documentToken: string | undefined,
 ): boolean {
-    const current = senderBinding(sender);
+    const current = senderBinding(sender, documentToken);
     return (
         !!current &&
         current.tabId === stored.tabId &&
@@ -281,7 +285,7 @@ export async function beginPasskeyAssertion(
     if (!vault || vaultDbIndex == null) {
         return { ok: false, error: "VAULT_NOT_UNLOCKED" };
     }
-    const binding = senderBinding(sender);
+    const binding = senderBinding(sender, request.documentToken);
     if (!binding) return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
     const rpId = resolveValidRpId(requestOrigin, request.publicKey.rpId);
     if (!rpId) return { ok: false, error: "INVALID_RP_ID" };
@@ -456,7 +460,7 @@ export async function cancelPasskeyAssertion(
     }
     const ceremony = await readCeremony(request.ceremonyId);
     if (!ceremony) return { ok: true };
-    if (!bindingMatches(ceremony.binding, sender)) {
+    if (!bindingMatches(ceremony.binding, sender, request.documentToken)) {
         return { ok: false, error: "CEREMONY_SENDER_MISMATCH" };
     }
     const pending = await chrome.storage.session.get(PENDING_CONFIRMATION_KEY);
@@ -513,7 +517,7 @@ export async function consumePasskeyAssertionResult(
     }
     const ceremony = await readCeremony(request.ceremonyId);
     if (!ceremony) return { ok: false, error: "CEREMONY_NOT_FOUND" };
-    if (!bindingMatches(ceremony.binding, sender)) {
+    if (!bindingMatches(ceremony.binding, sender, request.documentToken)) {
         return { ok: false, error: "CEREMONY_SENDER_MISMATCH" };
     }
     if (

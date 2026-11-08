@@ -431,6 +431,7 @@ export type PasskeyAssertionCandidate = {
 
 export interface BeginPasskeyAssertionRequest {
     publicKey: PasskeyRequestOptionsDTO;
+    documentToken?: string;
 }
 
 export type BeginPasskeyAssertionResponse =
@@ -449,6 +450,7 @@ export type CompletePasskeyAssertionResponse =
 
 export interface CancelPasskeyAssertionRequest {
     ceremonyId: string;
+    documentToken?: string;
 }
 
 export type PendingPasskeyAssertion = {

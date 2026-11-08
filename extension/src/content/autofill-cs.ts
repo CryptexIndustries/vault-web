@@ -61,6 +61,7 @@ import {
     type InlineIconMode,
 } from "./inline-icon";
 import { getEffectiveOrigin, isTopFrame } from "./origin-utils";
+import { base64UrlEncode } from "../utils/crypto-utils";
 import {
     generatePasskeyRegistration,
     PASSKEY_CONTENT_SOURCE,
@@ -860,9 +861,16 @@ function postPasskeyGetResult(result: Omit<PasskeyGetResult, "source">): void {
     );
 }
 
+// Stands in for sender.documentId in Firefox. randomUUID() is missing on http
+// pages, where this script also runs.
+const passkeyDocumentToken = base64UrlEncode(
+    crypto.getRandomValues(new Uint8Array(32)),
+);
+
 async function cancelPasskeyCeremony(ceremonyId: string): Promise<void> {
     await sendEncryptedEnvelopeToSW(MessageType.CancelPasskeyAssertion, {
         ceremonyId,
+        documentToken: passkeyDocumentToken,
     });
 }
 
@@ -872,7 +880,7 @@ async function pollPasskeyGet(requestId: string, ceremonyId: string) {
             const result =
                 await sendEncryptedEnvelopeToSW<ConsumePasskeyAssertionResultResponse>(
                     MessageType.ConsumePasskeyAssertionResult,
-                    { ceremonyId },
+                    { ceremonyId, documentToken: passkeyDocumentToken },
                 );
             if (result.ok && result.payload?.ok) {
                 if (result.payload.status === "pending") {
@@ -942,6 +950,7 @@ async function handlePasskeyGetRequest(
             MessageType.BeginPasskeyAssertion,
             {
                 publicKey: serializePasskeyRequest(request.publicKey),
+                documentToken: passkeyDocumentToken,
             },
         );
     } catch {

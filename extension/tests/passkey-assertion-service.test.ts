@@ -5,6 +5,7 @@ import type * as VaultTypes from "@cryptex-industries/vault-core/proto";
 
 import {
     beginPasskeyAssertion,
+    cancelPasskeyAssertion,
     completePasskeyAssertion,
     resolveValidRpId,
 } from "../src/background/passkey-assertion-service";
@@ -157,6 +158,34 @@ describe("passkey assertion ceremony binding", () => {
             userVerification: "discouraged" as const,
         },
     };
+
+    it("binds to the content script's ID when the browser has no document ID", async () => {
+        const firefoxSender = {
+            tab: { id: 7 },
+            frameId: 0,
+        } as chrome.runtime.MessageSender;
+        const begun = await beginPasskeyAssertion(
+            { ...request, documentToken: "document-a" },
+            vault,
+            1,
+            origin("https://example.com"),
+            firefoxSender,
+        );
+        const ceremonyId = begun.ok ? begun.ceremonyId! : "";
+
+        await expect(
+            cancelPasskeyAssertion(
+                { ceremonyId, documentToken: "document-b" },
+                firefoxSender,
+            ),
+        ).resolves.toEqual({ ok: false, error: "CEREMONY_SENDER_MISMATCH" });
+        await expect(
+            cancelPasskeyAssertion(
+                { ceremonyId, documentToken: "document-a" },
+                firefoxSender,
+            ),
+        ).resolves.toEqual({ ok: true });
+    });
 
     it("keeps a second site from replacing an open confirmation", async () => {
         const first = await beginPasskeyAssertion(

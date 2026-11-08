@@ -1,5 +1,6 @@
 import { err, ok, Result } from "neverthrow";
 import { ulid } from "ulidx";
+import { copyBytes } from "./bytes";
 
 const toBufferSource = (bytes: Uint8Array): BufferSource =>
     new Uint8Array(bytes);
@@ -113,7 +114,7 @@ export async function encryptWithAESGCM(
 
     return {
         iv: iv,
-        ciphertext: new Uint8Array(ciphertext),
+        ciphertext: copyBytes(ciphertext),
     };
 }
 
@@ -144,7 +145,7 @@ export async function decryptWithAESGCM(
             toBufferSource(ciphertext),
         );
 
-        return ok(new Uint8Array(decrypted));
+        return ok(copyBytes(decrypted));
     } catch (error) {
         if (
             error instanceof DOMException &&

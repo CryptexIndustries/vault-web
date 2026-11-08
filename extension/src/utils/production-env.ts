@@ -7,9 +7,13 @@ export type ExtensionProductionEnv = {
     VITE_PUSHER_APP_TLS?: string;
     VITE_ONLINE_SERVICES_API_URL?: string;
     VITE_CLOUD_ENABLED?: string;
+    VITE_FIREFOX_EXTENSION_ID?: string;
 };
 
-export function validateProductionEnv(env: ExtensionProductionEnv): void {
+export function validateProductionEnv(
+    env: ExtensionProductionEnv,
+    browser: "chromium" | "firefox" = "chromium",
+): void {
     const invalid = (
         key: keyof ExtensionProductionEnv,
         reason: string,
@@ -117,5 +121,14 @@ export function validateProductionEnv(env: ExtensionProductionEnv): void {
             "VITE_ONLINE_SERVICES_API_URL",
             env.VITE_ONLINE_SERVICES_API_URL,
         );
+    }
+
+    // Firefox keeps an add-on's storage and its addons.mozilla.org listing
+    // under this ID, so it must never change once published.
+    if (
+        browser === "firefox" &&
+        !/^[\w.-]+@[\w.-]+$/.test(required("VITE_FIREFOX_EXTENSION_ID"))
+    ) {
+        invalid("VITE_FIREFOX_EXTENSION_ID", "use an ID like name@example.com");
     }
 }

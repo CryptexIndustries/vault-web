@@ -14,6 +14,7 @@ import {
     base64UrlEncode,
     base64UrlDecode,
 } from "./crypto-utils";
+import { copyBytes } from "./bytes";
 import { err, Err } from "neverthrow";
 
 const sessionKeyCache = new Map<string, CryptoKey>();
@@ -107,7 +108,7 @@ export async function createEncryptedEnvelope(
         timestamp: new Date().toISOString(),
         payload: {
             wrappedKey: base64UrlEncode(
-                new Uint8Array(
+                copyBytes(
                     await crypto.subtle.exportKey(
                         "raw",
                         ephemeralKeyPair.publicKey,

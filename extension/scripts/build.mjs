@@ -2,6 +2,7 @@
 //   pnpm build:ext                          production (release-config.json)
 //   pnpm build:ext -- --profile preprod     preproduction (prerelease-config.json)
 //   pnpm build:ext -- --config <path>       a configuration of your own
+//   pnpm build:ext -- --browser firefox     Firefox build in dist-firefox/
 import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -14,7 +15,7 @@ try {
     const options = parseBuildOptions(process.argv.slice(2));
     const config = loadReleaseConfig(options.configPath);
     console.log(
-        `Building the ${options.profile} extension from ${relative(process.cwd(), options.configPath)}`,
+        `Building the ${options.profile} ${options.browser} extension from ${relative(process.cwd(), options.configPath)}`,
     );
 
     // Values already in the environment override Vite's .env files, so the
@@ -23,9 +24,10 @@ try {
     const env = Object.fromEntries(
         Object.entries(process.env).filter(([key]) => !key.startsWith("VITE_")),
     );
-    Object.assign(env, config);
+    Object.assign(env, config, { CRYPTEX_BROWSER: options.browser });
 
-    rmSync(join(extension, "dist"), { recursive: true, force: true });
+    const outDir = options.browser === "firefox" ? "dist-firefox" : "dist";
+    rmSync(join(extension, outDir), { recursive: true, force: true });
     for (const viteConfig of [
         "vite.config.ts",
         "vite.config.content.ts",

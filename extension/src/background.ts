@@ -2276,6 +2276,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Lock the vault after 30 minutes of inactivity or when the OS screen locks.
 // A screen lock before the idle threshold goes active -> locked -> active
 // and never reports "idle".
+// Firefox never reports "locked", so only the idle timeout applies there.
 chrome.idle.setDetectionInterval(60 * 30);
 chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle" || newState === "locked") {

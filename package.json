@@ -56,13 +56,15 @@
         "test:workspace": "pnpm jest",
         "test:e2e": "pnpm test:e2e:extension && pnpm test:e2e:web",
         "test:e2e:headed": "pnpm test:e2e:extension:headed && pnpm test:e2e:web:headed",
-        "test:e2e:extension": "pnpm --filter extension build:e2e && playwright test --config extension/e2e/playwright.config.ts",
-        "test:e2e:extension:headed": "pnpm --filter extension build:e2e && CRYPTEX_E2E_HEADED=1 playwright test --config extension/e2e/playwright.config.ts --headed",
-        "test:e2e:extension:live": "pnpm --filter extension build:e2e && CRYPTEX_LIVE_E2E=1 playwright test --config extension/e2e/playwright.config.ts autofill-me-live.spec.ts",
+        "test:e2e:extension": "pnpm --filter extension build:e2e && playwright test --config extension/e2e/playwright.config.ts --project=chromium",
+        "test:e2e:extension:headed": "pnpm --filter extension build:e2e && CRYPTEX_E2E_HEADED=1 playwright test --config extension/e2e/playwright.config.ts --project=chromium --headed",
+        "test:e2e:extension:firefox": "CRYPTEX_BROWSER=firefox pnpm --filter extension build:e2e && playwright test --config extension/e2e/playwright.config.ts --project=firefox",
+        "test:e2e:extension:live": "pnpm --filter extension build:e2e && CRYPTEX_LIVE_E2E=1 playwright test --config extension/e2e/playwright.config.ts --project=chromium autofill-me-live.spec.ts",
         "test:e2e:web": "node scripts/run-web-e2e.mjs",
         "test:e2e:web:local": "playwright test --config web/e2e/playwright.config.ts",
         "test:e2e:web:headed": "playwright test --config web/e2e/playwright.config.ts --headed",
         "test:e2e:install": "playwright install chromium",
+        "test:e2e:install:firefox": "node extension/scripts/install-firefox.mjs",
         "coverage": "pnpm jest --coverage"
     },
     "devDependencies": {

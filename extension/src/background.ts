@@ -709,7 +709,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentials: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -728,7 +728,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredential: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -1049,7 +1049,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetLinkedDevices: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -1071,7 +1071,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetDirectories: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 return vault
                     ? {
                           ok: true,
@@ -1225,7 +1225,7 @@ async function processMessageUncoordinated(
                 };
             }
             case MessageType.SyncGetConfiguration: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 if (!vault) {
                     return {
                         ok: false,
@@ -1446,7 +1446,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialsForOrigin: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const requestOrigin = getAutofillRequestOrigin(sender);
                 if (!requestOrigin) {
                     return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
@@ -1515,7 +1515,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialSecret: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const requestOrigin = getAutofillRequestOrigin(sender);
                 if (!requestOrigin) {
                     return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
@@ -1549,7 +1549,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialDraft: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const dbIndex = vault ? await getActiveVaultDbIndex() : null;
                 if (!vault || dbIndex == null) {
                     return { ok: true, draft: null };
@@ -1670,7 +1670,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetShareLinks: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 if (!vault) return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 const session = await getOnlineServicesStateSnapshot();
                 return {
@@ -2115,6 +2115,7 @@ chrome.storage.session.onChanged.addListener((changes) => {
     if (UNLOCKED_VAULT_KEY in changes) sessionVaultRead = null;
 });
 
+/** The stored vault, frozen because every reader shares it. */
 async function readSessionVault(): Promise<SessionVault | null> {
     const read = (sessionVaultRead ??= chrome.storage.session
         .get([UNLOCKED_VAULT_KEY])
@@ -2122,7 +2123,7 @@ async function readSessionVault(): Promise<SessionVault | null> {
             const stored = items[UNLOCKED_VAULT_KEY] as
                 | SessionVault
                 | undefined;
-            return stored ?? null;
+            return stored ? deepFreeze(stored) : null;
         }));
     try {
         return await read;
@@ -2130,6 +2131,20 @@ async function readSessionVault(): Promise<SessionVault | null> {
         if (sessionVaultRead === read) sessionVaultRead = null;
         throw error;
     }
+}
+
+function deepFreeze<T>(value: T): T {
+    // Typed arrays with elements can't be frozen.
+    if (
+        value &&
+        typeof value === "object" &&
+        !ArrayBuffer.isView(value) &&
+        !Object.isFrozen(value)
+    ) {
+        Object.freeze(value);
+        for (const child of Object.values(value)) deepFreeze(child);
+    }
+    return value;
 }
 
 /** A copy of the unlocked vault that the caller may change. */
@@ -2141,6 +2156,20 @@ async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null
         ...copy,
         ConnectedAgents: connectedAgentsFromTransport(copy.ConnectedAgents),
     };
+}
+
+/**
+ * The unlocked vault for handlers that only read it. Copying it costs a few
+ * milliseconds per request, so readers share it, and it is frozen so that a
+ * change throws instead of reaching the other readers.
+ */
+async function getVaultForReading(): Promise<VaultUtilTypes.Vault | null> {
+    const stored = await readSessionVault();
+    if (!stored) return null;
+    return Object.freeze({
+        ...stored,
+        ConnectedAgents: connectedAgentsFromTransport(stored.ConnectedAgents),
+    });
 }
 
 async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.VaultMetadata | null> {

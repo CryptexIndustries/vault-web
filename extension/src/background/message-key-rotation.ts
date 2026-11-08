@@ -7,25 +7,20 @@ import { generalLog } from "../utils/ext-logging";
  */
 export async function rotateKeyPair(): Promise<void> {
     try {
-        const currentActiveKey = await Storage.db.keyPairs
-            .where("status")
-            .equals("active")
-            .first();
-        if (currentActiveKey) {
-            // Mark current active key as decommissioned
-            await Storage.db.keyPairs.update(currentActiveKey.keyId, {
-                status: "decommission",
-            });
-        }
-
-        // Generate new active key pair
+        // WebCrypto can't run inside a Dexie transaction, so this comes first.
         const newKeyPair = await generateECDHKeyPair();
-        await Storage.db.keyPairs.add({
-            keyId: newKeyPair.keyId,
-            createdAt: newKeyPair.createdAt,
-            status: "active",
-            privateKey: newKeyPair.privateKey,
-            publicKeyJwk: newKeyPair.publicKeyJwk,
+        await Storage.db.transaction("rw", Storage.db.keyPairs, async () => {
+            await Storage.db.keyPairs
+                .where("status")
+                .equals("active")
+                .modify({ status: "decommission" });
+            await Storage.db.keyPairs.add({
+                keyId: newKeyPair.keyId,
+                createdAt: newKeyPair.createdAt,
+                status: "active",
+                privateKey: newKeyPair.privateKey,
+                publicKeyJwk: newKeyPair.publicKeyJwk,
+            });
         });
 
         console.debug(

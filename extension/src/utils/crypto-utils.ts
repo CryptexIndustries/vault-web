@@ -177,6 +177,11 @@ export function generateSalt(): Uint8Array {
  * @returns Base64url encoded string
  */
 export function base64UrlEncode(data: Uint8Array): string {
+    // The native encoder (Chrome 140, Firefox 133) is about 50 times faster,
+    // which matters for envelopes that carry the whole credential list.
+    if (typeof data.toBase64 === "function") {
+        return data.toBase64({ alphabet: "base64url", omitPadding: true });
+    }
     const chunks: string[] = [];
     const chunkSize = 32 * 1024; // 32KB
     for (let offset = 0; offset < data.length; offset += chunkSize) {
@@ -194,6 +199,9 @@ export function base64UrlEncode(data: Uint8Array): string {
  * @returns Decoded Uint8Array
  */
 export function base64UrlDecode(str: string): Uint8Array {
+    if (typeof Uint8Array.fromBase64 === "function") {
+        return Uint8Array.fromBase64(str, { alphabet: "base64url" });
+    }
     const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);

@@ -2123,16 +2123,41 @@ type SessionVault = Omit<VaultUtilTypes.Vault, "ConnectedAgents"> & {
     ConnectedAgents?: unknown;
 };
 
+// Reading the whole vault from chrome.storage.session takes tens of
+// milliseconds, and opening the popup alone sends several requests that each
+// need it. The worker keeps the last read until the vault changes.
+let sessionVaultRead: Promise<SessionVault | null> | null = null;
+
+chrome.storage.session.onChanged.addListener((changes) => {
+    // Covers writers outside the worker, such as the e2e bootstrap page.
+    if (UNLOCKED_VAULT_KEY in changes) sessionVaultRead = null;
+});
+
+async function readSessionVault(): Promise<SessionVault | null> {
+    const read = (sessionVaultRead ??= chrome.storage.session
+        .get([UNLOCKED_VAULT_KEY])
+        .then((items) => {
+            const stored = items[UNLOCKED_VAULT_KEY] as
+                | SessionVault
+                | undefined;
+            return stored ?? null;
+        }));
+    try {
+        return await read;
+    } catch (error) {
+        if (sessionVaultRead === read) sessionVaultRead = null;
+        throw error;
+    }
+}
+
+/** A copy of the unlocked vault that the caller may change. */
 async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null> {
-    const _vault = await chrome.storage.session.get([UNLOCKED_VAULT_KEY]);
-    const stored = _vault[UNLOCKED_VAULT_KEY] as
-        | SessionVault
-        | null
-        | undefined;
+    const stored = await readSessionVault();
     if (!stored) return null;
+    const copy = structuredClone(stored);
     return {
-        ...stored,
-        ConnectedAgents: connectedAgentsFromTransport(stored.ConnectedAgents),
+        ...copy,
+        ConnectedAgents: connectedAgentsFromTransport(copy.ConnectedAgents),
     };
 }
 
@@ -2181,6 +2206,8 @@ async function setVaultInSessionStorage(
         } satisfies SessionVault,
         [ACTIVE_VAULT_DB_INDEX_KEY]: vaultDbIndex,
     });
+    // onChanged fires later, after reads that may follow this save.
+    sessionVaultRead = null;
     backupDestinations.vaultSaved(vault, metadata);
 }
 
@@ -2193,6 +2220,7 @@ async function clearSessionStorage(): Promise<void> {
     await clearAllVaultKeyMaterial();
     await backupBlobStore.clear();
     await chrome.storage.session.clear();
+    sessionVaultRead = null;
 }
 
 chrome.runtime.onMessage.addListener(

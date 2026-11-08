@@ -370,6 +370,12 @@ export default defineConfig(({ mode }) => {
                             }
 
                             if (browser === "firefox") {
+                                // Firefox rejects names over 45 characters,
+                                // and a prefix puts the full name over that.
+                                if (namePrefix?.trim()) {
+                                    manifest.name =
+                                        manifest.action?.default_title;
+                                }
                                 // Firefox runs MV3 background scripts as an
                                 // event page and has no service_worker key.
                                 delete manifest.minimum_chrome_version;

@@ -53,6 +53,8 @@ Firefox:
   `data_collection_permissions: { required: ["none"] }`, which
   addons.mozilla.org requires for new add-ons.
 - The build drops `minimum_chrome_version`.
+- A build with a name prefix uses the prefixed toolbar title as its name,
+  because Firefox rejects names over 45 characters.
 
 Firefox behaves differently in a few places the code relies on:
 

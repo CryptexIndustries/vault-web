@@ -2,8 +2,8 @@
 
 | Field                      | Value                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------- |
-| Product                    | Cryptex Vault Chromium Extension                                                          |
-| Updated                    | 28 October 2026                                                                           |
+| Product                    | Cryptex Vault browser extension (Chromium and Firefox)                                    |
+| Updated                    | 8 November 2026                                                                           |
 | Audience                   | Engineering and security reviewers                                                        |
 | Status                     | Internal engineering review                                                               |
 | Risk owners and acceptance | Milivoj Bošnjak (8l4cksmith) owns every risk below; acceptance requires an assigned owner |
@@ -19,9 +19,15 @@ architecture docs under `extension/docs/`.
 | MV3 extension (SW, popup/full-page vault, link, content script, autofill iframes) | Cryptex web app (separate codebase)                        |
 | Local vault storage and session                                                   | Backend API compromise (assumed honest tRPC + TLS)         |
 | Autofill on host pages                                                            | Physical device compromise (assumed out of band)           |
-| Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome)            |
+| Sync and link over Pusher/WebRTC                                                  | Malicious browser or OS (assumed honest Chrome or Firefox) |
 | Backup Center and Vault Settings security mutations                               | Fresh-device restore and Recovery Kit flows (web app only) |
 | One-time share links (share dialog, Shared links list)                            | Share server internals and the recipient page              |
+
+In this document, SW means the extension's background context: an MV3 service
+worker in Chromium and a non-persistent event page in Firefox, which has no MV3
+service workers. Both run the same code and are suspended when idle. Differences
+that affect a control are stated where they apply; see
+[Build and release](platform/build-and-release.md).
 
 ## Assets
 
@@ -31,7 +37,7 @@ architecture docs under `extension/docs/`.
 | Protection phrase/key         | Phrase in encrypted UI request; derived key in local IndexedDB                  | Completes primary-slot key derivation                   |
 | Vault recovery code           | One-time encrypted response and dialog memory after rotation                    | Fallback vault decryption                               |
 | Vault DEK                     | `chrome.storage.session` `SESSION_DEK:*`                                        | Decrypt vault blob at rest                              |
-| Decrypted vault               | `chrome.storage.session` `UV`                                                   | All passwords, TOTP secrets, notes                      |
+| Decrypted vault               | `chrome.storage.session` `UV`; one frozen copy in memory while the SW is awake  | All passwords, TOTP secrets, notes                      |
 | Credential secrets (autofill) | CS → SW → fill path; pending save in session                                    | Per-credential exposure                                 |
 | Passkey private JWK           | Encrypted vault; briefly imported non-extractable in SW                         | Authentication as that credential                       |
 | Assertion ceremony            | `chrome.storage.session` for at most 2 minutes                                  | RP/challenge/candidate metadata; signing authorization  |
@@ -91,7 +97,7 @@ but shares the DOM.
 - WebAuthn RP IDs are sender-derived or validated registrable suffixes; public
   suffixes and cross-site RP IDs are rejected
 - Assertion ceremonies bind the exact origin, RP ID, challenge, vault, eligible
-  authenticator IDs, tab, frame, and document; records expire, are capped, and
+  authenticator IDs, tab, frame, and, in Chromium, document; records expire, are capped, and
   are consumed after signing
 - WAR limited to autofill HTML + assets (not popup/link/logs)
 
@@ -141,6 +147,14 @@ Response envelope validation not implemented. Replay cache resets on SW eviction
 A popup that can take a staged backup receives a portable encrypted vault file;
 that is intended, and unlocking it still needs the vault secret. An unused
 staging row lasts until lock/idle or the next create (which clears the store).
+
+In Firefox the background is a page, so code in any extension page can reach its
+`window` directly and skip the envelope checks. That removes no confidentiality
+barrier: in both browsers, code in an extension page can already read
+`chrome.storage.session` and IndexedDB. Content scripts cannot reach it. Firefox
+also has no `sender.documentId`, so passkey ceremonies there bind to tab, frame
+and origin only. A later same-origin document in the same tab and frame could
+complete a ceremony an earlier one started.
 
 ### B3 — Service worker ↔ Cryptex API
 
@@ -198,8 +212,13 @@ crypto mitigates payload disclosure but does not remove signaling trust.
 
 **Controls:**
 
-- Lock + idle clear all session keys
-- DEK `TRUSTED_CONTEXTS` access level
+- Lock + idle clear all session keys and the SW's in-memory vault copy
+- DEK `TRUSTED_CONTEXTS` access level in Chromium. Firefox has no
+  `setAccessLevel` and never exposes `storage.session` to content scripts
+- The SW keeps one decrypted vault in memory, so requests don't each read and
+  copy it from session storage. It is dropped on every vault write, any `UV`
+  change, and lock. Read-only handlers share it deep-frozen, so a handler bug
+  throws instead of changing what other requests read; writers get their own copy
 - Vault encrypted at rest in IndexedDB
 - Generated-phrase keys persist device-locally across lock so the
   normal profile needs only the master password. They are never synced; a
@@ -209,8 +228,13 @@ crypto mitigates payload disclosure but does not remove signaling trust.
   (`<=512` stored chars), and treated as hostile on read. Lock does not delete them;
   without the DEK they are indistinguishable from corrupt or forged input
 
-**Residual:** Unlocked vault is plaintext in `chrome.storage.session`. Malware with
-browser profile access reads `UV`. Pending save holds password up to 5 minutes.
+**Residual:** Unlocked vault is plaintext in `chrome.storage.session` and in SW
+memory. Malware with browser profile access reads `UV`. JavaScript cannot zero
+memory, so dropping the SW's copy does not wipe it. One intact copy is slightly
+easier to find for an attacker reading browser process memory, but it adds no new
+reader: anything that can reach SW memory can already read `UV`. A suspended SW
+loses the copy. Firefox's idle API has no `locked` state, so a screen lock does
+not lock the vault there; only the 30-minute idle timeout does. Pending save holds password up to 5 minutes.
 Form drafts hold typed (possibly new/changed) passwords for the whole unlocked
 window (up to 30 min idle).
 Logs persist device/vault metadata to `chrome.storage.local`. Receipts persist
@@ -360,6 +384,8 @@ holds the whole vault.
 | ------------------------------ | --------------------------- | ---------------------------------------------------------------- |
 | Read IndexedDB vault blobs     | Encrypted at rest           | Low without master password                                      |
 | Read session while unlocked    | Lock on idle                | **High** - `UV` is plaintext                                     |
+| Read SW memory while unlocked  | Copy dropped on lock        | **High** - same exposure as `UV`, as one intact copy             |
+| Use vault across a screen lock | 30-minute idle timeout      | Medium - Firefox has no `locked` idle state                      |
 | Read form draft while unlocked | Session-scoped `DRAFT_SAVE` | Medium - typed password until lock/idle/discard                  |
 | Read persisted diagnostic logs | Browser profile access      | Medium - metadata                                                |
 | Read local backup receipts     | DEK-authenticated AES-GCM   | Low without DEK; Medium while unlocked (time + fingerprint only) |
@@ -375,6 +401,8 @@ holds the whole vault.
 | Dev wildcard host_permissions shipped | Prod manifest rewrite                     | Low if checklist followed                            |
 | Debug logging of decrypted payloads   | SW logs message type/boolean outcome only | Low; contributor rule still required                 |
 | Incomplete VaultOperations            | Missing KEM/signing key getters           | **Mitigated** — full bridge in `vault-operations.ts` |
+| Third-party code rewritten at build   | Build fails if the rewrite stops applying | Low - only libsodium's unused JavaScript fallback    |
+| Add-on ID changed after release       | Release needs `VITE_FIREFOX_EXTENSION_ID` | Low - a new ID would strand local vaults             |
 
 ## Controls matrix
 
@@ -408,12 +436,15 @@ holds the whole vault.
 | Device-folder-only pruning          | Deleting other devices' or foreign keys   | `backup-destination-transfers.ts`               |
 | Session-bound destination scheduler | Pruning after lock or vault switch        | `backup-destination-scheduler.ts`               |
 | Endpoint and prefix validation      | Plain http, key injection via prefix      | `backup-destinations.ts`                        |
+| Frozen shared vault for readers     | Handler bug changing what others read     | `background.ts`                                 |
+| One-transaction ECDH key rotation   | A moment with no active messaging key     | `message-key-rotation.ts`                       |
+| libsodium rewrite bundle check      | Shipping a rewrite that no longer applies | `vite.config.ts`                                |
 
 ## Residual risks (prioritized)
 
 | Priority | Risk                                                | Mitigation status | Notes                                                                                              | Owner                        |
 | -------- | --------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
-| P0       | Plaintext vault in session while unlocked           | Accepted design   | Central assumption; lock reduces window                                                            | Milivoj Bošnjak (8l4cksmith) |
+| P0       | Plaintext vault in session and memory when unlocked | Accepted design   | Central assumption; lock reduces window                                                            | Milivoj Bošnjak (8l4cksmith) |
 | P1       | Broad domain or wildcard autofill rule              | Partial           | Explicit mode, UI warning, safe wildcard validation                                                | Milivoj Bošnjak (8l4cksmith) |
 | P1       | In-page vault-password prompt is visually spoofable | Fixed             | Confirmation now lives in the toolbar popup                                                        | Milivoj Bošnjak (8l4cksmith) |
 | P1       | Extension sync `VaultOperations` incomplete         | Fixed             | Full bridge + cached `SyncGetConfiguration`                                                        | Milivoj Bošnjak (8l4cksmith) |
@@ -422,6 +453,7 @@ holds the whole vault.
 | P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary                      | Milivoj Bošnjak (8l4cksmith) |
 | P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                                                   | Milivoj Bošnjak (8l4cksmith) |
 | P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                                        | Milivoj Bošnjak (8l4cksmith) |
+| P2       | Firefox screen lock does not lock the vault         | Open              | Its idle API has no `locked` state; only the 30-minute idle timeout applies                        | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                                               | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                                       | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                                                  | Milivoj Bošnjak (8l4cksmith) |
@@ -436,7 +468,9 @@ holds the whole vault.
 | P3       | Backup destination keys sync and go into backups    | Accepted          | Linked devices can delete what the key allows; no delete rights plus Keep every backup limit it    | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Plain http to local hosts in production             | Accepted          | `10.0.2.2` and loopback stay allowed so emulators and local buckets work; see B7                   | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Old-password backups in destination folders         | Accepted          | Optional deletion covers this device's folder only; other devices keep theirs                      | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Firefox passkey ceremonies lack document binding    | Open              | No `sender.documentId`; tab, frame and origin are still bound                                      | Milivoj Bošnjak (8l4cksmith) |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    | Milivoj Bošnjak (8l4cksmith) |
+| P4       | Firefox extension pages can reach the event page    | Open              | Skips envelope checks, but extension pages can already read session storage and IndexedDB          | Milivoj Bošnjak (8l4cksmith) |
 | P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      | Milivoj Bošnjak (8l4cksmith) |
 
 ## Data flow diagrams
@@ -599,5 +633,6 @@ Ordered by threat-model priority:
 - [Sync and link](sync-and-link/README.md)
 - [Online Services](sync-and-link/online-services.md)
 - [Platform layer](platform/README.md)
+- [Build and release](platform/build-and-release.md)
 - [Autofill security](autofill/README.md)
 - [Share server threat model](../../services/cmd/share-server/threat-model.md)

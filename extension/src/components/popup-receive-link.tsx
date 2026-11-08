@@ -79,7 +79,7 @@ import { createLinkedVaultEnvelopeBlob } from "../utils/linked-vault-envelope";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { PopupPasswordGeneratorDialog } from "./popup-password-generator-dialog";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
-import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-policy";
 
 type ReceiveLinkMethod = "qr" | "file";
 type ReceiveLinkStage =

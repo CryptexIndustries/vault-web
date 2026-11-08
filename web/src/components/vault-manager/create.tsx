@@ -39,7 +39,7 @@ import type {
 import { useEffect, useState } from "react";
 import { PasswordStrengthMeter } from "@/components/vault-security/password-strength-meter";
 import { KdfBelowRecommendedAck } from "@/components/vault-security/kdf-below-recommended-ack";
-import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-strength";
+import { isBelowOwaspRecommendedArgon2id } from "@cryptex-industries/vault-core/vault-utils/password-policy";
 import { ImportWizard } from "@/components/vault-import/import-wizard";
 import type { ImportResult } from "@cryptex-industries/vault-core/vault-utils/import-export";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";

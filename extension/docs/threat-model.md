@@ -143,7 +143,7 @@ vault password never enters the host tab.
 
 **Residual:** Full vault in session while unlocked — any SW bug or extension
 compromise is total loss. `worker` origin binding is weak (public key only).
-Response envelope validation not implemented. Replay cache resets on SW eviction.
+Replay cache resets on SW eviction.
 A popup that can take a staged backup receives a portable encrypted vault file;
 that is intended, and unlocking it still needs the vault secret. An unused
 staging row lasts until lock/idle or the next create (which clears the store).
@@ -152,9 +152,8 @@ In Firefox the background is a page, so code in any extension page can reach its
 `window` directly and skip the envelope checks. That removes no confidentiality
 barrier: in both browsers, code in an extension page can already read
 `chrome.storage.session` and IndexedDB. Content scripts cannot reach it. Firefox
-also has no `sender.documentId`, so passkey ceremonies there bind to tab, frame
-and origin only. A later same-origin document in the same tab and frame could
-complete a ceremony an earlier one started.
+also has no `sender.documentId`, so passkey ceremonies there bind to a random
+per-document ID held in the content script, which the page cannot read.
 
 ### B3 — Service worker ↔ Cryptex API
 
@@ -438,6 +437,8 @@ holds the whole vault.
 | Endpoint and prefix validation      | Plain http, key injection via prefix      | `backup-destinations.ts`                        |
 | Frozen shared vault for readers     | Handler bug changing what others read     | `background.ts`                                 |
 | One-transaction ECDH key rotation   | A moment with no active messaging key     | `message-key-rotation.ts`                       |
+| Response request ID check           | Replayed or crossed worker response       | `session-utils.ts`                              |
+| Per-document passkey ID (Firefox)   | Later document finishing a ceremony       | `passkey-assertion-service.ts`                  |
 | libsodium rewrite bundle check      | Shipping a rewrite that no longer applies | `vite.config.ts`                                |
 
 ## Residual risks (prioritized)
@@ -453,8 +454,8 @@ holds the whole vault.
 | P2       | Draft password in session (unlocked window)         | Accepted          | Session-scoped; explicit discard confirmation; shape-validated at SW boundary                      | Milivoj Bošnjak (8l4cksmith) |
 | P2       | OS device private key in session                    | Accepted          | Enables refresh; cleared on lock                                                                   | Milivoj Bošnjak (8l4cksmith) |
 | P2       | Web/SW auth-session split for signaling/TURN        | Fixed             | `onlineServicesSessionPort` + tRPC/SW proxy                                                        | Milivoj Bošnjak (8l4cksmith) |
-| P2       | Firefox screen lock does not lock the vault         | Open              | Its idle API has no `locked` state; only the 30-minute idle timeout applies                        | Milivoj Bošnjak (8l4cksmith) |
-| P3       | Response envelope validation stub                   | Open              | Same-extension channel limits impact                                                               | Milivoj Bošnjak (8l4cksmith) |
+| P2       | Firefox screen lock does not lock the vault         | Accepted          | Its idle API has no `locked` state; only the 30-minute idle timeout applies                        | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Response envelope validation                        | Fixed             | A response must carry the request's ID; AES-GCM ties it to that request's key                      | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Replay cache lost on SW eviction                    | Accepted          | Short window                                                                                       | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Logs persist metadata locally                       | Accepted          | Cleared with extension local data                                                                  | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Local backup receipts persist after lock            | Accepted          | DEK-authenticated; opaque without session DEK                                                      | Milivoj Bošnjak (8l4cksmith) |
@@ -468,9 +469,9 @@ holds the whole vault.
 | P3       | Backup destination keys sync and go into backups    | Accepted          | Linked devices can delete what the key allows; no delete rights plus Keep every backup limit it    | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Plain http to local hosts in production             | Accepted          | `10.0.2.2` and loopback stay allowed so emulators and local buckets work; see B7                   | Milivoj Bošnjak (8l4cksmith) |
 | P3       | Old-password backups in destination folders         | Accepted          | Optional deletion covers this device's folder only; other devices keep theirs                      | Milivoj Bošnjak (8l4cksmith) |
-| P3       | Firefox passkey ceremonies lack document binding    | Open              | No `sender.documentId`; tab, frame and origin are still bound                                      | Milivoj Bošnjak (8l4cksmith) |
+| P3       | Firefox passkey document binding                    | Fixed             | Random per-document ID from the content script replaces `sender.documentId`                        | Milivoj Bošnjak (8l4cksmith) |
 | P4       | `worker` origin weak binding                        | Accepted          | Public key only                                                                                    | Milivoj Bošnjak (8l4cksmith) |
-| P4       | Firefox extension pages can reach the event page    | Open              | Skips envelope checks, but extension pages can already read session storage and IndexedDB          | Milivoj Bošnjak (8l4cksmith) |
+| P4       | Firefox extension pages can reach the event page    | Accepted          | Skips envelope checks, but extension pages can already read session storage and IndexedDB          | Milivoj Bošnjak (8l4cksmith) |
 | P4       | Extension WebAuthn PRF unsupported                  | Accepted          | Protection phrases supported; PRF changes remain web-app-only                                      | Milivoj Bošnjak (8l4cksmith) |
 
 ## Data flow diagrams
@@ -619,10 +620,9 @@ sequenceDiagram
 
 Ordered by threat-model priority:
 
-1. Implement response envelope validation (`TODOvalidateResponseEnvelope`).
-2. Broadcast `KEY_ROTATED` on ECDH rotation.
-3. Schema validation on `SyncUpdateCredentials` inbound credentials.
-4. Document contributor policy: never log credential fields.
+1. Broadcast `KEY_ROTATED` on ECDH rotation.
+2. Schema validation on `SyncUpdateCredentials` inbound credentials.
+3. Document contributor policy: never log credential fields.
 
 ## Related documentation
 

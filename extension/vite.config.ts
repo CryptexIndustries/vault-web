@@ -128,6 +128,22 @@ function stripLibsodiumFallback(): Plugin {
     };
 }
 
+/**
+ * Firefox parses the chunks a page preloads in parallel, so the largest one
+ * sets the pace. Splitting the largest libraries into their own chunks saves
+ * Firefox about 15 ms per popup. Chromium is a little slower with more files,
+ * so it keeps the default split.
+ */
+const FIREFOX_LIBRARY_CHUNKS: Record<string, string> = {
+    libsodium: "libsodium-sumo",
+    "libsodium-wrappers": "libsodium-wrappers-sumo",
+    "react-dom": "react-dom",
+    psl: "psl",
+    "zip-csv": "jszip|papaparse",
+    dexie: "dexie",
+    pusher: "pusher-js",
+};
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, __dirname, ["VITE_"]);
     const isProduction = mode === "production";
@@ -276,6 +292,18 @@ export default defineConfig(({ mode }) => {
                         : {}),
                 },
                 output: {
+                    ...(browser === "firefox" && {
+                        codeSplitting: {
+                            groups: Object.entries(FIREFOX_LIBRARY_CHUNKS).map(
+                                ([name, packages]) => ({
+                                    name,
+                                    test: new RegExp(
+                                        `[\\\\/]node_modules[\\\\/](${packages})[\\\\/]`,
+                                    ),
+                                }),
+                            ),
+                        },
+                    }),
                     entryFileNames: (chunk) => {
                         if (chunk.name === "background") return "background.js";
                         return "assets/[name]-[hash].js";

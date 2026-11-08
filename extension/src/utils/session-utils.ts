@@ -159,7 +159,10 @@ export function createPlaintextEnvelope(
 export async function decryptEnvelope<T>(
     envelope: EncryptedEnvelope,
     serverPrivateKey: CryptoKey,
-): Promise<DecryptedEnvelope<T | null>> {
+): Promise<
+    | { ok: true; payload: T | null; sessionKey: CryptoKey }
+    | Extract<DecryptedEnvelope<T>, { ok: false }>
+> {
     if (!envelope.payload.iv) {
         return {
             ok: false,
@@ -217,12 +220,14 @@ export async function decryptEnvelope<T>(
         return {
             ok: true,
             payload: null,
+            sessionKey,
         };
     }
 
     return {
         ok: true,
         payload: JSON.parse(decryptedText) as T,
+        sessionKey,
     };
 }
 

@@ -43,11 +43,7 @@ import {
     type VaultWriteKind,
     vaultWriteCoordinator,
 } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
-import {
-    generateECDHKeyPair,
-    deriveSessionKey,
-    base64UrlDecode,
-} from "./utils/crypto-utils";
+import { generateECDHKeyPair } from "./utils/crypto-utils";
 import { rotateKeyPair } from "./background/message-key-rotation";
 import {
     createEncryptedResponseEnvelope,
@@ -452,13 +448,13 @@ async function processEnvelope(
             }
 
             // Decrypt the envelope
-            decryptedPayload = await decryptEnvelope(
+            const decrypted = await decryptEnvelope(
                 envelope,
                 activeKey.privateKey,
             );
 
-            if (!decryptedPayload.ok) {
-                const decryptErrorRaw = decryptedPayload.error.error;
+            if (!decrypted.ok) {
+                const decryptErrorRaw = decrypted.error.error;
                 const decryptErrorMessage =
                     typeof decryptErrorRaw === "string"
                         ? decryptErrorRaw
@@ -474,23 +470,9 @@ async function processEnvelope(
                 );
             }
 
-            decryptedPayload = decryptedPayload.payload;
-
-            // Derive session key for response encryption
-            const ephemeralPublicKey = await crypto.subtle.importKey(
-                "jwk",
-                envelope.payload.ephemeralPub,
-                { name: "ECDH", namedCurve: "P-256" },
-                false,
-                [],
-            );
-            const salt = base64UrlDecode(envelope.payload.salt);
-            sessionKey = await deriveSessionKey(
-                activeKey.privateKey,
-                ephemeralPublicKey,
-                salt,
-                "cryptex-extension-session",
-            );
+            // The response is encrypted with the request's session key.
+            sessionKey = decrypted.sessionKey;
+            decryptedPayload = decrypted.payload;
         } catch (error) {
             generalLog.error("Failed to decrypt envelope", error);
             return createPlaintextEnvelope(

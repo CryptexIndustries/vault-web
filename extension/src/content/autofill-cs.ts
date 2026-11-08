@@ -694,7 +694,14 @@ async function mountSavePromptWithBootstrap(
     token: number,
 ): Promise<void> {
     const bootstrap = await createAutofillFrameBootstrap("autofill-save");
-    if (!bootstrap || saveIframe || token !== saveMountToken) return;
+    if (saveIframe || token !== saveMountToken) return;
+    if (!bootstrap) {
+        // Let a waiting passkey registration fall back instead of hanging.
+        const handler = saveOutcomeHandler;
+        saveOutcomeHandler = null;
+        handler?.("dismissed");
+        return;
+    }
 
     const iframe = document.createElement("iframe");
     iframe.src = withAutofillFrameMount(SAVE_URL, bootstrap.mountId);
@@ -777,8 +784,16 @@ function pendingPromptToPayload(
     };
 }
 
+/**
+ * A passkey registration stashes its prompt and then mounts it with the
+ * handler that answers the page. Mounting the stash again would drop that
+ * handler and leave navigator.credentials.create() pending.
+ */
+const savePromptTaken = () =>
+    saveIframe !== null || saveOutcomeHandler !== null;
+
 async function maybeShowPendingSavePrompt(): Promise<boolean> {
-    if (saveIframe) return true;
+    if (savePromptTaken()) return true;
 
     const pendingRes = await sendEncryptedEnvelopeToSW<{
         ok: true;
@@ -790,6 +805,7 @@ async function maybeShowPendingSavePrompt(): Promise<boolean> {
         unlocked: boolean;
     }>(MessageType.GetState, null);
     if (!stateRes.ok || !stateRes.payload?.unlocked) return false;
+    if (savePromptTaken()) return true;
 
     mountSavePrompt(pendingPromptToPayload(pendingRes.payload.prompt));
     return true;

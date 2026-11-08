@@ -67,6 +67,67 @@ function packageZxingWasm(): Plugin {
     };
 }
 
+type AstNode = Record<string, any>;
+
+function findNode(
+    node: unknown,
+    match: (node: AstNode) => boolean,
+): AstNode | undefined {
+    if (!node || typeof node !== "object") return;
+    if (match(node as AstNode)) return node as AstNode;
+    for (const child of Object.values(node)) {
+        const children: unknown[] = Array.isArray(child) ? child : [child];
+        for (const item of children) {
+            const found = findNode(item, match);
+            if (found) return found;
+        }
+    }
+}
+
+/**
+ * libsodium.js bundles a 600 KB JavaScript build for engines without
+ * WebAssembly. Extension pages always have WebAssembly (the CSP allows
+ * 'wasm-unsafe-eval'), yet every page parses the fallback, which costs Firefox
+ * about 65 ms per page. Mobile needs it, so it is stripped here only.
+ */
+function stripLibsodiumFallback(): Plugin {
+    const file =
+        /[\\/]libsodium-sumo[\\/]dist[\\/]modules-sumo[\\/]libsodium-sumo\.js$/;
+    const marker = "libsodium could not load its WebAssembly";
+    return {
+        name: "strip-libsodium-fallback",
+        transform(code, id) {
+            if (!file.test(id)) return;
+            const fallback = findNode(
+                this.parse(code),
+                (node) =>
+                    node.type === "AssignmentExpression" &&
+                    node.left?.property?.name === "useBackupModule",
+            )?.right;
+            if (!fallback) {
+                throw new Error(`No useBackupModule fallback found in ${id}`);
+            }
+            return {
+                code:
+                    code.slice(0, fallback.start) +
+                    `function(){return Promise.reject(new Error("${marker}"))}` +
+                    code.slice(fallback.end),
+                map: null,
+            };
+        },
+        generateBundle(_options, bundle) {
+            // A libsodium update that moves the file skips transform.
+            const applied = Object.values(bundle).some(
+                (output) =>
+                    output.type === "chunk" && output.code.includes(marker),
+            );
+            if (!applied) {
+                throw new Error("strip-libsodium-fallback no longer applies");
+            }
+        },
+    };
+}
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, __dirname, ["VITE_"]);
     const isProduction = mode === "production";
@@ -126,7 +187,7 @@ export default defineConfig(({ mode }) => {
     };
 
     return {
-        plugins: [react(), packageZxingWasm()],
+        plugins: [react(), packageZxingWasm(), stripLibsodiumFallback()],
         resolve: {
             alias: {
                 // Use extension env shim when importing web env

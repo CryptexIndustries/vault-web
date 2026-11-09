@@ -3,8 +3,8 @@ name: cryptex-agent
 # cryptex-agent-v1.2.3 tags build the Linux tarballs and a draft GitHub release
 # "Cryptex Agent v1.2.3" whose notes come from the 1.2.3 section of
 # services/cmd/cryptex-agent/CHANGELOG.md. Publishing the draft is a manual
-# step, and the AUR job runs when it is published (disabled until the AUR
-# package exists).
+# step. Publishing it runs the Homebrew jobs, and the AUR job (disabled until
+# the AUR package exists).
 on:
     push:
         tags: ["cryptex-agent-v*"]
@@ -65,9 +65,31 @@ jobs:
                   archive: false
                   if-no-files-found: error
 
+    # macOS installs through Homebrew, which builds from the tag, so there is
+    # no tarball here. A failure still stops the release.
+    macos:
+        name: Test on macOS
+        if: github.event_name == 'push'
+        runs-on: macos-latest
+        timeout-minutes: 15
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: services/go.mod
+                  cache: false
+            - name: Test and audit
+              run: |
+                  go vet ./internal/agent/... ./cmd/cryptex-agent
+                  go test -race ./internal/agent/... ./cmd/cryptex-agent
+                  go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/cryptex-agent
+
     draft-release:
         name: Draft GitHub release
-        needs: [tarballs]
+        needs: [tarballs, macos]
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -88,13 +110,116 @@ jobs:
               working-directory: dist
               env:
                   GH_TOKEN: ${{ github.token }}
-                  RELEASE_INTRO: Keyless SSH agent for Linux. Static binaries for amd64 and arm64 with a systemd user unit. See README.md in the tarball to set it up.
+                  RELEASE_INTRO: Keyless SSH agent for Linux and macOS. Static Linux binaries for amd64 and arm64 with a systemd user unit. See README.md in the tarball to set it up. On macOS, run `brew install cryptexindustries/tap/cryptex-agent`.
               shell: bash
               run: |
                   sha256sum -- *.tar.gz > sha256sums.txt
                   ../scripts/draft-release.sh "Cryptex Agent v${GITHUB_REF_NAME#cryptex-agent-v}" \
                     ../services/cmd/cryptex-agent/CHANGELOG.md \
                     *.tar.gz sha256sums.txt
+
+    # The formula is Ruby from the tag and runs here, so this job has no
+    # secrets. The job that holds the tap's deploy key never runs it.
+    homebrew-build:
+        name: Build the Homebrew formula
+        if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'cryptex-agent-v') && !github.event.release.prerelease
+        runs-on: macos-latest
+        timeout-minutes: 30
+        env:
+            FORMULA: cryptexindustries/tap/cryptex-agent
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ github.sha }}
+                  sparse-checkout: |
+                      services/cmd/cryptex-agent/homebrew/cryptex-agent.rb
+                  sparse-checkout-cone-mode: false
+            - name: Fill in the formula
+              shell: bash
+              env:
+                  TAG: ${{ github.event.release.tag_name }}
+              run: |
+                  version="${TAG#cryptex-agent-v}"
+                  # The version goes into sed and the formula, which Homebrew
+                  # runs as Ruby.
+                  if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Homebrew releases need a final version like cryptex-agent-v1.2.3, not ${TAG}" >&2
+                    exit 1
+                  fi
+                  # Homebrew refuses the source if the tag no longer points
+                  # at this revision.
+                  sed -e "s|^      tag: .*|      tag:      \"${TAG}\",|" \
+                      -e "s|^      revision: .*|      revision: \"${GITHUB_SHA}\"|" \
+                      services/cmd/cryptex-agent/homebrew/cryptex-agent.rb > "${RUNNER_TEMP}/cryptex-agent.rb"
+            # Uploaded first, so running the formula can't change what gets published.
+            - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: homebrew-formula
+                  path: ${{ runner.temp }}/cryptex-agent.rb
+                  if-no-files-found: error
+            - name: Build and test the formula
+              run: |
+                  brew update
+                  brew tap CryptexIndustries/tap
+                  tap="$(brew --repo CryptexIndustries/tap)"
+                  mkdir -p "${tap}/Formula"
+                  cp "${RUNNER_TEMP}/cryptex-agent.rb" "${tap}/Formula/cryptex-agent.rb"
+                  brew trust --tap CryptexIndustries/tap
+                  brew audit --strict "${FORMULA}"
+                  brew install --build-from-source "${FORMULA}"
+                  brew test "${FORMULA}"
+
+    homebrew:
+        name: Publish to the Homebrew tap
+        needs: homebrew-build
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        # Holds HOMEBREW_TAP_SSH_PRIVATE_KEY, a deploy key with write access to
+        # CryptexIndustries/homebrew-tap. Give the environment required
+        # reviewers so publishing a release alone can't push to the tap.
+        environment: homebrew
+        # One push at a time across releases. Without queue: max, a later
+        # release would cancel one that is waiting.
+        concurrency:
+            group: homebrew-tap
+            cancel-in-progress: false
+            queue: max
+        steps:
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: homebrew-formula
+                  path: ${{ runner.temp }}/formula
+            - name: Push to the tap
+              shell: bash
+              env:
+                  HOMEBREW_TAP_SSH_PRIVATE_KEY: ${{ secrets.HOMEBREW_TAP_SSH_PRIVATE_KEY }}
+                  TAG: ${{ github.event.release.tag_name }}
+              run: |
+                  install -d -m 700 ~/.ssh
+                  printf '%s\n' "${HOMEBREW_TAP_SSH_PRIVATE_KEY}" > ~/.ssh/homebrew_tap
+                  chmod 600 ~/.ssh/homebrew_tap
+                  # Fingerprint SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU, as listed by api.github.com/meta.
+                  echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > ~/.ssh/known_hosts
+                  export GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew_tap -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+                  git clone git@github.com:CryptexIndustries/homebrew-tap.git "${RUNNER_TEMP}/tap"
+                  cd "${RUNNER_TEMP}/tap"
+                  version="${TAG#cryptex-agent-v}"
+                  # Releases can be published out of order.
+                  if [[ -f Formula/cryptex-agent.rb ]]; then
+                    current="$(sed -n 's/^ *tag: *"cryptex-agent-v\(.*\)",$/\1/p' Formula/cryptex-agent.rb)"
+                    if [[ -z "${current}" ]] || ! printf '%s\n' "${current}" "${version}" | sort -VC; then
+                      echo "The tap has version '${current}', and ${version} doesn't replace it" >&2
+                      exit 1
+                    fi
+                  fi
+                  mkdir -p Formula
+                  cp "${RUNNER_TEMP}/formula/cryptex-agent.rb" Formula/cryptex-agent.rb
+                  git config user.name "Cryptex Vault release bot"
+                  git config user.email "noreply@cryptex-vault.com"
+                  git add Formula/cryptex-agent.rb
+                  git diff --cached --quiet && exit 0
+                  git commit -m "cryptex-agent ${version}"
+                  git push origin HEAD
 
     aur:
         name: Publish to the AUR

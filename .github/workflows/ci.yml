@@ -52,6 +52,24 @@ jobs:
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 
+    agent-macos:
+        name: cryptex-agent on macOS
+        runs-on: macos-latest
+        timeout-minutes: 15
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: services/go.mod
+                  cache: false
+            - name: Vet cryptex-agent
+              run: go vet ./internal/agent/... ./cmd/cryptex-agent
+            - name: Test cryptex-agent
+              run: go test -race ./internal/agent/... ./cmd/cryptex-agent
+
     services-quality:
         name: Go services quality
         runs-on: ubuntu-latest

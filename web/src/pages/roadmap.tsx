@@ -70,7 +70,7 @@ const roadmap = [
                 title: "SSH agent",
                 target: null,
                 description:
-                    "Keep SSH keys in your vault and use them on Linux. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
+                    "Keep SSH keys in your vault and use them on Linux and macOS. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
             },
             {
                 title: "Android application",

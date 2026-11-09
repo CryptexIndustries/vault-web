@@ -824,8 +824,9 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                             <span>
                                 Hosted SSH agent relay
                                 <small>
-                                    Approve SSH logins on up to 25 Linux
-                                    machines without running your own relay.
+                                    Approve SSH logins on up to 25 Linux and
+                                    macOS machines without running your own
+                                    relay.
                                 </small>
                             </span>
                         </li>

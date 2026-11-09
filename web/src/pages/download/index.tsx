@@ -56,7 +56,7 @@ export default function Downloads() {
                         </Action>
                     </article>
                     <article>
-                        <h3>SSH agent for Linux</h3>
+                        <h3>SSH agent for Linux and macOS</h3>
                         <p>
                             Keeps your SSH keys in the vault. Your phone or the
                             web app approves each signature.

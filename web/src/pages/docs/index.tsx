@@ -24,7 +24,7 @@ const userGuides = [
     [
         "SSH agent",
         "/docs/ssh-agent",
-        "Use your vault's SSH keys on Linux and approve each signature on your phone or in the web app.",
+        "Use your vault's SSH keys on Linux or macOS and approve each signature on your phone or in the web app.",
     ],
     [
         "Chromium Extension & autofill",

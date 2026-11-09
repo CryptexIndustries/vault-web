@@ -2,6 +2,12 @@
 
 Each `cryptex-agent-vX.Y.Z` release and the SSH agent tab of the changelog page show that version's section.
 
+## 0.2.0 - 2026-11-09
+
+### Added
+
+- macOS support. The agent runs as a background service, and the approval screen shows the requesting program as it does on Linux.
+
 ## 0.1.2 - 2026-10-26
 
 ### Fixed

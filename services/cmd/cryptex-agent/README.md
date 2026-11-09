@@ -1,6 +1,6 @@
 # cryptex-agent
 
-An SSH agent for Linux that holds no private keys. When `ssh`, `git` or
+An SSH agent for Linux and macOS that holds no private keys. When `ssh`, `git` or
 `ssh-keygen` asks it to sign, it sends the request through the agent relay to
 the Cryptex Vault app it was paired with. You approve on your phone, the vault
 signs, and only the signature comes back.
@@ -10,7 +10,15 @@ pairing.
 
 ## Install
 
-From this tarball:
+On macOS, with Homebrew. The formula builds from source, and Homebrew asks you
+to trust a third-party tap once:
+
+```sh
+brew trust --tap cryptexindustries/tap
+brew install cryptexindustries/tap/cryptex-agent
+```
+
+On Linux, from this tarball:
 
 ```sh
 sudo install -Dm755 cryptex-agent /usr/bin/cryptex-agent
@@ -54,6 +62,14 @@ another server.
 
 ## Run
 
+On macOS:
+
+```sh
+brew services start cryptex-agent
+```
+
+On Linux:
+
 ```sh
 systemctl --user enable --now cryptex-agent
 ```
@@ -61,17 +77,23 @@ systemctl --user enable --now cryptex-agent
 Then point SSH at the agent, for example in `~/.bashrc` or `~/.zshrc`:
 
 ```sh
+# Linux
 export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/cryptex-agent.sock
+# macOS
+export SSH_AUTH_SOCK=$HOME/.local/share/cryptex-agent/cryptex-agent.sock
 ```
 
 Check that it works with `ssh-add -L` and `cryptex-agent status`.
 
 Each signature waits up to 90 seconds for your approval. If it isn't answered
-within a few seconds and `notify-send` is installed, a desktop notification
-reminds you to look at your phone.
+within a few seconds, a desktop notification reminds you to look at your
+phone. Linux needs `notify-send` for this. macOS uses `osascript`, and shows
+the notification under Script Editor, which needs permission in System
+Settings under Notifications.
 
 The agent logs each request it waits on and how it ended (`journalctl --user
--u cryptex-agent`). With `terminal = true` in the config file it also prints
+-u cryptex-agent`, or `$(brew --prefix)/var/log/cryptex-agent.log` for a
+Homebrew service). With `terminal = true` in the config file it also prints
 "waiting for approval" in the terminal that made the request, once a request
 has waited a second.
 
@@ -84,7 +106,7 @@ relay connection and reconnects to fetch the list again.
 | Command                 | What it does                                                        |
 | ----------------------- | ------------------------------------------------------------------- |
 | `cryptex-agent pair`    | Pair with Cryptex Vault. `--force` replaces an existing pairing.    |
-| `cryptex-agent run`     | Serve the agent socket; the systemd unit runs this.                 |
+| `cryptex-agent run`     | Serve the agent socket; the background service runs this.           |
 | `cryptex-agent status`  | Show the pairing, the granted keys and whether the service answers. |
 | `cryptex-agent unpair`  | Remove this agent from the relay and forget the pairing.            |
 | `cryptex-agent version` | Print the version.                                                  |
@@ -112,6 +134,11 @@ The agent never holds a private key, so `ssh-add` with a key, `ssh-add -d`,
   processes of your own user may use it. The agent refuses to start if
   `$XDG_RUNTIME_DIR` belongs to another user or others can write to it.
 
+macOS has no `$XDG_RUNTIME_DIR`, so the socket is
+`~/.local/share/cryptex-agent/cryptex-agent.sock`. The agent ignores the other
+`XDG_` variables there too, because a background service doesn't see the ones
+set in your shell.
+
 ## Revoking
 
 Revoke the agent in Cryptex Vault on any of your linked devices, or run
@@ -123,6 +150,38 @@ and asks the relay again, first after 15 minutes and then less often, up to
 once a day. If the relay takes it back, it serves its keys again. A week
 after the relay first called it revoked, or stopped knowing it (as after
 losing its data), the agent stops asking until you pair it again.
+
+## Uninstall
+
+Run `cryptex-agent unpair` first. It needs the program and its stored identity
+to remove the agent from the relay. Without it, the agent stays listed in your
+vault until you revoke it there.
+
+On macOS:
+
+```sh
+cryptex-agent unpair
+brew services stop cryptex-agent
+brew uninstall cryptex-agent
+brew untap cryptexindustries/tap
+rm "$(brew --prefix)/var/log/cryptex-agent.log"
+rm -rf ~/.local/share/cryptex-agent ~/.config/cryptex-agent
+```
+
+On Linux, from this tarball:
+
+```sh
+cryptex-agent unpair
+systemctl --user disable --now cryptex-agent
+sudo rm /usr/bin/cryptex-agent /usr/lib/systemd/user/cryptex-agent.service
+systemctl --user daemon-reload
+rm -rf ~/.local/share/cryptex-agent ~/.config/cryptex-agent
+```
+
+If you installed without root, delete `~/.local/bin/cryptex-agent` and
+`~/.config/systemd/user/cryptex-agent.service` instead.
+
+Then remove the `SSH_AUTH_SOCK` line from your shell profile.
 
 ## What the phone sees
 

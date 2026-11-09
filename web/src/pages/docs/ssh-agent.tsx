@@ -9,6 +9,9 @@ import {
 } from "@/components/marketing/doc-article";
 import { DocCode } from "@/components/marketing/doc-code";
 
+const installBrew = `brew trust --tap cryptexindustries/tap
+brew install cryptexindustries/tap/cryptex-agent`;
+
 const install = `# The version you picked on the releases page, and amd64 or arm64
 VERSION=REPLACE_WITH_VERSION
 ARCH=amd64
@@ -30,6 +33,27 @@ export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/cryptex-agent.sock
 ssh-add -L
 cryptex-agent status`;
 
+const runBrew = `# Start the agent now and at every login
+brew services start cryptex-agent
+# Point SSH at it; add this line to ~/.zshrc too
+export SSH_AUTH_SOCK=$HOME/.local/share/cryptex-agent/cryptex-agent.sock
+# Lists the keys you granted, even offline
+ssh-add -L
+cryptex-agent status`;
+
+const uninstallBrew = `cryptex-agent unpair
+brew services stop cryptex-agent
+brew uninstall cryptex-agent
+brew untap cryptexindustries/tap
+rm "$(brew --prefix)/var/log/cryptex-agent.log"
+rm -rf ~/.local/share/cryptex-agent ~/.config/cryptex-agent`;
+
+const uninstallLinux = `cryptex-agent unpair
+systemctl --user disable --now cryptex-agent
+sudo rm /usr/bin/cryptex-agent /usr/lib/systemd/user/cryptex-agent.service
+systemctl --user daemon-reload
+rm -rf ~/.local/share/cryptex-agent ~/.config/cryptex-agent`;
+
 const gitSigning = `git config --global gpg.format ssh
 # Paste the public key from the SSH key item, after key::
 git config --global user.signingkey "key::ssh-ed25519 AAAAC3Nza... GitHub"
@@ -41,7 +65,7 @@ export default function SSHAgent() {
     return (
         <DocArticle
             title="SSH agent"
-            description="Use the SSH keys in your vault on a Linux machine without copying them there. Your phone or the web app approves each signature."
+            description="Use the SSH keys in your vault on a Linux or macOS machine without copying them there. Your phone or the web app approves each signature."
             toc={[
                 { href: "#overview", label: "How it works" },
                 { href: "#install", label: "Install the agent" },
@@ -49,6 +73,7 @@ export default function SSHAgent() {
                 { href: "#use", label: "Use it with ssh and git" },
                 { href: "#approve", label: "Approve requests" },
                 { href: "#manage", label: "Manage and revoke" },
+                { href: "#uninstall", label: "Uninstall the agent" },
                 { href: "#relay", label: "The relay" },
                 { href: "#troubleshooting", label: "Troubleshooting" },
             ]}
@@ -63,18 +88,18 @@ export default function SSHAgent() {
         >
             <DocSection id="overview" title="How it works">
                 <p>
-                    <code>cryptex-agent</code> is an SSH agent for Linux that
-                    holds no private keys. When <code>ssh</code>,{" "}
+                    <code>cryptex-agent</code> is an SSH agent for Linux and
+                    macOS that holds no private keys. When <code>ssh</code>,{" "}
                     <code>git</code> or <code>ssh-keygen</code> asks it to sign,
                     it sends the request to the device you paired it with: the
                     Android app or the web app. You approve there, your vault
                     signs, and only the signature goes back to the machine.
                 </p>
                 <p>
-                    The private key never reaches the Linux machine, so malware
-                    on that machine can&apos;t copy it. The worst it can do is
-                    ask for a signature, and you see each request with the
-                    server, the program and the key before anything is signed.
+                    The private key never reaches the machine, so malware on
+                    that machine can&apos;t copy it. The worst it can do is ask
+                    for a signature, and you see each request with the server,
+                    the program and the key before anything is signed.
                 </p>
                 <p>
                     Requests travel through a relay, either the hosted one that
@@ -86,11 +111,19 @@ export default function SSHAgent() {
                 <p>
                     You need an <Link href="/docs/ssh-keys">SSH key item</Link>{" "}
                     in your vault, and the agent needs a Linux machine with
-                    systemd. Release builds exist for amd64 and arm64.
+                    systemd or a Mac with Homebrew. Linux release builds exist
+                    for amd64 and arm64.
                 </p>
             </DocSection>
 
             <DocSection id="install" title="Install the agent">
+                <h3>With Homebrew</h3>
+                <p>
+                    The formula is for macOS and builds the agent from source.
+                    Homebrew asks you to trust a third-party tap once.
+                </p>
+                <DocCode>{installBrew}</DocCode>
+                <h3>From a release tarball on Linux</h3>
                 <p>
                     Download a release tarball from the{" "}
                     <a href="https://github.com/CryptexIndustries/vault-web/releases">
@@ -113,8 +146,8 @@ export default function SSHAgent() {
             <DocSection id="pair" title="Pair it with your vault">
                 <p>
                     Pairing tells the agent which device approves its requests
-                    and which keys it may ask for. Run this on the Linux
-                    machine:
+                    and which keys it may ask for. Run this on the machine with
+                    the agent:
                 </p>
                 <DocCode>{`cryptex-agent pair`}</DocCode>
                 <p>
@@ -271,22 +304,29 @@ export default function SSHAgent() {
                 <p>
                     Start the service and point SSH at the agent&apos;s socket:
                 </p>
+                <h3>On Linux</h3>
                 <DocCode>{run}</DocCode>
+                <h3>On macOS</h3>
+                <DocCode>{runBrew}</DocCode>
                 <p>
                     <code>ssh-add -L</code> should print the public keys you
                     granted. From then on, <code>ssh</code>, <code>scp</code>,{" "}
                     <code>git push</code> and anything else that uses{" "}
                     <code>SSH_AUTH_SOCK</code> asks your device to approve each
                     login. Each request waits up to 90 seconds. If it isn&apos;t
-                    answered within a few seconds and <code>notify-send</code>{" "}
-                    is installed, the machine shows a desktop notification as a
-                    reminder.
+                    answered within a few seconds, the machine shows a desktop
+                    notification as a reminder. Linux needs{" "}
+                    <code>notify-send</code> for this. On macOS the notification
+                    comes from Script Editor, which needs permission in System
+                    Settings under Notifications.
                 </p>
                 <p>
                     The agent logs each request it is waiting on, and how it
-                    ended, in <code>journalctl --user -u cryptex-agent</code>.
-                    To also see a line in the terminal that made the request,
-                    for example on a server without a desktop, set{" "}
+                    ended, in <code>journalctl --user -u cryptex-agent</code> on
+                    Linux or{" "}
+                    <code>$(brew --prefix)/var/log/cryptex-agent.log</code> with
+                    Homebrew. To also see a line in the terminal that made the
+                    request, for example on a server without a desktop, set{" "}
                     <code>terminal = true</code> in{" "}
                     <code>~/.config/cryptex-agent/config</code>.
                 </p>
@@ -298,7 +338,10 @@ export default function SSHAgent() {
                         IdentityAgent
                         $&#123;XDG_RUNTIME_DIR&#125;/cryptex-agent.sock
                     </code>{" "}
-                    under <code>Host *</code> in <code>~/.ssh/config</code>.
+                    under <code>Host *</code> in <code>~/.ssh/config</code>. On
+                    macOS the path is{" "}
+                    <code>~/.local/share/cryptex-agent/cryptex-agent.sock</code>
+                    .
                 </p>
                 <p>
                     With several keys granted, the agent offers the key that
@@ -641,6 +684,30 @@ export default function SSHAgent() {
                 </p>
             </DocSection>
 
+            <DocSection id="uninstall" title="Uninstall the agent">
+                <p>
+                    Run <code>cryptex-agent unpair</code> first. It needs the
+                    program and its stored identity to remove the agent from the
+                    relay. Without it, the agent stays listed in your vault
+                    until you revoke it there.
+                </p>
+                <h3>On macOS</h3>
+                <DocCode>{uninstallBrew}</DocCode>
+                <h3>On Linux, from a release tarball</h3>
+                <DocCode>{uninstallLinux}</DocCode>
+                <p>
+                    If you installed without root, delete{" "}
+                    <code>~/.local/bin/cryptex-agent</code> and{" "}
+                    <code>~/.config/systemd/user/cryptex-agent.service</code>{" "}
+                    instead.
+                </p>
+                <p>
+                    Then remove the <code>SSH_AUTH_SOCK</code> line from your
+                    shell profile, and any <code>IdentityAgent</code> line for
+                    the agent from <code>~/.ssh/config</code>.
+                </p>
+            </DocSection>
+
             <DocSection id="relay" title="The relay">
                 <p>
                     The agent and your device never connect directly. Both keep
@@ -719,8 +786,9 @@ export default function SSHAgent() {
                     <li>
                         Run <code>cryptex-agent status</code>. It shows the
                         pairing, the granted keys and whether the service is
-                        running. <code>journalctl --user -u cryptex-agent</code>{" "}
-                        shows relay connection errors.
+                        running. The agent&apos;s log, described under{" "}
+                        <a href="#use">Use it with ssh and git</a>, shows relay
+                        connection errors.
                     </li>
                     <li>
                         On Android, check that notifications are allowed for
@@ -778,9 +846,8 @@ export default function SSHAgent() {
                     answered within 90 seconds. It also happens when the key
                     isn&apos;t granted to this agent anymore, the agent was
                     revoked, or the device can&apos;t sign with that key type.
-                    The agent logs the reason:{" "}
-                    <code>journalctl --user -u cryptex-agent</code> shows a{" "}
-                    <strong>Signature not given</strong> line with it.
+                    The agent&apos;s log shows the reason on a{" "}
+                    <strong>Signature not given</strong> line.
                 </p>
             </DocSection>
         </DocArticle>

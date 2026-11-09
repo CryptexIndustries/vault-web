@@ -62,9 +62,12 @@ export function machineLabel(
     agent: Pick<ConnectedAgent, "Hostname" | "OS" | "Arch">,
     unknown = "Unknown machine",
 ) {
-    const os = agent.OS
-        ? agent.OS.charAt(0).toUpperCase() + agent.OS.slice(1)
-        : "";
+    const os =
+        agent.OS === "darwin"
+            ? "macOS"
+            : agent.OS
+              ? agent.OS.charAt(0).toUpperCase() + agent.OS.slice(1)
+              : "";
     const platform = [os, agent.Arch].filter(Boolean).join(" ");
     return sanitizeDisplayText(
         [agent.Hostname || unknown, platform].filter(Boolean).join(", "),

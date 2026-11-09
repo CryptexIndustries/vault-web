@@ -9,14 +9,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/CryptexIndustries/vault-web/services/internal/agentpb"
 )
 
-const procRoot = "/proc"
+const (
+	procRoot        = "/proc"
+	ioctlGetTermios = unix.TCGETS
+)
 
 // peerCred returns the pid and uid of the process on the other end of a
 // unix socket, as the kernel recorded them at connect time.
@@ -36,22 +38,6 @@ func peerCred(c *net.UnixConn) (pid int32, uid uint32, err error) {
 		return 0, 0, credErr
 	}
 	return cred.Pid, cred.Uid, nil
-}
-
-// processChain describes the caller and its parents for the approval
-// screen. Parents stop at pid 1 or at a process of another user, whose
-// details aren't ours to send.
-func processChain(pid int32, uid uint32) []*agentpb.Process {
-	var chain []*agentpb.Process
-	for level := 0; level <= maxParents && pid > 1; level++ {
-		p, ppid, err := readProcess(pid, level == 0)
-		if err != nil || p.Uid != uid {
-			break
-		}
-		chain = append(chain, p)
-		pid = ppid
-	}
-	return chain
 }
 
 func readProcess(pid int32, withCwd bool) (*agentpb.Process, int32, error) {
@@ -112,22 +98,5 @@ func openTerminal(pid int32) *os.File {
 	if err != nil {
 		return nil
 	}
-	// Not f.Fd(): that would make the file blocking again.
-	raw, err := f.SyscallConn()
-	termErr := errors.New("not checked")
-	if err == nil {
-		err = raw.Control(func(fd uintptr) { _, termErr = unix.IoctlGetTermios(int(fd), unix.TCGETS) })
-	}
-	if err != nil || termErr != nil {
-		f.Close()
-		return nil
-	}
-	return f
-}
-
-// writeTerminal writes line to a terminal from openTerminal, giving up if a
-// paused or full terminal doesn't take it within a second.
-func writeTerminal(f *os.File, line string) {
-	_ = f.SetWriteDeadline(time.Now().Add(time.Second))
-	_, _ = f.WriteString(line + "\r\n")
+	return keepIfTerminal(f)
 }

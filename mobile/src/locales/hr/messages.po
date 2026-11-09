@@ -6031,8 +6031,8 @@ msgid "On"
 msgstr "Uključeno"
 
 #: app/(app)/devices/connect-agent.tsx
-msgid "On the Linux machine, run <0>cryptex-agent pair</0>."
-msgstr "Na Linux računalu pokreni <0>cryptex-agent pair</0>."
+msgid "On the machine with the agent, run <0>cryptex-agent pair</0>."
+msgstr "Na računalu s agentom pokreni <0>cryptex-agent pair</0>."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "On this device"

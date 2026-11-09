@@ -311,7 +311,7 @@ function ConnectAgentContent({
                 <DialogDescription>
                     {stage === "paste" ? (
                         <>
-                            On the Linux machine, run{" "}
+                            On the machine with the agent, run{" "}
                             <code className="font-mono text-foreground">
                                 cryptex-agent pair
                             </code>

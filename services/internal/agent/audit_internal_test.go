@@ -23,6 +23,20 @@ func TestNotifyArgs(t *testing.T) {
 	}
 }
 
+func TestOsascriptArgs(t *testing.T) {
+	args := osascriptArgs(`" & (do shell script "id") & "`)
+	// The name stays out of the script source, which is the -e values.
+	for i, a := range args {
+		if i > 0 && args[i-1] == "-e" && strings.Contains(a, "shell script") {
+			t.Fatalf("name in the script: %q", a)
+		}
+	}
+	// The fixed title ends osascript's options.
+	if title := args[len(args)-2]; title != "SSH request waiting" {
+		t.Fatalf("title %q", title)
+	}
+}
+
 func TestGrantedKeyCommentsAreSanitized(t *testing.T) {
 	_, bind := testSessionBind(t, false)
 	parsed, _ := parseSessionBind(bind)

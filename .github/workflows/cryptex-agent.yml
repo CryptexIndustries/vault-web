@@ -77,9 +77,12 @@ jobs:
                 working-directory: services
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            # go.mod only sets the minimum. The audit below needs the latest
+            # patch, which the Linux jobs get from the golang:1.26 image.
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
-                  go-version-file: services/go.mod
+                  go-version: "1.26.x"
+                  check-latest: true
                   cache: false
             - name: Test and audit
               run: |

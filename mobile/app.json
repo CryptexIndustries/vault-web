@@ -103,7 +103,8 @@
             "./plugins/with-app-identity",
             "./plugins/with-android-dependency-verification",
             "./plugins/with-localhost-network",
-            "./plugins/with-android-screen-privacy"
+            "./plugins/with-android-screen-privacy",
+            "./plugins/with-ios-scene-lifecycle"
         ],
         "experiments": {
             "typedRoutes": true

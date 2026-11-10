@@ -25,12 +25,12 @@ export enum WebRTCStatus {
 
 /**
  * The ICE server URL for a saved STUN or TURN host, which is host[:port] or a
- * full URL. A scheme is followed by something other than a port digit, so a
- * server named "turn" saved as "turn:3478" stays a host and port.
+ * full URL. A scheme followed by only a port number is read as a host name,
+ * so a server named "turn" saved as "turn:3478" stays a host and port.
  */
 export const iceServerURL = (type: "stun" | "turn", host: string) => {
     const trimmed = host.trim();
-    const scheme = /^(stun|turn)s?:(?!\d)/i.exec(trimmed)?.[0];
+    const scheme = /^(stun|turn)s?:(?!\d+(?:\?|$))/i.exec(trimmed)?.[0];
     return scheme
         ? scheme.toLowerCase() + trimmed.slice(scheme.length)
         : `${type}:${trimmed}`;

@@ -22,10 +22,16 @@ describe("iceServerURL", () => {
         expect(
             iceServerURL("turn", "TURNS:turn.example.com:5349?transport=tcp"),
         ).toBe("turns:turn.example.com:5349?transport=tcp");
+        expect(iceServerURL("turn", "turn:127.0.0.1:3478?transport=tcp")).toBe(
+            "turn:127.0.0.1:3478?transport=tcp",
+        );
     });
 
     it("reads a host named like a scheme, followed by a port, as a host", () => {
         expect(iceServerURL("turn", "turn:3478")).toBe("turn:turn:3478");
         expect(iceServerURL("stun", "stun:3478")).toBe("stun:stun:3478");
+        expect(iceServerURL("turn", "turn:3478?transport=tcp")).toBe(
+            "turn:turn:3478?transport=tcp",
+        );
     });
 });

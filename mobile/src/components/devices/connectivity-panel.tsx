@@ -12,6 +12,7 @@ import {
     TURNServerConfiguration,
     Vault,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { iceServerURL } from "@cryptex-industries/vault-core/synchronization-utils";
 import { persistVaultMutation } from "@/utils/vault-mutations";
 import { testSignalingServerConnection } from "@/utils/test-signaling";
 import { testIceServer } from "@/utils/test-ice-server";
@@ -205,13 +206,13 @@ export function ConnectivityPanel({
         const cleanStun = draftStun.map((server) =>
             Object.assign(new STUNServerConfiguration(), server, {
                 Name: server.Name.trim(),
-                Host: server.Host.trim().replace(/^stun:(?:\/\/)?/i, ""),
+                Host: server.Host.trim(),
             }),
         );
         const cleanTurn = draftTurn.map((server) =>
             Object.assign(new TURNServerConfiguration(), server, {
                 Name: server.Name.trim(),
-                Host: server.Host.trim().replace(/^turn:(?:\/\/)?/i, ""),
+                Host: server.Host.trim(),
                 Username: server.Username.trim(),
                 Password: server.Password,
             }),
@@ -229,8 +230,13 @@ export function ConnectivityPanel({
         );
 
         if (
-            [...cleanStun, ...cleanTurn].some((s) =>
-                /^(?:stuns?|turns?|https?|wss?):/i.test(s.Host),
+            [
+                ...cleanStun.map((s) => ["stun", s.Host] as const),
+                ...cleanTurn.map((s) => ["turn", s.Host] as const),
+            ].some(
+                ([type, host]) =>
+                    /^(?:https?|wss?):/i.test(host) ||
+                    !iceServerURL(type, host).startsWith(`${type}:`),
             )
         ) {
             setError(

@@ -522,3 +522,45 @@ describe.each(editorCases)(
         });
     },
 );
+
+it("saves a TURN host named turn as typed", async () => {
+    const vault = new Vault();
+    const server = new TURNServerConfiguration(
+        "Compose relay",
+        "relay.example.test:3478",
+        "audit",
+        "test-only",
+    );
+    vault.LinkedDevices.TURNServers = [server];
+    mockServerId = server.ID;
+    mockStore.set(unlockedVaultAtom, vault);
+    mockPersist.mockImplementation(async (_kind, mutate) => {
+        const mutation = await mutate(mockStore.get(unlockedVaultAtom));
+        mockStore.set(unlockedVaultAtom, mutation.vault);
+        return ok(undefined);
+    });
+    await act(async () => {
+        renderer = create(
+            createElement(
+                Provider,
+                { store: mockStore },
+                createElement(
+                    UnlockedConfirmationProvider,
+                    null,
+                    createElement(TurnServerEditorScreen),
+                ),
+            ),
+            nativeRendererOptions,
+        );
+    });
+    await act(async () =>
+        renderer!.root
+            .findAllByType("Input" as never)
+            .find((node) => node.props.accessibilityLabel === "Host / URL")!
+            .props.onChangeText("turn:3478"),
+    );
+    await act(async () => press("Save server"));
+    expect(
+        mockStore.get(unlockedVaultAtom).LinkedDevices.TURNServers[0].Host,
+    ).toBe("turn:3478");
+});

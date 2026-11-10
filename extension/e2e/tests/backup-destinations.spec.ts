@@ -386,7 +386,10 @@ test("uploads to a virtual-hosted bucket address", async ({
 
     await deviceFolder(bucket);
     const [backup] = await backups(bucket);
-    expect(garageRequests).toContain(`PUT ${bucketOrigin}/${backup}`);
+    // The browser reports a request a little after sending it.
+    await expect
+        .poll(() => garageRequests)
+        .toContain(`PUT ${bucketOrigin}/${backup}`);
     // None fell back to a path-style address.
     expect(
         garageRequests.filter(

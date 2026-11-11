@@ -17,6 +17,7 @@ Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show
 
 - Registering a passkey no longer hangs when a password save prompt is waiting on the same site.
 - Renewing the extension's internal message key no longer leaves a moment when requests fail.
+- Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.
 
 ## 1.10.0 - 2026-11-02
 

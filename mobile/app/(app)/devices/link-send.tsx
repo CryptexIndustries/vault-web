@@ -1880,7 +1880,6 @@ export default function LinkSendScreen() {
                                             </UnlockedText>
                                             <UnlockedText
                                                 selectable
-                                                accessibilityLabel={t`Verification words`}
                                                 className="font-mono text-sm leading-6 text-foreground"
                                             >
                                                 {invitation.mnemonic}

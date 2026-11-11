@@ -103,14 +103,8 @@ function DestinationRow({
     const { t, i18n } = useLingui();
     const subtitle = statusText(i18n, status);
     return (
-        <Pressable
-            testID={`backup-destination-${destination.ID}`}
-            accessibilityRole="button"
-            accessibilityLabel={`${destination.Name}, ${subtitle}`}
-            onPress={onPress}
-            android_ripple={{ color: colors.border }}
+        <View
             style={{
-                minHeight: 70,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 13,
@@ -118,32 +112,49 @@ function DestinationRow({
                 borderBottomColor: colors.border,
             }}
         >
-            <Database size={22} color={colors.muted} strokeWidth={1.7} />
-            <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
-                <Text numberOfLines={1} style={{ fontSize: 14 }}>
-                    {destination.Name}
-                </Text>
-                <Text
-                    numberOfLines={2}
-                    style={{
-                        color:
-                            status?.phase === "error"
-                                ? colors.primary
-                                : colors.muted,
-                        fontSize: 12,
-                        lineHeight: 18,
-                        marginTop: 5,
-                    }}
-                >
-                    {subtitle}
-                </Text>
-            </View>
+            {/* iOS hides controls nested in an accessible row. */}
+            <Pressable
+                testID={`backup-destination-${destination.ID}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${destination.Name}, ${subtitle}`}
+                onPress={onPress}
+                android_ripple={{ color: colors.border }}
+                style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 70,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 13,
+                }}
+            >
+                <Database size={22} color={colors.muted} strokeWidth={1.7} />
+                <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 14 }}>
+                        {destination.Name}
+                    </Text>
+                    <Text
+                        numberOfLines={2}
+                        style={{
+                            color:
+                                status?.phase === "error"
+                                    ? colors.primary
+                                    : colors.muted,
+                            fontSize: 12,
+                            lineHeight: 18,
+                            marginTop: 5,
+                        }}
+                    >
+                        {subtitle}
+                    </Text>
+                </View>
+            </Pressable>
             <Switch
                 value={!destination.Paused}
                 onValueChange={(enabled) => onPausedChange(!enabled)}
                 accessibilityLabel={t`Automatic backups to ${destination.Name}`}
             />
-        </Pressable>
+        </View>
     );
 }
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# An absolute path lets profile-env.sh require its config by path.
-source "$(cd "$(dirname "$0")" && pwd)/profile-env.sh"
+source "$(dirname "$0")/profile-env.sh"
 
 # Use an enrolled biometric on a disposable emulator or Simulator. Authentication
 # stays in the platform's genuine prompt and SecureStore paths.

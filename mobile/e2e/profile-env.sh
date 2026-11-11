@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Source once before invoking Maestro; the registry owns both profile identities.
-profile_values="$(node -e 'const {getProfile}=require(process.argv[1]); const p=getProfile(process.argv[2]); console.log([p.applicationId,p.scheme,p.displayName].join("\n"))' "$(dirname "${BASH_SOURCE[0]}")/../config/profiles.cjs" "${CRYPTEX_APP_PROFILE:-production}")"
+# require() reads a path without a leading ./ or / as a package name, so pass an absolute one.
+profile_values="$(node -e 'const {getProfile}=require(process.argv[1]); const p=getProfile(process.argv[2]); console.log([p.applicationId,p.scheme,p.displayName].join("\n"))' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../config/profiles.cjs" "${CRYPTEX_APP_PROFILE:-production}")"
 {
     read -r CRYPTEX_APP_ID
     read -r CRYPTEX_APP_SCHEME

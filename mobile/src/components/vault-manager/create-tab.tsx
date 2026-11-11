@@ -272,6 +272,7 @@ export function CreateTab() {
                             placeholder={t`e.g. Personal`}
                             autoCapitalize="words"
                             accessibilityLabel={t`Vault name`}
+                            testID="vault-name"
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError message={fieldErrors.name} />
@@ -300,6 +301,7 @@ export function CreateTab() {
                             textContentType="newPassword"
                             placeholder={t`Choose a strong password`}
                             accessibilityLabel={t`Master password`}
+                            testID="create-master-password"
                             className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                         />
                         <VaultEntryFieldError message={fieldErrors.password} />

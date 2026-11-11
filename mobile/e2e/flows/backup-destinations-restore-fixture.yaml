@@ -13,10 +13,11 @@ appId: ${CRYPTEX_APP_ID}
       element:
           text: Restored vault name
       direction: DOWN
+      centerElement: true
 - tapOn: Restored vault name
 - eraseText: 100
 - inputText: Fixture Restored Vault
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-vault
@@ -27,9 +28,10 @@ appId: ${CRYPTEX_APP_ID}
 - extendedWaitUntil:
       visible: Master password
       timeout: 10000
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CrossPlatformFixture42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - extendedWaitUntil:

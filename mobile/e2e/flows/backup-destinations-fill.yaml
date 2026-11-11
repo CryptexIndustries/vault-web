@@ -17,7 +17,7 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn:
       id: backup-destination-Prefix
 - inputText: ${S3_PREFIX}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: backup-destination-PathStyle
@@ -38,7 +38,7 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn:
       id: backup-destination-AccessKeyID
 - inputText: ${KEY_ID}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: backup-destination-SecretAccessKey
@@ -46,7 +46,7 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn:
       id: backup-destination-SecretAccessKey
 - inputText: ${SECRET}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: backup-destination-save

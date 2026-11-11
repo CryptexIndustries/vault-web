@@ -8,14 +8,14 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn: Credential username
 - inputText: transfer@example.test
 - tapOn:
-      text: Password, Hidden.*
+      id: credential-password
 - inputText: transfer-password-42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: credential-website-url
 - eraseText
 - inputText: https://transfer.example.test/login
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit

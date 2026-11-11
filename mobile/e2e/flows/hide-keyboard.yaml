@@ -1,0 +1,8 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# The iOS E2E build never shows a software keyboard.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard

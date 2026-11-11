@@ -1,5 +1,12 @@
 import * as React from "react";
-import { AppState, Pressable, TextInput, View } from "react-native";
+import {
+    AppState,
+    Platform,
+    Pressable,
+    Settings,
+    TextInput,
+    View,
+} from "react-native";
 import { Dices, Eye, EyeOff } from "lucide-react-native";
 import { useLingui } from "@lingui/react/macro";
 
@@ -18,6 +25,12 @@ type InputProps = React.ComponentProps<typeof TextInput> & {
 const minimumInputHeight = { minHeight: layout.minTouchTarget };
 const generatorPadding = { paddingRight: 48 };
 const generatorRevealPadding = { paddingRight: 96 };
+// Maestro types without the keyboard, which on iOS covers the controls under test.
+// The native XCUITest suite can only type through a keyboard, so it opts back in.
+const hideSoftKeyboard =
+    process.env.EXPO_PUBLIC_CRYPTEX_E2E === "1" &&
+    Platform.OS === "ios" &&
+    !Settings.get("cryptexE2EKeyboard");
 
 const Input = React.forwardRef<TextInput, InputProps>(function Input(
     {
@@ -125,6 +138,7 @@ const Input = React.forwardRef<TextInput, InputProps>(function Input(
             onFocus={handleFocus}
             onBlur={handleBlur}
             onSelectionChange={handleSelectionChange}
+            showSoftInputOnFocus={!hideSoftKeyboard}
             {...props}
         />
     );

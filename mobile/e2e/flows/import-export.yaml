@@ -9,11 +9,11 @@ name: Real encrypted and readable exports, restore and JSON import
 - tapOn: Export encrypted vault
 - runFlow: export-capture.yaml
 - assertVisible: Encrypted export ready.
-- pressKey: Back
+- runFlow: go-back.yaml
 - tapOn: Unencrypted export.*
 - tapOn: Master password for cleartext export
 - inputText: WrongPassword42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn: I understand this file is unencrypted and will delete it after use.
 - scrollUntilVisible:
       element:
@@ -32,7 +32,7 @@ name: Real encrypted and readable exports, restore and JSON import
 - tapOn: Master password for cleartext export
 - eraseText: 100
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn: Review export
 - tapOn: Export JSON
 - runFlow: export-capture.yaml

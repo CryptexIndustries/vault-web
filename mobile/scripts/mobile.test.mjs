@@ -192,9 +192,12 @@ for (const flag of ["--dev", "--e2e"]) {
     });
 }
 
-function captureIos(args, { host = "darwin", identity = () => {} } = {}) {
+function captureIos(
+    args,
+    { host = "darwin", identity = () => {}, mode = "--dev" } = {},
+) {
     const calls = [];
-    runMobile(["build", "--dev", "--platform", "ios", ...args], {
+    runMobile(["build", mode, "--platform", "ios", ...args], {
         env: { EXPO_PUBLIC_CRYPTEX_E2E: "1" },
         host,
         checkNativeIdentity: () => {
@@ -246,6 +249,37 @@ test("iOS dev builds prebuild in place, then build and launch on a Simulator", (
         "regenerate",
         join(mobile, "ios"),
     ]);
+});
+
+test("iOS E2E builds bundle a Release app with the E2E flag", () => {
+    const calls = captureIos([], { mode: "--e2e" });
+    assert.deepEqual(calls[1][1], [
+        "exec",
+        "expo",
+        "run:ios",
+        "--no-bundler",
+        "--configuration",
+        "Release",
+    ]);
+    for (const [, , options] of calls) {
+        assert.equal(options.env.NODE_ENV, "production");
+        assert.equal(options.env.EXPO_PUBLIC_CRYPTEX_E2E, "1");
+    }
+});
+
+test("Simulators run the Files suites natively", () => {
+    const udid = "A3A2F130-2989-4782-83B8-2B17A9F9D803";
+    for (const suite of ["import-export", "ssh-keys"]) {
+        const [[binary, args, options]] = capture([
+            "e2e",
+            suite,
+            "--device",
+            udid,
+        ]);
+        assert.equal(binary, process.execPath);
+        assert.deepEqual(args, ["e2e/run-ios-transfer.mjs", suite]);
+        assert.equal(options.env.MAESTRO_DEVICE, udid);
+    }
 });
 
 test("iOS dev builds fail before any command off macOS or with Android-only options", () => {

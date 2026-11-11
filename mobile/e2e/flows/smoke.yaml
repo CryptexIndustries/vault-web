@@ -14,7 +14,7 @@ name: Android local vault smoke
       below: Directory name
 - assertNotVisible: Directory name
 - assertVisible: E2E Directory.*
-- pressKey: Back
+- runFlow: go-back.yaml
 - assertVisible: Search your vault
 - tapOn: Add item
 - tapOn:
@@ -24,15 +24,15 @@ name: Android local vault smoke
 - tapOn: Credential username
 - inputText: test@example.com
 - tapOn:
-      text: Password, Hidden.*
+      id: credential-password
 - inputText: e2e-password
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: credential-website-url
 - eraseText
 - inputText: https://example.test/login
 - assertVisible: https://example.test/login
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit
@@ -44,7 +44,7 @@ name: Android local vault smoke
 - tapOn: Credential name
 - eraseText
 - inputText: Edited Login
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit
@@ -57,13 +57,14 @@ name: Android local vault smoke
 - inputText: name:Edited
 - assertVisible: Edited Login.*
 - tapOn: Clear search
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn: Back
 - tapOn: Lock vault
 - assertVisible: Unlock vault
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: Edited Login.*

@@ -3,9 +3,10 @@ appId: ${CRYPTEX_APP_ID}
 - launchApp:
       stopApp: false
 - assertVisible: Unlock vault
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: Search your vault

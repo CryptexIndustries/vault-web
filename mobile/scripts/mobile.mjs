@@ -11,6 +11,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isIosSimulator } from "../e2e/profile.mjs";
 import { getProfile, parseReleaseOptions } from "./release-config.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
@@ -43,9 +44,9 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
-  pnpm mobile:build -- --dev --platform ios [--profile <name>] [--device <simulator>] [--regenerate-native]
+  pnpm mobile:build -- --dev|--e2e --platform ios [--profile <name>] [--device <simulator>] [--regenerate-native]
   pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
-  pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
+  pnpm mobile:e2e -- <suite> [--device <serial or Simulator UDID>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
   pnpm mobile:install [-- --profile production|preprod] [--arch <abi>] --device <serial> [apk]
   pnpm mobile:logs [-- --profile production|preprod] --device <serial>
@@ -65,7 +66,7 @@ Local release builds reuse .mobile-build/ in the current checkout and use all av
 Dev and E2E builds use the standard distribution; --distribution play adds Google Play Billing.
 Pass the same --distribution to mobile:dev so Metro bundles the matching billing modules.
 --regenerate-native backs up the existing native tree before a fresh dev/E2E prebuild.
---platform ios builds the dev client on macOS and installs it on an iOS Simulator.
+--platform ios builds on macOS and installs on an iOS Simulator: --dev the dev client, --e2e a bundled Maestro app.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
@@ -343,9 +344,9 @@ export function runMobile(
                         );
                     args.splice(deviceIndex, 2);
                 }
-                if (args.length !== 1 || !development)
+                if (args.length !== 1)
                     throw new Error(
-                        "iOS supports only --dev builds for the Simulator.",
+                        "iOS supports only --dev or --e2e builds for the Simulator.",
                     );
                 if (distribution !== "standard")
                     throw new Error("Google Play Billing is Android-only.");
@@ -353,7 +354,7 @@ export function runMobile(
                     throw new Error("iOS builds need macOS with Xcode.");
                 if (regenerate) regenerateNative(profile, ios);
                 checkIosIdentity(profile);
-                const buildEnv = developmentEnvironment(profile);
+                const buildEnv = developmentEnvironment(profile, e2e);
                 exec(
                     [
                         "expo",
@@ -371,6 +372,7 @@ export function runMobile(
                         "expo",
                         "run:ios",
                         "--no-bundler",
+                        ...(e2e ? ["--configuration", "Release"] : []),
                         ...(device ? ["--device", device] : []),
                     ],
                     buildEnv,
@@ -495,7 +497,9 @@ export function runMobile(
             value.startsWith("-") ||
             args.indexOf("--device", deviceIndex + 1) >= 0
         ) {
-            throw new Error("--device requires one Android device serial.");
+            throw new Error(
+                "--device requires one device serial or Simulator UDID.",
+            );
         }
         serial = value;
         args.splice(deviceIndex, 2);
@@ -515,7 +519,19 @@ export function runMobile(
             throw new Error(`Refusing to touch protected device ${serial}.`);
         }
     };
-    if (suite === "sync") {
+    if (
+        ["import-export", "ssh-keys"].includes(suite) &&
+        isIosSimulator(serial)
+    ) {
+        // A native test drives the Files screens.
+        rejectArguments();
+        requireDevice();
+        execute(
+            process.execPath,
+            ["e2e/run-ios-transfer.mjs", suite],
+            deviceEnv,
+        );
+    } else if (suite === "sync") {
         rejectArguments();
         const sender =
             deviceIndex >= 0 ? serial : env.E2E_SYNC_SENDER || serial;

@@ -33,7 +33,19 @@ name: Register disposable Online Services account
 - tapOn: I've saved my kit. Continue to payment
 # New fixture accounts are on the free plan, so signup opens the synthetic hosted
 # checkout. Requesting it marks the account paid; no Stripe payment runs.
-- assertVisible: .*checkout.stripe.com/c/pay/cs_test_cryptex_fixture_premiumYearly.*
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: .*checkout.stripe.com/c/pay/cs_test_cryptex_fixture_premiumYearly.*
+# iOS has no payment provider yet, so only wait for signup to move on.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - extendedWaitUntil:
+                notVisible: I've saved my kit. Continue to payment
+                timeout: 15000
 - launchApp:
       stopApp: false
 - assertVisible: Manage billing

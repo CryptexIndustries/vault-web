@@ -19,7 +19,7 @@ name: Add a backup destination, first with details that can't work
       element:
           text: Enter the endpoint as an https:// address with no path.
       direction: UP
-- pressKey: Back
+- runFlow: close-sheet.yaml
 - tapOn:
       id: backup-destination-add
 # A key that can read but not write fails the connection test.
@@ -36,7 +36,7 @@ name: Add a backup destination, first with details that can't work
       element:
           text: Save anyway
       direction: DOWN
-- pressKey: Back
+- runFlow: close-sheet.yaml
 - tapOn:
       id: backup-destination-add
 - runFlow:

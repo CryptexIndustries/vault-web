@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { maestroProfileArgs } from "./profile.mjs";
+import { isIosSimulator, maestroProfileArgs } from "./profile.mjs";
 
 const serial = process.env.MAESTRO_DEVICE || process.env.ANDROID_SERIAL;
 if (
@@ -98,13 +98,15 @@ try {
         if (!ready)
             throw new Error("Cloud fixture did not start within five seconds.");
     }
-    await command("adb", [
-        "-s",
-        serial,
-        "reverse",
-        `tcp:${port}`,
-        `tcp:${port}`,
-    ]);
+    // Simulators share the Mac's network.
+    if (!isIosSimulator(serial))
+        await command("adb", [
+            "-s",
+            serial,
+            "reverse",
+            `tcp:${port}`,
+            `tcp:${port}`,
+        ]);
     await command("maestro", [
         "--device",
         serial,

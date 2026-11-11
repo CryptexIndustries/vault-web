@@ -89,7 +89,8 @@ Matching Face when the app asks. The Simulator has no camera, so QR scanning
 needs a physical device. The autofill and passkey provider, the SSH agent
 service, the in-app language picker and Google Play Billing are Android-only.
 On iOS the Autofill settings screen still opens but its switches do nothing.
-There are no iOS E2E or release builds yet.
+There are no iOS release builds yet. [e2e/README.md](e2e/README.md) lists the
+suites that run on a Simulator.
 
 ## Build and install an APK
 

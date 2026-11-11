@@ -769,6 +769,7 @@ export function UnlockTab({
                                 placeholder={t`Enter master password`}
                                 onSubmitEditing={() => void handleUnlock()}
                                 accessibilityLabel={t`Master password`}
+                                testID="unlock-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError

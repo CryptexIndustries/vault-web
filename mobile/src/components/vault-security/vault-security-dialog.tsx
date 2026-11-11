@@ -85,6 +85,7 @@ function KeyRotationOptions({
                 onValueChange={onRotateDataKeyChange}
                 disabled={disabled}
                 label={t`Rotate this device's vault encryption key`}
+                testID="rotate-data-key"
                 hint={t`Off by default. Rotation re-encrypts this vault with a fresh data key and generates a new recovery code. Linked devices keep their own vault keys.`}
             />
             {rotateDataKey ? (
@@ -109,6 +110,7 @@ function KeyRotationOptions({
                     onValueChange={onDeleteOlderDestinationBackupsChange}
                     disabled={disabled}
                     label={t`Delete older destination backups after replacement`}
+                    testID="delete-older-destination-backups"
                     hint={t`This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay.`}
                 />
             ) : null}
@@ -669,6 +671,7 @@ export function VaultSecurityDialog({
                     editable={isEnvelope && !busy && !webauthnVault}
                     placeholder={t`Required to authorize changes`}
                     accessibilityLabel={t`Current master password`}
+                    testID="current-master-password"
                 />
             </View>
             {isProtectionPhraseKind(currentKind) ? (
@@ -776,6 +779,7 @@ export function VaultSecurityDialog({
                                 textContentType="newPassword"
                                 editable={isEnvelope && !busy && !webauthnVault}
                                 accessibilityLabel={t`New master password`}
+                                testID="new-master-password"
                             />
                             {newPassword.length > 0 ? (
                                 <PasswordStrengthMeter password={newPassword} />

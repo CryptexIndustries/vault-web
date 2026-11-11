@@ -54,7 +54,7 @@ test("every Maestro fixture parses and each shared flow reference exists", () =>
 test("all fixture master-password fields use the shared vault-creation password", () => {
     const setup = flatten(flows.get("setup-vault.yaml"));
     const creation = setup.findIndex(
-        (step) => step.tapOn === "Master password",
+        (step) => step.tapOn?.id === "create-master-password",
     );
     const expected = setup
         .slice(creation + 1)
@@ -69,6 +69,9 @@ test("all fixture master-password fields use the shared vault-creation password"
                 ![
                     "Master password",
                     "Enter master password",
+                    "create-master-password",
+                    "unlock-master-password",
+                    "linked-master-password",
                     "confirm-master-password",
                     "Confirm vault password for biometric unlock",
                 ].includes(label)
@@ -81,7 +84,7 @@ test("all fixture master-password fields use the shared vault-creation password"
             // expose an exported item before retrying the shared correct password.
             const wrongRestorePassword =
                 name === "restore-export.yaml" &&
-                label === "Master password" &&
+                label === "unlock-master-password" &&
                 nextInput?.inputText === "WrongPassword42";
             if (wrongRestorePassword) {
                 assert.ok(

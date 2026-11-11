@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2700" version="1.7">
+   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"></BuildAction>
+   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
+      <Testables>
+         <TestableReference skipped="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A10000000000000000000042" BuildableName="TransferTests.xctest" BlueprintName="TransferTests" ReferencedContainer="container:IosTransfer.xcodeproj"></BuildableReference>
+         </TestableReference>
+      </Testables>
+   </TestAction>
+</Scheme>

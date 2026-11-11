@@ -13,7 +13,7 @@ name: Back up on demand, then pause
 - extendedWaitUntil:
       visible: Backed up to E2E Garage
       timeout: 60000
-- pressKey: Back
+- runFlow: close-sheet.yaml
 - assertNotVisible: Edit destination
 - tapOn: Automatic backups to E2E Garage
 - extendedWaitUntil:

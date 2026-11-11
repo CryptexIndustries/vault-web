@@ -1,6 +1,9 @@
 import { createRequire } from "node:module";
 const { getProfile } = createRequire(import.meta.url)("../config/profiles.cjs");
 
+export const isIosSimulator = (serial) =>
+    /^[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}$/i.test(serial);
+
 export function e2eIdentity(name = process.env.CRYPTEX_APP_PROFILE) {
     const profile = getProfile(name);
     return {

@@ -9,7 +9,7 @@ name: Android security lifecycle
 - assertVisible: Enable biometric unlock
 - tapOn: Confirm vault password for biometric unlock
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       text: Enable biometric unlock
       below: Confirm vault password for biometric unlock

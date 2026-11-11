@@ -26,8 +26,8 @@ name: Import the actual readable export into a separate empty vault
       direction: DOWN
 - tapOn: Import 1 login
 - assertVisible: Imported 1 credentials.*
-- pressKey: Back
-- pressKey: Back
+- runFlow: go-back.yaml
+- runFlow: go-back.yaml
 - tapOn:
       text: Vault
       below: Import / Export.*

@@ -1,5 +1,11 @@
 appId: ${CRYPTEX_APP_ID}
 ---
+# Keychain entries outlive clearState on iOS.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - clearKeychain
 - clearState
 - launchApp
 # A freshly booted CI emulator can show "Quickstep isn't responding" over the
@@ -23,19 +29,21 @@ appId: ${CRYPTEX_APP_ID}
           - launchApp:
                 stopApp: false
           - assertVisible: Create vault
-          - tapOn: Vault name
+          - tapOn:
+                id: vault-name
           - eraseText: 100
           - inputText: E2E Vault
-          - hideKeyboard
-          - tapOn: Master password
+          - runFlow: hide-keyboard.yaml
+          - tapOn:
+                id: create-master-password
           - eraseText: 100
           - inputText: CorrectHorseBatteryStaple42
-          - hideKeyboard
+          - runFlow: hide-keyboard.yaml
           - tapOn:
                 id: confirm-master-password
           - eraseText: 100
           - inputText: CorrectHorseBatteryStaple42
-          - hideKeyboard
+          - runFlow: hide-keyboard.yaml
           - tapOn: Continue
           - assertVisible: Additional key protection
 - tapOn:

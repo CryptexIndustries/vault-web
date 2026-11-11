@@ -1,0 +1,31 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		A10000000000000000000001 = {isa = PBXBuildFile; fileRef = A10000000000000000000011; };
+		A10000000000000000000002 = {isa = PBXBuildFile; fileRef = A10000000000000000000012; };
+		A10000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/App.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/TransferTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000014 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TransferTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000021 = {isa = PBXGroup; children = (A10000000000000000000011, A10000000000000000000012, A10000000000000000000022); sourceTree = "<group>"; };
+		A10000000000000000000022 = {isa = PBXGroup; children = (A10000000000000000000013, A10000000000000000000014); name = Products; sourceTree = "<group>"; };
+		A10000000000000000000031 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000032 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000041 = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000071; buildPhases = (A10000000000000000000031); buildRules = (); dependencies = (); name = Runner; productName = Runner; productReference = A10000000000000000000013; productType = "com.apple.product-type.application"; };
+		A10000000000000000000042 = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000072; buildPhases = (A10000000000000000000032); buildRules = (); dependencies = (A10000000000000000000051); name = TransferTests; productName = TransferTests; productReference = A10000000000000000000014; productType = "com.apple.product-type.bundle.ui-testing"; };
+		A10000000000000000000051 = {isa = PBXTargetDependency; target = A10000000000000000000041; targetProxy = A10000000000000000000052; };
+		A10000000000000000000052 = {isa = PBXContainerItemProxy; containerPortal = A10000000000000000000061; proxyType = 1; remoteGlobalIDString = A10000000000000000000041; remoteInfo = Runner; };
+		A10000000000000000000061 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700; TargetAttributes = {A10000000000000000000042 = {TestTargetID = A10000000000000000000041; }; }; }; buildConfigurationList = A10000000000000000000070; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en); mainGroup = A10000000000000000000021; productRefGroup = A10000000000000000000022; projectDirPath = ""; projectRoot = ""; targets = (A10000000000000000000041, A10000000000000000000042); };
+		A10000000000000000000080 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; CODE_SIGN_IDENTITY = "-"; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A10000000000000000000081 = {isa = XCBuildConfiguration; buildSettings = {INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; PRODUCT_BUNDLE_IDENTIFIER = com.cryptex.vault.iostransfer.runner; PRODUCT_NAME = Runner; }; name = Debug; };
+		A10000000000000000000082 = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = com.cryptex.vault.iostransfer.tests; PRODUCT_NAME = TransferTests; TEST_TARGET_NAME = Runner; }; name = Debug; };
+		A10000000000000000000070 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000080); defaultConfigurationName = Debug; };
+		A10000000000000000000071 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000081); defaultConfigurationName = Debug; };
+		A10000000000000000000072 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000082); defaultConfigurationName = Debug; };
+	};
+	rootObject = A10000000000000000000061;
+}

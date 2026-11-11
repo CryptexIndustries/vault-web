@@ -39,7 +39,18 @@ name: Device and connection sheets, map legend and tab navigation
       id: device-last-sync
 - assertNotVisible:
       id: device-remove-account
-- pressKey: Back
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - pressKey: Back
+# An edge swipe doesn't close a sheet on iOS.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - tapOn:
+                id: device-close-details
 - assertNotVisible: Device details
 - assertVisible:
       id: device-view-map

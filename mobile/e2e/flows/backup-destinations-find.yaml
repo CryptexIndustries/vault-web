@@ -8,46 +8,51 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn: Restore backup
 - runFlow:
       when:
-          notVisible: Your own storage
+          notVisible: "Your own storage.*"
       commands:
           - tapOn: Restore backup
-- tapOn: Your own storage
+- tapOn: "Your own storage.*"
 - scrollUntilVisible:
       element:
           id: restore-bucket-Endpoint
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-Endpoint
 - inputText: ${S3_ENDPOINT}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-Bucket
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-Bucket
 - inputText: ${S3_BUCKET}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-Region
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-Region
 - inputText: garage
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-Prefix
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-Prefix
 - inputText: ${S3_PREFIX}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-PathStyle
       direction: DOWN
+      centerElement: true
 # The first tap can land while the keyboard closes; tap until it's on.
 - retry:
       maxRetries: 2
@@ -61,21 +66,24 @@ appId: ${CRYPTEX_APP_ID}
       element:
           id: restore-bucket-AccessKeyID
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-AccessKeyID
 - inputText: ${S3_RO_KEY_ID}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-SecretAccessKey
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-SecretAccessKey
 - inputText: ${S3_RO_SECRET}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-bucket-find
       direction: DOWN
+      centerElement: true
 - tapOn:
       id: restore-bucket-find

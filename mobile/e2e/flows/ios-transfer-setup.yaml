@@ -1,0 +1,4 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- runFlow: setup-vault.yaml
+- runFlow: setup-transfer-item.yaml

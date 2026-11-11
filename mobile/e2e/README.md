@@ -1,8 +1,45 @@
-# Android E2E
+# Mobile E2E
 
 The flows use Maestro against a dedicated debug-signed E2E APK. Native projects are
 derived from `app.json` and local Expo modules; `mobile/android` is generated
 and ignored. Check vendor-specific system screens on physical devices before release.
+
+## iOS Simulator
+
+`smoke`, `credentials`, `security`, `cloud`, `devices`, `ssh-keys`,
+`backup-destinations` and `import-export` run on an iOS Simulator. `sync` needs
+two Android devices, and the other suites cover Android-only features. Maestro
+needs Java and version 2.9.0, the release CI pins. `backup-destinations` also
+needs Docker Compose.
+`cloud` and `devices` need a build against the [cloud fixture](#cloud-fixture).
+
+```sh
+brew install openjdk
+export MAESTRO_DEVICE=<Simulator UDID>
+pnpm mobile:build -- --e2e --platform ios --device "$MAESTRO_DEVICE"
+pnpm mobile:e2e -- smoke
+pnpm mobile:e2e -- credentials
+pnpm mobile:e2e -- security
+pnpm mobile:e2e -- ssh-keys
+pnpm mobile:e2e -- backup-destinations
+pnpm mobile:e2e -- import-export
+```
+
+The iOS E2E build never shows the software keyboard, which would cover the
+controls under test. `security` enrolls Face ID on the Simulator.
+
+`import-export` and `ssh-keys` are native XCUITests in
+`e2e/fixtures/ios-transfer`. The share sheet's Save dialog and the file picker
+are separate system apps that Maestro can't read. Maestro prepares each vault
+and the script checks the saved files. Starting the native test backgrounds and
+locks the vault, so the two can't take turns inside one screen. The test
+relaunches the app with a keyboard, which is the only way XCUITest can type.
+Each run leaves its uniquely named test files under On My iPhone, because
+deleting them behind the Files service stalls its screens. The names count down,
+so the newest run's files sort first and the picker never has to scroll.
+
+`backup-destinations` uses Garage's plain loopback http port on a Simulator,
+because iOS rejects the 100-year validity of the test certificate.
 
 Use `--profile preprod` consistently for preproduction builds and E2E commands.
 If the existing native project belongs to another profile, back it up with

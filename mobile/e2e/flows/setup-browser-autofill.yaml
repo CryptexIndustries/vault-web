@@ -23,7 +23,24 @@ appId: com.android.chrome
           - tapOn: Got it
 - tapOn:
       id: com.android.chrome:id/menu_button
+# On a web page the menu is longer and Settings sits below its fold.
+- scrollUntilVisible:
+      element:
+          text: Settings
+      direction: DOWN
 - tapOn: Settings
+# Chrome 155 moves Autofill services under Autofill and passwords.
+- runFlow:
+      when:
+          visible: Autofill and passwords
+      commands:
+          - tapOn: Autofill and passwords
+# The row can sit below the fold; the next step handles Chrome 134 hiding it.
+- scrollUntilVisible:
+      element:
+          text: Autofill services
+      direction: DOWN
+      optional: true
 # Chrome 134 can hide this row when its Android virtual-view feature is off.
 # Newer Chrome versions with the row already present skip this fixture-specific setup.
 - runFlow:

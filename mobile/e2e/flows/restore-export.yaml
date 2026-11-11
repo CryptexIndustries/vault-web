@@ -16,6 +16,16 @@ name: Restore the actual encrypted export into a clean installation
       env:
           EXPORTED_FILE: e2e-export.cryx
 - assertVisible: After restore, unlock with the existing master password.*
+# The backup source options push the name field below the fold on Android.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - scrollUntilVisible:
+                element:
+                    text: Restored vault name
+                direction: DOWN
+                centerElement: true
 - tapOn: Restored vault name
 - eraseText: 100
 - inputText: E2E Restored Vault

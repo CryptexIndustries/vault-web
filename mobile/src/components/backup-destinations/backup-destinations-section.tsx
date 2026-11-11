@@ -281,7 +281,6 @@ export function BackupDestinationsSection() {
             confirmLabel: t`Remove`,
             destructive: true,
             onConfirm: () => {
-                setEditing(null);
                 void saveBackupDestinations({
                     type: "remove",
                     id: destination.ID,
@@ -476,7 +475,10 @@ export function BackupDestinationsSection() {
                     <Button
                         variant="ghost"
                         disabled={busy != null}
-                        onPress={() => remove(editing)}
+                        onPress={() => {
+                            setEditing(null);
+                            remove(editing);
+                        }}
                     >
                         {t`Remove destination`}
                     </Button>

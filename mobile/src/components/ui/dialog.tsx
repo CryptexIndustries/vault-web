@@ -44,6 +44,17 @@ export const DialogContext = React.createContext<DialogContextValue | null>(
     null,
 );
 
+// On iOS a modal sheet that opens while another is closing never appears.
+const closingSheets = new Set<object>();
+const sheetsWaitingToOpen = new Set<() => void>();
+
+function sheetFinishedClosing(sheet: object) {
+    closingSheets.delete(sheet);
+    if (closingSheets.size > 0) return;
+    sheetsWaitingToOpen.forEach((show) => show());
+    sheetsWaitingToOpen.clear();
+}
+
 function useDialog() {
     const ctx = React.useContext(DialogContext);
     if (!ctx) throw new Error("Dialog components must be used within Dialog");
@@ -190,11 +201,22 @@ function Dialog({
         }
         if (!sheet) return;
         if (open && !sheet.isOpen()) {
-            sheet.show();
+            if (closingSheets.size === 0) {
+                sheet.show();
+                return;
+            }
+            const show = () => sheet.show();
+            sheetsWaitingToOpen.add(show);
+            return () => {
+                sheetsWaitingToOpen.delete(show);
+            };
         } else if (!open && sheet.isOpen()) {
+            if (Platform.OS === "ios") closingSheets.add(sheetRef);
             sheet.hide();
         }
     }, [open, placement, deviceModal, prepareDeviceSheet]);
+
+    React.useEffect(() => () => sheetFinishedClosing(sheetRef), []);
 
     React.useEffect(() => {
         if (!open || !scroll || scrollResetKey === undefined) return;
@@ -205,6 +227,7 @@ function Dialog({
     }, [open, scroll, scrollResetKey]);
 
     const handleSheetClose = React.useCallback(() => {
+        sheetFinishedClosing(sheetRef);
         if (deviceModal) {
             if (openRef.current && !closingDeviceModal.current) {
                 requestAnimationFrame(() => {

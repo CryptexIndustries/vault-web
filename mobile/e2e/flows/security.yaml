@@ -30,7 +30,17 @@ name: Android security lifecycle
 - tapOn: Security,.*
 - tapOn: Auto-lock,.*
 - tapOn: 1 minute
-- assertNotVisible: 1 minute
+# On Android the row's chosen value is its own element, so check that the picker closed.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertNotVisible: 1 minute
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertNotVisible: Lock after no interaction while the app is open,.*
 - tapOn: Back
 - stopApp
 - launchApp

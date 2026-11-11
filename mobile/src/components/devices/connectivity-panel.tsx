@@ -708,6 +708,8 @@ export function ConnectivityPanel({
                                             <Input
                                                 value={server.Username}
                                                 accessibilityLabel={t`Username`}
+                                                // iOS treats this as the username for the credential below.
+                                                textContentType="oneTimeCode"
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -763,6 +765,8 @@ export function ConnectivityPanel({
                                                 autoCapitalize="none"
                                                 autoCorrect={false}
                                                 accessibilityLabel={t`TURN credential`}
+                                                // Keeps iOS from offering to store it in Apple Passwords.
+                                                textContentType="oneTimeCode"
                                             />
                                         </View>
                                     </View>
@@ -867,6 +871,12 @@ export function ConnectivityPanel({
                                                     autoCorrect={false}
                                                     placeholder={placeholder}
                                                     accessibilityLabel={label}
+                                                    // Keeps iOS from offering to store the secret in Apple Passwords.
+                                                    textContentType={
+                                                        field === "Secret"
+                                                            ? "oneTimeCode"
+                                                            : undefined
+                                                    }
                                                     secureTextEntry={
                                                         field === "Secret"
                                                     }

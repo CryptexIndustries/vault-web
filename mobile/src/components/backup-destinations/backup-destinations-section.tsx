@@ -443,9 +443,14 @@ export function BackupDestinationsSection() {
                     value={form.PathStyle}
                     onValueChange={(value) => set("PathStyle", value)}
                 />
-                {field("AccessKeyID", t`Access key ID`)}
+                {field("AccessKeyID", t`Access key ID`, {
+                    // iOS treats this as the username for the secret below.
+                    textContentType: "oneTimeCode",
+                })}
                 {field("SecretAccessKey", t`Secret access key`, {
                     secureTextEntry: true,
+                    // Keeps iOS from offering to store it in Apple Passwords.
+                    textContentType: "oneTimeCode",
                 })}
                 <UnlockedSwitchRow
                     testID="backup-destination-KeepAll"

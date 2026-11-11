@@ -283,6 +283,7 @@ function SavePrivateKeyDialog({
                     editable={!busy}
                     accessibilityLabel={t`File passphrase`}
                     testID="ssh-key-file-passphrase"
+                    textContentType="oneTimeCode"
                 />
             </View>
             <View>
@@ -302,6 +303,7 @@ function SavePrivateKeyDialog({
                     editable={!busy}
                     accessibilityLabel={t`Confirm file passphrase`}
                     testID="ssh-key-file-passphrase-confirm"
+                    textContentType="oneTimeCode"
                 />
             </View>
             {mismatch ? (

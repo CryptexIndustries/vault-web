@@ -44,7 +44,7 @@ type SubscriptionSignupProps = {
 
 export function SubscriptionSignup(props: SubscriptionSignupProps) {
     return (
-        <AccountControllerProvider>
+        <AccountControllerProvider sheetShowsTurnstile>
             <SubscriptionSignupSheet {...props} />
         </AccountControllerProvider>
     );
@@ -281,6 +281,7 @@ function SubscriptionSignupSheet({
                         : "Online Services"}
                 </DialogTitle>
             </DialogHeader>
+            {account.turnstileDialog}
             {account.recoveryKit ? (
                 <>
                     <RecoveryKitDialog

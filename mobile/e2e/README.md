@@ -350,6 +350,27 @@ inspects backup history and deletes its snapshots. Production accounts and
 storage are not used. Host contract tests live in
 `fixtures/online-services.test.mjs`.
 
+To cover the human check, serve its page from the production web app with
+Cloudflare's always-pass test key, and build against both:
+
+```sh
+E2E_TURNSTILE_SITE_KEY=1x00000000000000000000AA docker compose \
+  --file compose.e2e.yaml --file web/e2e/compose.host-servers.yaml \
+  up --detach --wait web
+EXPO_PUBLIC_CLOUD_ENABLED=true \
+  EXPO_PUBLIC_ONLINE_SERVICES_API_URL=http://localhost:43111 \
+  EXPO_PUBLIC_APP_URL=http://localhost:4174 \
+  EXPO_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+  pnpm mobile:build -- --e2e
+pnpm mobile:e2e -- cloud --device emulator-5554
+```
+
+On Android, also run `adb reverse tcp:4174 tcp:4174`. The check loads from
+Cloudflare, so the run needs internet access. Sign-up continues only with the
+check's token, so a passing run shows the check opened over the sign-up sheet.
+With the web key `3x00000000000000000000FF`, the check stays on screen until
+you tap it.
+
 ## Account devices fixture
 
 Use the same loopback APK configuration as the cloud suite, then run

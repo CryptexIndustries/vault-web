@@ -790,21 +790,23 @@ function useCreateAccountController() {
 
 type AccountController = Omit<
     ReturnType<typeof useCreateAccountController>,
-    "dialogs" | "turnstileDialog"
+    "dialogs"
 >;
 const AccountControllerContext = createContext<AccountController | null>(null);
 
 export function AccountControllerProvider({
     children,
+    sheetShowsTurnstile = false,
 }: {
     children: ReactNode;
+    /** iOS shows a dialog over a sheet only when the sheet renders it. */
+    sheetShowsTurnstile?: boolean;
 }) {
-    const { dialogs, turnstileDialog, ...controller } =
-        useCreateAccountController();
+    const { dialogs, ...controller } = useCreateAccountController();
     return (
         <AccountControllerContext.Provider value={controller}>
             {children}
-            {turnstileDialog}
+            {sheetShowsTurnstile ? null : controller.turnstileDialog}
             {dialogs}
         </AccountControllerContext.Provider>
     );

@@ -8,3 +8,9 @@ services:
         ports:
             - "127.0.0.1:${E2E_TURN_PORT:-3478}:3478/udp"
             - "127.0.0.1:${E2E_TURN_PORT:-3478}:3478/tcp"
+    # The production app, for the mobile suites that need its human check page.
+    web:
+        environment:
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${E2E_TURNSTILE_SITE_KEY:-}
+        ports:
+            - "127.0.0.1:${E2E_WEB_PORT:-4174}:3000"

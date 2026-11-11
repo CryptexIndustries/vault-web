@@ -64,6 +64,7 @@ bundle. Never put a Pusher server secret or other credentials in them.
 | `VITE_PUSHER_APP_PORT`         | Pusher port.                                               |
 | `VITE_PUSHER_APP_TLS`          | Whether Pusher uses TLS.                                   |
 | `VITE_EXTENSION_NAME_PREFIX`   | Prefix for the extension name and toolbar title, or `""`.  |
+| `VITE_FIREFOX_EXTENSION_ID`    | Firefox add-on ID. Never change it after publishing.       |
 
 Development builds still use env files. Copy
 [`extension/.env.development.example`](.env.development.example) to
@@ -95,22 +96,36 @@ rewrites `manifest.json` at build time:
   (derived from `VITE_APP_URL`) and the Pusher host (derived from
   `VITE_PUSHER_APP_HOST` + `VITE_PUSHER_APP_TLS` + `VITE_PUSHER_APP_PORT`)
   instead of the broad `https://*/*` allowed in development.
+- Firefox builds (`CRYPTEX_BROWSER=firefox`) get a Firefox background entry
+  and add-on settings, described in
+  [build-and-release.md](docs/platform/build-and-release.md#firefox-build).
 
 ### Dev
 
 ```
 pnpm i
-pnpm --filter extension dev
+pnpm --filter extension dev           # Chromium, into extension/dist
+pnpm --filter extension dev-firefox   # Firefox, into extension/dist-firefox
 ```
+
+Development Firefox builds use the ID `extension-dev@cryptex-vault.com`
+unless `VITE_FIREFOX_EXTENSION_ID` is set, so the add-on keeps its storage
+across reloads.
 
 ### Build & load
 
 - Production: `pnpm build:ext`
 - Preproduction: `pnpm build:ext -- --profile preprod`
 - Another configuration: `pnpm build:ext -- --config /path/to/config.json`
-- Load unpacked: load `extension/dist` in `chrome://extensions`. The extension
-  has no fixed ID, so production and preproduction builds can be installed
-  side by side.
+- Firefox: add `--browser firefox` to any of the above. The build goes to
+  `extension/dist-firefox`.
+- Load unpacked in Chrome: load `extension/dist` in `chrome://extensions`. The
+  extension has no fixed ID, so production and preproduction builds can be
+  installed side by side.
+- Load in Firefox: open `about:debugging#/runtime/this-firefox`, click **Load
+  Temporary Add-on** and pick `extension/dist-firefox/manifest.json`. Firefox
+  removes it on restart; only an add-on signed by addons.mozilla.org stays.
+  Production and preproduction have different IDs, so both can be installed.
 
 ### CI extension packages
 
@@ -124,7 +139,11 @@ environments are involved.
   you pick with the profile you choose. GitHub offers **Run workflow** only once
   the workflow file is on the default branch.
 
-Both run the extension lint, type and configuration checks before building.
+Chromium and Firefox each run the end-to-end tests and then build their own
+package, side by side, so a failure in one browser doesn't stop the other. The
+package jobs run the extension lint, type and configuration checks before
+building. The Firefox package also goes through `addons-linter`, the linter
+addons.mozilla.org runs on upload. The draft release waits for both packages.
 
 For example:
 
@@ -133,19 +152,19 @@ git tag extension-v1.4.2
 git push origin extension-v1.4.2
 ```
 
-A tag build creates
-`cryptex-vault-chromium-extension-v1.4.2.zip` with `manifest.json` at the archive
-root and no source maps. The filename uses `cryptex-vault-chromium-{tag}.zip`,
-preserving the full tag and its case. Characters outside letters, digits, `.`,
-`_`, and `-` become `-` in the filename, so tags containing `/` still produce a
-single filename. A manual run names the archive
-`cryptex-vault-chromium-{profile}-{branch}-{short commit}.zip`.
+A tag build creates `cryptex-vault-chromium-extension-v1.4.2.zip` and
+`cryptex-vault-firefox-extension-v1.4.2.zip`, each with `manifest.json` at the
+archive root and no source maps. The filenames use
+`cryptex-vault-{browser}-{tag}.zip`, preserving the full tag and its case.
+Characters outside letters, digits, `.`, `_`, and `-` become `-` in the
+filename, so tags containing `/` still produce a single filename. A manual run
+names the archives `cryptex-vault-{browser}-{profile}-{branch}-{short commit}.zip`.
 
-Download `cryptex-vault-chromium-extension-v1.4.2.zip` from the Actions run's
-**Artifacts** section. The download is the extension ZIP itself, ready to
-upload. Artifacts expire after 30 days. This workflow does not create a GitHub Release or submit to the Web Store.
+Download the ZIPs from the Actions run's **Artifacts** section. Each download
+is the extension ZIP itself, ready to upload. Artifacts expire after 30 days.
+This workflow does not create a GitHub Release or submit to either store.
 
-The tag names the archive. The extension version still comes from
+The tag names the archives. The extension version still comes from
 [`extension/manifest.json`](manifest.json); update it before tagging a new
 Web Store version.
 
@@ -164,3 +183,20 @@ Before submitting to the Chrome Web Store:
     - No `*.map` files in `extension/dist`.
 4. Smoke-test the production bundle against the staging API (load unpacked
    `dist/` in Chrome, link a vault, unlock it).
+
+### Shipping checklist (Firefox Add-ons)
+
+1. Bump `version` in [`extension/manifest.json`](manifest.json) as for the
+   Web Store. Firefox uses the same manifest.
+2. Run `pnpm build:ext -- --browser firefox` and inspect
+   `extension/dist-firefox/manifest.json`. `browser_specific_settings.gecko.id`
+   must be `extension@cryptex-vault.com`, the ID of the published add-on.
+3. Smoke-test the build in Firefox (load it from `about:debugging`, link a
+   vault, unlock it, autofill a login).
+4. Upload `cryptex-vault-firefox-extension-v1.4.2.zip` to addons.mozilla.org.
+   The bundle is minified, so the site also asks for the source code. Upload
+   the release's **Source code (zip)** from GitHub and give these build steps:
+   Node 24.22.2, pnpm 11.28.9, `pnpm install --frozen-lockfile`, then
+   `pnpm build:ext -- --browser firefox`. The output is `extension/dist-firefox`.
+5. On the first upload, keep Firefox for Android unchecked. Testing so far
+   covers desktop Firefox only.

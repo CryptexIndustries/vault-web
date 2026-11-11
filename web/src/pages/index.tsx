@@ -633,7 +633,7 @@ export default function Home() {
                             <Link href="/docs/ssh-agent#install">
                                 SSH agent
                             </Link>{" "}
-                            for Linux,{" "}
+                            for Linux and macOS,{" "}
                             <Link href="/docs/browser-extension#autofill">
                                 autofill
                             </Link>

@@ -3,9 +3,10 @@ package agent
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 )
 
-// SocketName lives in $XDG_RUNTIME_DIR.
+// SocketName lives in $XDG_RUNTIME_DIR, or the data folder on macOS.
 const SocketName = "cryptex-agent.sock"
 
 // Paths are where the agent keeps its files. Tests point them at temporary
@@ -24,10 +25,17 @@ type Paths struct {
 // DefaultPaths follows the XDG base directory spec. The identity goes under
 // the data directory rather than ~/.config because people publish dotfiles.
 func DefaultPaths(getenv func(string) string) (Paths, error) {
+	return pathsFor(runtime.GOOS, getenv)
+}
+
+func pathsFor(goos string, getenv func(string) string) (Paths, error) {
+	darwin := goos == "darwin"
 	home := getenv("HOME")
 	xdg := func(name, fallback string) (string, error) {
 		// The spec says relative values are invalid and must be ignored.
-		if v := getenv(name); filepath.IsAbs(v) {
+		// launchd services don't see a shell profile's variables, so honoring
+		// them on macOS would give `pair` and the service different folders.
+		if v := getenv(name); !darwin && filepath.IsAbs(v) {
 			return v, nil
 		}
 		if home == "" {
@@ -47,7 +55,11 @@ func DefaultPaths(getenv func(string) string) (Paths, error) {
 		DataDir:    filepath.Join(data, "cryptex-agent"),
 		ConfigFile: filepath.Join(config, "cryptex-agent", "config"),
 	}
-	if rt := getenv("XDG_RUNTIME_DIR"); filepath.IsAbs(rt) {
+	if darwin {
+		// macOS has no per-user runtime folder; the data folder is just as
+		// private.
+		p.Socket = filepath.Join(p.DataDir, SocketName)
+	} else if rt := getenv("XDG_RUNTIME_DIR"); filepath.IsAbs(rt) {
 		p.Socket = filepath.Join(rt, SocketName)
 	}
 	return p, nil

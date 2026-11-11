@@ -140,8 +140,8 @@ export default function Recovery() {
                     dialog, select <strong>Recover account</strong>. Enter the
                     User ID and Recovery Kit phrase, complete human
                     verification, and submit. Recovery binds the current vault
-                    as a new Online Services device. It also removes every
-                    other device from the account and signs them out.
+                    as a new Online Services device. It also removes every other
+                    device from the account and signs them out.
                 </p>
                 <p>
                     Successful account recovery uses up the Recovery Kit you

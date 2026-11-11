@@ -1,11 +1,47 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
     isWeakPasswordScore,
     PASSWORD_STRENGTH_LABELS,
-    scorePassword,
-} from "@cryptex-industries/vault-core/vault-utils/password-strength";
+} from "@cryptex-industries/vault-core/vault-utils/password-policy";
+import type { scorePassword } from "@cryptex-industries/vault-core/vault-utils/password-strength";
 import { cn } from "@/lib/utils";
+
+type Scorer = typeof scorePassword;
+
+// zxcvbn's dictionaries are 800 KB, so they load when a meter first shows
+// instead of with every page that has one.
+let scorer: Scorer | undefined;
+let loading: Promise<Scorer> | undefined;
+
+function loadScorer(): Promise<Scorer> {
+    loading ??=
+        import("@cryptex-industries/vault-core/vault-utils/password-strength").then(
+            (module) => (scorer = module.scorePassword),
+            (error: unknown) => {
+                loading = undefined;
+                throw error;
+            },
+        );
+    return loading;
+}
+
+/** Loads the scorer, trying again when `retryKey` changes after a failure. */
+function useScorer(retryKey: string): Scorer | undefined {
+    const [current, setCurrent] = useState(() => scorer);
+    useEffect(() => {
+        if (current) return;
+        let active = true;
+        loadScorer().then(
+            (loaded) => active && setCurrent(() => loaded),
+            () => {},
+        );
+        return () => {
+            active = false;
+        };
+    }, [current, retryKey]);
+    return current;
+}
 
 const SCORE_BAR_COLORS = [
     "bg-destructive",
@@ -29,7 +65,11 @@ export function PasswordStrengthMeter({
     showSuggestions = true,
     className,
 }: Props) {
-    const result = useMemo(() => scorePassword(password), [password]);
+    const rate = useScorer(password);
+    const result = useMemo(
+        () => (rate ? rate(password) : null),
+        [rate, password],
+    );
 
     if (!result) {
         return null;

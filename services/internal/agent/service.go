@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -50,7 +51,7 @@ type Options struct {
 	RequestTimeout time.Duration
 	// NotifyAfter is the wait before the desktop notification.
 	NotifyAfter time.Duration
-	// Notify replaces the notify-send notification (tests).
+	// Notify replaces the desktop notification (tests).
 	Notify func(approverName string)
 	// Terminal prints a line to the requesting terminal while a request
 	// waits.
@@ -164,6 +165,13 @@ func Listen(opts Options) (*Service, error) {
 	}
 	if err := s.reload(); err != nil {
 		return nil, err
+	}
+	// On macOS the socket lives in the data folder, which doesn't exist yet
+	// if the service starts before the first pairing.
+	if filepath.Dir(opts.Paths.Socket) == opts.Paths.DataDir {
+		if err := s.store.ensureDir(); err != nil {
+			return nil, err
+		}
 	}
 	if s.ln, err = listenSocket(opts.Paths.Socket); err != nil {
 		return nil, err

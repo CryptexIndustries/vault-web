@@ -626,7 +626,7 @@ export default function ConnectAgentScreen() {
                     }}
                 >
                     <Trans>
-                        On the Linux machine, run{" "}
+                        On the machine with the agent, run{" "}
                         <Text
                             className="font-mono"
                             style={{ color: colors.foreground, fontSize: 12 }}

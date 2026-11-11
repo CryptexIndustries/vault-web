@@ -214,9 +214,10 @@ export default function SSHKeys() {
                     keys.
                 </p>
                 <p>
-                    To use a key on a Linux machine without saving it there, use
-                    the <Link href="/docs/ssh-agent">SSH agent</Link>. It asks
-                    your phone or the web app to approve each signature.
+                    To use a key on a Linux or macOS machine without saving it
+                    there, use the <Link href="/docs/ssh-agent">SSH agent</Link>
+                    . It asks your phone or the web app to approve each
+                    signature.
                 </p>
                 <p>
                     The web app&apos;s security report flags RSA keys shorter

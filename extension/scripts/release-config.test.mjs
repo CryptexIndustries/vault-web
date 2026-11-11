@@ -50,6 +50,15 @@ test("build options choose a profile or a configuration file", () => {
     const preprod = parseBuildOptions(["--", "--profile", "preprod"]);
     assert.equal(preprod.profile, "preprod");
     assert.equal(preprod.configPath, join(extension, "prerelease-config.json"));
+    assert.equal(preprod.browser, "chromium");
+    assert.equal(
+        parseBuildOptions(["--browser", "firefox"]).browser,
+        "firefox",
+    );
+    assert.throws(
+        () => parseBuildOptions(["--browser", "safari"]),
+        /Unknown browser/,
+    );
     assert.equal(
         parseBuildOptions(["--config", "custom.json"], "/work").configPath,
         "/work/custom.json",

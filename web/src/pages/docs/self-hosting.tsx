@@ -1005,20 +1005,20 @@ curl -I https://vault.example.com/app`}</DocCode>
                     The stack includes the relay for the{" "}
                     <Link href="/docs/ssh-agent">SSH agent</Link>. It carries
                     encrypted signing requests between{" "}
-                    <code>cryptex-agent</code> on a Linux machine and the device
-                    that approves them. Caddy sends <code>/v1/connect</code>,{" "}
-                    <code>/v1/pair</code> and <code>/v1/revoke</code> on your
-                    vault domain to the relay, so its URL is{" "}
-                    <code>https://vault.example.com</code> and it needs no extra
-                    domain or firewall rule. The relay can&apos;t read requests
-                    or sign anything. It keeps the public keys of paired agents
-                    and devices in a SQLite file in the <code>relay_data</code>{" "}
-                    volume.
+                    <code>cryptex-agent</code> on a Linux or macOS machine and
+                    the device that approves them. Caddy sends{" "}
+                    <code>/v1/connect</code>, <code>/v1/pair</code> and{" "}
+                    <code>/v1/revoke</code> on your vault domain to the relay,
+                    so its URL is <code>https://vault.example.com</code> and it
+                    needs no extra domain or firewall rule. The relay can&apos;t
+                    read requests or sign anything. It keeps the public keys of
+                    paired agents and devices in a SQLite file in the{" "}
+                    <code>relay_data</code> volume.
                 </p>
                 <ol>
                     <li>
-                        On the Linux machine, pair with your relay instead of
-                        the hosted one:{" "}
+                        On the machine with the agent, pair with your relay
+                        instead of the hosted one:{" "}
                         <code>
                             cryptex-agent pair --relay https://vault.example.com
                         </code>

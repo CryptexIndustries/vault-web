@@ -2,6 +2,12 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## 1.11.0 - 2026-11-08
+
+### Changed
+
+- The password strength meter loads its scoring library the first time it appears, so pages without a meter load less code.
+
 ## 1.10.0 - 2026-11-02
 
 ### Added

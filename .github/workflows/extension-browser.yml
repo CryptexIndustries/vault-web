@@ -1,0 +1,115 @@
+name: Browser extension for one browser
+
+# extension.yml calls this once per browser, so a failure in one browser's
+# tests or package never stops the other's.
+on:
+    workflow_call:
+        inputs:
+            browser:
+                description: chromium or firefox
+                type: string
+                required: true
+            package:
+                description: Build the extension ZIP once the tests pass
+                type: boolean
+                default: false
+            profile:
+                description: Configuration the ZIP is built with
+                type: string
+                default: production
+
+permissions:
+    contents: read
+
+jobs:
+    e2e:
+        name: End-to-end
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Install Chromium
+              if: inputs.browser == 'chromium'
+              run: pnpm exec playwright install --with-deps chromium
+            # A pinned release, checked against Mozilla's SHA-512.
+            - name: Install Firefox
+              if: inputs.browser == 'firefox'
+              run: pnpm test:e2e:install:firefox
+            - name: Run extension end-to-end tests
+              run: pnpm test:e2e:extension${{ inputs.browser == 'firefox' && ':firefox' || '' }}
+            - name: Upload extension end-to-end artifacts
+              if: failure()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: extension-e2e-${{ inputs.browser }}
+                  path: test-results/e2e
+                  if-no-files-found: ignore
+
+    package:
+        name: Package
+        needs: e2e
+        if: inputs.package
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        env:
+            PROFILE: ${{ inputs.profile }}
+            BROWSER: ${{ inputs.browser }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Lint extension
+              run: pnpm lint:ext
+            - name: Type-check extension
+              run: pnpm --filter extension lint-tsc
+            - name: Check release configurations
+              run: |
+                  node --test extension/scripts/release-config.test.mjs
+                  pnpm exec jest extension/tests/production-env.test.ts --runInBand
+            - name: Build extension
+              run: pnpm build:ext -- --profile "$PROFILE" --browser "$BROWSER"
+            # addons.mozilla.org runs the same linter on every upload.
+            - name: Lint Firefox package
+              if: inputs.browser == 'firefox'
+              run: pnpm --filter extension lint:firefox
+            - name: Create extension ZIP
+              id: package
+              working-directory: extension/${{ inputs.browser == 'firefox' && 'dist-firefox' || 'dist' }}
+              shell: bash
+              run: |
+                  test -f manifest.json
+                  if find . -name '*.map' -print -quit | grep -q .; then
+                    echo "Release extension must not contain source maps" >&2
+                    exit 1
+                  fi
+                  if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+                    label="${GITHUB_REF_NAME}"
+                  else
+                    label="${PROFILE}-${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
+                  fi
+                  name="cryptex-vault-${BROWSER}-${label//[^a-zA-Z0-9._-]/-}"
+                  archive="${RUNNER_TEMP}/${name}.zip"
+                  zip -X -q -r "$archive" .
+                  unzip -tq "$archive"
+                  echo "path=${archive}" >> "$GITHUB_OUTPUT"
+            # archive: false keeps GitHub from wrapping the ZIP in another ZIP. The
+            # artifact is named after the file.
+            - name: Upload extension ZIP
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  path: ${{ steps.package.outputs.path }}
+                  archive: false
+                  if-no-files-found: error
+                  retention-days: 30

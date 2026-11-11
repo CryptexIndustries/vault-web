@@ -50,7 +50,7 @@ func PrintStatus(paths Paths, out io.Writer) error {
 	case paths.Socket == "":
 		fmt.Fprintln(out, "Service: unknown, XDG_RUNTIME_DIR isn't set.")
 	default:
-		fmt.Fprintln(out, "Service: not running. Start it with: systemctl --user enable --now cryptex-agent")
+		fmt.Fprintln(out, "Service: not running. Start it with: "+StartCommand)
 	}
 	return nil
 }

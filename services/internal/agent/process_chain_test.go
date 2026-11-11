@@ -1,9 +1,10 @@
-//go:build linux
+//go:build linux || darwin
 
 package agent
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -13,8 +14,11 @@ func TestProcessChainOfThisTest(t *testing.T) {
 		t.Fatal("empty chain")
 	}
 	self := chain[0]
+	// The kernel reports resolved paths; on macOS the temp folder is a symlink.
 	exe, _ := os.Executable()
+	exe, _ = filepath.EvalSymlinks(exe)
 	cwd, _ := os.Getwd()
+	cwd, _ = filepath.EvalSymlinks(cwd)
 	if self.Pid != int32(os.Getpid()) || self.Uid != uint32(os.Getuid()) || self.Exe != exe || self.Cwd != cwd {
 		t.Errorf("self = %+v, want exe %s cwd %s", self, exe, cwd)
 	}

@@ -84,8 +84,8 @@ export function ConnectedAgentsSection({
             </div>
             {agents.length === 0 ? (
                 <p className="px-3 text-xs leading-relaxed text-muted-foreground">
-                    Use your SSH keys on a Linux machine without copying them
-                    there.
+                    Use your SSH keys on a Linux or macOS machine without
+                    copying them there.
                 </p>
             ) : (
                 <div className="space-y-1">

@@ -1,7 +1,7 @@
-// Command cryptex-agent is an SSH agent for Linux that holds no private
-// keys. ssh, git and ssh-keygen talk to it as to any agent; it forwards each
-// signature request through the agent relay to the Cryptex Vault device it
-// was paired with, where the user approves it.
+// Command cryptex-agent is an SSH agent for Linux and macOS that holds no
+// private keys. ssh, git and ssh-keygen talk to it as to any agent; it
+// forwards each signature request through the agent relay to the Cryptex
+// Vault device it was paired with, where the user approves it.
 package main
 
 import (
@@ -15,8 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/CryptexIndustries/vault-web/services/internal/agent"
 	"github.com/CryptexIndustries/vault-web/services/internal/agent/termsafe"
@@ -36,7 +34,7 @@ Usage:
 
 Commands:
   pair      Pair this machine with Cryptex Vault
-  run       Serve the agent socket (the systemd user service runs this)
+  run       Serve the agent socket (the background service runs this)
   status    Show the pairing, the keys and whether the service runs
   unpair    Remove this agent from the relay and forget the pairing
   version   Print the version
@@ -50,12 +48,13 @@ Files:
   ~/.local/share/cryptex-agent/         Identity and pairing (state.json) and
                                         the key last used per server; keep it
                                         private
-  $XDG_RUNTIME_DIR/cryptex-agent.sock   The agent socket
+  ` + agent.ShellSocket + `
+                                        The agent socket
 
 Environment:
   Point ssh and git at the agent socket:
-    bash, zsh:  export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/cryptex-agent.sock
-    fish:       set -gx SSH_AUTH_SOCK $XDG_RUNTIME_DIR/cryptex-agent.sock
+    bash, zsh:  export SSH_AUTH_SOCK=` + agent.ShellSocket + `
+    fish:       set -gx SSH_AUTH_SOCK ` + agent.ShellSocket + `
 
 Run 'cryptex-agent pair --help' for pairing details.
 `
@@ -192,7 +191,7 @@ func pair(ctx context.Context, paths agent.Paths, args []string, stdin io.Reader
 		Invert:      *invert,
 		Version:     version,
 		Out:         stdout,
-		Interactive: isTerminal(os.Stdin) && isTerminal(os.Stdout),
+		Interactive: agent.IsTerminal(os.Stdin) && agent.IsTerminal(os.Stdout),
 		In:          stdin,
 	})
 	return err
@@ -213,13 +212,15 @@ func serve(ctx context.Context, paths agent.Paths, args []string, stdout, stderr
 		}
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, opts))
+	// The Homebrew service logs to a file in a directory other accounts can
+	// read, and the log names the programs and keys behind each request.
+	if info, err := os.Stderr.Stat(); err == nil && info.Mode().IsRegular() {
+		if err := os.Stderr.Chmod(0o600); err != nil {
+			logger.Warn("could not make the log file private", "error", err)
+		}
+	}
 	// x/crypto/ssh/agent reports every refused request through the
 	// standard logger in a terse form; the agent logs its own outcomes.
 	log.SetOutput(io.Discard)
 	return agent.Run(ctx, agent.Options{Paths: paths, Logger: logger, Version: version})
-}
-
-func isTerminal(f *os.File) bool {
-	_, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
-	return err == nil
 }

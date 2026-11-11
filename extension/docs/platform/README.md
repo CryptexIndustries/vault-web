@@ -7,7 +7,7 @@ build hardening.
 
 - [persistence.md](persistence.md) — Storage key catalog and lifetimes
 - [content-scripts.md](content-scripts.md) — Injection model and field detection
-- [build-and-release.md](build-and-release.md) — Dual Vite build and prod manifest
+- [build-and-release.md](build-and-release.md): Dual Vite build, prod manifest and Firefox build
 
 ## Manifest attack surface
 

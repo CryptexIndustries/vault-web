@@ -14,6 +14,7 @@ import {
     base64UrlEncode,
     base64UrlDecode,
 } from "./crypto-utils";
+import { copyBytes } from "./bytes";
 import { err, Err } from "neverthrow";
 
 const sessionKeyCache = new Map<string, CryptoKey>();
@@ -107,7 +108,7 @@ export async function createEncryptedEnvelope(
         timestamp: new Date().toISOString(),
         payload: {
             wrappedKey: base64UrlEncode(
-                new Uint8Array(
+                copyBytes(
                     await crypto.subtle.exportKey(
                         "raw",
                         ephemeralKeyPair.publicKey,
@@ -158,7 +159,10 @@ export function createPlaintextEnvelope(
 export async function decryptEnvelope<T>(
     envelope: EncryptedEnvelope,
     serverPrivateKey: CryptoKey,
-): Promise<DecryptedEnvelope<T | null>> {
+): Promise<
+    | { ok: true; payload: T | null; sessionKey: CryptoKey }
+    | Extract<DecryptedEnvelope<T>, { ok: false }>
+> {
     if (!envelope.payload.iv) {
         return {
             ok: false,
@@ -216,12 +220,14 @@ export async function decryptEnvelope<T>(
         return {
             ok: true,
             payload: null,
+            sessionKey,
         };
     }
 
     return {
         ok: true,
         payload: JSON.parse(decryptedText) as T,
+        sessionKey,
     };
 }
 
@@ -319,12 +325,21 @@ export function discardSessionKey(requestId: string): void {
 /**
  * Decrypts an encrypted envelope using the cached session key derived during the request.
  * @param envelope The encrypted envelope returned by the service worker
+ * @param requestId The ID of the request this envelope must answer
  * @returns The decrypted payload
  */
 export async function decryptResponseEnvelope<T>(
     envelope: EncryptedEnvelope,
+    requestId: string,
 ): Promise<DecryptedEnvelope<T>> {
-    const sessionKey = sessionKeyCache.get(envelope.requestId);
+    if (envelope.requestId !== requestId) {
+        return {
+            ok: false,
+            error: err("RESPONSE_REQUEST_MISMATCH"),
+        };
+    }
+
+    const sessionKey = sessionKeyCache.get(requestId);
 
     if (!sessionKey) {
         return {

@@ -4,6 +4,7 @@ import path from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { validateProductionEnv } from "./src/utils/production-env.ts";
+import { browserTarget, outDir } from "./build-target.ts";
 
 const require = createRequire(import.meta.url);
 
@@ -52,27 +53,105 @@ function packageZxingWasm(): Plugin {
             }
         },
         writeBundle(options) {
-            const outDir = options.dir ?? path.resolve(__dirname, "dist");
+            const dir = options.dir ?? path.resolve(__dirname, outDir());
             const source = resolveZxingReaderWasmPath();
             if (!fs.existsSync(source)) {
                 throw new Error(
                     `Missing packaged ZXing reader Wasm at ${source}`,
                 );
             }
-            const dest = path.join(outDir, ZXING_READER_WASM_DEST);
+            const dest = path.join(dir, ZXING_READER_WASM_DEST);
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(source, dest);
         },
     };
 }
 
+type AstNode = Record<string, any>;
+
+function findNode(
+    node: unknown,
+    match: (node: AstNode) => boolean,
+): AstNode | undefined {
+    if (!node || typeof node !== "object") return;
+    if (match(node as AstNode)) return node as AstNode;
+    for (const child of Object.values(node)) {
+        const children: unknown[] = Array.isArray(child) ? child : [child];
+        for (const item of children) {
+            const found = findNode(item, match);
+            if (found) return found;
+        }
+    }
+}
+
+/**
+ * libsodium.js bundles a 600 KB JavaScript build for engines without
+ * WebAssembly. Extension pages always have WebAssembly (the CSP allows
+ * 'wasm-unsafe-eval'), yet every page parses the fallback, which costs Firefox
+ * about 65 ms per page. Mobile needs it, so it is stripped here only.
+ */
+function stripLibsodiumFallback(): Plugin {
+    const file =
+        /[\\/]libsodium-sumo[\\/]dist[\\/]modules-sumo[\\/]libsodium-sumo\.js$/;
+    const marker = "libsodium could not load its WebAssembly";
+    return {
+        name: "strip-libsodium-fallback",
+        transform(code, id) {
+            if (!file.test(id)) return;
+            const fallback = findNode(
+                this.parse(code),
+                (node) =>
+                    node.type === "AssignmentExpression" &&
+                    node.left?.property?.name === "useBackupModule",
+            )?.right;
+            if (!fallback) {
+                throw new Error(`No useBackupModule fallback found in ${id}`);
+            }
+            return {
+                code:
+                    code.slice(0, fallback.start) +
+                    `function(){return Promise.reject(new Error("${marker}"))}` +
+                    code.slice(fallback.end),
+                map: null,
+            };
+        },
+        generateBundle(_options, bundle) {
+            // A libsodium update that moves the file skips transform.
+            const applied = Object.values(bundle).some(
+                (output) =>
+                    output.type === "chunk" && output.code.includes(marker),
+            );
+            if (!applied) {
+                throw new Error("strip-libsodium-fallback no longer applies");
+            }
+        },
+    };
+}
+
+/**
+ * Firefox parses the chunks a page preloads in parallel, so the largest one
+ * sets the pace. Splitting the largest libraries into their own chunks saves
+ * Firefox about 15 ms per popup. Chromium is a little slower with more files,
+ * so it keeps the default split.
+ */
+const FIREFOX_LIBRARY_CHUNKS: Record<string, string> = {
+    libsodium: "libsodium-sumo",
+    "libsodium-wrappers": "libsodium-wrappers-sumo",
+    "react-dom": "react-dom",
+    psl: "psl",
+    "zip-csv": "jszip|papaparse",
+    dexie: "dexie",
+    pusher: "pusher-js",
+};
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, __dirname, ["VITE_"]);
     const isProduction = mode === "production";
     const isE2E = process.env.CRYPTEX_E2E === "1";
+    const browser = browserTarget();
 
     if (isProduction) {
-        validateProductionEnv(env);
+        validateProductionEnv(env, browser);
     }
 
     const withExtensionNamePrefix = (
@@ -124,7 +203,7 @@ export default defineConfig(({ mode }) => {
     };
 
     return {
-        plugins: [react(), packageZxingWasm()],
+        plugins: [react(), packageZxingWasm(), stripLibsodiumFallback()],
         resolve: {
             alias: {
                 // Use extension env shim when importing web env
@@ -163,8 +242,10 @@ export default defineConfig(({ mode }) => {
             // for chrome-extension:// scripts. The preload scanner and the
             // module graph run in different isolated worlds, so Chromium
             // logs "cross-world extension resource mismatch" and ignores
-            // every hint. Chunks still load via import().
-            modulePreload: false,
+            // every hint. Chunks still load via import(). Firefox uses the
+            // hints, which saves about 25 ms per page. Without them it finds
+            // each chunk only after parsing the one that imports it.
+            modulePreload: browser === "firefox" ? { polyfill: false } : false,
             sourcemap: !isProduction,
             // emptyOutDir is `false` here because we run a second
             // Vite invocation (`vite.config.content.ts`) right after
@@ -173,7 +254,7 @@ export default defineConfig(({ mode }) => {
             // script's output. The `clean` script wipes `dist/` once
             // before each build sequence instead.
             emptyOutDir: false,
-            outDir: "dist",
+            outDir: outDir(),
             target: "es2022",
             minify: isProduction ? "terser" : undefined,
             terserOptions: isProduction
@@ -211,6 +292,18 @@ export default defineConfig(({ mode }) => {
                         : {}),
                 },
                 output: {
+                    ...(browser === "firefox" && {
+                        codeSplitting: {
+                            groups: Object.entries(FIREFOX_LIBRARY_CHUNKS).map(
+                                ([name, packages]) => ({
+                                    name,
+                                    test: new RegExp(
+                                        `[\\\\/]node_modules[\\\\/](${packages})[\\\\/]`,
+                                    ),
+                                }),
+                            ),
+                        },
+                    }),
                     entryFileNames: (chunk) => {
                         if (chunk.name === "background") return "background.js";
                         return "assets/[name]-[hash].js";
@@ -234,7 +327,8 @@ export default defineConfig(({ mode }) => {
                             );
                             const targetPath = path.resolve(
                                 __dirname,
-                                "dist/manifest.json",
+                                outDir(),
+                                "manifest.json",
                             );
 
                             const manifest = JSON.parse(
@@ -273,6 +367,35 @@ export default defineConfig(({ mode }) => {
                                     );
                                 }
                                 manifest.host_permissions = prodHosts;
+                            }
+
+                            if (browser === "firefox") {
+                                // Firefox rejects names over 45 characters,
+                                // and a prefix puts the full name over that.
+                                if (namePrefix?.trim()) {
+                                    manifest.name =
+                                        manifest.action?.default_title;
+                                }
+                                // Firefox runs MV3 background scripts as an
+                                // event page and has no service_worker key.
+                                delete manifest.minimum_chrome_version;
+                                manifest.background = {
+                                    scripts: ["background.js"],
+                                    type: "module",
+                                };
+                                manifest.browser_specific_settings = {
+                                    gecko: {
+                                        id:
+                                            env.VITE_FIREFOX_EXTENSION_ID ||
+                                            "extension-dev@cryptex-vault.com",
+                                        // The first version that reads
+                                        // data_collection_permissions.
+                                        strict_min_version: "140.0",
+                                        data_collection_permissions: {
+                                            required: ["none"],
+                                        },
+                                    },
+                                };
                             }
 
                             fs.writeFileSync(

@@ -167,6 +167,21 @@ final class TransferTests: XCTestCase {
     tap(label("Discard"))
   }
 
+  // The sender's transfer is live, so the sync tests keep the running app.
+  func testShareInvitation() {
+    vault.activate()
+    tap(label("Share file"))
+    saveToFiles(as: "\(exportPrefix)-shared-invitation")
+    assertVisible(label("Copy invitation"))
+  }
+
+  func testPickInvitation() {
+    vault.activate()
+    tap(label("Choose link file"))
+    pick("\(exportPrefix)-invitation")
+    assertVisible(prefix("Invitation ready"))
+  }
+
   private func unlock() {
     enter(password, into: identified("unlock-master-password"))
     tap(identified("unlock-vault"))

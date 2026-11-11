@@ -1613,6 +1613,7 @@ export default function LinkSendScreen() {
                                 autoCapitalize="words"
                                 placeholder={t`e.g. Laptop`}
                                 accessibilityLabel={t`Receiving device name`}
+                                testID="link-device-name"
                                 maxLength={150}
                             />
                         </View>

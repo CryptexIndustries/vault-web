@@ -1,27 +1,11 @@
 appId: ${CRYPTEX_APP_ID}
-name: Receive and protect a real linked vault
+name: Connect with the chosen invitation and protect the linked vault
 ---
-- clearState
-- launchApp
-- assertVisible: Create vault
-- assertVisible: Vault name
-- tapOn: Use invitation
-- runFlow:
-      when:
-          notVisible: Make the connection.
-      commands:
-          - tapOn: Use invitation
-- assertVisible: Make the connection.
-- assertVisible: Scan QR code
-- tapOn: Choose link file
-- runFlow:
-      file: pick-exported-file.yaml
-      env:
-          EXPORTED_FILE: e2e-invitation.cryxlink
 - assertVisible: Invitation ready.*
-- tapOn: Verification words
+- tapOn:
+      id: link-verification-words
 - inputText: ${TRANSFER_PHRASE}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: Connect to sending device
@@ -30,15 +14,18 @@ name: Receive and protect a real linked vault
 - extendedWaitUntil:
       visible: Linked vault name
       timeout: 120000
-- tapOn: Linked vault name
+- tapOn:
+      id: linked-vault-name
 - eraseText: 100
 - inputText: E2E Receiver Vault
-- tapOn: Master password
+- tapOn:
+      id: linked-master-password
 - inputText: ReceiverHorseBatteryStaple42
-- hideKeyboard
-- tapOn: Confirm master password
+- runFlow: hide-keyboard.yaml
+- tapOn:
+      id: linked-confirm-master-password
 - inputText: ReceiverHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: Continue
@@ -47,10 +34,13 @@ name: Receive and protect a real linked vault
 - extendedWaitUntil:
       visible: Keep your way back in
       timeout: 120000
+# The sheet slides up; a tap while it moves misses the checkbox.
+- waitForAnimationToEnd
 - tapOn: I have written down the recovery code
 - scrollUntilVisible:
       element:
           text: Save and open vault
+          enabled: true
       direction: DOWN
 - tapOn: Save and open vault
 - assertVisible: E2E Transfer Login.*
@@ -62,9 +52,10 @@ name: Receive and protect a real linked vault
 - runFlow: sync-disable-auto-lock.yaml
 - stopApp
 - launchApp
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: ReceiverHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: E2E Transfer Login.*

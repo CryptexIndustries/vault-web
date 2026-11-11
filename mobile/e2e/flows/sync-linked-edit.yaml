@@ -9,7 +9,7 @@ name: Edit a transferred credential on the sending device
 - tapOn: Credential name
 - eraseText: 100
 - inputText: E2E Updated After Link
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit

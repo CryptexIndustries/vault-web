@@ -486,8 +486,6 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
         "security",
         "cloud",
         "devices",
-        "sync-sender",
-        "sync-receiver",
         "import-export",
     ]);
     for (const [suite, flow] of Object.entries(flows)) {
@@ -602,7 +600,7 @@ test("fixture and target remain available without a device", () => {
     assert.equal(options.cwd, mobile);
 });
 
-test("protected devices fail before any device command, including either sync role", () => {
+test("protected devices fail before any device command", () => {
     const env = {
         ANDROID_SERIAL: "protected",
         CRYPTEX_E2E_PROTECTED_DEVICE: "protected",
@@ -616,53 +614,23 @@ test("protected devices fail before any device command, including either sync ro
         "ssh-keys",
         "ssh-agent",
         "backup-destinations",
+        "sync",
     ]) {
         assert.throws(() => capture(["e2e", suite], env), /protected device/);
     }
-    for (const protectedRole of ["E2E_SYNC_SENDER", "E2E_SYNC_RECEIVER"]) {
-        assert.throws(
-            () =>
-                capture(["e2e", "sync"], {
-                    E2E_SYNC_SENDER: "sender",
-                    E2E_SYNC_RECEIVER: "receiver",
-                    E2E_SYNC_CONFIG: "/private/config.json",
-                    CRYPTEX_E2E_PROTECTED_DEVICE: "protected",
-                    [protectedRole]: "protected",
-                }),
-            /protected device/,
-        );
-    }
 });
 
-test("sync requires distinct explicit devices and private fixture configuration", () => {
-    for (const env of [
-        {},
-        { E2E_SYNC_SENDER: "sender" },
-        {
-            E2E_SYNC_SENDER: "same",
-            E2E_SYNC_RECEIVER: "same",
-            E2E_SYNC_CONFIG: "/private/config.json",
-        },
-    ])
-        assert.throws(() => capture(["e2e", "sync"], env), /Set distinct/);
-    const env = {
-        E2E_SYNC_SENDER: "sender",
-        E2E_SYNC_RECEIVER: "receiver",
-        E2E_SYNC_CONFIG: "/private/config.json",
-    };
-    assert.deepEqual(capture(["e2e", "sync"], env)[0][1], [
-        "e2e/run-sync-link.mjs",
+test("sync links the selected device with the web app", () => {
+    const udid = "A3A2F130-2989-4782-83B8-2B17A9F9D803";
+    const [[binary, args, options]] = capture([
+        "e2e",
+        "sync",
+        "--device",
+        udid,
     ]);
-    assert.equal(
-        capture(["e2e", "sync"], { ...env, MAESTRO_DEVICE: "other" })[0][2].env
-            .E2E_SYNC_SENDER,
-        "sender",
-    );
-    assert.equal(
-        capture(["e2e", "sync", "--device", "override"], env)[0][2].env
-            .E2E_SYNC_SENDER,
-        "override",
-    );
+    assert.equal(binary, process.execPath);
+    assert.deepEqual(args, ["e2e/run-web-sync.mjs"]);
+    assert.equal(options.env.MAESTRO_DEVICE, udid);
 });
 
 test("missing generated Android project gives explicit setup guidance", () => {

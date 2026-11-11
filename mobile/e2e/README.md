@@ -7,10 +7,9 @@ and ignored. Check vendor-specific system screens on physical devices before rel
 ## iOS Simulator
 
 `smoke`, `credentials`, `security`, `cloud`, `devices`, `ssh-keys`,
-`backup-destinations` and `import-export` run on an iOS Simulator. `sync` needs
-two Android devices, and the other suites cover Android-only features. Maestro
-needs Java and version 2.9.0, the release CI pins. `backup-destinations` also
-needs Docker Compose.
+`backup-destinations`, `import-export` and `sync` run on an iOS Simulator. The
+other suites cover Android-only features. Maestro needs Java and version 2.9.0,
+the release CI pins. `backup-destinations` and `sync` also need Docker Compose.
 `cloud` and `devices` need a build against the [cloud fixture](#cloud-fixture).
 
 ```sh
@@ -23,12 +22,13 @@ pnpm mobile:e2e -- security
 pnpm mobile:e2e -- ssh-keys
 pnpm mobile:e2e -- backup-destinations
 pnpm mobile:e2e -- import-export
+pnpm mobile:e2e -- sync
 ```
 
 The iOS E2E build never shows the software keyboard, which would cover the
 controls under test. `security` enrolls Face ID on the Simulator.
 
-`import-export` and `ssh-keys` are native XCUITests in
+`import-export`, `ssh-keys` and the Files steps of `sync` are native XCUITests in
 `e2e/fixtures/ios-transfer`. The share sheet's Save dialog and the file picker
 are separate system apps that Maestro can't read. Maestro prepares each vault
 and the script checks the saved files. Starting the native test backgrounds and
@@ -257,7 +257,7 @@ screen before starting the suite, and use the recorded PIN if Android requests i
 Android BiometricPrompt, Keystore and SecureStore behavior remain unchanged.
 
 The standard E2E vault master password is `CorrectHorseBatteryStaple42`.
-The two-device receiver uses `ReceiverHorseBatteryStaple42`; web-transfer checks
+The sync receiver uses `ReceiverHorseBatteryStaple42`; web-transfer checks
 use `WebHorseBatteryStaple42`. These fixture passwords belong to their respective
 vaults and are never Android screen-lock PINs.
 
@@ -314,53 +314,41 @@ stopped and its temporary files are removed when it ends.
 pnpm mobile:e2e -- ssh-agent --device emulator-5556
 ```
 
-## Two-device sync
+## Sync
 
-The `sync` command requires two distinct disposable Android devices, the E2E APK
-and native target fixture on both, and local Pusher-compatible signaling with
-authenticated TURN. It captures the actual invitation export, copies identical
-bytes to the receiver, starts the sender and completes linking and recovery-code
-setup with a different receiver master password. It checks the transferred
-credential, bidirectional edits including password changes, and restart
-persistence on both devices.
-
-Server setup uses **Link a device → Create invitation → Advanced connection →
-Manage custom servers**, then returns to Devices before creating the transfer
-invitation.
-
-After each edit, the journey invokes the linked device's existing **Sync now**
-control. Automatic sync on connection opening does not imply continuous push
-for later edits. The setup selects **Auto-lock → Off** through the normal
-Security screen on both disposable vaults so coordinated waits and restarts do
-not interrupt linking. Security and auto-lock suites retain their own settings.
-The sender also opens its saved connection, checks the separate signaling, STUN
-and TURN roles, edits and discards the display name, and verifies that reopening
-settings retains the original name before synchronizing.
-
-Generate short-lived private configuration from local Online Services settings
-and keep the file outside the repository:
+`sync` links the phone with the web app in both directions. First the browser
+invites and the phone joins, then the phone invites and the browser joins.
+After each link, an edit syncs each way, including a password change.
+`e2e/web-sync.spec.mts` drives the browser with Playwright and runs the Maestro
+flows for the phone. The runner starts the production web app and the
+signaling and TURN servers from `compose.e2e.yaml` on loopback. The command
+needs Docker Compose and one device:
 
 ```sh
-export E2E_SYNC_CONFIG=/path/outside-checkout/sync-e2e.json
-node mobile/e2e/fixtures/sync-config.mjs "$CLOUD_ENV_FILE" "$E2E_SYNC_CONFIG"
-E2E_SYNC_SENDER=emulator-5554 E2E_SYNC_RECEIVER=emulator-5558 \
-  pnpm mobile:e2e -- sync
+pnpm mobile:e2e -- sync --device emulator-5554
 ```
 
-The environment file must provide `NEXT_PUBLIC_PUSHER_APP_ID`,
-`NEXT_PUBLIC_PUSHER_APP_KEY`, `PUSHER_APP_SECRET` and `TURN_AUTH_SECRET`.
-Signaling defaults to localhost:6011; the runner reverses that port on both
-devices. TURN defaults to `10.0.2.2:3478`; `E2E_TURN_HOST` overrides it. TURN
-credentials expire after one hour. Regenerate configuration for later runs.
+On Android, the runner reverses the signaling and TURN ports onto the device,
+and the test pushes the web app's invitation to Downloads with `adb`. The phone
+shares its own invitation to the native target fixture, which saves it in
+Downloads. Install the fixture as for the
+[conventional autofill suite](#conventional-autofill-suite). On iOS, the native
+tests handle the Files steps. Both sides relay through TURN over TCP, because
+Docker Desktop drops UDP replies on loopback and a firewall can refuse direct
+connections.
 
-If no local TURN server exists, run `node mobile/e2e/fixtures/start-turn.mjs
-"$CLOUD_ENV_FILE" HOST_LAN_IPV4` to start a dedicated coturn container. Its output
-includes cleanup instructions. The local backend on port 3001 and web app on port
-3000 can also be used for manual web/mobile linking with disposable vaults.
+Server setup uses **Link a device**, **Create invitation**, **Advanced
+connection** and **Manage custom servers**, then returns to Devices before
+creating the transfer invitation.
 
-`sync-sender` and `sync-receiver` are constituent phases; use `sync` for the
-coordinated journey. The phases need the private environment supplied by the
-sync runner. An explicit `--device` overrides its sender selection.
+After each edit, the test uses the linked device's **Sync now**. Sync runs on
+its own when the connection opens, but later edits don't push by themselves.
+The setup turns **Auto-lock** to **Off** in the Security screen so waits and
+restarts don't interrupt linking. The security and auto-lock suites keep their
+own settings. Before it syncs, the inviting phone also opens its saved
+connection and checks the separate signaling, STUN and TURN roles. It edits the
+display name, discards the edit, and checks that reopening the settings still
+shows the original name.
 
 ## Cloud fixture
 
@@ -425,7 +413,7 @@ relationships have no invented local sync controls and that exactly one unlink
 scope is selected. It also creates and cancels a root invitation, checks temporary
 registration cleanup, searches by device ID, promotes and demotes a peer, unlinks
 a relationship while preserving its account device, removes that device, checks
-the last-root guard, and demotes the current device. The two-device sync suite
+the last-root guard, and demotes the current device. The sync suite
 separately covers live transport and local link controls. Both suites dismiss the
 phone's details sheet explicitly.
 

@@ -108,7 +108,7 @@ test("all fixture master-password fields use the shared vault-creation password"
                 continue;
             } else {
                 const fixturePassword = [
-                    "sync-link-receiver.yaml",
+                    "sync-link-receiver-connect.yaml",
                     "sync-linked-verify.yaml",
                 ].includes(name)
                     ? "ReceiverHorseBatteryStaple42"

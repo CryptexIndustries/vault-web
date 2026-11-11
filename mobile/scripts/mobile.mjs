@@ -32,8 +32,6 @@ export const flows = {
     security: "security.yaml",
     cloud: "cloud.yaml",
     devices: "devices.yaml",
-    "sync-sender": "sync-link-sender.yaml",
-    "sync-receiver": "sync-link-receiver.yaml",
     "import-export": "import-export.yaml",
 };
 
@@ -73,7 +71,7 @@ Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-
         ssh-keys, ssh-agent, backup-destinations, sync, fixture, cloud-fixture, target, qr, crypto,
         crypto-audit, native
 backup-destinations starts its own Garage in Docker (E2E_GARAGE_TLS_PORT, default 3943).
-Sync requires E2E_SYNC_SENDER, E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.
+sync starts the web app and its linking servers in Docker.
 CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 `;
 
@@ -533,24 +531,8 @@ export function runMobile(
         );
     } else if (suite === "sync") {
         rejectArguments();
-        const sender =
-            deviceIndex >= 0 ? serial : env.E2E_SYNC_SENDER || serial;
-        const { E2E_SYNC_RECEIVER: receiver, E2E_SYNC_CONFIG: config } = env;
-        if (!sender || !receiver || !config || sender === receiver) {
-            throw new Error(
-                "Set distinct E2E_SYNC_SENDER and E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.",
-            );
-        }
-        if ([sender, receiver].includes(env.CRYPTEX_E2E_PROTECTED_DEVICE)) {
-            throw new Error(
-                "Refusing to touch the protected device in the sync pair.",
-            );
-        }
-        execute(process.execPath, ["e2e/run-sync-link.mjs"], {
-            ...developmentEnvironment(profile, true),
-            ...identityEnv,
-            E2E_SYNC_SENDER: sender,
-        });
+        requireDevice();
+        execute(process.execPath, ["e2e/run-web-sync.mjs"], deviceEnv);
     } else if (["fixture", "cloud-fixture"].includes(suite)) {
         rejectArguments();
         execute(process.execPath, [

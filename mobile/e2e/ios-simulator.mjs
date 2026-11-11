@@ -11,6 +11,7 @@ const serial = process.env.MAESTRO_DEVICE;
 // Unique per run: deleting files behind the Files service stalls its screens.
 // Counting down sorts the newest run's files first, so nothing needs scrolling.
 export const EXPORT_PREFIX = `e2e-${1e13 - Date.now()}`;
+export const repository = fileURLToPath(new URL("../../", import.meta.url));
 const flowsDirectory = fileURLToPath(new URL("./flows/", import.meta.url));
 export const resultsDirectory = fileURLToPath(
     new URL("./results/", import.meta.url),

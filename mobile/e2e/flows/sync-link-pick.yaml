@@ -1,0 +1,5 @@
+appId: ${CRYPTEX_APP_ID}
+name: Choose the invitation file from Downloads
+---
+- tapOn: Choose link file
+- runFlow: pick-exported-file.yaml

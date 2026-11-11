@@ -1,0 +1,19 @@
+appId: ${CRYPTEX_APP_ID}
+name: Set up the sender and open its invitation
+---
+- runFlow: setup-vault.yaml
+- runFlow: setup-transfer-item.yaml
+- runFlow: sync-disable-auto-lock.yaml
+- runFlow: setup-sync-connectivity.yaml
+- tapOn: Link a device
+- tapOn: Create invitation,.*
+- tapOn:
+      id: link-device-name
+- eraseText: 20
+- inputText: E2E Receiver
+- runFlow: hide-keyboard.yaml
+- tapOn: Create invitation
+- scrollUntilVisible:
+      element:
+          text: Copy invitation
+      direction: DOWN

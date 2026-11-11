@@ -1906,6 +1906,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         autoCorrect={false}
                                         placeholder={t`Twelve words from the sender`}
                                         accessibilityLabel={t`Verification words`}
+                                        testID="link-verification-words"
                                         className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                                     />
                                     <VaultEntryFieldError
@@ -2022,6 +2023,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 placeholder={t`Linked vault`}
                                 autoCapitalize="words"
                                 accessibilityLabel={t`Linked vault name`}
+                                testID="linked-vault-name"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2048,6 +2050,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 textContentType="newPassword"
                                 placeholder={t`Master password`}
                                 accessibilityLabel={t`Master password`}
+                                testID="linked-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2076,6 +2079,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 autoCorrect={false}
                                 placeholder={t`Confirm password`}
                                 accessibilityLabel={t`Confirm master password`}
+                                testID="linked-confirm-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError

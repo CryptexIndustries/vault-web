@@ -1,0 +1,10 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# iOS reports no focus while the E2E build hides the keyboard.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                id: ${FIELD}
+                focused: true

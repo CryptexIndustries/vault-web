@@ -26,7 +26,7 @@ name: Saved link servers and cancellation of edited sync settings
 - tapOn: Device display name
 - eraseText: 100
 - inputText: E2E Cancelled Name
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: device-cancel-settings
 - assertVisible: Save connection settings\?
@@ -46,13 +46,18 @@ name: Saved link servers and cancellation of edited sync settings
       id: device-sync-settings
 - tapOn: Device display name
 - eraseText: 100
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: device-save-settings
 - assertVisible: Device name is required
 - assertVisible:
       id: device-dismiss-error
-- pressKey: Back
+# iOS has no Back key to try.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - pressKey: Back
 - assertVisible: Device name is required
 - tapOn:
       point: "2%, 12%"
@@ -63,7 +68,7 @@ name: Saved link servers and cancellation of edited sync settings
 - assertVisible: Device display name
 - tapOn: Device display name
 - inputText: E2E Retained Draft
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: device-cancel-settings
 - assertVisible: Save connection settings\?

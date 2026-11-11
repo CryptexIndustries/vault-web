@@ -8,9 +8,10 @@ name: Verify reverse synchronization and persistence on the original sender
 - assertVisible: receiver-updated-password-43
 - stopApp
 - launchApp
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - tapOn: E2E Updated After Link.*

@@ -583,6 +583,7 @@ private fun classifyCredentialField(node: AccessibilityNodeInfo): CredentialFiel
   return CredentialFieldPolicy.classify(
     identity = node.credentialIdentity(),
     password = node.isPassword || node.inputType.isPasswordInput(),
+    username = CredentialFieldPolicy.isUsernameLabel(node.credentialLabel()),
     email = node.inputType and InputType.TYPE_MASK_VARIATION == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
   )
 }

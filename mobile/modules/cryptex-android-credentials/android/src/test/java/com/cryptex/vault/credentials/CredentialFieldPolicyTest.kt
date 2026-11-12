@@ -20,6 +20,13 @@ class CredentialFieldPolicyTest {
       CredentialFieldPolicy.classify("email", username = true, email = true))
   }
 
+  @Test fun onlyLabelsNamingAUsernameAloneCountAsUsernameLabels() {
+    assertTrue(CredentialFieldPolicy.isUsernameLabel("New username"))
+    assertTrue(CredentialFieldPolicy.isUsernameLabel("User name"))
+    assertFalse(CredentialFieldPolicy.isUsernameLabel("Email or username"))
+    assertFalse(CredentialFieldPolicy.isUsernameLabel("Login"))
+  }
+
   @Test fun passwordAndOtpFieldsNeverBecomeUsernameOrEmailFields() {
     assertEquals(CredentialFieldRole.PASSWORD,
       CredentialFieldPolicy.classify("user email password", username = true, email = true))

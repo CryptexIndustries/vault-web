@@ -31,6 +31,13 @@ internal object CredentialFieldPolicy {
     }
   }
 
+  /** A visible label naming a username, which outranks an email keyboard. */
+  fun isUsernameLabel(label: String): Boolean {
+    val normalized = normalize(label)
+    return (normalized.contains("username") || normalized.contains("user name")) &&
+      emailTerms.none(normalized::contains)
+  }
+
   fun isNewPassword(identity: String): Boolean {
     val normalized = normalize(identity)
     return normalized.contains("new password") || normalized.contains("confirm password") ||

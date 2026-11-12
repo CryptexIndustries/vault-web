@@ -61,6 +61,7 @@ web/.env.client.cloud-ui
 
 # build output
 dist/
+dist-firefox/
 *.apk
 *.apk.*
 *.aab

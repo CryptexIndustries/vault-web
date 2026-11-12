@@ -24,6 +24,7 @@ export const CONFIG_KEYS = Object.freeze([
     "VITE_PUSHER_APP_PORT",
     "VITE_PUSHER_APP_TLS",
     "VITE_EXTENSION_NAME_PREFIX",
+    "VITE_FIREFOX_EXTENSION_ID",
 ]);
 
 /** Checks the shape; vite.config.ts checks the values of production builds. */
@@ -64,14 +65,20 @@ export function loadReleaseConfig(path) {
 }
 
 export function parseBuildOptions(args, cwd = process.cwd()) {
-    const options = { profile: "production" };
+    const options = {
+        profile: "production",
+        browser: process.env.CRYPTEX_BROWSER || "chromium",
+    };
     const seen = new Set();
     for (let index = 0; index < args.length; index++) {
         const arg = args[index];
         if (arg === "--") continue;
-        if (!["--profile", "--config"].includes(arg) || seen.has(arg)) {
+        if (
+            !["--profile", "--config", "--browser"].includes(arg) ||
+            seen.has(arg)
+        ) {
             throw new Error(
-                `Invalid or repeated option: ${arg}. Use --profile production|preprod and optionally --config <path>.`,
+                `Invalid or repeated option: ${arg}. Use --profile production|preprod, --browser chromium|firefox and optionally --config <path>.`,
             );
         }
         seen.add(arg);
@@ -80,11 +87,17 @@ export function parseBuildOptions(args, cwd = process.cwd()) {
             throw new Error(`${arg} requires a value.`);
         }
         if (arg === "--profile") options.profile = value;
+        else if (arg === "--browser") options.browser = value;
         else options.configPath = resolve(cwd, value);
     }
     if (!Object.hasOwn(PROFILES, options.profile)) {
         throw new Error(
             `Unknown profile: ${options.profile}. Choose production or preprod.`,
+        );
+    }
+    if (!["chromium", "firefox"].includes(options.browser)) {
+        throw new Error(
+            `Unknown browser: ${options.browser}. Choose chromium or firefox.`,
         );
     }
     options.configPath ??= join(extension, PROFILES[options.profile]);

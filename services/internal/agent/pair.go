@@ -340,11 +340,11 @@ func printPaired(out io.Writer, st *State, socket string) {
 	fmt.Fprintf(out, "\nPaired with %s as %q.\n", termsafe.Name(st.ApproverName), termsafe.Name(st.AgentName))
 	fmt.Fprintln(out, keyCount(len(st.Keys))+" available.")
 	fmt.Fprintln(out, "\nTo use it in this shell:")
-	fmt.Fprintln(out, "  export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/"+SocketName)
+	fmt.Fprintln(out, "  export SSH_AUTH_SOCK="+ShellSocket)
 	if _, err := listSocket(socket); err == nil {
 		fmt.Fprintln(out, "\nThe agent service is running and picks up the new pairing within a few seconds.")
 	} else {
 		fmt.Fprintln(out, "\nTo run the agent in the background and start it at login:")
-		fmt.Fprintln(out, "  systemctl --user enable --now cryptex-agent")
+		fmt.Fprintln(out, "  "+StartCommand)
 	}
 }

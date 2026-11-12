@@ -4,6 +4,7 @@ import {
     buildAssertionAuthenticatorData,
     ES256_ALGORITHM_IDENTIFIER,
 } from "./passkey-authenticator-data";
+import { copyBytes } from "../utils/bytes";
 
 export type SerializedPasskeyAssertion = {
     id: string;
@@ -52,12 +53,8 @@ const exactBuffer = (value: Uint8Array): ArrayBuffer => value.slice().buffer;
 
 // TODO: We desperately need to centralize these base64 helpers.
 export function encodeBase64Url(value: BufferSource): string {
-    const bytes =
-        value instanceof ArrayBuffer
-            ? new Uint8Array(value)
-            : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
     let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
+    for (const byte of copyBytes(value)) binary += String.fromCharCode(byte);
     return btoa(binary)
         .replaceAll("+", "-")
         .replaceAll("/", "_")
@@ -88,14 +85,7 @@ function derInteger(value: Uint8Array): Uint8Array {
 
 /** Web Crypto returns P1363 r||s; WebAuthn ES256 requires ASN.1 DER. */
 export function es256RawSignatureToDer(signature: BufferSource): Uint8Array {
-    const raw =
-        signature instanceof ArrayBuffer
-            ? new Uint8Array(signature)
-            : new Uint8Array(
-                  signature.buffer,
-                  signature.byteOffset,
-                  signature.byteLength,
-              );
+    const raw = copyBytes(signature);
     if (raw.length !== 64) {
         throw new RangeError("ES256 signature must contain 64 raw bytes");
     }

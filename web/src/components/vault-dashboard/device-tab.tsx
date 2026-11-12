@@ -1166,7 +1166,7 @@ export function DevicesPanel({
                                                     </span>
                                                     <ChevronRight
                                                         aria-hidden="true"
-                                                        className="group-hover:translate-x-0.5 group-hover:text-foreground h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform"
+                                                        className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
                                                     />
                                                 </button>
                                             );

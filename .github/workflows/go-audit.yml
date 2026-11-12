@@ -16,7 +16,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         container:
-            image: golang:1.26@sha256:3745f1aa11822297b79113f5e84ce2bffeb039734571c39855809cfe9e5d7be6
+            image: golang:1.26@sha256:5ebd6e7dc13f9e273ed9470679eb295d8b6e7de3b6379c8a5e17a9e6c3eabd38
         defaults:
             run:
                 working-directory: services

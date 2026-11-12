@@ -55,6 +55,21 @@ describe("production extension configuration", () => {
             validateProductionEnv({ ...production, [key]: value }),
         ).toThrow(key);
     });
+
+    it("requires a Firefox extension ID only for Firefox builds", () => {
+        expect(() => validateProductionEnv(production, "firefox")).toThrow(
+            "VITE_FIREFOX_EXTENSION_ID",
+        );
+        expect(() =>
+            validateProductionEnv(
+                {
+                    ...production,
+                    VITE_FIREFOX_EXTENSION_ID: "{not an email}",
+                },
+                "firefox",
+            ),
+        ).toThrow("VITE_FIREFOX_EXTENSION_ID");
+    });
 });
 
 describe("committed release configurations", () => {
@@ -65,6 +80,9 @@ describe("committed release configurations", () => {
                 readFileSync(join(__dirname, "..", file), "utf8"),
             );
             expect(() => validateProductionEnv(config)).not.toThrow();
+            expect(() =>
+                validateProductionEnv(config, "firefox"),
+            ).not.toThrow();
         },
     );
 });

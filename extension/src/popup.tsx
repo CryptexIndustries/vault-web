@@ -313,7 +313,7 @@ const App = () => {
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
                 { ok: false; error: string } | { ok: true }
-            >(res);
+            >(res, envelope.requestId);
 
             if (!decryptedPayload?.ok) {
                 return err("ENVELOPE_FAILED_DECRYPTION");
@@ -387,7 +387,7 @@ const App = () => {
         if (isEncryptedEnvelope(res)) {
             const decryptedPayload = await decryptResponseEnvelope<
                 { ok: false; error: string } | { ok: true }
-            >(res);
+            >(res, envelope.requestId);
 
             if (!decryptedPayload?.ok) {
                 return err("ENVELOPE_FAILED_DECRYPTION");

@@ -52,12 +52,31 @@ jobs:
             - name: Test web client
               run: pnpm exec jest web/tests --runInBand
 
+    agent-macos:
+        name: cryptex-agent on macOS
+        runs-on: macos-latest
+        timeout-minutes: 15
+        defaults:
+            run:
+                working-directory: services
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version: "1.26.x"
+                  check-latest: true
+                  cache: false
+            - name: Vet cryptex-agent
+              run: go vet ./internal/agent/... ./cmd/cryptex-agent
+            - name: Test cryptex-agent
+              run: go test -race ./internal/agent/... ./cmd/cryptex-agent
+
     services-quality:
         name: Go services quality
         runs-on: ubuntu-latest
         timeout-minutes: 15
         container:
-            image: golang:1.26@sha256:3745f1aa11822297b79113f5e84ce2bffeb039734571c39855809cfe9e5d7be6
+            image: golang:1.26@sha256:5ebd6e7dc13f9e273ed9470679eb295d8b6e7de3b6379c8a5e17a9e6c3eabd38
         defaults:
             run:
                 working-directory: services
@@ -101,6 +120,25 @@ jobs:
               run: |
                   node --test extension/scripts/release-config.test.mjs
                   pnpm exec jest extension/tests/production-env.test.ts --runInBand
+
+    extension-firefox-build:
+        name: Extension Firefox build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+            - name: Install frozen lockfile
+              run: pnpm install --frozen-lockfile
+            - name: Build Firefox extension
+              run: pnpm build:ext -- --browser firefox
+            # addons.mozilla.org runs the same linter on every upload.
+            - name: Lint Firefox extension
+              run: pnpm --filter extension lint:firefox
 
     # Temporarily disabled
     extension-live-e2e:

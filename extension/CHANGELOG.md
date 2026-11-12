@@ -1,6 +1,23 @@
-# Chromium Extension changelog
+# Browser extension changelog
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
+
+## 1.11.0 - 2026-11-08
+
+### Added
+
+- Firefox support. The Firefox build (140 or later) has the same vault, autofill, passkeys, sync and backups as the Chromium extension. Firefox can't report a screen lock, so there the vault locks only after 30 minutes without activity.
+
+### Changed
+
+- The extension is faster in Chromium with a 1,000-item vault: the popup opens about 40% sooner, the lock screen appears about a third sooner, and the credential list loads about four times faster.
+- The extension now needs Chrome 140 or later.
+
+### Fixed
+
+- Registering a passkey no longer hangs when a password save prompt is waiting on the same site.
+- Renewing the extension's internal message key no longer leaves a moment when requests fail.
+- Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.
 
 ## 1.10.0 - 2026-11-02
 

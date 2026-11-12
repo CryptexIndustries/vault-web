@@ -102,7 +102,7 @@ function buildManagedBenefits(
             icon: SquareTerminal,
             title: "Hosted SSH agent relay",
             description:
-                "Approve SSH logins on your Linux machines without running a relay.",
+                "Approve SSH logins on your Linux and macOS machines without running a relay.",
             allowance:
                 maxSshAgents > 0
                     ? `Up to ${maxSshAgents} agents`

@@ -43,11 +43,7 @@ import {
     type VaultWriteKind,
     vaultWriteCoordinator,
 } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
-import {
-    generateECDHKeyPair,
-    deriveSessionKey,
-    base64UrlDecode,
-} from "./utils/crypto-utils";
+import { generateECDHKeyPair } from "./utils/crypto-utils";
 import { rotateKeyPair } from "./background/message-key-rotation";
 import {
     createEncryptedResponseEnvelope,
@@ -452,13 +448,13 @@ async function processEnvelope(
             }
 
             // Decrypt the envelope
-            decryptedPayload = await decryptEnvelope(
+            const decrypted = await decryptEnvelope(
                 envelope,
                 activeKey.privateKey,
             );
 
-            if (!decryptedPayload.ok) {
-                const decryptErrorRaw = decryptedPayload.error.error;
+            if (!decrypted.ok) {
+                const decryptErrorRaw = decrypted.error.error;
                 const decryptErrorMessage =
                     typeof decryptErrorRaw === "string"
                         ? decryptErrorRaw
@@ -474,23 +470,9 @@ async function processEnvelope(
                 );
             }
 
-            decryptedPayload = decryptedPayload.payload;
-
-            // Derive session key for response encryption
-            const ephemeralPublicKey = await crypto.subtle.importKey(
-                "jwk",
-                envelope.payload.ephemeralPub,
-                { name: "ECDH", namedCurve: "P-256" },
-                false,
-                [],
-            );
-            const salt = base64UrlDecode(envelope.payload.salt);
-            sessionKey = await deriveSessionKey(
-                activeKey.privateKey,
-                ephemeralPublicKey,
-                salt,
-                "cryptex-extension-session",
-            );
+            // The response is encrypted with the request's session key.
+            sessionKey = decrypted.sessionKey;
+            decryptedPayload = decrypted.payload;
         } catch (error) {
             generalLog.error("Failed to decrypt envelope", error);
             return createPlaintextEnvelope(
@@ -727,7 +709,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentials: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -746,7 +728,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredential: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -1067,7 +1049,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetLinkedDevices: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
 
                 if (!vault) {
                     return {
@@ -1089,7 +1071,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetDirectories: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 return vault
                     ? {
                           ok: true,
@@ -1243,7 +1225,7 @@ async function processMessageUncoordinated(
                 };
             }
             case MessageType.SyncGetConfiguration: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 if (!vault) {
                     return {
                         ok: false,
@@ -1464,7 +1446,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialsForOrigin: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const requestOrigin = getAutofillRequestOrigin(sender);
                 if (!requestOrigin) {
                     return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
@@ -1533,7 +1515,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialSecret: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const requestOrigin = getAutofillRequestOrigin(sender);
                 if (!requestOrigin) {
                     return { ok: false, error: "REQUEST_ORIGIN_UNAVAILABLE" };
@@ -1567,7 +1549,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetCredentialDraft: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 const dbIndex = vault ? await getActiveVaultDbIndex() : null;
                 if (!vault || dbIndex == null) {
                     return { ok: true, draft: null };
@@ -1688,7 +1670,7 @@ async function processMessageUncoordinated(
             }
 
             case MessageType.GetShareLinks: {
-                const vault = await getVaultFromSessionStorage();
+                const vault = await getVaultForReading();
                 if (!vault) return { ok: false, error: "VAULT_NOT_UNLOCKED" };
                 const session = await getOnlineServicesStateSnapshot();
                 return {
@@ -2123,17 +2105,71 @@ type SessionVault = Omit<VaultUtilTypes.Vault, "ConnectedAgents"> & {
     ConnectedAgents?: unknown;
 };
 
+// Reading the whole vault from chrome.storage.session takes tens of
+// milliseconds, and opening the popup alone sends several requests that each
+// need it. The worker keeps the last read until the vault changes.
+let sessionVaultRead: Promise<SessionVault | null> | null = null;
+
+chrome.storage.session.onChanged.addListener((changes) => {
+    // Covers writers outside the worker, such as the e2e bootstrap page.
+    if (UNLOCKED_VAULT_KEY in changes) sessionVaultRead = null;
+});
+
+/** The stored vault, frozen because every reader shares it. */
+async function readSessionVault(): Promise<SessionVault | null> {
+    const read = (sessionVaultRead ??= chrome.storage.session
+        .get([UNLOCKED_VAULT_KEY])
+        .then((items) => {
+            const stored = items[UNLOCKED_VAULT_KEY] as
+                | SessionVault
+                | undefined;
+            return stored ? deepFreeze(stored) : null;
+        }));
+    try {
+        return await read;
+    } catch (error) {
+        if (sessionVaultRead === read) sessionVaultRead = null;
+        throw error;
+    }
+}
+
+function deepFreeze<T>(value: T): T {
+    // Typed arrays with elements can't be frozen.
+    if (
+        value &&
+        typeof value === "object" &&
+        !ArrayBuffer.isView(value) &&
+        !Object.isFrozen(value)
+    ) {
+        Object.freeze(value);
+        for (const child of Object.values(value)) deepFreeze(child);
+    }
+    return value;
+}
+
+/** A copy of the unlocked vault that the caller may change. */
 async function getVaultFromSessionStorage(): Promise<VaultUtilTypes.Vault | null> {
-    const _vault = await chrome.storage.session.get([UNLOCKED_VAULT_KEY]);
-    const stored = _vault[UNLOCKED_VAULT_KEY] as
-        | SessionVault
-        | null
-        | undefined;
+    const stored = await readSessionVault();
     if (!stored) return null;
+    const copy = structuredClone(stored);
     return {
+        ...copy,
+        ConnectedAgents: connectedAgentsFromTransport(copy.ConnectedAgents),
+    };
+}
+
+/**
+ * The unlocked vault for handlers that only read it. Copying it costs a few
+ * milliseconds per request, so readers share it, and it is frozen so that a
+ * change throws instead of reaching the other readers.
+ */
+async function getVaultForReading(): Promise<VaultUtilTypes.Vault | null> {
+    const stored = await readSessionVault();
+    if (!stored) return null;
+    return Object.freeze({
         ...stored,
         ConnectedAgents: connectedAgentsFromTransport(stored.ConnectedAgents),
-    };
+    });
 }
 
 async function getVaultMetadataFromSessionStorage(): Promise<VaultUtilTypes.VaultMetadata | null> {
@@ -2181,6 +2217,8 @@ async function setVaultInSessionStorage(
         } satisfies SessionVault,
         [ACTIVE_VAULT_DB_INDEX_KEY]: vaultDbIndex,
     });
+    // onChanged fires later, after reads that may follow this save.
+    sessionVaultRead = null;
     backupDestinations.vaultSaved(vault, metadata);
 }
 
@@ -2193,6 +2231,7 @@ async function clearSessionStorage(): Promise<void> {
     await clearAllVaultKeyMaterial();
     await backupBlobStore.clear();
     await chrome.storage.session.clear();
+    sessionVaultRead = null;
 }
 
 chrome.runtime.onMessage.addListener(
@@ -2276,6 +2315,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Lock the vault after 30 minutes of inactivity or when the OS screen locks.
 // A screen lock before the idle threshold goes active -> locked -> active
 // and never reports "idle".
+// Firefox never reports "locked", so only the idle timeout applies there.
 chrome.idle.setDetectionInterval(60 * 30);
 chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === "idle" || newState === "locked") {

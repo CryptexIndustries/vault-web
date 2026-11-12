@@ -6,28 +6,34 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/CryptexIndustries/vault-web/services/internal/agent/termsafe"
 )
 
-// desktopNotifier returns a notify-send based notifier, or nil when
-// notify-send isn't installed.
+// desktopNotifier returns a notifier that runs the platform's notification
+// command, or nil when that command isn't installed.
 func desktopNotifier(log *slog.Logger) func(approverName string) {
-	path, err := exec.LookPath("notify-send")
+	name, args := "notify-send", notifyArgs
+	if runtime.GOOS == "darwin" {
+		name, args = "osascript", osascriptArgs
+	}
+	path, err := exec.LookPath(name)
 	if err != nil {
 		return nil
 	}
 	return func(approverName string) {
-		if !desktopSession(os.Getenv) {
+		// launchd starts the macOS service in the login session.
+		if runtime.GOOS != "darwin" && !desktopSession(os.Getenv) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, path, notifyArgs(approverName)...)
+		cmd := exec.CommandContext(ctx, path, args(approverName)...)
 		if err := cmd.Run(); err != nil {
-			log.Debug("notify-send failed", "error", err)
+			log.Debug("desktop notification failed", "command", name, "error", err)
 		}
 	}
 }
@@ -38,6 +44,20 @@ func notifyArgs(approverName string) []string {
 	body := "Approve the SSH request in Cryptex Vault on " + markupEscaper.Replace(termsafe.Name(approverName))
 	// "--" so a body starting with "-" isn't taken for an option.
 	return []string{"--app-name=Cryptex Agent", "--icon=dialog-password", "--", "SSH request waiting", body}
+}
+
+// osascriptArgs are osascript's arguments. The text goes in as script
+// arguments, never into the script's source, so a name can't add AppleScript.
+// The fixed title comes first: osascript stops reading options there, so a
+// body starting with "-" isn't taken for one.
+func osascriptArgs(approverName string) []string {
+	return []string{
+		"-e", "on run argv",
+		"-e", "display notification (item 2 of argv) with title (item 1 of argv)",
+		"-e", "end run",
+		"SSH request waiting",
+		"Approve the SSH request in Cryptex Vault on " + termsafe.Name(approverName),
+	}
 }
 
 var markupEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")

@@ -32,6 +32,7 @@
         "**/.mobile-build/**",
         "**/node_modules/**",
         "**/dist/**",
+        "**/dist-firefox/**",
         "**/build/**",
         "**/out/**",
         "**/coverage/**",

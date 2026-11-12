@@ -5,6 +5,7 @@ import {
     buildRegistrationAuthenticatorData,
     ES256_ALGORITHM_IDENTIFIER,
 } from "./passkey-authenticator-data";
+import { copyBytes } from "../utils/bytes";
 
 export const PASSKEY_PAGE_SOURCE = "cryptex-passkey-page";
 export const PASSKEY_CONTENT_SOURCE = "cryptex-passkey-content";
@@ -39,17 +40,12 @@ type GeneratedRegistration = {
     credential: NonNullable<PasskeyCreateResult["credential"]>;
 };
 
-function bytes(value: BufferSource): Uint8Array {
-    if (value instanceof ArrayBuffer) return new Uint8Array(value);
-    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-}
-
 function exactBuffer(value: Uint8Array): ArrayBuffer {
     return value.slice().buffer;
 }
 
 export function base64Url(value: BufferSource): string {
-    const data = bytes(value);
+    const data = copyBytes(value);
     let binary = "";
     for (const byte of data) binary += String.fromCharCode(byte);
     return btoa(binary)

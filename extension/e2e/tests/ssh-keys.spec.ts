@@ -42,7 +42,8 @@ async function watchForTexts(page: Page, texts: string[]) {
         const seen = new Set<string>();
         (window as unknown as { __seenTexts: Set<string> }).__seenTexts = seen;
         const check = () => {
-            const text = document.body.innerText;
+            // Firefox's innerText can miss nodes it hasn't laid out yet.
+            const text = document.body.textContent ?? "";
             for (const item of wanted) if (text.includes(item)) seen.add(item);
         };
         new MutationObserver(check).observe(document.body, {
@@ -99,6 +100,7 @@ async function openSSHKeyEditor(page: Page) {
 test("creates, imports, shows, copies and downloads SSH keys", async ({
     context,
     extensionId,
+    browserName,
 }) => {
     // Three bcrypt runs (two unlock attempts and the encrypted download).
     test.setTimeout(120_000);
@@ -174,8 +176,13 @@ test("creates, imports, shows, copies and downloads SSH keys", async ({
     await expect(editor.locator("#ssh-comment")).toHaveValue(
         "ed25519-enc@fixtures",
     );
+    // Firefox finishes the unlock before React renders "Unlocking...".
     expect(await seenTexts(page)).toEqual(
-        expect.arrayContaining(["Checking key...", "Unlocking..."]),
+        expect.arrayContaining(
+            browserName === "firefox"
+                ? ["Checking key..."]
+                : ["Checking key...", "Unlocking..."],
+        ),
     );
     expect(workerUrls.some((url) => url.includes("ssh-key"))).toBe(true);
 

@@ -23,6 +23,12 @@ const roadmap = [
                 target: "Q4 2026",
                 description: "Use Cryptex Vault on Android.",
             },
+            {
+                title: "Granular device-linking permissions",
+                target: "Q4 2026",
+                description:
+                    "More control over permissions when linking devices.",
+            },
         ],
     },
     {
@@ -41,12 +47,6 @@ const roadmap = [
                 target: null,
                 description:
                     "Use the Cryptex Vault browser extension in Firefox.",
-            },
-            {
-                title: "Granular device-linking permissions",
-                target: null,
-                description:
-                    "More control over permissions when linking devices.",
             },
             {
                 title: "iOS application",
@@ -70,7 +70,7 @@ const roadmap = [
                 title: "SSH agent",
                 target: null,
                 description:
-                    "Keep SSH keys in your vault and use them on Linux. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
+                    "Keep SSH keys in your vault and use them on Linux and macOS. The agent stores no keys on the machine. Your phone or the web app approves each signature.",
             },
             {
                 title: "Android application",

@@ -11,6 +11,7 @@
 
 import path from "node:path";
 import { defineConfig } from "vite";
+import { outDir } from "./build-target.ts";
 
 export default defineConfig(({ mode }) => {
     const isProduction = mode === "production";
@@ -38,7 +39,7 @@ export default defineConfig(({ mode }) => {
             // Keep the main build's output intact. Cleaning is the
             // responsibility of the `clean` script.
             emptyOutDir: false,
-            outDir: "dist",
+            outDir: outDir(),
             target: "es2022",
             minify: isProduction ? "terser" : undefined,
             terserOptions: isProduction

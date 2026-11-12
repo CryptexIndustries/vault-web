@@ -17,6 +17,7 @@ import {
     virtualHostedUrl,
 } from "../../../e2e/garage/garage";
 import { expect, test } from "../fixtures";
+import { FirefoxContext } from "../firefox/browser";
 
 const VAULT_PASSWORD = "e2e-vault-password";
 const NEW_PASSWORD = "e2e-vault-password-rotated";
@@ -137,6 +138,9 @@ async function addDestination(
  * restartedAt resolves to the time it next runs.
  */
 async function stopServiceWorker(page: Page) {
+    const context: unknown = page.context();
+    // Firefox runs the background script as an event page instead.
+    if (context instanceof FirefoxContext) return context.stopBackground();
     const cdp = await page.context().newCDPSession(page);
     const status = (runningStatus: string) =>
         new Promise<string>((resolve) =>
@@ -382,7 +386,10 @@ test("uploads to a virtual-hosted bucket address", async ({
 
     await deviceFolder(bucket);
     const [backup] = await backups(bucket);
-    expect(garageRequests).toContain(`PUT ${bucketOrigin}/${backup}`);
+    // The browser reports a request a little after sending it.
+    await expect
+        .poll(() => garageRequests)
+        .toContain(`PUT ${bucketOrigin}/${backup}`);
     // None fell back to a path-style address.
     expect(
         garageRequests.filter(

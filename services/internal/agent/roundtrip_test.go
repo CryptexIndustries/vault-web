@@ -251,8 +251,8 @@ func TestPairListSign(t *testing.T) {
 		"Pixel 8 wants to pair. Check that it shows:\n\n    " + e.paired.ConfirmationCode + "\n\nPress Enter if it matches, or Ctrl-C to cancel.\n",
 		`Paired with Pixel 8 as "workstation".`,
 		"3 SSH keys available.",
-		"export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/cryptex-agent.sock",
-		"systemctl --user enable --now cryptex-agent",
+		"export SSH_AUTH_SOCK=" + agent.ShellSocket,
+		agent.StartCommand,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("pair output lacks %q:\n%s", want, out)

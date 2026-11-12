@@ -206,16 +206,6 @@ function validateOrigin(
 }
 
 /**
- * Validates a response envelope from a worker message.
- * The difference between this and validateEnvelope is that we need to validate without the sender information.
- */
-export function TODOvalidateResponseEnvelope(
-    envelope: EnvelopeLike,
-): { valid: true } | { valid: false; error: string; code: string } {
-    return validateEnvelope(envelope, { origin: "worker" });
-}
-
-/**
  * Cleans up expired nonces from the cache.
  */
 function cleanupExpiredNonces(): void {

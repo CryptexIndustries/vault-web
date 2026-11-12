@@ -41,6 +41,12 @@ export default defineConfig({
         screenshot: "only-on-failure",
         video: "retain-on-failure",
     },
+    // Each project needs its own build: dist/ for Chromium and dist-firefox/
+    // for Firefox.
+    projects: [
+        { name: "chromium", use: { browserName: "chromium" } },
+        { name: "firefox", use: { browserName: "firefox" } },
+    ],
     webServer: {
         command: "node extension/e2e/fixture-server.mjs",
         url: "http://127.0.0.1:4173/health",

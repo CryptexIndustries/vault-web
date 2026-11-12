@@ -12,6 +12,12 @@ name: Chrome cross-origin frame isolation
 - tapOn: .*${CRYPTEX_APP_NAME}
 - runFlow: autofill-browser-unlock-if-needed.yaml
 - assertVisible: Android could not confirm.*browser page and login field.*
+# Chrome 155 reports the frame's own host, which has no saved login.
+- runFlow:
+      when:
+          visible: No login saved for 127.0.0.1
+      commands:
+          - tapOn: Show all \(1\)
 - tapOn: Fixture Login, fixture@example.test.*
 - assertVisible: Review destination
 - tapOn: Fill once
@@ -20,12 +26,9 @@ name: Chrome cross-origin frame isolation
           visible: Chrome
       commands:
           - tapOn: Chrome
-# Chrome 134 may hide the page's accessibility tree after Autofill returns.
-# The fixed fixture button (pinned 1080x2400 AVD) records only fill states in
-# the URL, including the off-screen frame.
-- tapOn:
-      point: 84%,14%
-- assertVisible: localhost:43110/frame-check\?case=frame&page=empty&visible=filled&offscreen=empty
+# Chrome may hide the page's accessibility tree after Autofill returns, so the
+# fixture records the fill states in its address, including the off-screen frame.
+- assertVisible: localhost:43110/frame-origin\?case=frame&fresh=[0-9-]+&page=empty&visible=filled&offscreen=empty.*
 
 # A fresh page request fills the top-level form, not either frame.
 - openLink: http://localhost:43110/fresh-frame-origin?case=page
@@ -45,6 +48,4 @@ name: Chrome cross-origin frame isolation
           visible: Chrome
       commands:
           - tapOn: Chrome
-- tapOn:
-      point: 84%,14%
-- assertVisible: localhost:43110/frame-check\?case=page&page=filled&visible=empty&offscreen=empty
+- assertVisible: localhost:43110/frame-origin\?case=page&fresh=[0-9-]+&page=filled&visible=empty&offscreen=empty.*

@@ -206,7 +206,8 @@ emulator's system input channel to trigger accessibility actions and complete
 pending credential-review actions; Maestro drives and verifies every
 surrounding interaction. The runner scales those coordinates from the pinned
 1080×2400 AVD profile and confirms the real accessibility-overlay window exists
-before each press. Picker steps affected by keyboard layout locate controls by
+before each press. It taps the Cryptex Vault button at the bounds Android
+reports for that window. Picker steps affected by keyboard layout locate controls by
 their Android UI text and bounds before tapping. A confirmed fallback fill can
 reach visible embedded forms and may reach an off-screen form; the frame flow
 requires all fields empty after cancellation. After explicit cross-site

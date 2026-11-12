@@ -58,7 +58,6 @@ const frameOriginPage = page(
      <form><label>Page username <input name="username" autocomplete="username"></label>
      <label>Page password <input name="password" type="password" autocomplete="current-password"></label></form>
      <p><span id="page-state">Page empty</span> · <span id="frame-state">Visible frame loading</span> · <span id="offscreen-state">Off-screen frame loading</span></p>
-     <button id="frame-check" type="button" style="position:fixed;top:8px;right:8px;z-index:1;padding:12px">Check frame state</button>
      <iframe title="Different-site login form" src="http://127.0.0.1:${port}/frame-login?context=visible" width="380" height="180"></iframe>
      <iframe title="Off-screen login form" src="http://localhost:${port}/frame-login?context=offscreen" style="position:absolute;left:-10000px;width:1px;height:1px"></iframe>
      <p id="frame-exact-state">Exact frame values loading</p>`,
@@ -90,16 +89,18 @@ window.addEventListener('message', event => {
   exactFrames[event.data.context] = event.data.values;
   reportExact();
 });
-document.querySelector('#frame-check').addEventListener('click', () => {
-  const state = id => document.querySelector('#' + id).textContent.split(' ').at(-1);
-  const params = new URLSearchParams({
-    case: new URLSearchParams(location.search).get('case') ?? 'default',
-    page: state('page-state'),
-    visible: state('frame-state'),
-    offscreen: state('offscreen-state'),
-  });
-  location.href = '/frame-check?' + params;
-});`,
+// Chrome can drop the page from accessibility after Autofill, but the address stays readable.
+setInterval(() => {
+  const state = id => {
+    const text = document.querySelector('#' + id).textContent;
+    return text.endsWith('partially filled') ? 'partial' : text.split(' ').at(-1);
+  };
+  const url = new URL(location.href);
+  url.searchParams.set('page', state('page-state'));
+  url.searchParams.set('visible', state('frame-state'));
+  url.searchParams.set('offscreen', state('offscreen-state'));
+  history.replaceState(null, '', url);
+}, 200);`,
 );
 
 const frameLoginPage = page(
@@ -125,7 +126,8 @@ report();`,
 
 const registrationPage = page(
     "Deterministic registration fixture",
-    `<form method="post" action="/register?submitted=1">
+    `<style>label { display: block }</style>
+    <form method="post" action="/register?submitted=1">
       <label>Email address <input name="email" type="email" autocomplete="email"></label>
       <label>New username <input name="username" autocomplete="username"></label>
       <label>New password <input name="password" type="password" autocomplete="new-password"></label>
@@ -290,17 +292,6 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/frame-login") {
         response.setHeader("content-type", "text/html; charset=utf-8");
         response.end(frameLoginPage);
-        return;
-    }
-    if (url.pathname === "/frame-check") {
-        response.setHeader("cache-control", "no-store");
-        response.setHeader("content-type", "text/html; charset=utf-8");
-        response.end(
-            page(
-                "Frame state checked",
-                "<p>Fixture state recorded in the URL</p>",
-            ),
-        );
         return;
     }
     if (url.pathname === "/login/otp") {

@@ -23,8 +23,6 @@ name: Chrome autofill after explicit vault lock
 - tapOn: Fixture Login, fixture@example.test.*
 - assertVisible: Review destination
 - tapOn: Fill once
-# Chrome 134 may omit filled page text from accessibility after Autofill.
-# The pinned fixture button submits both fields for exact server verification.
-- tapOn:
-      point: 60%,28%
-- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0
+# Submit from the focused field so the server checks the posted values.
+- pressKey: Enter
+- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0.*

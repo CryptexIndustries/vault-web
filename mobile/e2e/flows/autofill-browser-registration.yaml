@@ -17,24 +17,17 @@ name: Chrome registration save and field mapping
 - openLink: http://localhost:43110/fresh-register?case=save
 - runFlow: autofill-browser-dismiss-tips.yaml
 - assertVisible: Deterministic registration fixture
-# After earlier Autofill callbacks, Chrome 134 can paint the fixture while
-# omitting its fields from accessibility. These coordinates target the four
-# distinct inputs on the pinned 1080x2400 AVD; the POST oracle checks mapping.
-- tapOn:
-      point: 50%,25%
+# Each label sits on its own line, so tapping it focuses its input. The POST
+# oracle checks the mapping.
+- tapOn: Email address.*
 - inputText: earlier-browser-email@example.test
-- tapOn:
-      point: 45%,28%
+- tapOn: New username.*
 - inputText: browser-new@example.test
-- tapOn:
-      point: 25%,30%
+- tapOn: New password.*
 - inputText: browser-new-password
-- tapOn:
-      point: 25%,33%
+- tapOn: Confirm password.*
 - inputText: browser-new-password
-- hideKeyboard
-- tapOn:
-      point: 64%,33%
+- pressKey: Enter
 - runFlow:
       when:
           visible: Save
@@ -56,15 +49,14 @@ name: Chrome registration save and field mapping
 - assertVisible: earlier-browser-email@example.test
 - tapOn:
       id: credential-submit
-- assertVisible: localhost:43110/register\?accepted=1
+- assertVisible: localhost:43110/register\?accepted=1.*
 
 # The captured email and username return to their own registration fields.
 - launchApp: com.android.chrome
 - openLink: http://localhost:43110/fresh-register?case=refill
 - runFlow: autofill-browser-dismiss-tips.yaml
 - assertVisible: Deterministic registration fixture
-- tapOn:
-      point: 50%,25%
+- tapOn: Email address.*
 - tapOn: .*${CRYPTEX_APP_NAME}
 - runFlow: autofill-browser-unlock-if-needed.yaml
 - assertVisible: Android could not confirm.*browser page and login field.*
@@ -77,9 +69,6 @@ name: Chrome registration save and field mapping
           visible: Chrome
       commands:
           - tapOn: Chrome
-# Chrome 134 can omit page text from accessibility after Autofill returns.
-# Submit the fixture's button on the pinned 1080x2400 AVD; its POST checks all
-# four separate fields, including email versus username.
-- tapOn:
-      point: 64%,32%
-- assertVisible: localhost:43110/register\?accepted=1
+# The POST checks all four separate fields, including email versus username.
+- pressKey: Enter
+- assertVisible: localhost:43110/register\?accepted=1.*

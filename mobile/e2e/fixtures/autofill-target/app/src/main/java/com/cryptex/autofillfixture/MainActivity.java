@@ -22,6 +22,7 @@ public final class MainActivity extends Activity {
         root.addView(destination("Credential Manager passwords", CredentialManagerPasswordActivity.class));
         root.addView(destination("Accessibility login", AccessibilityLoginActivity.class));
         root.addView(destination("Accessibility registration", AccessibilityRegisterActivity.class));
+        root.addView(destination("Clipboard code", ClipboardCodeActivity.class));
         root.addView(webDestination("Exact web form", "https://login.exact.example.com/login"));
         root.addView(webDestination("Exact sibling web form", "https://sibling.exact.example.com/login"));
         root.addView(webDestination("Domain sibling web form", "https://accounts.domain.example.net/login"));

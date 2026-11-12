@@ -24,6 +24,7 @@ dependencies {
   implementation 'com.facebook.react:react-android'
   implementation 'androidx.credentials:credentials:1.6.0'
   implementation 'androidx.autofill:autofill:1.3.0'
+  implementation 'androidx.core:core:1.18.0'
   testImplementation 'junit:junit:4.13.2'
   testImplementation 'org.json:json:20250517'
   androidTestImplementation 'androidx.test.ext:junit:1.2.1'

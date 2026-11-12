@@ -23,6 +23,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import java.lang.ref.WeakReference
 import java.util.UUID
 
@@ -590,8 +591,14 @@ private fun AccessibilityNodeInfo.isEditableCredentialCandidate(): Boolean =
 
 private fun AccessibilityNodeInfo.credentialIdentity(): String = listOfNotNull(
   viewIdResourceName?.substringAfterLast('/'),
+  credentialLabel(),
+).joinToString(" ")
+
+private fun AccessibilityNodeInfo.credentialLabel(): String = listOfNotNull(
   safeHintText(),
   contentDescription?.toString(),
+  // Chrome 155 reports a web field's label here instead of in the hint.
+  AccessibilityNodeInfoCompat.wrap(this).supplementalDescription?.toString(),
 ).joinToString(" ")
 
 private fun AccessibilityNodeInfo.isNewPasswordField(): Boolean =

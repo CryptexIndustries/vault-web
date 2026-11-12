@@ -1377,6 +1377,10 @@ else throw new Error("Unexpected inspection tool " + tool);
                         "utf8",
                     ),
                 );
+                // Like the other tools, Node reports its pinned version.
+                Object.defineProperty(process.versions, "node", {
+                    value: pins.node,
+                });
                 const clean = (env) => {
                     for (const key of [
                         "CRYPTEX_KEYSTORE",

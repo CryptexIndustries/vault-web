@@ -154,7 +154,9 @@ class CryptexAccessibilityService : AccessibilityService() {
 
   override fun onDestroy() {
     hideOverlay()
-    cancelRequestInternal(null)
+    // Android unbinds the service while UI automation runs. Keep a fresh request
+    // for the next connection, which drops it once it is stale.
+    pendingFill?.let { cancelRequestInternal(it.session.request.id) }
     handler.removeCallbacksAndMessages(null)
     if (activeService.get() === this) activeService.clear()
     super.onDestroy()

@@ -10,7 +10,7 @@ export type VaultSecurityBackupEventDetail = {
 };
 
 type ManagedBackupHooks = {
-    markDirty: () => void;
+    markDirty: (scheduleUpload: boolean) => void;
     backupNow: (deleteOlderSnapshots: boolean) => Promise<void>;
     flushBeforeLock: () => Promise<void>;
     stop: () => void;
@@ -22,8 +22,8 @@ export function registerManagedBackupHooks(next: ManagedBackupHooks): void {
     hooks = next;
 }
 
-export function markManagedBackupDirty(): void {
-    hooks?.markDirty();
+export function markManagedBackupDirty(scheduleUpload = true): void {
+    hooks?.markDirty(scheduleUpload);
 }
 
 /** Queue an immediate upload without coupling a local write to network health. */

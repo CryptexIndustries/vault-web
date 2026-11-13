@@ -1335,10 +1335,21 @@ export function VaultDashboard({
         return () => stopBackupDestinations();
     }, []);
 
+    // Stop only when the session ends or the device changes. A token refresh
+    // just calls start again, so it can't cancel an upload in progress.
+    const hasOnlineServicesSession = Boolean(onlineServicesData?.sessionToken);
+    useEffect(() => {
+        if (!cloudServicesEnabled || !hasOnlineServicesSession) return;
+        return () => managedBackupCoordinator.stop();
+    }, [
+        cloudServicesEnabled,
+        onlineServicesData?.deviceId,
+        hasOnlineServicesSession,
+    ]);
+
     useEffect(() => {
         if (!cloudServicesEnabled || !onlineServicesData?.sessionToken) return;
         void managedBackupCoordinator.start();
-        return () => managedBackupCoordinator.stop();
     }, [
         cloudServicesEnabled,
         onlineServicesData?.deviceId,

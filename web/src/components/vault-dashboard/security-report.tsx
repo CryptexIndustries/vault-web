@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ArrowLeft,
     ArrowUpDown,
     CheckCircle2,
     ExternalLink,
@@ -45,6 +44,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { DashboardScreen } from "./dashboard-screen";
 
 type SecurityReportProps = {
     analysis: SecurityAnalysisResult | null;
@@ -639,72 +639,48 @@ export function SecurityReport({
                 : "Some SSH keys are too short to be safe.";
 
     return (
-        <main className="relative z-10 min-w-0 flex-1 overflow-y-auto bg-background text-foreground shadow-2xl">
-            <div className="mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6 lg:p-8">
-                <div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-ml-3 mb-2 text-foreground/80 hover:text-foreground"
-                        onClick={onBack}
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to credentials
-                    </Button>
-                    <div className="flex items-start gap-3">
-                        <div className="rounded-lg border border-primary/20 bg-primary/10 p-2">
-                            <ShieldCheck className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-semibold text-foreground">
-                                Security Report
-                            </h1>
-                            <p className="mt-1 text-sm text-foreground/75">
-                                Passwords are analyzed only in this browser and
-                                are never shown in the report.
-                            </p>
-                            {analysis ? (
-                                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                                    {lastChecked ? (
-                                        <span>
-                                            Last checked{" "}
-                                            <time
-                                                dateTime={lastChecked.toISOString()}
-                                                title={lastChecked.toLocaleString()}
-                                            >
-                                                {lastChecked.toLocaleTimeString(
-                                                    undefined,
-                                                    {
-                                                        hour: "numeric",
-                                                        minute: "2-digit",
-                                                    },
-                                                )}
-                                            </time>
-                                        </span>
-                                    ) : null}
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 gap-1.5 px-2 text-xs"
-                                        onClick={onRefresh}
-                                        disabled={isAnalyzing}
-                                    >
-                                        <RefreshCw
-                                            className={cn(
-                                                "h-3.5 w-3.5",
-                                                isAnalyzing && "animate-spin",
-                                            )}
-                                        />
-                                        {isAnalyzing
-                                            ? "Scanning…"
-                                            : "Scan again"}
-                                    </Button>
-                                </div>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-
+        <DashboardScreen
+            icon={ShieldCheck}
+            title="Security Report"
+            description="Passwords are analyzed only in this browser and are never shown in the report."
+            onBack={onBack}
+            actions={
+                analysis ? (
+                    <>
+                        {lastChecked ? (
+                            <span className="hidden text-xs text-muted-foreground sm:inline">
+                                Last checked{" "}
+                                <time
+                                    dateTime={lastChecked.toISOString()}
+                                    title={lastChecked.toLocaleString()}
+                                >
+                                    {lastChecked.toLocaleTimeString(undefined, {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                    })}
+                                </time>
+                            </span>
+                        ) : null}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Scan again"
+                            title="Scan again"
+                            onClick={onRefresh}
+                            disabled={isAnalyzing}
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    "h-4 w-4",
+                                    isAnalyzing && "animate-spin",
+                                )}
+                            />
+                        </Button>
+                    </>
+                ) : null
+            }
+        >
+            <div className="space-y-5">
                 {analysis ? (
                     <>
                         {isAnalyzing ? (
@@ -829,6 +805,6 @@ export function SecurityReport({
                     </Card>
                 )}
             </div>
-        </main>
+        </DashboardScreen>
     );
 }

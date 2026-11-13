@@ -229,7 +229,6 @@ describe("managed backup settings card", () => {
         act(() => {
             root.render(
                 <ManagedBackupsSettingsCard
-                    open
                     onAccountAction={onAccountActionMock}
                 />,
             );

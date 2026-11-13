@@ -68,7 +68,7 @@ import { useDeviceLongPress } from "./use-device-long-press";
 import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { ConnectedAgentsSection } from "@/components/agents/connected-agents-section";
 
-import { BackupSidebarEntry } from "./backup-dialog";
+import { BackupSidebarEntry } from "./backup-view";
 
 // TODO: Remove this type
 export type DeviceSyncStatus = {
@@ -114,7 +114,13 @@ interface DeviceSidebarProps {
     onOpenBackup: () => void;
     vaultId?: string;
     vaultBlob?: EncryptedBlob;
-    activeView: "credentials" | "security-report" | "shared-links" | "agent";
+    activeView:
+        | "credentials"
+        | "security-report"
+        | "shared-links"
+        | "agent"
+        | "backups"
+        | "vault-settings";
     /** The agent open in the main panel, if any. */
     activeAgentId?: string | null;
     onOpenAgent?: (agentId: string) => void;
@@ -810,6 +816,7 @@ export function DeviceSidebar({
                 <BackupSidebarEntry
                     vaultId={vaultId}
                     vaultBlob={vaultBlob}
+                    active={activeView === "backups"}
                     onOpen={() => handleSidebarAction(onOpenBackup)}
                 />
             </div>
@@ -991,8 +998,15 @@ export function DeviceSidebar({
                 </Button>
                 <Button
                     variant="ghost"
-                    className="hover:bg-sidebar-accent/70 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground"
+                    className={cn(
+                        "hover:bg-sidebar-accent/70 h-9 w-full justify-start gap-2 rounded-md text-xs text-muted-foreground transition-all hover:text-foreground",
+                        activeView === "vault-settings" &&
+                            "bg-sidebar-accent text-foreground",
+                    )}
                     onClick={() => handleSidebarAction(onOpenVaultSettings)}
+                    aria-current={
+                        activeView === "vault-settings" ? "page" : undefined
+                    }
                 >
                     <Settings className="h-3.5 w-3.5" />
                     Vault Settings

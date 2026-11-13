@@ -5,7 +5,6 @@ import {
     Download,
     HardDriveDownload,
     Info,
-    ShieldCheck,
 } from "lucide-react";
 import { useAtomValue } from "jotai/react";
 import { useEffect, useState } from "react";
@@ -34,6 +33,7 @@ import {
 } from "@/app_lib/managed-backup-coordinator";
 import { BackupDestinationsCard } from "@/components/vault-dashboard/backup-destinations-card";
 import { ManagedBackupsSettingsCard } from "@/components/vault-dashboard/managed-backups-settings-card";
+import { DashboardScreen } from "@/components/vault-dashboard/dashboard-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,16 +43,6 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { vaultLog } from "@/utils/logging";
@@ -64,19 +54,20 @@ import {
 } from "@/utils/vault-session";
 import { trpcReact } from "@/utils/trpc";
 
-type BackupDialogProps = {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+type BackupViewProps = {
+    onBack: () => void;
     onOpenAccountDialog: () => void;
 };
 
 export function BackupSidebarEntry({
     vaultId,
     vaultBlob,
+    active,
     onOpen,
 }: {
     vaultId?: string;
     vaultBlob?: EncryptedBlob;
+    active: boolean;
     onOpen: () => void;
 }) {
     const onlineServicesData = useOnlineServicesData();
@@ -171,8 +162,12 @@ export function BackupSidebarEntry({
     return (
         <Button
             variant="ghost"
-            className="hover:bg-sidebar-accent/70 h-auto min-h-12 w-full justify-start gap-2 rounded-md px-4 py-2 text-left text-xs text-muted-foreground transition-all hover:text-foreground"
+            className={cn(
+                "hover:bg-sidebar-accent/70 h-auto min-h-12 w-full justify-start gap-2 rounded-md px-4 py-2 text-left text-xs text-muted-foreground transition-all hover:text-foreground",
+                active && "bg-sidebar-accent text-foreground",
+            )}
             onClick={onOpen}
+            aria-current={active ? "page" : undefined}
             title={statusTitle}
         >
             <ArchiveRestore className="h-3.5 w-3.5" />
@@ -198,11 +193,7 @@ export function BackupSidebarEntry({
     );
 }
 
-export function BackupDialog({
-    open,
-    onOpenChange,
-    onOpenAccountDialog,
-}: BackupDialogProps) {
+export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
     const vaultMetadata = useAtomValue(unlockedVaultMetadataAtom);
     const unlockedVault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useOnlineServicesData();
@@ -217,15 +208,12 @@ export function BackupDialog({
         null,
     );
     const backupApiEnabled =
-        open &&
-        isCloudServicesEnabled() &&
-        Boolean(onlineServicesData?.sessionToken);
+        isCloudServicesEnabled() && Boolean(onlineServicesData?.sessionToken);
     const managedStatus = trpcReact.v1.backup.status.useQuery(undefined, {
         enabled: backupApiEnabled,
     });
 
     useEffect(() => {
-        if (!open) return;
         let active = true;
         const refresh = async () => {
             const dek = getVaultDEKFromSession();
@@ -251,7 +239,7 @@ export function BackupDialog({
                 handleLocalBackup,
             );
         };
-    }, [open, vaultId, vaultMetadata?.Blob]);
+    }, [vaultId, vaultMetadata?.Blob]);
 
     const managedBackupAt = managedStatus.data?.latestReadyAt
         ? new Date(managedStatus.data.latestReadyAt)
@@ -268,11 +256,6 @@ export function BackupDialog({
         (overview.latestSource === "managed" ||
             overview.latestSource === "destination" ||
             (overview.latestSource === "local" && localBackup?.isCurrent));
-    const handleAccountAction = () => {
-        onOpenChange(false);
-        onOpenAccountDialog();
-    };
-
     const handleManualBackup = async () => {
         if (!vaultMetadata?.Blob || !vaultId) {
             toast.error("Vault metadata is unavailable.");
@@ -349,124 +332,106 @@ export function BackupDialog({
         managedStateLabel = "Managed backups on";
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[88vh] w-[96vw] max-w-4xl flex-col gap-0 overflow-hidden p-0 shadow-2xl">
-                <DialogHeader className="border-b px-4 py-4 sm:px-6">
-                    <DialogTitle className="flex items-center gap-2 text-xl tracking-tight">
-                        <ShieldCheck className="h-5 w-5 text-primary" />
-                        Backup Center
-                    </DialogTitle>
-                    <DialogDescription>
-                        Create a local encrypted backup or manage automatic,
-                        zero-knowledge restore points.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <ScrollArea className="flex-1">
-                    <div className="space-y-4 p-3 sm:p-6">
-                        <div
-                            className={
-                                overview.needsReminder
-                                    ? "flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4"
+        <DashboardScreen
+            icon={ArchiveRestore}
+            title="Backup Center"
+            description="Create a local encrypted backup or manage automatic, zero-knowledge restore points."
+            onBack={onBack}
+        >
+            <div className="space-y-4">
+                <div
+                    className={
+                        overview.needsReminder
+                            ? "flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4"
+                            : hasCurrentCoverage
+                              ? "flex gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4"
+                              : "flex gap-3 rounded-lg border bg-muted/30 p-4"
+                    }
+                    role={overview.needsReminder ? "alert" : undefined}
+                >
+                    {overview.needsReminder ? (
+                        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    ) : hasCurrentCoverage ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                        <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">
+                                {overview.needsReminder
+                                    ? "Your vault needs a fresh backup"
                                     : hasCurrentCoverage
-                                      ? "flex gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4"
-                                      : "flex gap-3 rounded-lg border bg-muted/30 p-4"
-                            }
-                            role={overview.needsReminder ? "alert" : undefined}
-                        >
-                            {overview.needsReminder ? (
-                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                            ) : hasCurrentCoverage ? (
-                                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                      ? "Your backup coverage is current"
+                                      : !overview.latestBackupAt
+                                        ? "No completed backup yet"
+                                        : "Backup status"}
+                            </p>
+                            {managedStatus.data?.enabled ? (
+                                <Badge className="bg-emerald-600 hover:bg-emerald-600">
+                                    {managedStateLabel}
+                                </Badge>
                             ) : (
-                                <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                                <Badge variant="outline">
+                                    {managedStateLabel}
+                                </Badge>
                             )}
-                            <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <p className="font-medium">
-                                        {overview.needsReminder
-                                            ? "Your vault needs a fresh backup"
-                                            : hasCurrentCoverage
-                                              ? "Your backup coverage is current"
-                                              : !overview.latestBackupAt
-                                                ? "No completed backup yet"
-                                                : "Backup status"}
-                                    </p>
-                                    {managedStatus.data?.enabled ? (
-                                        <Badge className="bg-emerald-600 hover:bg-emerald-600">
-                                            {managedStateLabel}
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="outline">
-                                            {managedStateLabel}
-                                        </Badge>
-                                    )}
-                                </div>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    {latestBackupLabel}.{" "}
-                                    {overview.needsReminder
-                                        ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
-                                        : managedStatus.data?.enabled ||
-                                            overview.latestSource ===
-                                                "destination"
-                                          ? "Automatic backups will keep running while the vault is open and unlocked."
-                                          : !overview.isStale
-                                            ? "Keep the downloaded file in a separate, secure location."
-                                            : "Managed backups are not active for this account."}
-                                </p>
-                            </div>
                         </div>
-
-                        <Card className="shadow-sm">
-                            <CardHeader className="pb-3">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2 text-base">
-                                            <HardDriveDownload className="h-4 w-4" />
-                                            Local encrypted backup
-                                        </CardTitle>
-                                        <CardDescription className="mt-1">
-                                            Download a portable .cryx file that
-                                            only your vault secrets can unlock.
-                                        </CardDescription>
-                                    </div>
-                                    <Badge variant="secondary">
-                                        {localBackup
-                                            ? `Last: ${formatBackupAge(localBackup.completedAt)}`
-                                            : "Never on this browser"}
-                                    </Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <Button
-                                    onClick={() => void handleManualBackup()}
-                                    disabled={isCreatingLocalBackup}
-                                >
-                                    <Download className="mr-2 h-4 w-4" />
-                                    {isCreatingLocalBackup
-                                        ? "Preparing backup…"
-                                        : "Download backup"}
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        <BackupDestinationsCard
-                            controller={backupDestinationsController}
-                        />
-
-                        <ManagedBackupsSettingsCard
-                            open={open}
-                            onAccountAction={handleAccountAction}
-                        />
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            {latestBackupLabel}.{" "}
+                            {overview.needsReminder
+                                ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
+                                : managedStatus.data?.enabled ||
+                                    overview.latestSource === "destination"
+                                  ? "Automatic backups will keep running while the vault is open and unlocked."
+                                  : !overview.isStale
+                                    ? "Keep the downloaded file in a separate, secure location."
+                                    : "Managed backups are not active for this account."}
+                        </p>
                     </div>
-                </ScrollArea>
+                </div>
 
-                <DialogFooter className="border-t px-4 py-4 sm:px-6">
-                    <DialogClose asChild>
-                        <Button variant="outline">Close</Button>
-                    </DialogClose>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <Card className="shadow-sm">
+                    <CardHeader className="pb-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <HardDriveDownload className="h-4 w-4" />
+                                    Local encrypted backup
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                    Download a portable .cryx file that only
+                                    your vault secrets can unlock.
+                                </CardDescription>
+                            </div>
+                            <Badge variant="secondary">
+                                {localBackup
+                                    ? `Last: ${formatBackupAge(localBackup.completedAt)}`
+                                    : "Never on this browser"}
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <Button
+                            onClick={() => void handleManualBackup()}
+                            disabled={isCreatingLocalBackup}
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            {isCreatingLocalBackup
+                                ? "Preparing backup…"
+                                : "Download backup"}
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                <BackupDestinationsCard
+                    controller={backupDestinationsController}
+                />
+
+                <ManagedBackupsSettingsCard
+                    onAccountAction={onOpenAccountDialog}
+                />
+            </div>
+        </DashboardScreen>
     );
 }

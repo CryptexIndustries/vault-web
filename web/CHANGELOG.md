@@ -4,6 +4,11 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ## Unreleased
 
+### Changed
+
+- Backup Center and Vault Settings open as full screens instead of dialogs. They share one layout with Security Report, Shared Links and the agent page: a back button, the title and the screen's actions in a fixed header.
+- Vault Settings lists each setting as a row, with its value or button on the right.
+
 ### Fixed
 
 - Managed backups no longer upload the same vault twice when the session renews during an upload.

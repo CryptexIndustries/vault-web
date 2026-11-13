@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { useAtomValue } from "jotai";
 import {
     AlertTriangle,
-    ArrowLeft,
     GitCommitHorizontal,
     KeyRound,
     MoreHorizontal,
     Pause,
     PenLine,
     Play,
+    SquareTerminal,
     Trash2,
 } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
@@ -48,7 +48,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -57,8 +56,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { unlockedVaultAtom } from "@/utils/atoms";
 import { useConnectedAgents } from "./agent-host-context";
+import { DashboardScreen } from "@/components/vault-dashboard/dashboard-screen";
 import {
-    AgentGlyph,
     AgentInfoField,
     AgentRow,
     AgentSectionLabel,
@@ -89,7 +88,7 @@ function Notice({
         <div
             role="status"
             data-testid={testId}
-            className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
+            className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200"
         >
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1">{children}</span>
@@ -120,11 +119,16 @@ export function AgentView({
 
     if (!agent) {
         return (
-            <AgentPanel onBack={onBack}>
+            <DashboardScreen
+                icon={SquareTerminal}
+                title="Connected Agent"
+                onBack={onBack}
+                testId="agent-view"
+            >
                 <p className="text-sm text-muted-foreground">
                     This agent was revoked or isn&apos;t in this vault anymore.
                 </p>
-            </AgentPanel>
+            </DashboardScreen>
         );
     }
 
@@ -201,9 +205,17 @@ export function AgentView({
         : agent.History.slice(0, RECENT_COUNT);
 
     return (
-        <AgentPanel
+        <DashboardScreen
+            icon={SquareTerminal}
+            title={name}
+            description={
+                agent.AgentVersion
+                    ? `cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
+                    : "cryptex-agent"
+            }
             onBack={onBack}
             scrollerRef={setScroller}
+            testId="agent-view"
             actions={
                 <div className="flex items-center gap-2">
                     {here ? (
@@ -271,20 +283,6 @@ export function AgentView({
                 </div>
             }
         >
-            <div className="flex items-center gap-3.5">
-                <AgentGlyph variant="identity" />
-                <div className="min-w-0">
-                    <h2 className="truncate text-2xl font-medium tracking-[-0.7px] text-foreground">
-                        {name}
-                    </h2>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {agent.AgentVersion
-                            ? `cryptex-agent ${sanitizeDisplayText(agent.AgentVersion, 32)}`
-                            : "cryptex-agent"}
-                    </p>
-                </div>
-            </div>
-
             {agent.Paused ? (
                 <Notice
                     testId="agent-paused"
@@ -310,7 +308,7 @@ export function AgentView({
                 </Notice>
             ) : null}
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
                 <AgentInfoField
                     label="Approver"
                     testId="agent-approver"
@@ -494,50 +492,6 @@ export function AgentView({
                     </div>
                 </DialogContent>
             </Dialog>
-        </AgentPanel>
-    );
-}
-
-/** The main panel frame, like the Shared Links and Security Report views. */
-function AgentPanel({
-    onBack,
-    actions,
-    children,
-    scrollerRef,
-}: {
-    onBack: () => void;
-    actions?: React.ReactNode;
-    children: React.ReactNode;
-    scrollerRef?: React.Ref<HTMLDivElement>;
-}) {
-    return (
-        <main
-            className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground shadow-2xl"
-            data-testid="agent-view"
-        >
-            <div className="shrink-0 border-b border-border">
-                <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 py-3 sm:px-6 lg:px-8 lg:pt-6">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="-ml-2 shrink-0"
-                        aria-label="Back to credentials"
-                        title="Back to credentials"
-                        onClick={onBack}
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
-                        Connected agent
-                    </h1>
-                    {actions}
-                </div>
-            </div>
-            <ScrollArea className="min-h-0 flex-1" viewportRef={scrollerRef}>
-                <div className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 lg:px-8">
-                    {children}
-                </div>
-            </ScrollArea>
-        </main>
+        </DashboardScreen>
     );
 }

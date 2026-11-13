@@ -52,12 +52,10 @@ import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { trpcReact } from "@/utils/trpc";
 
 type ManagedBackupsSettingsCardProps = {
-    open: boolean;
     onAccountAction: () => void;
 };
 
 export function ManagedBackupsSettingsCard({
-    open,
     onAccountAction,
 }: ManagedBackupsSettingsCardProps) {
     const onlineServicesData = useOnlineServicesData();
@@ -67,9 +65,7 @@ export function ManagedBackupsSettingsCard({
         useState<ManagedBackupStatusDetail["error"]>();
     const cloudServicesEnabled = isCloudServicesEnabled();
     const backupApiEnabled =
-        open &&
-        cloudServicesEnabled &&
-        Boolean(onlineServicesData?.sessionToken);
+        cloudServicesEnabled && Boolean(onlineServicesData?.sessionToken);
     const backupUtils = trpcReact.useUtils();
     const backupStatus = trpcReact.v1.backup.status.useQuery(undefined, {
         enabled: backupApiEnabled,

@@ -23,7 +23,7 @@ jest.mock("@/components/vault-dashboard/link", () => ({
 jest.mock("@/components/vault-dashboard/subscription-cta-popover", () => ({
     SubscriptionCtaPopover: () => null,
 }));
-jest.mock("@/components/vault-dashboard/backup-dialog", () => ({
+jest.mock("@/components/vault-dashboard/backup-view", () => ({
     BackupSidebarEntry: () => null,
 }));
 jest.mock("@/utils/online-services-api-url", () => ({

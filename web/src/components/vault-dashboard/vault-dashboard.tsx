@@ -102,10 +102,14 @@ import {
     shouldAutoReconnectAfterWebRTCStatus,
     useSyncConnectionController,
 } from "./sync-controller";
-import { VaultSettingsDialog } from "./vault-settings-dialog";
+import { VaultSettingsView } from "./vault-settings-view";
 import { VaultMigrationNoticeDialog } from "./vault-migration-notice-dialog";
-import { BackupDialog } from "./backup-dialog";
+import { BackupView } from "./backup-view";
 import { managedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
+import {
+    VAULT_SECURITY_BACKUP_EVENT,
+    type VaultSecurityBackupEventDetail,
+} from "@/app_lib/managed-backup-hooks";
 import { backupDestinationScheduler } from "@/app_lib/backup-destinations";
 import { stopBackupDestinations } from "@/app_lib/backup-destination-hooks";
 import {
@@ -134,7 +138,17 @@ type DashboardView =
     | "credentials"
     | "security-report"
     | "shared-links"
-    | "agent";
+    | "agent"
+    | "backups"
+    | "vault-settings";
+
+const SCREEN_TITLES: Partial<Record<DashboardView, string>> = {
+    "security-report": "Security Report",
+    "shared-links": "Shared Links",
+    agent: "Connected Agent",
+    backups: "Backup Center",
+    "vault-settings": "Vault Settings",
+};
 
 function getDeviceLastSyncDate(device: LinkedDevice): Date | null {
     return device.LastSync ? new Date(device.LastSync) : null;
@@ -476,8 +490,6 @@ export function VaultDashboard({
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] =
         useState(false);
-    const [isVaultSettingsOpen, setIsVaultSettingsOpen] = useState(false);
-    const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
     const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
     const [
         deferSubscriptionCtaUntilNextUnlock,
@@ -1161,11 +1173,11 @@ export function VaultDashboard({
     );
 
     const handleOpenVaultSettings = useCallback(() => {
-        setIsVaultSettingsOpen(true);
+        setDashboardView("vault-settings");
     }, []);
 
     const handleOpenBackup = useCallback(() => {
-        setIsBackupDialogOpen(true);
+        setDashboardView("backups");
     }, []);
 
     const deviceControls: DeviceControls = {
@@ -1355,6 +1367,27 @@ export function VaultDashboard({
         onlineServicesData?.deviceId,
         onlineServicesData?.sessionToken,
     ]);
+
+    // A security change's backup can finish after Vault Settings closes.
+    useEffect(() => {
+        const listener = (event: Event) => {
+            const detail = (
+                event as CustomEvent<VaultSecurityBackupEventDetail>
+            ).detail;
+            if (detail.status === "skipped") {
+                toast.info(
+                    "Managed backups are not enabled; the local security change is complete.",
+                );
+                return;
+            }
+            toast.error(
+                `The local security change succeeded, but its managed backup did not complete. ${detail.message}`,
+            );
+        };
+        window.addEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
+        return () =>
+            window.removeEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
+    }, []);
 
     const handleOpenPasswordGenerator = useCallback(() => {
         setIsPasswordGeneratorOpen(true);
@@ -1548,8 +1581,6 @@ export function VaultDashboard({
             const hasBlockingOverlay =
                 isEditDrawerOpen ||
                 isSidebarOpen ||
-                isVaultSettingsOpen ||
-                isBackupDialogOpen ||
                 isAccountDialogOpen ||
                 isPasswordGeneratorOpen ||
                 shareTarget !== null;
@@ -1625,12 +1656,10 @@ export function VaultDashboard({
         dashboardView,
         filteredCredentials.length,
         isAccountDialogOpen,
-        isBackupDialogOpen,
         isEditDrawerOpen,
         isKeyboardShortcutsOpen,
         isPasswordGeneratorOpen,
         isSidebarOpen,
-        isVaultSettingsOpen,
         moveSelection,
         selectCredentialAtIndex,
         shareTarget,
@@ -1649,13 +1678,7 @@ export function VaultDashboard({
                     <Menu className="h-5 w-5" />
                 </Button>
                 <span className="font-semibold text-foreground">
-                    {dashboardView === "security-report"
-                        ? "Security Report"
-                        : dashboardView === "shared-links"
-                          ? "Shared Links"
-                          : dashboardView === "agent"
-                            ? "Connected Agent"
-                            : unlockedVaultName}
+                    {SCREEN_TITLES[dashboardView] ?? unlockedVaultName}
                 </span>
                 <div className="w-9" /> {/* Spacer for centering */}
             </div>
@@ -1763,6 +1786,18 @@ export function VaultDashboard({
                     <AgentView
                         agentId={selectedAgentId}
                         onBack={() => setDashboardView("credentials")}
+                    />
+                ) : dashboardView === "backups" ? (
+                    <BackupView
+                        onBack={() => setDashboardView("credentials")}
+                        onOpenAccountDialog={handleOpenAccountDialog}
+                    />
+                ) : dashboardView === "vault-settings" ? (
+                    <VaultSettingsView
+                        onBack={() => setDashboardView("credentials")}
+                        onOpenLogInspector={() =>
+                            showLogInspectorDialogRef.current?.()
+                        }
                     />
                 ) : dashboardView === "shared-links" ? (
                     <SharedLinksView
@@ -1889,16 +1924,6 @@ export function VaultDashboard({
             <PasswordGeneratorDialog
                 open={isPasswordGeneratorOpen}
                 onOpenChange={setIsPasswordGeneratorOpen}
-            />
-            <VaultSettingsDialog
-                open={isVaultSettingsOpen}
-                onOpenChange={setIsVaultSettingsOpen}
-                onOpenLogInspector={() => showLogInspectorDialogRef.current?.()}
-            />
-            <BackupDialog
-                open={isBackupDialogOpen}
-                onOpenChange={setIsBackupDialogOpen}
-                onOpenAccountDialog={handleOpenAccountDialog}
             />
             <AccountDialog
                 open={isAccountDialogOpen}

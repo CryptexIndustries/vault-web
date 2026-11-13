@@ -272,13 +272,11 @@ test("rotates the web vault DEK only when explicitly selected", async ({
     }
 
     await settingsButton.click();
-    const settings = page.getByRole("dialog", {
+    const settings = page.getByRole("main", {
         name: "Vault Settings",
         exact: true,
     });
-    await settings
-        .getByRole("button", { name: "Manage Encryption & Security" })
-        .click();
+    await settings.getByRole("button", { name: "Manage", exact: true }).click();
 
     const security = page.getByRole("dialog", {
         name: "Encryption & Security",
@@ -318,10 +316,7 @@ test("rotates the web vault DEK only when explicitly selected", async ({
     await expect(security).toBeVisible();
     await security.getByLabel(/I saved the newly generated secrets/).check();
     await securityFooterClose.click();
-    await settings
-        .getByRole("button", { name: "Close", exact: true })
-        .first()
-        .click();
+    await settings.getByRole("button", { name: "Back to credentials" }).click();
 
     await page.getByRole("button", { name: "Lock Vault", exact: true }).click();
     const lockDialog = page.getByRole("dialog", { name: "Warning" });

@@ -8,6 +8,7 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 
 - Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.
 - Saving a STUN or TURN server whose host is named `stun` or `turn`, such as `turn:3478`, keeps the host name.
+- Using the SSH agent no longer uploads a managed backup for each request. The request history goes into the next backup.
 
 ## 0.5.1 - 2026-11-02
 

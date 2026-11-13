@@ -2,6 +2,14 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## Unreleased
+
+### Fixed
+
+- Managed backups no longer upload the same vault twice when the session renews during an upload.
+- Using the SSH agent no longer uploads a managed backup for each request. The request history goes into the next backup.
+- Locking an unchanged vault no longer uploads a managed backup.
+
 ## 1.11.0 - 2026-11-08
 
 ### Changed

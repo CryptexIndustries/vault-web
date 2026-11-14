@@ -6,7 +6,7 @@
 | ------------------- | ------------------------------------------------------------------------------------------- |
 | Application         | Cryptex Vault mobile application                                                            |
 | Application version | 0.3.0                                                                                       |
-| Platform in scope   | Android                                                                                     |
+| Platform in scope   | Android; the iOS AutoFill extension and the iOS storage it shares with the app              |
 | Document version    | 1.1                                                                                         |
 | Status              | Active engineering threat model                                                             |
 | Last reviewed       | 2026-10-14                                                                                  |
@@ -17,7 +17,7 @@
 
 ## 1. Purpose
 
-This model covers the Android app and the shared code it bundles. It records trust boundaries, security controls, open risks, and release checks.
+This model covers the Android app, the shared code it bundles, and the iOS AutoFill extension with the iOS storage and app code it depends on. It records trust boundaries, security controls, open risks, and release checks.
 
 Cryptex Vault is a local-first password manager. The central security boundary is the vault lock state:
 
@@ -77,10 +77,11 @@ Risk responses use four terms:
 - SSH agent approval: the approver runtime, its relay connection, request notifications, and the `cryptex-agent-service` foreground service. The relay server and the Linux agent are covered by their own threat models under `services/cmd/`.
 - One-time share links: the Share once screen, the Shared links list, share server settings, and the link handed to the clipboard or sharesheet. The share server itself is covered by its own [threat model](../services/cmd/share-server/threat-model.md).
 - Android build, signing, dependencies, permissions, backup rules, and publication checks.
+- iOS AutoFill: the credential provider extension in `mobile/targets/autofill`, the `cryptex-ios-credentials` module, the App Group storage and keychain items the app shares with the extension, and the app code that registers suggestions and adds saved logins. See section 12.13.
 
 ### 3.2 Out of scope
 
-- iOS behavior and iOS-native components.
+- Other iOS behavior and iOS-native components, and iOS release builds, which don't exist yet.
 - Cryptex Cloud server implementation, server-side authorization, billing, retention, and operational security.
 - Internal security of Pusher, Cloudflare, relying-party association hosts, custom signaling servers, STUN servers, TURN servers, app stores, or the Android operating system.
 - Security of a rooted or otherwise compromised operating system.
@@ -187,61 +188,113 @@ flowchart LR
 | Locking    | Save and cleanup in progress                                        | Opaque UI only                                                             | Secret-release capabilities must be revoked even if persistence fails                   |
 | Background | Process may be suspended with memory retained                       | No user-driven operation                                                   | Timeout policy must remain enforceable despite JavaScript suspension                    |
 
+### 5.3 iOS AutoFill components
+
+```mermaid
+flowchart LR
+    Site[Website or app]
+    IOS[iOS AutoFill and Safari]
+    IdStore[iOS credential identity store]
+
+    subgraph Device[iOS device]
+        subgraph App[Cryptex app process]
+            AppUI[React Native UI and session]
+            Module[cryptex-ios-credentials module]
+        end
+
+        subgraph Ext[AutoFill extension process]
+            ExtUI[Extension UI and Face ID]
+            Core[Vault decryption, matching, TOTP, inbox]
+        end
+
+        subgraph Group[App Group container and keychain group]
+            Vaults[Vault store, read-only to the extension]
+            Inbox[Inbox of saved logins]
+            Prefs[Copy setting and last vault]
+            Keys[Face ID wrap key and wrapped DEK]
+        end
+    end
+
+    Site <--> IOS
+    IOS <--> ExtUI
+    ExtUI <--> Core
+    Core --> Vaults
+    Core <--> Inbox
+    Core --> Keys
+    ExtUI --> Prefs
+    AppUI <--> Vaults
+    AppUI <--> Inbox
+    AppUI --> Keys
+    AppUI --> Module
+    Module --> IdStore
+    Core --> IdStore
+    IdStore --> IOS
+```
+
 ## 6. Assets and data classification
 
-| Asset                                            | Classification                  | Location and lifetime                                   | Required protection                                                                |
-| ------------------------------------------------ | ------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Master password                                  | Restricted                      | User input during create, unlock, and reauthentication  | Never persist or log; minimize copies and lifetime                                 |
-| Recovery code                                    | Restricted                      | User input and recovery-kit output                      | Treat as an alternate vault-unlock secret                                          |
-| Device additional key protection material        | Restricted                      | SecureStore, device-only accessibility                  | Never sync or expose through diagnostics                                           |
-| Data encryption key, DEK                         | Restricted                      | Memory while unlocked; optional biometric-wrapped form  | Clear on lock and session expiry; prevent ordinary export                          |
-| Vault plaintext                                  | Restricted                      | React Native memory while unlocked                      | Never persist outside encrypted vault or explicit user export                      |
-| Encrypted vault envelope and ciphertext          | Confidential                    | MMKV, backup files, managed backup                      | Authenticate, resist offline guessing, validate format and KDF costs               |
-| Credentials and TOTP seeds                       | Restricted                      | Encrypted vault and unlocked memory                     | Release only with user intent and verified destination context                     |
-| Passkey private keys                             | Restricted                      | Encrypted vault and transient crypto operation          | RP and caller checks, current session, fresh user verification                     |
-| Device-link mnemonic and package                 | Restricted                      | UI, QR, link file, and memory during ceremony           | Authenticate the complete ceremony and expire it                                   |
-| Sync signing and KEM private keys                | Restricted                      | Encrypted vault                                         | Authenticate sessions and messages; never log                                      |
-| Online Services device private key               | Restricted                      | Encrypted vault                                         | Use only for bounded authentication challenges                                     |
-| Online Services access and refresh tokens        | Restricted                      | Process memory                                          | Bind to session generation; clear on lock and sign-out                             |
-| Custom TURN and signaling credentials            | Restricted                      | Encrypted vault and connection setup                    | Mask in UI and diagnostics; transmit only to configured services                   |
-| Autofill request metadata                        | Confidential                    | Native memory and credential UI for a short request     | Authenticate request provenance and target; enforce expiry                         |
-| Browser and app identity                         | Security-sensitive metadata     | Android package, accessibility tree, Autofill structure | Do not treat attacker-controlled labels as authoritative identity                  |
-| Import and export files                          | Restricted or untrusted         | Document provider, app cache, sharesheet recipient      | Bound parsing; delete app copies; warn before plaintext export                     |
-| Clipboard contents                               | Restricted when copying secrets | System clipboard                                        | Mark sensitive, clear conditionally, disclose OS ownership                         |
-| Vault name, account, device, and domain metadata | Confidential                    | Storage, logs, network requests, provider UI            | Minimize disclosure and redact production diagnostics                              |
-| Turnstile token                                  | Confidential, ephemeral         | WebView to one API request                              | Validate origin and nonce; do not persist or log                                   |
-| One-time share link and its key                  | Restricted                      | Share screen memory; clipboard or sharesheet recipient  | Copy as a sensitive clip; never log; one view on the server                        |
-| Share manage tokens and share settings           | Restricted                      | Encrypted vault, synced between the user's devices      | Validate synced records; keep creation tokens off linked devices                   |
-| Backup destination keys                          | Restricted                      | Encrypted vault, synced and inside every backup         | Validate synced records; send only to the destination's HTTPS endpoint             |
-| Backup device ID and marker key                  | Confidential                    | Vault `LinkedDevices`, never synced or backed up        | Keep device-local; the stored marker is an HMAC, not a plain hash                  |
-| SSH approver identity seeds                      | Restricted                      | SecureStore outside the vault, after first unlock       | Never sync or log; enough for Deny and notifications, not for signing              |
-| Approved agent cache                             | Public, integrity-sensitive     | Plain app storage outside the vault                     | Holds only agent IDs, names and public keys; names feed notifications              |
-| Relay pass and custom relay tokens               | Restricted                      | SecureStore outside the vault                           | Send only to the relay they were issued for; never log                             |
-| SSH sign request content                         | Confidential                    | Approver memory and the request screen                  | End-to-end encrypted on the relay; notification shows only agent name              |
-| Remembered SSH approvals                         | Security-sensitive              | Approver memory while the vault is unlocked             | Clear on lock; never for forwarded, destination-unknown or non-git SSHSIG requests |
-| Private release signing key and passwords        | Restricted                      | Private directory outside the checkout; signing process | Never enter source or APK; keep an encrypted offline backup                        |
-| Public release configuration and certificate     | Public, integrity-sensitive     | Checked-in JSON; public configuration and APK signature | Review changes; require the approved configuration and signer                      |
+| Asset                                            | Classification                  | Location and lifetime                                            | Required protection                                                                                       |
+| ------------------------------------------------ | ------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Master password                                  | Restricted                      | User input during create, unlock, and reauthentication           | Never persist or log; minimize copies and lifetime                                                        |
+| Recovery code                                    | Restricted                      | User input and recovery-kit output                               | Treat as an alternate vault-unlock secret                                                                 |
+| Device additional key protection material        | Restricted                      | SecureStore, device-only accessibility                           | Never sync or expose through diagnostics                                                                  |
+| Data encryption key, DEK                         | Restricted                      | Memory while unlocked; optional biometric-wrapped form           | Clear on lock and session expiry; prevent ordinary export                                                 |
+| Vault plaintext                                  | Restricted                      | React Native memory while unlocked                               | Never persist outside encrypted vault or explicit user export                                             |
+| Encrypted vault envelope and ciphertext          | Confidential                    | MMKV, backup files, managed backup                               | Authenticate, resist offline guessing, validate format and KDF costs                                      |
+| Credentials and TOTP seeds                       | Restricted                      | Encrypted vault and unlocked memory                              | Release only with user intent and verified destination context                                            |
+| Passkey private keys                             | Restricted                      | Encrypted vault and transient crypto operation                   | RP and caller checks, current session, fresh user verification                                            |
+| Device-link mnemonic and package                 | Restricted                      | UI, QR, link file, and memory during ceremony                    | Authenticate the complete ceremony and expire it                                                          |
+| Sync signing and KEM private keys                | Restricted                      | Encrypted vault                                                  | Authenticate sessions and messages; never log                                                             |
+| Online Services device private key               | Restricted                      | Encrypted vault                                                  | Use only for bounded authentication challenges                                                            |
+| Online Services access and refresh tokens        | Restricted                      | Process memory                                                   | Bind to session generation; clear on lock and sign-out                                                    |
+| Custom TURN and signaling credentials            | Restricted                      | Encrypted vault and connection setup                             | Mask in UI and diagnostics; transmit only to configured services                                          |
+| Autofill request metadata                        | Confidential                    | Native memory and credential UI for a short request              | Authenticate request provenance and target; enforce expiry                                                |
+| Browser and app identity                         | Security-sensitive metadata     | Android package, accessibility tree, Autofill structure          | Do not treat attacker-controlled labels as authoritative identity                                         |
+| Import and export files                          | Restricted or untrusted         | Document provider, app cache, sharesheet recipient               | Bound parsing; delete app copies; warn before plaintext export                                            |
+| Clipboard contents                               | Restricted when copying secrets | System clipboard                                                 | Mark sensitive, clear conditionally, disclose OS ownership                                                |
+| Vault name, account, device, and domain metadata | Confidential                    | Storage, logs, network requests, provider UI                     | Minimize disclosure and redact production diagnostics                                                     |
+| Turnstile token                                  | Confidential, ephemeral         | WebView to one API request                                       | Validate origin and nonce; do not persist or log                                                          |
+| One-time share link and its key                  | Restricted                      | Share screen memory; clipboard or sharesheet recipient           | Copy as a sensitive clip; never log; one view on the server                                               |
+| Share manage tokens and share settings           | Restricted                      | Encrypted vault, synced between the user's devices               | Validate synced records; keep creation tokens off linked devices                                          |
+| Backup destination keys                          | Restricted                      | Encrypted vault, synced and inside every backup                  | Validate synced records; send only to the destination's HTTPS endpoint                                    |
+| Backup device ID and marker key                  | Confidential                    | Vault `LinkedDevices`, never synced or backed up                 | Keep device-local; the stored marker is an HMAC, not a plain hash                                         |
+| SSH approver identity seeds                      | Restricted                      | SecureStore outside the vault, after first unlock                | Never sync or log; enough for Deny and notifications, not for signing                                     |
+| Approved agent cache                             | Public, integrity-sensitive     | Plain app storage outside the vault                              | Holds only agent IDs, names and public keys; names feed notifications                                     |
+| Relay pass and custom relay tokens               | Restricted                      | SecureStore outside the vault                                    | Send only to the relay they were issued for; never log                                                    |
+| SSH sign request content                         | Confidential                    | Approver memory and the request screen                           | End-to-end encrypted on the relay; notification shows only agent name                                     |
+| Remembered SSH approvals                         | Security-sensitive              | Approver memory while the vault is unlocked                      | Clear on lock; never for forwarded, destination-unknown or non-git SSHSIG requests                        |
+| Private release signing key and passwords        | Restricted                      | Private directory outside the checkout; signing process          | Never enter source or APK; keep an encrypted offline backup                                               |
+| Public release configuration and certificate     | Public, integrity-sensitive     | Checked-in JSON; public configuration and APK signature          | Review changes; require the approved configuration and signer                                             |
+| iOS shared vault store                           | Confidential                    | MMKV in the App Group container, multi-process                   | The same envelope as Android; the extension opens it read-only                                            |
+| iOS Face ID unlock items                         | Restricted                      | Keychain items in the App Group's keychain group                 | Wrap key behind `biometryCurrentSet`; wrapped DEK device-only; readable by the app and its extension only |
+| iOS credential identities                        | Confidential metadata           | iOS identity store, outside the vault, until replaced or cleared | Website, username or code label, and record ID only; never a password or TOTP secret                      |
+| iOS AutoFill inbox entries                       | Restricted ciphertext           | MMKV in the App Group container until the app adds them          | AES-256-GCM under the vault DEK, bound to vault index and entry ID                                        |
+| Extension plaintext and DEK                      | Restricted                      | AutoFill extension memory for one request                        | Face ID per request; dropped when the request completes or is canceled                                    |
+| App Group settings                               | Public, integrity-sensitive     | App Group user defaults                                          | Holds only the copy-codes setting and the last vault picked                                               |
 
 ## 7. Trust zones and boundaries
 
-| ID    | Boundary                                      | Data crossing                                                     | Existing controls                                                                                                            | Residual concern                                                                                      |
-| ----- | --------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| TB-01 | Unlocked process to local storage             | Encrypted vault, metadata, device-bound keys                      | Authenticated encryption, MMKV app sandbox, SecureStore, enforced session deadline                                           | Save failure can delay memory cleanup; encrypted data remains subject to offline guessing             |
-| TB-02 | JavaScript to native Android module           | Credential requests, secrets selected for fill, passkey material  | Typed wrappers, private native request registry, random handles, freshness checks, protected service bindings                | A killed process cancels its pending request; valid request results depend on the live relay          |
-| TB-03 | Cryptex to another app                        | Username, password, TOTP, saved app association                   | Protected callbacks, private request registry, explicit selection, exact package association                                 | Saved app associations identify the package, not its publisher certificate                            |
-| TB-04 | Cryptex to a browser or web content           | Website credentials and passkeys                                  | URI matching, framework domains, explicit browser/resource-ID policy, user selection                                         | Package names do not prove publisher identity; top-level URL does not prove field or iframe origin    |
-| TB-05 | Application to Android OS services            | Biometrics, clipboard, camera, picker, sharing, screenshots       | Platform APIs, least requested permissions, sensitive clipboard flag                                                         | OS owns data after release; timers can pause; behavior varies by Android version and device           |
-| TB-06 | Application to peer device                    | Link package, vault transfer, sync messages                       | Pairing phrase, sender-signed transfer context, KEM, AEAD, signed sync, sequence checks                                      | Peer compromise and traffic-analysis or availability attacks remain out of scope                      |
-| TB-07 | Application to signaling, STUN, and TURN      | Connection metadata and optional credentials                      | Payload encryption, user-selected endpoints, HTTPS policy where applicable                                                   | Services observe connection metadata and can block or redirect traffic                                |
-| TB-08 | Application to Cryptex Cloud                  | Account data, device auth, backups, recovery and billing metadata | Default-on services, optional account use, signed challenge, session generation checks, TLS                                  | Server behavior is out of scope; service sees required metadata and encrypted backup objects          |
-| TB-09 | Turnstile WebView to hosted page              | Action, nonce, token, error status                                | HTTPS in production, origin/path/action allowlists, schema validation                                                        | WebView and hosted route remain external parsing and navigation surfaces                              |
-| TB-10 | Credential provider to RP association hosts   | Website statement request, device IP, and timing                  | Direct HTTPS, exact local package/certificate/relation checks, bounded includes and responses, no redirects                  | Native-app checks need connectivity; website and delegated hosts see request metadata                 |
-| TB-11 | Untrusted file or QR to parsers               | Vault, import, credential, TOTP, and device-link data             | A 1 GB outer-file limit before JavaScript materialization, format checks, and cryptographic authentication where defined     | Expanded-size, nesting, QR, and wire-message limits remain incomplete                                 |
-| TB-12 | Source and dependencies to release APK        | Code, native libraries, flags, signing identity                   | Frozen lock, Maven checksums, pinned toolchain/actions, isolated production build, final APK policy and signer checks        | Publication still needs an identified source baseline, protected key backup and F-Droid recipe review |
-| TB-13 | Application to share server                   | Share ciphertext, token hashes, manage tokens, subscriber tickets | Client-side AES-256-GCM, key only in the link fragment, ticket audience check, HTTPS-only production network policy          | An intercepted link opens the share; a custom server serves its own recipient page                    |
-| TB-14 | Approver to SSH agent relay and paired agents | Encrypted sign requests and answers, relay pass, relay tokens     | End-to-end encryption to paired agent keys, relay pass bound to the identity key, connection only while an agent is approved | The relay sees connection metadata and timing and can drop or delay requests                          |
-| TB-15 | Lock screen and notification shade            | Agent name, request ID, Review and Deny actions                   | Private notifications with a public "Approval needed" version, non-exported Deny receiver, signing needs the unlocked vault  | Anyone holding the unlocked phone can see the agent name and tap Deny                                 |
-| TB-16 | Application to backup destination bucket      | Encrypted `.cryx`, bucket listings, SigV4-signed requests         | HTTPS-only production network policy, endpoint and prefix validation, pruning limited to this device's folder                | Provider sees metadata; synced keys let any linked device delete what the key allows                  |
+| ID    | Boundary                                                 | Data crossing                                                          | Existing controls                                                                                                                                                 | Residual concern                                                                                      |
+| ----- | -------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| TB-01 | Unlocked process to local storage                        | Encrypted vault, metadata, device-bound keys                           | Authenticated encryption, MMKV app sandbox, SecureStore, enforced session deadline                                                                                | Save failure can delay memory cleanup; encrypted data remains subject to offline guessing             |
+| TB-02 | JavaScript to native Android module                      | Credential requests, secrets selected for fill, passkey material       | Typed wrappers, private native request registry, random handles, freshness checks, protected service bindings                                                     | A killed process cancels its pending request; valid request results depend on the live relay          |
+| TB-03 | Cryptex to another app                                   | Username, password, TOTP, saved app association                        | Protected callbacks, private request registry, explicit selection, exact package association                                                                      | Saved app associations identify the package, not its publisher certificate                            |
+| TB-04 | Cryptex to a browser or web content                      | Website credentials and passkeys                                       | URI matching, framework domains, explicit browser/resource-ID policy, user selection                                                                              | Package names do not prove publisher identity; top-level URL does not prove field or iframe origin    |
+| TB-05 | Application to Android OS services                       | Biometrics, clipboard, camera, picker, sharing, screenshots            | Platform APIs, least requested permissions, sensitive clipboard flag                                                                                              | OS owns data after release; timers can pause; behavior varies by Android version and device           |
+| TB-06 | Application to peer device                               | Link package, vault transfer, sync messages                            | Pairing phrase, sender-signed transfer context, KEM, AEAD, signed sync, sequence checks                                                                           | Peer compromise and traffic-analysis or availability attacks remain out of scope                      |
+| TB-07 | Application to signaling, STUN, and TURN                 | Connection metadata and optional credentials                           | Payload encryption, user-selected endpoints, HTTPS policy where applicable                                                                                        | Services observe connection metadata and can block or redirect traffic                                |
+| TB-08 | Application to Cryptex Cloud                             | Account data, device auth, backups, recovery and billing metadata      | Default-on services, optional account use, signed challenge, session generation checks, TLS                                                                       | Server behavior is out of scope; service sees required metadata and encrypted backup objects          |
+| TB-09 | Turnstile WebView to hosted page                         | Action, nonce, token, error status                                     | HTTPS in production, origin/path/action allowlists, schema validation                                                                                             | WebView and hosted route remain external parsing and navigation surfaces                              |
+| TB-10 | Credential provider to RP association hosts              | Website statement request, device IP, and timing                       | Direct HTTPS, exact local package/certificate/relation checks, bounded includes and responses, no redirects                                                       | Native-app checks need connectivity; website and delegated hosts see request metadata                 |
+| TB-11 | Untrusted file or QR to parsers                          | Vault, import, credential, TOTP, and device-link data                  | A 1 GB outer-file limit before JavaScript materialization, format checks, and cryptographic authentication where defined                                          | Expanded-size, nesting, QR, and wire-message limits remain incomplete                                 |
+| TB-12 | Source and dependencies to release APK                   | Code, native libraries, flags, signing identity                        | Frozen lock, Maven checksums, pinned toolchain/actions, isolated production build, final APK policy and signer checks                                             | Publication still needs an identified source baseline, protected key backup and F-Droid recipe review |
+| TB-13 | Application to share server                              | Share ciphertext, token hashes, manage tokens, subscriber tickets      | Client-side AES-256-GCM, key only in the link fragment, ticket audience check, HTTPS-only production network policy                                               | An intercepted link opens the share; a custom server serves its own recipient page                    |
+| TB-14 | Approver to SSH agent relay and paired agents            | Encrypted sign requests and answers, relay pass, relay tokens          | End-to-end encryption to paired agent keys, relay pass bound to the identity key, connection only while an agent is approved                                      | The relay sees connection metadata and timing and can drop or delay requests                          |
+| TB-15 | Lock screen and notification shade                       | Agent name, request ID, Review and Deny actions                        | Private notifications with a public "Approval needed" version, non-exported Deny receiver, signing needs the unlocked vault                                       | Anyone holding the unlocked phone can see the agent name and tap Deny                                 |
+| TB-16 | Application to backup destination bucket                 | Encrypted `.cryx`, bucket listings, SigV4-signed requests              | HTTPS-only production network policy, endpoint and prefix validation, pruning limited to this device's folder                                                     | Provider sees metadata; synced keys let any linked device delete what the key allows                  |
+| TB-17 | iOS app to AutoFill extension through the App Group      | Encrypted vault store, Face ID keychain items, inbox entries, settings | App Group and keychain group limited to the team's signed app and extension; extension opens the vault store read-only; inbox ciphertext bound to vault and entry | Any process in the group can delete, reorder or replay entries and change the settings                |
+| TB-18 | AutoFill extension to iOS and the requesting site or app | Selected logins, codes, inserted text, generated and saved passwords   | iOS routes each request; Face ID on every request that reads the vault; the extension returns only the login or value the user picks                              | iOS, not Cryptex, decides which service a request comes from                                          |
+| TB-19 | App and extension to the iOS identity store              | Website, username or code label, record ID                             | Built in one Swift implementation; registered only for vaults with Face ID unlock; 10-second time limit per store call                                            | iOS matches suggestions to pages by its own rules, and a timed-out call may still complete            |
 
 ## 8. Entry points
 
@@ -265,6 +318,8 @@ flowchart LR
 | EP-16 | SSH agent relay messages and paired agent requests                      | External service and user-paired computer      | Forged or replayed requests, misleading names, request floods               |
 | EP-17 | Agent notification actions, boot and app-update broadcasts              | Android-mediated                               | Spoofed Deny or Review, unwanted service restart                            |
 | EP-18 | Backup destination listings, downloads and synced destination records   | User's bucket and other user devices           | Hostile object keys, oversized downloads, records pointing at another host  |
+| EP-19 | iOS AutoFill requests to fill, insert text, save, generate or set up    | iOS-mediated                                   | Wrong destination, unlocking before the sheet shows, stale decrypted data   |
+| EP-20 | App Group inbox entries read by the app                                 | Extension-written, App Group-reachable         | Forged, replayed, reordered or undecryptable entries                        |
 
 ## 9. Threat actors
 
@@ -295,6 +350,7 @@ The security claims in this model depend on these assumptions:
 - The application cannot guarantee secrecy after OS compromise or arbitrary code execution in the unlocked process.
 - JavaScript and garbage-collected native bridges cannot promise complete memory zeroization. The design can reduce copies and lifetimes.
 - Screenshot blocking, clipboard clearing, biometric invalidation, autofill field identity, iframe handling, and Keystore enforcement can vary by Android version and device. Emulator results do not establish physical-device behavior.
+- On iOS, App Groups, keychain access groups, `biometryCurrentSet` access control, AutoFill request routing and the credential identity store behave as Apple documents. The Simulator's keychain doesn't enforce the Face ID requirement and its identity store service never starts, so Simulator runs establish neither.
 
 ## 11. Existing control catalog
 
@@ -304,6 +360,7 @@ The security claims in this model depend on these assumptions:
 - SecureStore holds device-bound additional key protection material and per-vault biometric wrapping keys with device-only accessibility settings.
 - An entered protection phrase reaches SecureStore only after it successfully opens the authenticated envelope. Owned mutable derivation buffers are wiped after use.
 - The DEK normally remains in module memory only while the vault is unlocked. Each local vault's biometric enrollment stores its wrapped DEK and device-bound wrapping key in a separate SecureStore keychain service.
+- On iOS, the vault store sits in the App Group container in MMKV's multi-process mode, and the Face ID wrap key and wrapped DEK sit in the App Group's keychain group with the same device-only accessibility. The AutoFill extension opens the vault store read-only and writes saved logins to a separate inbox store.
 - Android OS backup is disabled. Reviewed resources exclude every app-data domain from cloud backup and device-to-device transfer, including SecureStore. Explicit vault exports and managed backups remain available.
 - Secret clipboard writes use Android's sensitive-clipboard path when the native module is available. A native ownership marker limits clearing to the app's current clip; a 30-second native timer, resume check, and lock cleanup attempt to clear it. Android may defer a frozen process, and recipient apps may already have copied it.
 - App-created share files use a dedicated secret-temporary cache directory. Picker copies are removed after reading, and import/export and recovery-kit flows clean up app-owned files on completion or abandonment. Startup and lock purge the app-owned secret-temporary and picker cache directories; a killed process can leave cache files until the next launch.
@@ -321,6 +378,7 @@ The security claims in this model depend on these assumptions:
 
 - Password unlock authenticates the encrypted vault. Optional device-local additional key protection and recovery unlock are separate paths.
 - Biometric unlock gates access to the device wrapping key and wrapped DEK. It is an unlock convenience tied to device security, not a stronger independent factor.
+- The iOS AutoFill extension asks for Face ID on every request that reads the vault, once its sheet is on screen. It evaluates Face ID itself before reading the wrap key, because the Simulator's keychain doesn't enforce `biometryCurrentSet`. On a device the keychain reuses that evaluation, so there is one prompt. There is no passcode fallback beyond iOS's own lockout recovery. The extension has no master password unlock, because its memory limit is below the default Argon2id cost.
 - Passkey creation and assertion require fresh strong biometric or device-credential verification.
 - Credential Manager rechecks RP IDs, allow and exclude lists, request freshness, and the current vault-session generation.
 - The configured auto-lock timeout is checked before JavaScript secret access and native credential-provider completion. An expired provider cache cannot be revived by routine refresh; unlock is required to reactivate it. A disabled timeout remains an explicit user setting.
@@ -342,6 +400,7 @@ The security claims in this model depend on these assumptions:
 - The accessibility fallback is separately enabled by the user and requires an explicit fill or save action. Browser fills also require a separate in-app destination review, including for matching logins.
 - Main and credential-relay activities set `FLAG_SECURE` before sensitive UI renders. The separate debug-signed, `testOnly` E2E variant deliberately permits screenshots; production release does not.
 - The SSH agent service is a non-exported `specialUse` foreground service. It runs only while at least one agent is approved on this device, and the boot receiver restarts it only when the user left it on. Its Deny receiver and headless task service are non-exported; the boot receiver accepts only the protected `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` broadcasts. The app opens the battery optimization list but does not declare `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Release verification checks these components.
+- When iOS asks the AutoFill extension to answer without its interface, it replies "user interaction required", so every fill, code and save shows its sheet. The exception is a request for generated passwords (iOS 26.2 and later), which it answers from the website's password rules and the system random generator without reading the vault. For a fill, the extension returns only the login the user picks, or the one behind the suggestion iOS routed to it.
 - Camera use is limited to QR functions. The application blocks microphone, storage, media, overlay, and WebRTC audio permissions that it does not need.
 
 ### 11.6 MASVS-CODE
@@ -569,27 +628,52 @@ Required invariants:
 - The device ID and marker key stay in `LinkedDevices`, which never syncs or goes into a backup. The per-destination state in app storage holds only an HMAC of the vault keyed with the marker key, timestamps and error text.
 - Residual: bucket keys sync to every linked device and are inside every backup, so a linked device, or anyone who opens a backup, can overwrite or delete what the key allows. A key without delete rights plus "Keep every backup" limits that. Backups made under an old master password stay in other devices' folders, and in this device's folder unless the user turned that option on. A bucket restore downloads into JavaScript memory without the 1 GB file-intake limit (MOB-T08).
 
+### 12.13 iOS AutoFill
+
+1. Turning on biometric unlock for a vault stores its wrap key and wrapped DEK in the App Group's keychain group. The vault store lives in the App Group container.
+2. While a vault with biometric unlock is unlocked, the app sends its logins to the `cryptex-ios-credentials` module without passwords or TOTP secrets: ID, name, username, URL rules, and whether a password and a TOTP secret exist. The module builds the identities in the same Swift as the extension and replaces that vault's entries in the iOS identity store (iOS 17.4 and later). It clears them when biometric unlock is turned off or the vault is deleted. The app retries a clear that iOS doesn't confirm on each start and foreground until iOS does, and before it registers that vault's logins again.
+3. When the user turns the provider on, the extension's setup screen asks for Face ID once per vault with biometric unlock and registers the same identities. A canceled Face ID skips that vault, and the screen finishes even when it skipped every vault.
+4. For a fill, code, text or save request, the extension waits until its sheet is visible, asks for Face ID, unwraps the DEK, and decrypts the vault and its pending inbox entries in its own memory. If several vaults qualify, the user picks one first; the last choice is stored in the App Group.
+5. A password fill returns the username and password the user picks, or the login behind the suggestion iOS routed. As on Android, a login picked for a website it isn't saved for, or any login on a page without HTTPS, opens a review first. From there the user fills once or, on an HTTPS page, adds that exact host to the login through the inbox and then fills. With "Copy verification codes" on, it also puts the current TOTP code on the general pasteboard, local only and expiring after 30 seconds. A one-time code request (iOS 18 and later) returns the current code. A text request (iOS 18 and later, from AutoFill in a text field's menu) lists every login with a username, password or code and returns only the one value the user picks. The extension records when it last filled each record ID in the App Group settings, and identities carry that time as their rank, so iOS offers the account used last first.
+6. A save request (iOS 26.2 and later) shows the logins the save could update, using Android's save rules, and offers to save a new login. A save from a page keeps its origin, including a port other than the default. The fill sheet's Add login form, with the fields of Android's editor, saves a new login the same way and then fills it, through the review when the page isn't one of its websites or has no HTTPS. The extension encrypts each save, new login and association with AES-256-GCM under the vault's DEK, with associated data binding the vault index and a random entry ID, and writes it to the inbox store. Under an App Group lock, it first checks that its key still opens the stored vault. If the app rotated the key since, a save asks for Face ID again, and an association or Add login shows an error instead. When the request ends, the extension adds the saved login's identities to the identity store, without secrets, if the store still lists that vault, so a late add can't undo the app clearing it. The app's next replace of that vault's identities supersedes them. A password generation request (iOS 26.2 and later) needs no Face ID and reads nothing from the vault. It returns a password that follows the website's rules, plus a passphrase when the website has none.
+7. When the vault unlocks, and whenever the app returns to the foreground while unlocked, the app decrypts that vault's entries with the session DEK and applies them in one vault mutation. A new login takes the entry ID as its credential ID and must pass the editor's form checks, or its entry is reported and kept. An update whose login was deleted becomes a new login, and an association with a deleted login is dropped. Entries are deleted only after the vault is saved, and merges of a vault run one at a time. Rotating the data key merges first and holds the App Group lock until the rotated vault is stored. Deleting a vault deletes its entries.
+
+Required invariants:
+
+- The identity store receives only websites, usernames or code labels, and record IDs. Passwords and TOTP secrets never leave the encrypted vault and the request that releases them.
+- The extension asks for Face ID on every request that reads the vault and keeps no DEK or decrypted data between requests. It doesn't ask before its sheet is on screen, and if iOS refuses to show the prompt, it offers to try again instead of canceling. A cancel or completion ends the request once, and an unlock that finishes after that is dropped, so it can't fill, copy a code or save.
+- The extension writes only to the inbox store and the App Group settings. It never writes the vault store.
+- Every inbox merge checks the vault session after each decryption and saves through the write coordinator. Merges of a vault run one at a time and apply only entries still in the inbox. A crash between saving and deleting adds nothing twice. An entry that doesn't decrypt is reported and kept.
+- A data key rotation doesn't start until the inbox is merged, so no entry is left under the old key. The app holds an App Group lock from the merge until the rotated vault is stored. The extension writes an entry under the same lock, and only if its key still opens the stored vault. Otherwise a save asks for Face ID again, and other writes fail. The rotation re-encrypts the vault in the same write that stores it, so the check fails even if the app stops before it refreshes the Face ID item.
+- Every identity store call and lock wait has a time limit, so a store that never answers can't hold the app's update queue or the setup screen.
+
+Residual risks are MOB-T09 to MOB-T12. iOS, not Cryptex, decides which page or app a request comes from.
+
 ## 13. STRIDE coverage summary
 
-| STRIDE category        | Mobile examples                                                                     | Principal controls                                                                                             | Open risk IDs    |
-| ---------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Spoofing               | Fake browser, wrong passkey caller, fake link peer                                  | Android binding permissions, package/domain checks, private request registry, RP validation, user verification | MOB-T02          |
-| Tampering              | Vault-transfer substitution, modified vault blob, malicious import, backup rollback | AEAD, slot authentication, sync signatures, format checks, write coordinator                                   | MOB-T07, MOB-T08 |
-| Repudiation            | Ambiguous fill destination, untraceable release artifact, external service action   | User confirmation, diagnostic event codes, release provenance                                                  | MOB-T02          |
-| Information disclosure | Failed lock, screenshots, clipboard, temp files, logs, third-party metadata         | Encryption, SecureStore, screen privacy, redaction, timeout and cleanup                                        | MOB-T03          |
-| Denial of service      | Extreme KDF cost, zip/XML expansion, QR or wire flood                               | Format validation, timeout, authentication before some work                                                    | MOB-T07, MOB-T08 |
-| Elevation of privilege | Insecure test artifact or incorrectly trusted credential request                    | Protected services, private request registry, non-exported relay, signing and build controls                   | None recorded    |
+| STRIDE category        | Mobile examples                                                                     | Principal controls                                                                                             | Open risk IDs             |
+| ---------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Spoofing               | Fake browser, wrong passkey caller, fake link peer                                  | Android binding permissions, package/domain checks, private request registry, RP validation, user verification | MOB-T02, MOB-T09          |
+| Tampering              | Vault-transfer substitution, modified vault blob, malicious import, backup rollback | AEAD, slot authentication, sync signatures, format checks, write coordinator                                   | MOB-T07, MOB-T08, MOB-T12 |
+| Repudiation            | Ambiguous fill destination, untraceable release artifact, external service action   | User confirmation, diagnostic event codes, release provenance                                                  | MOB-T02                   |
+| Information disclosure | Failed lock, screenshots, clipboard, temp files, logs, third-party metadata         | Encryption, SecureStore, screen privacy, redaction, timeout and cleanup                                        | MOB-T03, MOB-T10, MOB-T11 |
+| Denial of service      | Extreme KDF cost, zip/XML expansion, QR or wire flood                               | Format validation, timeout, authentication before some work                                                    | MOB-T07, MOB-T08          |
+| Elevation of privilege | Insecure test artifact or incorrectly trusted credential request                    | Protected services, private request registry, non-exported relay, signing and build controls                   | None recorded             |
 
 ## 14. Risk register
 
 ### 14.1 Summary
 
-| ID      | Threat                                                      | STRIDE |   L |   I | Score | Rating | Response | Status   |
-| ------- | ----------------------------------------------------------- | ------ | --: | --: | ----: | ------ | -------- | -------- |
-| MOB-T02 | Accessibility does not report each field's document origin  | S, I   |   3 |   4 |    12 | High   | Accept   | Accepted |
-| MOB-T03 | Failed automatic save can delay session-memory cleanup      | I      |   3 |   3 |     9 | Medium | Mitigate | Open     |
-| MOB-T07 | Untrusted KDF parameters can exhaust memory or CPU          | D      |   3 |   3 |     9 | Medium | Mitigate | Open     |
-| MOB-T08 | Import, QR, and wire parsing lack complete resource budgets | D      |   3 |   3 |     9 | Medium | Mitigate | Open     |
+| ID      | Threat                                                        | STRIDE |   L |   I | Score | Rating | Response | Status   |
+| ------- | ------------------------------------------------------------- | ------ | --: | --: | ----: | ------ | -------- | -------- |
+| MOB-T02 | Accessibility does not report each field's document origin    | S, I   |   3 |   4 |    12 | High   | Accept   | Accepted |
+| MOB-T03 | Failed automatic save can delay session-memory cleanup        | I      |   3 |   3 |     9 | Medium | Mitigate | Open     |
+| MOB-T07 | Untrusted KDF parameters can exhaust memory or CPU            | D      |   3 |   3 |     9 | Medium | Mitigate | Open     |
+| MOB-T08 | Import, QR, and wire parsing lack complete resource budgets   | D      |   3 |   3 |     9 | Medium | Mitigate | Open     |
+| MOB-T09 | iOS keyboard suggestions rely on iOS matching                 | S, I   |   2 |   3 |     6 | Medium | Accept   | Accepted |
+| MOB-T10 | Decrypted strings in the iOS extension can't be wiped         | I      |   1 |   3 |     3 | Low    | Accept   | Accepted |
+| MOB-T11 | A copied code sits on the general pasteboard for 30 seconds   | I      |   3 |   2 |     6 | Medium | Accept   | Accepted |
+| MOB-T12 | App Group writers can delete, reorder or replay inbox entries | T, D   |   1 |   2 |     2 | Low    | Accept   | Accepted |
 
 ### 14.2 High risks
 
@@ -632,6 +716,39 @@ Required invariants:
 - **Owner:** Milivoj Bošnjak (8l4cksmith).
 - **Source anchors:** `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/mobile-import-file.ts`, `mobile/src/app_lib/managed-backups.ts`, `packages/vault-core/src/vault-utils/import-export.ts`, `packages/shared-ui/src/lib/chunked-qr.ts`, `packages/vault-core/src/synchronization.ts`.
 
+#### MOB-T09: iOS matching for keyboard suggestions
+
+- **Risk statement:** Picking a suggestion above the keyboard fills that login after Face ID without Cryptex's own URL matching, because iOS passes the chosen identity, not the page. iOS may match a domain identity more broadly than an exact-host rule, for example on a sibling subdomain. The app and the extension list and replace the store under an App Group lock. A call that times out keeps the lock until the store answers, so the next update lists what it wrote. A replace that fails or can't get the lock in time leaves the vault's previous suggestions (website and username only) until the next update.
+- **Existing controls:** Identities use the narrowest domain each rule allows, and IP hosts are registered exactly. From iOS 18, Foundation's URL parsing converts internationalized hostnames the same way the browser does on the shared vectors. On older versions those logins never match or register, so a look-alike conversion can't point a login at another domain, and they stay reachable through search. The extension's own list uses Cryptex matching. The app retries a clear that fails, times out or can't get the lock on each start and foreground, and before it registers that vault's logins again. It stops once iOS confirms the clear, so a deleted vault's suggestions don't stay. Until then, a suggestion for a vault without biometric unlock can't fill, because the extension can't open that vault.
+- **Decision:** Accepted with the feature. Review if iOS starts passing the page with suggestion requests.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
+- **Source anchors:** `mobile/targets/autofill/Core/AutofillIdentities.swift`, `mobile/targets/autofill/IdentityStore.swift`, `mobile/src/utils/ios-credential-identities.ts`.
+
+#### MOB-T11: copied code on the general pasteboard
+
+- **Risk statement:** With "Copy verification codes" on, a password fill puts the current TOTP code on the general pasteboard. Other apps that read the pasteboard in the next 30 seconds can see it, after iOS's paste notice.
+- **Existing controls:** The setting is off by default. The copy is local only, so it doesn't reach other devices, and it expires after 30 seconds. iOS expires only that item, so a later copy by the user stays.
+- **Decision:** Accepted as an opt-in convenience, matching Android.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
+- **Source anchors:** `mobile/targets/autofill/CredentialProviderViewController.swift`, `mobile/src/utils/autofill-settings.ts`.
+
+### 14.4 Low risks
+
+#### MOB-T10: decrypted strings in the iOS extension
+
+- **Risk statement:** The extension parses the vault into Swift strings, which can't be wiped. They stay in its memory until freed after the request.
+- **Existing controls:** The extension wipes the raw key, wrap key and plaintext buffers. Each request decrypts again and drops the decrypted logins when it completes or is canceled. Code execution in the extension is outside the protection claim.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
+- **Source anchors:** `mobile/targets/autofill/Core/VaultDecryption.swift`.
+
+#### MOB-T12: App Group writers and the inbox
+
+- **Risk statement:** Any process in the App Group, which is only the team's signed app and extension, can delete, reorder or replay inbox entries and change the copy setting, the remembered vault or the fill times that order suggestions. A replayed entry is applied again: an update replayed after a later password change restores the old password, a new login replayed after the user deleted it comes back, and an association replayed after the user removed that website adds it back.
+- **Existing controls:** Entries can't be forged without the vault's DEK, and the associated data stops an entry from moving to another vault or ID. Replaying needs App Group write access, which is inside the accepted trust boundary, so the vault format doesn't track applied entry IDs. Deleting an entry loses only that unsaved login or website.
+- **Decision:** The project maintainer accepted this on 2026-11-12. Review this decision if another target or extension joins the App Group, or if the vault format gains a place to record applied inbox entries.
+- **Owner:** Milivoj Bošnjak (8l4cksmith).
+- **Source anchors:** `mobile/targets/autofill/Core/AutofillInbox.swift`, `mobile/src/utils/ios-autofill-inbox.ts`.
+
 ## 15. Recorded design decisions
 
 ### 15.1 Password-autofill browser certificate checks
@@ -664,28 +781,31 @@ Durable background WebRTC sync is not a security requirement. Sync pauses when t
 
 ## 16. Security requirements and release gates
 
-| ID    | Requirement                                                                                                                                                                                               | Verification gate                                                  |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| SR-01 | A confirmed "Lock anyway" revokes the DEK and plaintext despite save failure. Automatic-save failure preserves timeout denial and needs an explicit retained-memory cleanup policy.                       | Fault-injection unit and device tests                              |
-| SR-02 | Every secret-release path checks current session generation and timeout.                                                                                                                                  | Unit tests plus background provider tests                          |
-| SR-03 | Browser requests need a reported website, never a browser package fallback. Known field-origin mismatches are excluded; unknown field origins require review. A hidden scheme is never promoted to HTTPS. | Native parser and device tests                                     |
-| SR-04 | Unknown apps cannot gain website matches through labels or intent handling.                                                                                                                               | Android instrumentation test                                       |
-| SR-05 | Accessibility website filling requires explicit selection and a separate in-app destination review for every browser fill; address-bar identity alone never releases credentials.                         | Autofill policy unit test and device flow                          |
-| SR-06 | Authoritative credential requests exist only in a private native registry.                                                                                                                                | External-intent injection tests                                    |
-| SR-07 | Every sensitive activity enables screenshot and recents protection before rendering.                                                                                                                      | Device screenshot tests and APK inspection                         |
-| SR-08 | Passkey operations preserve RP, caller, allow-list, user-verification, and session bindings.                                                                                                              | Jest and Android integration tests                                 |
-| SR-09 | Password-autofill certificate omission does not alter passkey verification.                                                                                                                               | Native regression test                                             |
-| SR-10 | All KDF parameters are bounded before derivation.                                                                                                                                                         | Boundary and fuzz tests                                            |
-| SR-11 | Import, decompression, XML, QR, backup, link, and sync inputs have pre-allocation limits. Mobile file intake currently enforces the outer 1 GB limit only.                                                | Resource-abuse test suite                                          |
-| SR-12 | Linking authenticates and expires the complete transfer transcript.                                                                                                                                       | Active-intermediary protocol test                                  |
-| SR-13 | Compromise recovery rotates the DEK and invalidates biometric wrapping.                                                                                                                                   | Old-envelope plus new-ciphertext test                              |
-| SR-14 | App-owned plaintext temporary files are cleaned after use, on lock, and at startup; a killed process may leave files until the next launch.                                                               | Process-kill and relaunch device tests                             |
-| SR-15 | Production logs contain no vault names, secrets, tokens, private keys, phrases, or payloads.                                                                                                              | Sentinel log and release-bundle scan                               |
-| SR-16 | Published artifacts use the approved signing identity and cannot contain E2E privacy flags.                                                                                                               | Final APK policy check                                             |
-| SR-17 | Production cleartext HTTP is disabled; explicit loopback HTTP exceptions belong only to development and test-only E2E builds.                                                                             | Merged-manifest and network-policy inspection                      |
-| SR-18 | Cloud-disabled mode rejects Cryptex Cloud calls and documents independent third-party traffic.                                                                                                            | Network capture and negative integration tests                     |
-| SR-19 | Pinned build inputs and reviewed native libraries match the final artifact.                                                                                                                               | Frozen lock, Maven checksums, native APK audit and advisory review |
-| SR-20 | Security-sensitive limits and user-visible tradeoffs are documented alongside the feature.                                                                                                                | Threat-model and product-documentation review                      |
+| ID    | Requirement                                                                                                                                                                                               | Verification gate                                                         |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| SR-01 | A confirmed "Lock anyway" revokes the DEK and plaintext despite save failure. Automatic-save failure preserves timeout denial and needs an explicit retained-memory cleanup policy.                       | Fault-injection unit and device tests                                     |
+| SR-02 | Every secret-release path checks current session generation and timeout.                                                                                                                                  | Unit tests plus background provider tests                                 |
+| SR-03 | Browser requests need a reported website, never a browser package fallback. Known field-origin mismatches are excluded; unknown field origins require review. A hidden scheme is never promoted to HTTPS. | Native parser and device tests                                            |
+| SR-04 | Unknown apps cannot gain website matches through labels or intent handling.                                                                                                                               | Android instrumentation test                                              |
+| SR-05 | Accessibility website filling requires explicit selection and a separate in-app destination review for every browser fill; address-bar identity alone never releases credentials.                         | Autofill policy unit test and device flow                                 |
+| SR-06 | Authoritative credential requests exist only in a private native registry.                                                                                                                                | External-intent injection tests                                           |
+| SR-07 | Every sensitive activity enables screenshot and recents protection before rendering.                                                                                                                      | Device screenshot tests and APK inspection                                |
+| SR-08 | Passkey operations preserve RP, caller, allow-list, user-verification, and session bindings.                                                                                                              | Jest and Android integration tests                                        |
+| SR-09 | Password-autofill certificate omission does not alter passkey verification.                                                                                                                               | Native regression test                                                    |
+| SR-10 | All KDF parameters are bounded before derivation.                                                                                                                                                         | Boundary and fuzz tests                                                   |
+| SR-11 | Import, decompression, XML, QR, backup, link, and sync inputs have pre-allocation limits. Mobile file intake currently enforces the outer 1 GB limit only.                                                | Resource-abuse test suite                                                 |
+| SR-12 | Linking authenticates and expires the complete transfer transcript.                                                                                                                                       | Active-intermediary protocol test                                         |
+| SR-13 | Compromise recovery rotates the DEK and invalidates biometric wrapping.                                                                                                                                   | Old-envelope plus new-ciphertext test                                     |
+| SR-14 | App-owned plaintext temporary files are cleaned after use, on lock, and at startup; a killed process may leave files until the next launch.                                                               | Process-kill and relaunch device tests                                    |
+| SR-15 | Production logs contain no vault names, secrets, tokens, private keys, phrases, or payloads.                                                                                                              | Sentinel log and release-bundle scan                                      |
+| SR-16 | Published artifacts use the approved signing identity and cannot contain E2E privacy flags.                                                                                                               | Final APK policy check                                                    |
+| SR-17 | Production cleartext HTTP is disabled; explicit loopback HTTP exceptions belong only to development and test-only E2E builds.                                                                             | Merged-manifest and network-policy inspection                             |
+| SR-18 | Cloud-disabled mode rejects Cryptex Cloud calls and documents independent third-party traffic.                                                                                                            | Network capture and negative integration tests                            |
+| SR-19 | Pinned build inputs and reviewed native libraries match the final artifact.                                                                                                                               | Frozen lock, Maven checksums, native APK audit and advisory review        |
+| SR-20 | Security-sensitive limits and user-visible tradeoffs are documented alongside the feature.                                                                                                                | Threat-model and product-documentation review                             |
+| SR-21 | Once its sheet is visible, the iOS AutoFill extension asks for Face ID on every request that reads the vault. It keeps no DEK or decrypted data between requests.                                         | `ios-autofill` Simulator suite and a physical-device check                |
+| SR-22 | The iOS identity store receives only websites, usernames or code labels, and record IDs.                                                                                                                  | Swift identity vectors and Jest tests of what the app sends               |
+| SR-23 | iOS inbox entries are bound to their vault and ID, merged one at a time, kept when they don't decrypt, merged before a data key rotation, and written only under the current key.                         | Swift inbox and lock tests, the shared inbox fixture and Jest merge tests |
 
 ## 17. Review evidence
 
@@ -709,6 +829,7 @@ Review this threat model when any of the following changes:
 - One-time share links: envelope, token derivation, share server endpoints, ticket handling, or share record sync rules.
 - Backup destinations: object key layout, retention, deletion after a security change, endpoint validation, or destination record sync rules.
 - SSH agent approval: relay protocol, approver identity storage, notifications, remembered approvals, or the foreground service.
+- iOS AutoFill: App Group or keychain group contents, the extension's unlock, identity registration, one-time codes, copying codes, the inbox format or its merge, or the App Group locks.
 - Import and export formats, parsers, document picker, cache handling, clipboard, screenshots, logs, or diagnostics.
 - Shared code aliases, native libraries, package versions, Gradle plugins, CI actions, signing, or release channels.
 - A new Android major version, supported browser, app store, or F-Droid distribution model.
@@ -732,6 +853,7 @@ Primary implementation anchors for this model:
 - Session and lock lifecycle: `mobile/src/utils/vault-session.ts`, `mobile/src/utils/vault-lock.ts`, `mobile/src/utils/session-timeout.ts`, `mobile/src/hooks/use-auto-lock.ts`.
 - Biometric unlock and device-bound factors: `mobile/src/lib/secure-dek.ts`, `mobile/src/app_lib/vault-utils/vault-key-store.ts`, `mobile/src/components/vault-security/vault-security-dialog.tsx`.
 - Android Autofill and Credential Manager: `mobile/modules/cryptex-android-credentials/`, `mobile/src/utils/android-autofill.ts`, `mobile/src/utils/android-passkeys.ts`, `mobile/app/credential-request.tsx`.
+- iOS AutoFill: `mobile/targets/autofill/`, `mobile/modules/cryptex-ios-credentials/`, `mobile/src/utils/ios-credentials.ts`, `mobile/src/utils/ios-credential-identities.ts`, `mobile/src/utils/ios-autofill-inbox.ts`, `mobile/src/utils/autofill-settings.ts`, `mobile/app.config.js`.
 - Credential documentation: `mobile/docs/ANDROID_AUTOFILL.md`, `mobile/docs/ANDROID_PASSKEYS.md`.
 - Link and sync: `mobile/app/link-receive.tsx`, `mobile/app/(app)/devices/link-send.tsx`, `packages/vault-core/src/vault-utils/linking.ts`, `packages/vault-core/src/synchronization.ts`.
 - Cloud sessions and transport: `mobile/src/app_lib/auth-session.ts`, `mobile/src/utils/online-services-transport.ts`, `packages/vault-core/src/online-services-session/`.

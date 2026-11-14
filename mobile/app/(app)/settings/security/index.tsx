@@ -13,7 +13,7 @@ import { useLingui } from "@lingui/react/macro";
 import { Alert, Keyboard, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
-import { unlockedVaultMetadataAtom } from "@/utils/atoms";
+import { unlockedVaultMetadataAtom, vaultCredentialsAtom } from "@/utils/atoms";
 import { AdditionalKeyProtectionKind } from "@cryptex-industries/vault-core/proto";
 import {
     clearSecureDek,
@@ -21,6 +21,10 @@ import {
     isBiometricAvailable,
     isSecureDekEnrolled,
 } from "@/lib/secure-dek";
+import {
+    clearIosCredentialIdentities,
+    syncIosCredentialIdentities,
+} from "@/utils/ios-credential-identities";
 import {
     Dialog,
     DialogHeader,
@@ -72,6 +76,7 @@ export default function SecuritySettingsScreen() {
         comment: "Auto-lock option: never lock on inactivity",
     });
     const metadata = useAtomValue(unlockedVaultMetadataAtom);
+    const credentials = useAtomValue(vaultCredentialsAtom);
 
     const [autoLockMinutes, setAutoLockMinutes] = useState(
         String(getCachedAutoLockMinutes()),
@@ -153,7 +158,13 @@ export default function SecuritySettingsScreen() {
                     metadata.DBIndex,
                 );
                 setBiometricEnabled(result.isOk());
-                if (result.isOk()) closeEnrollment();
+                if (result.isOk()) {
+                    closeEnrollment();
+                    void syncIosCredentialIdentities(
+                        metadata.DBIndex,
+                        credentials,
+                    );
+                }
                 if (result.isErr()) {
                     const messages: Partial<
                         Record<typeof result.error, string>
@@ -175,6 +186,7 @@ export default function SecuritySettingsScreen() {
             } else {
                 await clearSecureDek(metadata.DBIndex);
                 setBiometricEnabled(false);
+                void clearIosCredentialIdentities(metadata.DBIndex);
             }
         } catch {
             setEnrollmentPassword("");

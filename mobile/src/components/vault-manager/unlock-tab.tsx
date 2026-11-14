@@ -85,6 +85,8 @@ import {
 import { cn } from "@/lib/utils";
 import { clearDeviceAdditionalKeyProtection } from "@/app_lib/vault-utils/vault-key-store";
 import { clearPendingSecretFromClipboard } from "@/utils/clipboard";
+import { clearIosCredentialIdentities } from "@/utils/ios-credential-identities";
+import { clearIosAutofillInbox } from "@/utils/ios-autofill-inbox";
 import {
     VaultEntryAction,
     VaultEntryAssurance,
@@ -303,6 +305,8 @@ export function UnlockTab({
                                 deleteVault(id),
                                 clearDeviceAdditionalKeyProtection(id),
                                 clearSecureDek(id),
+                                clearIosCredentialIdentities(id),
+                                clearIosAutofillInbox(id),
                                 clearPendingSecretFromClipboard(),
                             ]);
                             setSelectedId(null);

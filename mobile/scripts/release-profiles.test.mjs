@@ -581,7 +581,7 @@ test("iOS native identity accepts only the selected profile's bundle identifier"
         const id = getProfile("preprod").applicationId;
         writeFileSync(
             join(directory, "CryptexVault.xcodeproj/project.pbxproj"),
-            `PRODUCT_BUNDLE_IDENTIFIER = "${id}";\nPRODUCT_BUNDLE_IDENTIFIER = "${id}";\n`,
+            `PRODUCT_BUNDLE_IDENTIFIER = "${id}";\nPRODUCT_BUNDLE_IDENTIFIER = ${id}.autofill;\n`,
         );
         requireIosIdentity(getProfile("preprod"), directory);
         assert.throws(

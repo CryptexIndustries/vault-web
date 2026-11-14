@@ -1,7 +1,7 @@
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
-import { useCallback, useEffect, useState } from "react";
-import { AppState, Pressable, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, AppState, Platform, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useLingui } from "@lingui/react/macro";
 import {
@@ -23,6 +23,7 @@ import {
     androidCredentials,
     type AndroidBrowserAutofillIntegration,
 } from "@/utils/android-credentials";
+import { iosCredentials } from "@/utils/ios-credentials";
 import {
     getCachedAutoCopyTotp,
     loadAutoCopyTotp,
@@ -78,7 +79,151 @@ function SectionLabel({ children }: { children: string }) {
     );
 }
 
+function CopyCodesRow({
+    value,
+    onChange,
+}: {
+    value: boolean;
+    onChange: (value: boolean) => void;
+}) {
+    const { t } = useLingui();
+    return (
+        <View
+            style={{
+                minHeight: 70,
+                paddingVertical: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+            }}
+        >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+                <UnlockedText style={{ fontSize: 14 }}>
+                    {t`Copy verification codes`}
+                </UnlockedText>
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                        marginTop: 5,
+                    }}
+                >
+                    {t`Copy the current code after autofill. It clears after 30 seconds.`}
+                </UnlockedText>
+            </View>
+            <Switch
+                value={value}
+                onValueChange={(next) => {
+                    onChange(next);
+                    void saveAutoCopyTotp(next);
+                }}
+                accessibilityLabel={t`Copy verification codes after autofill`}
+            />
+        </View>
+    );
+}
+
 export default function AutofillSettingsScreen() {
+    return Platform.OS === "ios" ? (
+        <IosAutofillSettings />
+    ) : (
+        <AndroidAutofillSettings />
+    );
+}
+
+function IosAutofillSettings() {
+    const { t } = useLingui();
+    const on = t({ message: "On", comment: "Setting status: enabled" });
+    const off = t({ message: "Off", comment: "Setting status: disabled" });
+    const [enabled, setEnabled] = useState(false);
+    const [autoCopyTotp, setAutoCopyTotp] = useState(getCachedAutoCopyTotp());
+
+    const refresh = useCallback(() => {
+        void iosCredentials
+            ?.isProviderEnabled()
+            .then(setEnabled, () => setEnabled(false));
+        void loadAutoCopyTotp().then(setAutoCopyTotp);
+    }, []);
+    useFocusEffect(refresh);
+    useEffect(() => {
+        const subscription = AppState.addEventListener(
+            "change",
+            (state) => state === "active" && refresh(),
+        );
+        return () => subscription.remove();
+    }, [refresh]);
+
+    // iOS shows its prompt at most once every 10 seconds, so a tap in between
+    // opens Settings.
+    const lastPrompt = useRef(0);
+    const openSettings = async () => {
+        if (!enabled && Date.now() - lastPrompt.current > 10_000) {
+            lastPrompt.current = Date.now();
+            const turnedOn = await iosCredentials?.requestProviderEnabled();
+            if (turnedOn != null) return setEnabled(turnedOn);
+        }
+        if (await iosCredentials?.openProviderSettings()) return;
+        Alert.alert(
+            t`Password AutoFill`,
+            t`In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault.`,
+        );
+    };
+
+    return (
+        <UnlockedTaskScreen title={t`AutoFill`}>
+            <Intro
+                title={t`Fill from your vault`}
+                body={t`Use your saved passwords in apps and Safari.`}
+            />
+            <SectionLabel>{t`iOS integration`}</SectionLabel>
+            <UnlockedMenuRow
+                icon={KeyRound}
+                title={t`Password AutoFill`}
+                subtitle={
+                    enabled
+                        ? t`Cryptex Vault is selected`
+                        : t`Turn on Cryptex Vault for AutoFill`
+                }
+                value={enabled ? on : off}
+                onPress={() => void openSettings()}
+            />
+            <SectionLabel>{t`Preferences`}</SectionLabel>
+            <CopyCodesRow value={autoCopyTotp} onChange={setAutoCopyTotp} />
+            <View
+                style={{
+                    borderLeftWidth: 2,
+                    borderLeftColor: colors.muted,
+                    paddingLeft: 13,
+                    marginVertical: 20,
+                    gap: 10,
+                }}
+            >
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                    }}
+                >
+                    {t`Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID.`}
+                </UnlockedText>
+                <UnlockedText
+                    style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        lineHeight: 18,
+                    }}
+                >
+                    {t`iOS receives the website and username of each login for its suggestions, never the password.`}
+                </UnlockedText>
+            </View>
+        </UnlockedTaskScreen>
+    );
+}
+
+function AndroidAutofillSettings() {
     const { t } = useLingui();
     const on = t({ message: "On", comment: "Setting status: enabled" });
     const off = t({ message: "Off", comment: "Setting status: disabled" });
@@ -252,40 +397,7 @@ export default function AutofillSettingsScreen() {
                     }
                     onPress={() => setSuggestionsOpen(true)}
                 />
-                <View
-                    style={{
-                        minHeight: 70,
-                        paddingVertical: 12,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.border,
-                    }}
-                >
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                        <UnlockedText style={{ fontSize: 14 }}>
-                            {t`Copy verification codes`}
-                        </UnlockedText>
-                        <UnlockedText
-                            style={{
-                                color: colors.muted,
-                                fontSize: 12,
-                                lineHeight: 18,
-                                marginTop: 5,
-                            }}
-                        >
-                            {t`Copy the current code after autofill. It clears after 30 seconds.`}
-                        </UnlockedText>
-                    </View>
-                    <Switch
-                        value={autoCopyTotp}
-                        onValueChange={(value) => {
-                            setAutoCopyTotp(value);
-                            void saveAutoCopyTotp(value);
-                        }}
-                        accessibilityLabel={t`Copy verification codes after autofill`}
-                    />
-                </View>
+                <CopyCodesRow value={autoCopyTotp} onChange={setAutoCopyTotp} />
                 <SectionLabel>
                     {t({
                         message: "Optional",

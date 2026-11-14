@@ -2,6 +2,16 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
+## Unreleased
+
+### Added
+
+- On iOS, Cryptex Vault can fill passwords in Safari and apps. Turn it on under AutoFill in the app's settings. It fills from vaults with biometric unlock turned on and asks for Face ID every time. On iOS 17.4 and later, those logins also show above the keyboard. As on Android, picking a login saved for another website asks you to check the destination first, and you can add the website to the login there. Add login in the fill sheet creates a new login and fills it.
+- On iOS 18 and later, Cryptex Vault also fills verification codes. With "Copy verification codes" on, a password fill copies the login's current code for 30 seconds on any iOS version, as on Android.
+- On iOS 18 and later, AutoFill in any text field's menu can insert a username, password or verification code from Cryptex Vault.
+- On iOS 26.2 and later, Cryptex Vault can save new and changed passwords. It encrypts them on the phone and adds them to the vault the next time the vault is unlocked.
+- On iOS 26.2 and later, Cryptex Vault suggests a strong password when you create an account, following the website's password rules.
+
 ## 0.5.1 - 2026-11-02
 
 ### Fixed

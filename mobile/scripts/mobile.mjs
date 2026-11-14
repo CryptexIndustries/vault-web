@@ -111,7 +111,13 @@ export function requireIosIdentity(profile, project = ios) {
     const values = [
         ...source.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([^";]+)"?;/g),
     ].map((match) => match[1]);
-    if (values.some((value) => value !== profile.applicationId))
+    // The AutoFill extension from targets/autofill.
+    const extension = `${profile.applicationId}.autofill`;
+    if (
+        values.some(
+            (value) => value !== profile.applicationId && value !== extension,
+        )
+    )
         throw new Error(
             `Existing iOS project identity (${[...new Set(values)].join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --dev --platform ios --profile ${profile.name} --regenerate-native.`,
         );

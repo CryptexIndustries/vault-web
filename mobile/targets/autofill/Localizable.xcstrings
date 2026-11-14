@@ -1,0 +1,1518 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ Changed": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ se promijenio"
+          }
+        }
+      }
+    },
+    "%@ changed on this device. Turn biometric unlock on again in Cryptex Vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ na ovom uređaju se promijenio. Ponovno uključite biometrijsko otključavanje u aplikaciji Cryptex Vault."
+          }
+        }
+      }
+    },
+    "%@ isn't saved for this website. Fill it only if you trust %@.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stavka %1$@ nije spremljena za ovo web-mjesto. Popunite je samo ako vjerujete web-mjestu %2$@."
+          }
+        }
+      }
+    },
+    "%@ value": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrijednost polja %@"
+          }
+        }
+      }
+    },
+    "%lld digits": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld digit"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld digits"
+                }
+              }
+            }
+          }
+        },
+        "hr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld znamenka"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld znamenke"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld znamenki"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld seconds": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld second"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seconds"
+                }
+              }
+            }
+          }
+        },
+        "hr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sekunda"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sekunde"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sekundi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Add Field": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj polje"
+          }
+        }
+      }
+    },
+    "Add Website": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj web-mjesto"
+          }
+        }
+      }
+    },
+    "Additional Website": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodatno web-mjesto"
+          }
+        }
+      }
+    },
+    "Advanced Settings": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Napredne postavke"
+          }
+        }
+      }
+    },
+    "Algorithm": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algoritam"
+          }
+        }
+      }
+    },
+    "All Logins": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svi pristupni podaci"
+          }
+        }
+      }
+    },
+    "Android App": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Android aplikacija"
+          }
+        }
+      }
+    },
+    "Append Digits": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj znamenke"
+          }
+        }
+      }
+    },
+    "AutoFill Is Ready": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatsko popunjavanje je spremno"
+          }
+        }
+      }
+    },
+    "Can't Create Code": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kôd nije moguće izraditi"
+          }
+        }
+      }
+    },
+    "Can't Open Vault": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trezor nije moguće otvoriti"
+          }
+        }
+      }
+    },
+    "Can't Save Login": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupne podatke nije moguće spremiti"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odustani"
+          }
+        }
+      }
+    },
+    "Capitalize Words": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velika početna slova"
+          }
+        }
+      }
+    },
+    "Choose Passwords above the keyboard, then Cryptex Vault, to fill a login.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Za popunjavanje pristupnih podataka odaberite Lozinke iznad tipkovnice, zatim Cryptex Vault."
+          }
+        }
+      }
+    },
+    "Choose a Vault": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite trezor"
+          }
+        }
+      }
+    },
+    "Choose specific hostnames or paths using * and **.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberi određene hostove ili putanje pomoću * i **."
+          }
+        }
+      }
+    },
+    "Choose what to fill.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite što želite popuniti."
+          }
+        }
+      }
+    },
+    "Choose when Cryptex Vault offers this item for %@.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite kada Cryptex Vault nudi ovu stavku za %@."
+          }
+        }
+      }
+    },
+    "Choose when Cryptex Vault offers this item.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite kada Cryptex Vault nudi ovu stavku."
+          }
+        }
+      }
+    },
+    "Copied": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopirano"
+          }
+        }
+      }
+    },
+    "Copy Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiraj lozinku"
+          }
+        }
+      }
+    },
+    "Could not create a code for this login.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Za ove pristupne podatke ne može se stvoriti kod."
+          }
+        }
+      }
+    },
+    "Could not open this vault. Unlock it in Cryptex Vault, then try again.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovaj se trezor ne može otvoriti. Otključajte ga u aplikaciji Cryptex Vault pa pokušajte ponovno."
+          }
+        }
+      }
+    },
+    "Could not save this login. Try again from Cryptex Vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ove pristupne podatke nije moguće spremiti. Pokušajte ponovno iz aplikacije Cryptex Vault."
+          }
+        }
+      }
+    },
+    "Custom Fields": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilagođena polja"
+          }
+        }
+      }
+    },
+    "Custom Pattern": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilagođeni uzorak"
+          }
+        }
+      }
+    },
+    "Date": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datum"
+          }
+        }
+      }
+    },
+    "Digits": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Znamenke"
+          }
+        }
+      }
+    },
+    "Directory": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mapa"
+          }
+        }
+      }
+    },
+    "Discard": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odbaci"
+          }
+        }
+      }
+    },
+    "Discard Changes?": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odbaciti promjene?"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotovo"
+          }
+        }
+      }
+    },
+    "Edits the verification code": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uređuje kôd za potvrdu"
+          }
+        }
+      }
+    },
+    "Enter a setup key using letters A to Z and digits 2 to 7.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unesi ključ za postavljanje od slova A do Z i znamenki 2 do 7."
+          }
+        }
+      }
+    },
+    "Enter a valid website, Android app, or safe wildcard pattern.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unesi valjano web-mjesto, Android aplikaciju ili siguran uzorak sa zamjenskim znakom."
+          }
+        }
+      }
+    },
+    "Enter the setup key from the website, or paste its otpauth:// link.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unesite ključ za postavljanje s web-mjesta ili zalijepite njegovu otpauth:// poveznicu."
+          }
+        }
+      }
+    },
+    "Exact App Match": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Točno podudaranje aplikacije"
+          }
+        }
+      }
+    },
+    "Example: %@": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primjer: %@"
+          }
+        }
+      }
+    },
+    "Field": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Polje"
+          }
+        }
+      }
+    },
+    "Field Name": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naziv polja"
+          }
+        }
+      }
+    },
+    "Fill Anyway": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ipak popuni"
+          }
+        }
+      }
+    },
+    "Fill Once": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popuni jednom"
+          }
+        }
+      }
+    },
+    "Fill and Add Website": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popuni i dodaj web-mjesto"
+          }
+        }
+      }
+    },
+    "Generate Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generiraj lozinku"
+          }
+        }
+      }
+    },
+    "Generated Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generirana lozinka"
+          }
+        }
+      }
+    },
+    "Hidden": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skriveno"
+          }
+        }
+      }
+    },
+    "Hide %@": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sakrij: %@"
+          }
+        }
+      }
+    },
+    "Hide Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sakrij lozinku"
+          }
+        }
+      }
+    },
+    "Include the base domain and its subdomains when they share one account.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uključi osnovnu domenu i njezine poddomene kad dijele isti račun."
+          }
+        }
+      }
+    },
+    "Keep": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadrži"
+          }
+        }
+      }
+    },
+    "Keep Editing": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nastavi uređivati"
+          }
+        }
+      }
+    },
+    "Kind": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrsta"
+          }
+        }
+      }
+    },
+    "Label (Optional)": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oznaka (nije obavezno)"
+          }
+        }
+      }
+    },
+    "Label is too long": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oznaka je predugačka"
+          }
+        }
+      }
+    },
+    "Length": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duljina"
+          }
+        }
+      }
+    },
+    "Lowercase": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mala slova"
+          }
+        }
+      }
+    },
+    "Memorable": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pamtljiva"
+          }
+        }
+      }
+    },
+    "More Details": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Više pojedinosti"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naziv"
+          }
+        }
+      }
+    },
+    "Name is too long": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naziv je predugačak"
+          }
+        }
+      }
+    },
+    "New Login": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novi pristupni podaci"
+          }
+        }
+      }
+    },
+    "New login": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novi pristupni podaci"
+          }
+        }
+      }
+    },
+    "No Directory": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez mape"
+          }
+        }
+      }
+    },
+    "No Logins": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema pristupnih podataka"
+          }
+        }
+      }
+    },
+    "No Username": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez korisničkog imena"
+          }
+        }
+      }
+    },
+    "No Vaults to Fill From": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema trezora za popunjavanje"
+          }
+        }
+      }
+    },
+    "No logins in this vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U ovom trezoru nema pristupnih podataka."
+          }
+        }
+      }
+    },
+    "No logins with a password in this vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U ovom trezoru nema pristupnih podataka s lozinkom."
+          }
+        }
+      }
+    },
+    "No logins with a verification code in this vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U ovom trezoru nema pristupnih podataka s kodom za potvrdu."
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nijedan"
+          }
+        }
+      }
+    },
+    "Not yet in your vault": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nije u trezoru"
+          }
+        }
+      }
+    },
+    "Notes": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilješke"
+          }
+        }
+      }
+    },
+    "Numbers": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brojke"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U redu"
+          }
+        }
+      }
+    },
+    "Offer this item on this hostname, on any page.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponudi ovu stavku na ovom hostu, na bilo kojoj stranici."
+          }
+        }
+      }
+    },
+    "On/Off": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uklj./isklj."
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lozinka"
+          }
+        }
+      }
+    },
+    "Period in Seconds": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razdoblje u sekundama"
+          }
+        }
+      }
+    },
+    "Random": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nasumična"
+          }
+        }
+      }
+    },
+    "Regenerate Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generiraj novu lozinku"
+          }
+        }
+      }
+    },
+    "Related Domains": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezane domene"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni"
+          }
+        }
+      }
+    },
+    "Remove Verification Code": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni kôd za potvrdu"
+          }
+        }
+      }
+    },
+    "Remove Verification Code?": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloniti kôd za potvrdu?"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremi"
+          }
+        }
+      }
+    },
+    "Save Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremanje lozinke"
+          }
+        }
+      }
+    },
+    "Save as New Login": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremi kao nove pristupne podatke"
+          }
+        }
+      }
+    },
+    "Saving…": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremanje…"
+          }
+        }
+      }
+    },
+    "Search Logins": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretraži pristupne podatke"
+          }
+        }
+      }
+    },
+    "Select at least one character type": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberi barem jednu vrstu znakova"
+          }
+        }
+      }
+    },
+    "Separate tags with commas. Search with tag:\"work\".": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oznake odvojite zarezima. Pretražujte s tag:\"posao\"."
+          }
+        }
+      }
+    },
+    "Set Up Verification Code…": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi kôd za potvrdu…"
+          }
+        }
+      }
+    },
+    "Setting Up AutoFill": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavljanje automatskog popunjavanja"
+          }
+        }
+      }
+    },
+    "Setup Key or Link": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ključ za postavljanje ili poveznica"
+          }
+        }
+      }
+    },
+    "Show %@": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži: %@"
+          }
+        }
+      }
+    },
+    "Show Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži lozinku"
+          }
+        }
+      }
+    },
+    "Skip": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči"
+          }
+        }
+      }
+    },
+    "Something Went Wrong": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Došlo je do pogreške"
+          }
+        }
+      }
+    },
+    "Space": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razmak"
+          }
+        }
+      }
+    },
+    "Suggested": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predloženo"
+          }
+        }
+      }
+    },
+    "Symbols": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simboli"
+          }
+        }
+      }
+    },
+    "Tags": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oznake"
+          }
+        }
+      }
+    },
+    "Text": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekst"
+          }
+        }
+      }
+    },
+    "The login could not be saved. Your changes are still in the form.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupne podatke nije moguće spremiti. Tvoje su promjene i dalje u obrascu."
+          }
+        }
+      }
+    },
+    "The website could not be added, so the login was not filled. Try again, or fill it once.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web-mjesto nije moguće dodati pa pristupni podaci nisu popunjeni. Pokušajte ponovno ili ih popunite jednom."
+          }
+        }
+      }
+    },
+    "This Host Only": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samo ovaj host"
+          }
+        }
+      }
+    },
+    "This otpauth:// link isn't valid.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova otpauth:// poveznica nije valjana."
+          }
+        }
+      }
+    },
+    "This removes the key from this item when you save. It does not turn off two-step verification on the website.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kad spremiš, ključ se uklanja iz ove stavke. Time se ne isključuje potvrda u dva koraka na web-mjestu."
+          }
+        }
+      }
+    },
+    "This website": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovo web-mjesto"
+          }
+        }
+      }
+    },
+    "This website doesn't use a secure connection, so others on the network could see what you fill.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovo web-mjesto ne koristi sigurnu vezu pa bi drugi na mreži mogli vidjeti što popunjavate."
+          }
+        }
+      }
+    },
+    "To fill from a vault, open it in Cryptex Vault and turn on biometric unlock under Settings, then Security.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Da biste popunjavali iz trezora, otvorite ga u aplikaciji Cryptex Vault i uključite biometrijsko otključavanje u Postavkama, zatim Sigurnost."
+          }
+        }
+      }
+    },
+    "Turn on biometric unlock for a vault in Cryptex Vault to fill its passwords here.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uključite biometrijsko otključavanje za trezor u aplikaciji Cryptex Vault da biste ovdje popunjavali njegove lozinke."
+          }
+        }
+      }
+    },
+    "Type": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrsta"
+          }
+        }
+      }
+    },
+    "Unlock each vault with %@ so its logins can appear above the keyboard.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte svaki trezor pomoću značajke %@ kako bi se njegovi pristupni podaci mogli prikazivati iznad tipkovnice."
+          }
+        }
+      }
+    },
+    "Unlock with %@": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključaj pomoću značajke %@"
+          }
+        }
+      }
+    },
+    "Unlock your vault to choose what to fill": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor kako biste odabrali što želite popuniti"
+          }
+        }
+      }
+    },
+    "Unlock your vault to fill a password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor za popunjavanje lozinke"
+          }
+        }
+      }
+    },
+    "Unlock your vault to fill a verification code": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor za popunjavanje koda za potvrdu"
+          }
+        }
+      }
+    },
+    "Unlock your vault to save a password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor za spremanje lozinke"
+          }
+        }
+      }
+    },
+    "Unlock your vault to show its logins above the keyboard": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor kako bi se njegovi pristupni podaci prikazivali iznad tipkovnice"
+          }
+        }
+      }
+    },
+    "Update Password For": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažuriraj lozinku za"
+          }
+        }
+      }
+    },
+    "Uppercase": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velika slova"
+          }
+        }
+      }
+    },
+    "Use Password": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upotrijebi lozinku"
+          }
+        }
+      }
+    },
+    "Use This Login?": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upotrijebiti ove pristupne podatke?"
+          }
+        }
+      }
+    },
+    "Username": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korisničko ime"
+          }
+        }
+      }
+    },
+    "Username or Email": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korisničko ime ili e-pošta"
+          }
+        }
+      }
+    },
+    "Value": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrijednost"
+          }
+        }
+      }
+    },
+    "Vault Locked": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trezor je zaključan"
+          }
+        }
+      }
+    },
+    "Verification Code": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kôd za potvrdu"
+          }
+        }
+      }
+    },
+    "Website": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web-mjesto"
+          }
+        }
+      }
+    },
+    "Website Matching": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podudaranje web-mjesta"
+          }
+        }
+      }
+    },
+    "Website Matching, %@": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podudaranje web-mjesta, %@"
+          }
+        }
+      }
+    },
+    "Websites": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web-mjesta"
+          }
+        }
+      }
+    },
+    "Word Separator": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razdjelnik riječi"
+          }
+        }
+      }
+    },
+    "Words": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riječi"
+          }
+        }
+      }
+    },
+    "YYYY-MM-DD": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GGGG-MM-DD"
+          }
+        }
+      }
+    },
+    "Your unsaved changes will be lost.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nespremljene promjene bit će izgubljene."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

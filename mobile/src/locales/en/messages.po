@@ -11,6 +11,11 @@ msgstr ""
 msgid "“No directory” is reserved for unfiled credentials."
 msgstr "“No directory” is reserved for unfiled credentials."
 
+#. placeholder {0}: result.failed
+#: app/_layout.tsx
+msgid "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+msgstr "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+
 #. placeholder {0}: initialImport.credentials.length
 #: src/components/vault-manager/create-tab.tsx
 msgid "{0, plural, one {# credential is staged. It will be added when this vault is created.} other {# credentials are staged. They will be added when this vault is created.}}"
@@ -41,6 +46,11 @@ msgstr "{0, plural, one {# item checked on this device} other {# items checked o
 msgid "{0, plural, one {# minute} other {# minutes}}"
 msgstr "{0, plural, one {# minute} other {# minutes}}"
 
+#. placeholder {0}: result.savedAsNew
+#: app/_layout.tsx
+msgid "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+msgstr "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+
 #. placeholder {0}: analysis?.reuseGroups.length ?? 0
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Across # shared password group} other {Across # shared password groups}}"
@@ -50,6 +60,11 @@ msgstr "{0, plural, one {Across # shared password group} other {Across # shared 
 #: src/components/linking-progress.tsx
 msgid "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
 msgstr "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
+
+#. placeholder {0}: result.associated
+#: app/_layout.tsx
+msgid "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
+msgstr "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
 
 #. placeholder {0}: rows.length
 #: app/(app)/settings/security-report/index.tsx
@@ -421,6 +436,10 @@ msgstr "{reason} Remote registration was rolled back when possible."
 #: app/(app)/(tabs)/vault/search.tsx
 msgid "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
 msgstr "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
+
+#: app/_layout.tsx
+msgid "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
+msgstr "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
 
 #. Number of SSH keys selected out of all keys
 #: src/components/agents/agent-rows.tsx
@@ -1243,6 +1262,11 @@ msgstr "Auto-lock, biometrics, and encryption"
 #: src/components/account/membership-benefits.tsx
 msgid "Autofill"
 msgstr "Autofill"
+
+#: app/(app)/(tabs)/settings.tsx
+#: app/(app)/settings/autofill.tsx
+msgid "AutoFill"
+msgstr "AutoFill"
 
 #: src/components/vault/credential-form.tsx
 msgid "Autofill target {targetNumber}"
@@ -4715,6 +4739,10 @@ msgstr "Imports & exports"
 msgid "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
 msgstr "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
 
+#: app/(app)/settings/autofill.tsx
+msgid "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+msgstr "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+
 #. Heading above the fields to put in the share link
 #: app/(app)/share/index.tsx
 msgid "Include"
@@ -4803,6 +4831,14 @@ msgstr "Invitation opened. Preparing this device's keys."
 #: app/link-receive.tsx
 msgid "Invitation ready: {invitationLabel}"
 msgstr "Invitation ready: {invitationLabel}"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS integration"
+msgstr "iOS integration"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS receives the website and username of each login for its suggestions, never the password."
+msgstr "iOS receives the website and username of each login for its suggestions, never the password."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -5295,6 +5331,10 @@ msgstr "Locking vault…"
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Login"
 msgstr "Login"
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
+msgstr "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Lost connection to the signaling server before pairing completed."
@@ -5994,6 +6034,7 @@ msgstr "Numbers"
 
 #. Auto-lock option: never lock on inactivity
 #. Setting status: disabled
+#. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/security/index.tsx
 msgid "Off"
@@ -6025,6 +6066,7 @@ msgstr "Old passwords"
 msgid "Oldest first"
 msgstr "Oldest first"
 
+#. Setting status: enabled
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
 msgid "On"
@@ -6188,6 +6230,10 @@ msgstr "Only this request"
 #: src/components/vault/ssh-key-form.tsx
 msgid "Only used to open the key. It isn't saved."
 msgstr "Only used to open the key. It isn't saved."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
+msgstr "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Only you hold the keys"
@@ -6417,6 +6463,10 @@ msgstr "Password and protection changes apply to this vault. Account recovery is
 #: app/(app)/settings/autofill.tsx
 msgid "Password autofill"
 msgstr "Password autofill"
+
+#: app/(app)/settings/autofill.tsx
+msgid "Password AutoFill"
+msgstr "Password AutoFill"
 
 #: src/components/vault/password-generator.tsx
 msgid "Password generator"
@@ -8378,6 +8428,10 @@ msgstr "Size"
 msgid "Skipped"
 msgstr "Skipped"
 
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Some logins saved by AutoFill could not be read and were not added to this vault."
+msgstr "Some logins saved by AutoFill could not be read and were not added to this vault."
+
 #: src/app_lib/share-messages.ts
 msgid "Something went wrong while creating the link."
 msgstr "Something went wrong while creating the link."
@@ -9625,6 +9679,10 @@ msgstr "Trying again…"
 msgid "TURN credential"
 msgstr "TURN credential"
 
+#: app/(app)/settings/autofill.tsx
+msgid "Turn on Cryptex Vault for AutoFill"
+msgstr "Turn on Cryptex Vault for AutoFill"
+
 #: src/utils/test-ice-server.ts
 msgid "TURN relay allocation succeeded."
 msgstr "TURN relay allocation succeeded."
@@ -9982,6 +10040,10 @@ msgstr "Use the User ID and 24-word phrase from your account Recovery Kit. Recov
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Use your saved passwords and passkeys in apps and browsers."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Use your saved passwords in apps and Safari."
+msgstr "Use your saved passwords in apps and Safari."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."

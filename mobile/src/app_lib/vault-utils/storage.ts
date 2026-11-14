@@ -1,4 +1,4 @@
-import { MMKV } from "react-native-mmkv";
+import { MMKV, Mode } from "react-native-mmkv";
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import type { VaultHkdfKey } from "@cryptex-industries/vault-core/envelope-crypto";
@@ -31,6 +31,7 @@ import {
     type AdditionalKeyProtectionEnrollmentResult,
     type AdditionalKeyProtectionSource,
 } from "@cryptex-industries/vault-core/vault-utils/additional-key-protection";
+import { iosCredentials } from "@/utils/ios-credentials";
 import {
     clearDeviceAdditionalKeyProtection,
     setDeviceAdditionalKeyProtectionRawKey,
@@ -127,7 +128,11 @@ function isValidArgon2idConfig(config: KeyDerivationConfig_Argon2ID): boolean {
     );
 }
 
-const mmkv = new MMKV({ id: "cryptex-vault-db" });
+// On iOS the store lives in the App Group, where the AutoFill extension reads it.
+const mmkv = new MMKV({
+    id: "cryptex-vault-db",
+    ...(iosCredentials?.appGroup ? { mode: Mode.MULTI_PROCESS } : {}),
+});
 
 const VAULT_IDS_KEY = "vaults:ids";
 const VAULT_NEXT_ID_KEY = "vaults:nextId";

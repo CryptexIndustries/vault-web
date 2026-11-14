@@ -1,0 +1,438 @@
+{
+    "totp": [
+        {
+            "name": "RFC 6238 SHA1 at 59",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 59,
+            "expected": "94287082"
+        },
+        {
+            "name": "RFC 6238 SHA1 at 1111111109",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111109,
+            "expected": "07081804"
+        },
+        {
+            "name": "RFC 6238 SHA1 at 1111111111",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111111,
+            "expected": "14050471"
+        },
+        {
+            "name": "RFC 6238 SHA1 at 1234567890",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1234567890,
+            "expected": "89005924"
+        },
+        {
+            "name": "RFC 6238 SHA1 at 2000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 2000000000,
+            "expected": "69279037"
+        },
+        {
+            "name": "RFC 6238 SHA1 at 20000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+                "Algorithm": 0,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 20000000000,
+            "expected": "65353130"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 59",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 59,
+            "expected": "46119246"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 1111111109",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111109,
+            "expected": "68084774"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 1111111111",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111111,
+            "expected": "67062674"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 1234567890",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1234567890,
+            "expected": "91819424"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 2000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 2000000000,
+            "expected": "90698825"
+        },
+        {
+            "name": "RFC 6238 SHA256 at 20000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+                "Algorithm": 1,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 20000000000,
+            "expected": "77737706"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 59",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 59,
+            "expected": "90693936"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 1111111109",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111109,
+            "expected": "25091201"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 1111111111",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1111111111,
+            "expected": "99943326"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 1234567890",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 1234567890,
+            "expected": "93441116"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 2000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 2000000000,
+            "expected": "38618901"
+        },
+        {
+            "name": "RFC 6238 SHA512 at 20000000000",
+            "totp": {
+                "Secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+                "Algorithm": 2,
+                "Digits": 8,
+                "Period": 30
+            },
+            "timestamp": 20000000000,
+            "expected": "47863826"
+        },
+        {
+            "name": "lower case, spaces and padding in the secret",
+            "totp": {
+                "Secret": "jbsw y3dp ehpk 3pxp====",
+                "Algorithm": 0,
+                "Digits": 6,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": "324550"
+        },
+        {
+            "name": "a 60-second period",
+            "totp": {
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Algorithm": 0,
+                "Digits": 6,
+                "Period": 60
+            },
+            "timestamp": 1700000000,
+            "expected": "508648"
+        },
+        {
+            "name": "ten digits",
+            "totp": {
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Algorithm": 1,
+                "Digits": 10,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": "1532049486"
+        },
+        {
+            "name": "eleven digits, padded",
+            "totp": {
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Algorithm": 1,
+                "Digits": 11,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": "01532049486"
+        },
+        {
+            "name": "seven digits at the end of a 45-second period",
+            "totp": {
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Algorithm": 2,
+                "Digits": 7,
+                "Period": 45
+            },
+            "timestamp": 1700000029,
+            "expected": "5840177"
+        },
+        {
+            "name": "an unknown algorithm falls back to SHA-1",
+            "totp": {
+                "Secret": "jbsw y3dp ehpk 3pxp====",
+                "Algorithm": 7,
+                "Digits": 6,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": "324550"
+        },
+        {
+            "name": "an empty secret",
+            "totp": {
+                "Secret": "",
+                "Algorithm": 0,
+                "Digits": 6,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": "501315"
+        },
+        {
+            "name": "a character outside base32",
+            "totp": {
+                "Secret": "JBSW1",
+                "Algorithm": 0,
+                "Digits": 6,
+                "Period": 30
+            },
+            "timestamp": 1700000000,
+            "expected": null
+        }
+    ],
+    "uris": [
+        {
+            "uri": "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example",
+            "expected": {
+                "Label": "Example:alice@example.com",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/alice?secret=jbswy3dpehpk3pxp",
+            "expected": {
+                "Label": "alice",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/ACME%20Co:john.doe%40email.com?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME%20Co&algorithm=SHA256&digits=8&period=60",
+            "expected": {
+                "Label": "ACME Co:john.doe@email.com",
+                "Secret": "HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ",
+                "Period": 60,
+                "Digits": 8,
+                "Algorithm": 1
+            }
+        },
+        {
+            "uri": "otpauth://totp/Label?secret=JBSWY3DPEHPK3PXP&issuer=Other",
+            "expected": {
+                "Label": "Other:Label",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/Prefix:%20%20Name?SECRET=JBSWY3DPEHPK3PXP&Algorithm=sha512",
+            "expected": {
+                "Label": "Prefix:  Name",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 2
+            }
+        },
+        {
+            "uri": "otpauth://totp/Prefix:  Name?secret=JBSWY3DPEHPK3PXP",
+            "expected": {
+                "Label": "Prefix:Name",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP====&algorithm=SHA1",
+            "expected": {
+                "Label": "x",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXPA",
+            "expected": {
+                "Label": "x",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&algorithm=SHA384",
+            "expected": {
+                "Label": "x",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&period=+15",
+            "expected": {
+                "Label": "x",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 15,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "OTPAUTH://TOTP/x?secret=JBSWY3DPEHPK3PXP",
+            "expected": {
+                "Label": "x",
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Period": 30,
+                "Digits": 6,
+                "Algorithm": 0
+            }
+        },
+        {
+            "uri": "otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=0",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&period=0",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&digits=six",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PX1",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/x?issuer=Example",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&algorithm=MD5",
+            "expected": null
+        },
+        {
+            "uri": "otpauth://totp/%E0%A4%A?secret=JBSWY3DPEHPK3PXP",
+            "expected": null
+        },
+        {
+            "uri": "https://example.com/?secret=JBSWY3DPEHPK3PXP",
+            "expected": null
+        },
+        {
+            "uri": "JBSWY3DPEHPK3PXP",
+            "expected": null
+        }
+    ]
+}

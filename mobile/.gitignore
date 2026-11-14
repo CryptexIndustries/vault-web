@@ -45,6 +45,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# Swift package builds of the AutoFill extension's tests
+/targets/.build/
+/targets/.swiftpm/
 modules/*/android/build/
 local.properties
 

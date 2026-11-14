@@ -104,7 +104,8 @@
             "./plugins/with-android-dependency-verification",
             "./plugins/with-localhost-network",
             "./plugins/with-android-screen-privacy",
-            "./plugins/with-ios-scene-lifecycle"
+            "./plugins/with-ios-scene-lifecycle",
+            "@bacons/apple-targets"
         ],
         "experiments": {
             "typedRoutes": true

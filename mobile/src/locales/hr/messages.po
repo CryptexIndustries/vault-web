@@ -11,6 +11,11 @@ msgstr ""
 msgid "“No directory” is reserved for unfiled credentials."
 msgstr "Naziv „Bez mape“ rezerviran je za stavke koje nisu ni u jednoj mapi."
 
+#. placeholder {0}: result.failed
+#: app/_layout.tsx
+msgid "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+msgstr "{0, plural, one {# pristupni podatak iz automatskog popunjavanja nije moguće dodati u trezor.} few {# pristupna podatka iz automatskog popunjavanja nije moguće dodati u trezor.} other {# pristupnih podataka iz automatskog popunjavanja nije moguće dodati u trezor.}}"
+
 #. placeholder {0}: initialImport.credentials.length
 #: src/components/vault-manager/create-tab.tsx
 msgid "{0, plural, one {# credential is staged. It will be added when this vault is created.} other {# credentials are staged. They will be added when this vault is created.}}"
@@ -41,6 +46,11 @@ msgstr "{0, plural, one {# stavka provjerena na ovom uređaju} few {# stavke pro
 msgid "{0, plural, one {# minute} other {# minutes}}"
 msgstr "{0, plural, one {# minuta} few {# minute} other {# minuta}}"
 
+#. placeholder {0}: result.savedAsNew
+#: app/_layout.tsx
+msgid "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+msgstr "{0, plural, one {# spremljena lozinka bila je za pristupne podatke koje ste izbrisali, pa je dodana kao novi unos.} few {# spremljene lozinke bile su za pristupne podatke koje ste izbrisali, pa su dodane kao novi unosi.} other {# spremljenih lozinki bilo je za pristupne podatke koje ste izbrisali, pa su dodane kao novi unosi.}}"
+
 #. placeholder {0}: analysis?.reuseGroups.length ?? 0
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Across # shared password group} other {Across # shared password groups}}"
@@ -50,6 +60,11 @@ msgstr "{0, plural, one {# grupa s istom lozinkom} few {# grupe s istom lozinkom
 #: src/components/linking-progress.tsx
 msgid "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
 msgstr "{0, plural, one {Zapisnik aktivnosti (# događaj)} few {Zapisnik aktivnosti (# događaja)} other {Zapisnik aktivnosti (# događaja)}}"
+
+#. placeholder {0}: result.associated
+#: app/_layout.tsx
+msgid "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
+msgstr "{0, plural, one {Pristupnim podacima dodano je # web-mjesto iz automatskog popunjavanja.} few {Pristupnim podacima dodana su # web-mjesta iz automatskog popunjavanja.} other {Pristupnim podacima dodano je # web-mjesta iz automatskog popunjavanja.}}"
 
 #. placeholder {0}: rows.length
 #: app/(app)/settings/security-report/index.tsx
@@ -421,6 +436,10 @@ msgstr "{reason} Udaljena registracija poništena je gdje je to bilo moguće."
 #: app/(app)/(tabs)/vault/search.tsx
 msgid "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
 msgstr "{resultCount, plural, one {# rezultat u tvom trezoru} few {# rezultata u tvom trezoru} other {# rezultata u tvom trezoru}}"
+
+#: app/_layout.tsx
+msgid "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
+msgstr "{saved, plural, one {U trezor je spremljen # pristupni podatak iz automatskog popunjavanja.} few {U trezor su spremljena # pristupna podatka iz automatskog popunjavanja.} other {U trezor je spremljeno # pristupnih podataka iz automatskog popunjavanja.}}"
 
 #. Number of SSH keys selected out of all keys
 #: src/components/agents/agent-rows.tsx
@@ -1242,6 +1261,11 @@ msgstr "Automatsko zaključavanje, biometrija i šifriranje"
 #: app/(app)/settings/autofill.tsx
 #: src/components/account/membership-benefits.tsx
 msgid "Autofill"
+msgstr "Automatsko popunjavanje"
+
+#: app/(app)/(tabs)/settings.tsx
+#: app/(app)/settings/autofill.tsx
+msgid "AutoFill"
 msgstr "Automatsko popunjavanje"
 
 #: src/components/vault/credential-form.tsx
@@ -4715,6 +4739,10 @@ msgstr "Uvoz i izvoz"
 msgid "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
 msgstr "U aplikaciji Cryptex Vault na drugom uređaju odaberi „Upotrijebi pozivnicu“, skeniraj ovaj kôd i unesi riječi za potvrdu."
 
+#: app/(app)/settings/autofill.tsx
+msgid "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+msgstr "U postavkama iOS-a otvorite Lozinke, zatim Opcije lozinki, i uključite Cryptex Vault."
+
 #. Heading above the fields to put in the share link
 #: app/(app)/share/index.tsx
 msgid "Include"
@@ -4803,6 +4831,14 @@ msgstr "Pozivnica je otvorena. Priprema ključeva ovog uređaja."
 #: app/link-receive.tsx
 msgid "Invitation ready: {invitationLabel}"
 msgstr "Pozivnica je spremna: {invitationLabel}"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS integration"
+msgstr "Integracija s iOS-om"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS receives the website and username of each login for its suggestions, never the password."
+msgstr "iOS za svoje prijedloge dobiva web-stranicu i korisničko ime svakih pristupnih podataka, nikad lozinku."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -5295,6 +5331,10 @@ msgstr "Zaključavanje trezora…"
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Login"
 msgstr "Pristupni podaci"
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
+msgstr "Pristupni podaci spremljeni automatskim popunjavanjem nisu mogli biti dodani u ovaj trezor, pa njegov ključ nije promijenjen. Pokušajte ponovno."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Lost connection to the signaling server before pairing completed."
@@ -5994,6 +6034,7 @@ msgstr "Brojke"
 
 #. Auto-lock option: never lock on inactivity
 #. Setting status: disabled
+#. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/security/index.tsx
 msgid "Off"
@@ -6025,6 +6066,7 @@ msgstr "Stare lozinke"
 msgid "Oldest first"
 msgstr "Najstarije prvo"
 
+#. Setting status: enabled
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
 msgid "On"
@@ -6188,6 +6230,10 @@ msgstr "Samo ovaj zahtjev"
 #: src/components/vault/ssh-key-form.tsx
 msgid "Only used to open the key. It isn't saved."
 msgstr "Koristi se samo za otvaranje ključa. Ne sprema se."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
+msgstr "Pristupne podatke mogu popunjavati samo trezori s uključenim biometrijskim otključavanjem. Svako popunjavanje traži Face ID."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Only you hold the keys"
@@ -6416,6 +6462,10 @@ msgstr "Promjene lozinke i zaštite odnose se na ovaj trezor. Oporavkom računa 
 
 #: app/(app)/settings/autofill.tsx
 msgid "Password autofill"
+msgstr "Automatsko popunjavanje lozinki"
+
+#: app/(app)/settings/autofill.tsx
+msgid "Password AutoFill"
 msgstr "Automatsko popunjavanje lozinki"
 
 #: src/components/vault/password-generator.tsx
@@ -8378,6 +8428,10 @@ msgstr "Veličina"
 msgid "Skipped"
 msgstr "Preskočeno"
 
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Some logins saved by AutoFill could not be read and were not added to this vault."
+msgstr "Neki pristupni podaci spremljeni automatskim popunjavanjem nisu se mogli pročitati i nisu dodani u ovaj trezor."
+
 #: src/app_lib/share-messages.ts
 msgid "Something went wrong while creating the link."
 msgstr "Došlo je do pogreške pri izradi poveznice."
@@ -9625,6 +9679,10 @@ msgstr "Ponovni pokušaj…"
 msgid "TURN credential"
 msgstr "TURN vjerodajnica"
 
+#: app/(app)/settings/autofill.tsx
+msgid "Turn on Cryptex Vault for AutoFill"
+msgstr "Uključite Cryptex Vault za automatsko popunjavanje"
+
 #: src/utils/test-ice-server.ts
 msgid "TURN relay allocation succeeded."
 msgstr "Dodjela TURN releja je uspjela."
@@ -9982,6 +10040,10 @@ msgstr "Upotrijebi ID korisnika i frazu od 24 riječi iz kompleta za oporavak ra
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Koristi spremljene lozinke i pristupne ključeve u aplikacijama i preglednicima."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Use your saved passwords in apps and Safari."
+msgstr "Koristite spremljene lozinke u aplikacijama i Safariju."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."

@@ -67,7 +67,7 @@ Pass the same --distribution to mobile:dev so Metro bundles the matching billing
 --platform ios builds on macOS and installs on an iOS Simulator: --dev the dev client, --e2e a bundled Maestro app.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
-Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
+Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock, ios-autofill,
         ssh-keys, ssh-agent, backup-destinations, sync, fixture, cloud-fixture, target, qr, crypto,
         crypto-audit, native
 backup-destinations starts its own Garage in Docker (E2E_GARAGE_TLS_PORT, default 3943).
@@ -111,7 +111,13 @@ export function requireIosIdentity(profile, project = ios) {
     const values = [
         ...source.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([^";]+)"?;/g),
     ].map((match) => match[1]);
-    if (values.some((value) => value !== profile.applicationId))
+    // The AutoFill extension from targets/autofill.
+    const extension = `${profile.applicationId}.autofill`;
+    if (
+        values.some(
+            (value) => value !== profile.applicationId && value !== extension,
+        )
+    )
         throw new Error(
             `Existing iOS project identity (${[...new Set(values)].join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --dev --platform ios --profile ${profile.name} --regenerate-native.`,
         );
@@ -529,6 +535,13 @@ export function runMobile(
             ["e2e/run-ios-transfer.mjs", suite],
             deviceEnv,
         );
+    } else if (suite === "ios-autofill") {
+        // Native tests drive Settings, Safari and the AutoFill extension.
+        rejectArguments();
+        requireDevice();
+        if (!isIosSimulator(serial))
+            throw new Error("ios-autofill runs on an iOS Simulator.");
+        execute(process.execPath, ["e2e/run-ios-autofill.mjs"], deviceEnv);
     } else if (suite === "sync") {
         rejectArguments();
         requireDevice();

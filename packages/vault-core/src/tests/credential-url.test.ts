@@ -1,11 +1,16 @@
 import { describe, expect, it } from "@jest/globals";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { CredentialURLMatchMode } from "../proto/vault";
 import {
     credentialMatchesAndroidApp,
     credentialMatchesPageUrl,
+    type CredentialUrlSet,
     findCredentialUrlMatch,
     isCredentialUrlRuleValid,
+    normalizeCredentialUrl,
+    registrableDomainOf,
     sanitizeAdditionalCredentialUrls,
     normalizeAndroidAppUri,
 } from "../credential-url";
@@ -231,4 +236,71 @@ describe("credential URL matching", () => {
         ).toBeNull();
         expect(normalizeAndroidAppUri("androidapp://singlelabel")).toBeNull();
     });
+});
+
+// The iOS AutoFill extension's Swift port reads the same vectors.
+describe("shared credential URL vectors", () => {
+    const vectors = JSON.parse(
+        readFileSync(
+            join(__dirname, "fixtures", "credential-url-vectors.json"),
+            "utf8",
+        ),
+    ) as {
+        urls: {
+            input: string;
+            expected: {
+                hostname: string;
+                port: string;
+                pathname: string;
+            } | null;
+        }[];
+        registrableDomains: { hostname: string; expected: string | null }[];
+        matches: {
+            name: string;
+            credential: CredentialUrlSet;
+            pageUrl: string;
+            ignorePort?: boolean;
+            expected: number | null;
+        }[];
+        rules: {
+            rule: { URL: string; MatchMode: CredentialURLMatchMode };
+            expected: boolean;
+        }[];
+    };
+
+    it.each(vectors.urls)("normalizes $input", ({ input, expected }) => {
+        const normalized = normalizeCredentialUrl(input);
+        const url = normalized === null ? null : new URL(normalized);
+        expect(
+            url && {
+                hostname: url.hostname,
+                port: url.port,
+                pathname: url.pathname,
+            },
+        ).toEqual(expected);
+    });
+
+    it.each(vectors.registrableDomains)(
+        "finds the registrable domain of $hostname",
+        ({ hostname, expected }) => {
+            expect(registrableDomainOf(hostname)).toBe(expected);
+        },
+    );
+
+    it.each(vectors.matches)(
+        "$name",
+        ({ credential, pageUrl, ignorePort, expected }) => {
+            expect(
+                findCredentialUrlMatch(credential, pageUrl, { ignorePort })
+                    ?.priority ?? null,
+            ).toBe(expected);
+        },
+    );
+
+    it.each(vectors.rules)(
+        "validates $rule.URL as match mode $rule.MatchMode",
+        ({ rule, expected }) => {
+            expect(isCredentialUrlRuleValid(rule)).toBe(expected);
+        },
+    );
 });

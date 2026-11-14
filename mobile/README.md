@@ -86,11 +86,68 @@ The Simulator shares the Mac's network, so the `localhost` URLs in
 `.env.example` reach a local web container without `adb reverse`. For Face ID,
 open the Simulator's Features menu and turn on Face ID enrollment, then use
 Matching Face when the app asks. The Simulator has no camera, so QR scanning
-needs a physical device. The autofill and passkey provider, the SSH agent
-service, the in-app language picker and Google Play Billing are Android-only.
-On iOS the Autofill settings screen still opens but its switches do nothing.
-There are no iOS release builds yet. [e2e/README.md](e2e/README.md) lists the
-suites that run on a Simulator.
+needs a physical device. The passkey provider, the SSH agent service, the
+in-app language picker and Google Play Billing are Android-only. There are no
+iOS release builds yet. [e2e/README.md](e2e/README.md) lists the suites that
+run on a Simulator.
+
+### iOS AutoFill extension
+
+`targets/autofill` is a Swift password AutoFill extension that the
+`@bacons/apple-targets` plugin adds at prebuild. It reads vaults with biometric
+unlock turned on from the App Group the app shares with it, and asks for Face ID
+every time. It fills passwords and, on iOS 18 and later, verification codes.
+As on Android, a login picked for another website, or any login on a page
+without HTTPS, goes through a destination review first. On an HTTPS page, the
+review can also add the website to the login. The Add login form saves a new
+login and fills it.
+
+To try it, turn on biometric unlock for a vault, then tap Password AutoFill in
+the app's AutoFill settings. On iOS 18 and later that shows iOS's prompt to
+turn Cryptex Vault on. Earlier versions open iOS Settings. The extension's
+setup screen then asks for Face ID once per vault to register logins for
+suggestions above the keyboard.
+
+On iOS 18 and later, AutoFill in a text field's menu inserts a login's
+username, password or code. On iOS 26.2 and later the extension also saves
+logins from iOS's save prompt, and suggests passwords for new accounts that
+follow the website's password rules. Generating a password needs no Face ID,
+because it reads nothing from the vault.
+
+The extension never writes the vault store. It encrypts each saved login, each
+login from Add login and each added website with the vault's key, and puts it
+in an inbox in the App Group. The app adds them the next time it unlocks the
+vault (`src/utils/ios-autofill-inbox.ts`).
+
+Its platform-independent code in `targets/autofill/Core` also builds as a Swift
+package, so its tests run on macOS:
+
+```sh
+swift test --package-path mobile/targets
+```
+
+The protobuf types, public suffix rules and passphrase words in
+`targets/autofill/Core/Generated` and the decryption and inbox fixtures in
+`targets/AutofillCoreTests/Fixtures` are generated. Regenerate them after
+changing `vault.proto`, the psl or @scure/bip39 version, the vault or biometric
+storage format, or the inbox format:
+
+```sh
+pnpm --filter mobile autofill:generate
+```
+
+The script builds `protoc` and `protoc-gen-swift` from the swift-protobuf
+version pinned in `targets/Package.resolved`. The Swift tests read the same
+vectors as the TypeScript they port. The URL matching, URL rule and TOTP
+vectors are in vault-core (`packages/vault-core/src/tests/fixtures`). The save
+rule and password generator vectors and the inbox fixture are in
+`targets/AutofillCoreTests/Fixtures`, which the app's Jest tests also read. The
+app's iOS module builds the identities it registers with the same Swift as the
+extension, through the symbolic links in
+`modules/cryptex-ios-credentials/ios/Shared`.
+
+`pnpm mobile:e2e -- ios-autofill` tests the extension on a Simulator; see
+[the E2E README](e2e/README.md#ios-simulator).
 
 ## Build and install an APK
 

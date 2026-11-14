@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Platform } from "react-native";
 import { router } from "expo-router";
 import { useLingui } from "@lingui/react/macro";
 import {
@@ -60,7 +61,8 @@ export default function SettingsScreen() {
             <SectionLabel>{t`Vault`}</SectionLabel>
             <MoreRow
                 icon={Smartphone}
-                title={t`Autofill`}
+                // Apple writes AutoFill, Android Autofill.
+                title={Platform.OS === "ios" ? t`AutoFill` : t`Autofill`}
                 subtitle={t`Passwords, passkeys, and verification codes`}
                 onPress={() => router.push("/(app)/settings/autofill")}
             />

@@ -1,0 +1,219 @@
+{
+    "defaults": [
+        {
+            "name": "a website keeps its scheme and lowercases the domain",
+            "source": {
+                "webDomain": "Login.Example.com ",
+                "webScheme": "https"
+            },
+            "expectedName": "Login.Example.com",
+            "expectedUrl": "https://login.example.com"
+        },
+        {
+            "name": "an http page stays http",
+            "source": {
+                "webDomain": "example.com",
+                "webScheme": "http"
+            },
+            "expectedName": "example.com",
+            "expectedUrl": "http://example.com"
+        },
+        {
+            "name": "a page keeps a port other than the default",
+            "source": {
+                "webDomain": "example.com:8443",
+                "webScheme": "https"
+            },
+            "expectedName": "example.com:8443",
+            "expectedUrl": "https://example.com:8443"
+        },
+        {
+            "name": "an IPv6 page keeps its brackets and port",
+            "source": {
+                "webDomain": "[::1]:8443",
+                "webScheme": "https"
+            },
+            "expectedName": "[::1]:8443",
+            "expectedUrl": "https://[::1]:8443"
+        },
+        {
+            "name": "an unknown scheme defaults to https",
+            "source": {
+                "webDomain": "example.com"
+            },
+            "expectedName": "example.com",
+            "expectedUrl": "https://example.com"
+        },
+        {
+            "name": "an app uses its label and package",
+            "source": {
+                "applicationLabel": " Example App ",
+                "packageName": "com.example.app"
+            },
+            "expectedName": "Example App",
+            "expectedUrl": "androidapp://com.example.app"
+        },
+        {
+            "name": "a package without a label",
+            "source": {
+                "packageName": "Com.Example.App"
+            },
+            "expectedName": "Com.Example.App",
+            "expectedUrl": "androidapp://com.example.app"
+        },
+        {
+            "name": "an invalid package gets no URL",
+            "source": {
+                "packageName": "not a package"
+            },
+            "expectedName": "not a package",
+            "expectedUrl": ""
+        },
+        {
+            "name": "a blank domain falls through to the label",
+            "source": {
+                "webDomain": "  ",
+                "applicationLabel": "App"
+            },
+            "expectedName": "App",
+            "expectedUrl": ""
+        },
+        {
+            "name": "nothing known",
+            "source": {},
+            "expectedName": "New login",
+            "expectedUrl": ""
+        }
+    ],
+    "logins": [
+        {
+            "ID": "exact",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "https://example.com",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "other-site",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "https://other.test",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "other-user",
+            "Username": "bob",
+            "Password": "p",
+            "URL": "https://example.com",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "no-password",
+            "Username": "alice",
+            "Password": "",
+            "URL": "https://example.com",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "domain",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "https://www.example.com",
+            "URLMatchMode": 1
+        },
+        {
+            "ID": "port",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "example.com:8443",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "https-only",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "https://plain.example.org",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "http",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "http://plain.example.org",
+            "URLMatchMode": 0
+        },
+        {
+            "ID": "ipv6",
+            "Username": "alice",
+            "Password": "p",
+            "URL": "https://[::1]:8443",
+            "URLMatchMode": 0
+        }
+    ],
+    "candidates": [
+        {
+            "name": "matching logins with the same username",
+            "source": {
+                "webDomain": "example.com",
+                "webScheme": "https"
+            },
+            "username": "alice",
+            "expectedIds": ["exact", "domain", "port"]
+        },
+        {
+            "name": "no username, no candidates",
+            "source": {
+                "webDomain": "example.com",
+                "webScheme": "https"
+            },
+            "username": "",
+            "expectedIds": []
+        },
+        {
+            "name": "an unverified scheme gets no candidates",
+            "source": {
+                "webDomain": "example.com"
+            },
+            "username": "alice",
+            "expectedIds": []
+        },
+        {
+            "name": "an https login is not offered on an http page",
+            "source": {
+                "webDomain": "plain.example.org",
+                "webScheme": "http"
+            },
+            "username": "alice",
+            "expectedIds": ["http"]
+        },
+        {
+            "name": "an IPv6 page offers its login",
+            "source": {
+                "webDomain": "[::1]:8443",
+                "webScheme": "https"
+            },
+            "username": "alice",
+            "expectedIds": ["ipv6"]
+        },
+        {
+            "name": "a page's URL offers only logins on its port",
+            "source": {
+                "webDomain": "example.com:8443",
+                "webScheme": "https",
+                "comparesPort": true
+            },
+            "username": "alice",
+            "expectedIds": ["port"]
+        },
+        {
+            "name": "a page's URL on the default port skips logins on other ports",
+            "source": {
+                "webDomain": "example.com",
+                "webScheme": "https",
+                "comparesPort": true
+            },
+            "username": "alice",
+            "expectedIds": ["exact", "domain"]
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "storedMetadata": "CAEaCFBlcnNvbmFsKhgyMDI2LTExLTEyVDExOjU3OjE5Ljg3NFoyGDIwMjYtMTEtMTJUMTE6NTc6MTkuODk2WkqDCUADSAMQARoEOAhAASr/BdJtSampYfbGjWBwBKc/0ZwTd6iRG5UGG9Uvb43gU2t45Vz19JW3MT2RasZ5XT/9DYSlUnueOMaVav9na+fxkcF/aQsqJS/G4XOFN8AmDYgrT+mEdYW3O9C/sG/2vJXuyI3mh9PiHW+ajfECuLJkrsFzCVS6mFT0QGjREVrVkx2q2BLhvyYU9a/+tkHgFEzYmhkvGlLQ8lQvNP8x55xSqE+d8YpgyhP6TqOUJ+W1CJe2/wqY5iAXWwEzbH5wXvbuPNotq/qagGOXWK0JLv3Na1ra2Wv69uhJTefEl3BujrsAQ1kc+3xs0kKFty7dIxSmucBXr8liStNzvtLkp61OJ2aavEcfYdX/jg8zOAFGjnVrSRs1ftitQbUV3cTro0m+NUP8Ynlaq/oCCMgo+VkeAjM9091y45SaueoMVY5yRqFsmq8vIuopiWmsSQgLmlJ9PH2rY4Me8RVkWYxSpxx6Ikpu+JIfPHqatG7wwr/2kMdKYioIBxUXSxdn8bufdy0GEgY7OyqSbV5CRujwgleZQh1u6qo86E/vlLzODjo4+bCVcDWLl6G2Mfnnftj8F/g0ZlANBMvyy/SSwWq43efwL+QWsYyd8amVAFOLlXtyN83FnnpXF0o4nDli4wb1MOOc3Mo0oXrqHae2k/EIfD8vqLxgN4of87AAbakxWRtrPfXTFzRjuYiUQ6bhvV8nTvZagnUX7QrtlBOmyG4leRAhBfhkK2v/GF/ymdWnhUN6KfrJPrmSjqQiOpSHwpu/o/5tzoQ/7ayJKeMt+mWemYWe8gVbEmETgFXG9sQ79RbdJogc127rOdRQxllibmffzb62EX1s2qmns+aCjuV2dCyRdvmLMs0Cgufa4bDHeD0hlHM3V3nj5FNlQK2GJRtBZQMT6B9jrglBapHWSBHkpeFd9ZzpsGlBnyUMybdkp/7bfGTLNbe+J8RoST1Ky6uaEbgISSEPsEDlMo6xXR3GVAddWdokZbDkQ0S7j30EOdWJ+7O45uukpU8GruqoxIc7tdb9MhhZVjAwQVJLUTVyQWlTb0cyQmRvejZBPT06EE50TUFIZ3Bqc1R6eEJMUzNSxgIIAxILQUVTLUdDTS0yNTYalwESKC2jYkfeihW+AiIcuo7zj0SwyuEHqVSwbKOnCZxVgpfe6odk5UyLvCwaBkFFUy1LVyIYWVYwMEFSS1E1ckFpU29HMkJkb3o2QT09KgQ4CEABMhhBbWZybFhod01SSUFNR041QmhBVWZBPT06KWNyeXB0ZXgva2VrL3YxfDAxTTc3U1g2NDFLU1hDM1cxQUYyOUZLVzFQGn8IARIoYrfU1jV1T9h8DQHRnjo7MiK6zCSYeMfI+d2DqWkRDksXELqCoeoZMxoGQUVTLUtXIhhabm5vTHhiSjc5ZkpUR2hHWU10MG1RPT0qBDgIQAE6KWNyeXB0ZXgva2VrL3YxfDAxTTc3U1g2NDFLU1hDM1cxQUYyOUZLVzFQKhowMU03N1NYNjQxS1NYQzNXMUFGMjlGS1cxUA==",
+    "wrapKeyItem": "j68mwPdnPD5q2eYOzKEDh4MVZ5lQRTQQTBbl6Sj/E9Y=",
+    "wrappedKeyItem": "{\"iv\":\"szdwg+1HCAQ+qGJ/\",\"ciphertext\":\"0W3CNHW00EapyXoh7itlWXcBk6d5FGogxV2hN+9ruDJMVWeH0y2+4bslwuT8fVL9\"}",
+    "credentials": [
+        {
+            "ID": "credential-example",
+            "Name": "Example",
+            "Username": "alice@example.com",
+            "Password": "correct horse battery staple"
+        },
+        {
+            "ID": "credential-bank",
+            "Name": "Bank",
+            "Username": "bob",
+            "Password": "š€cret ✓"
+        },
+        {
+            "ID": "credential-pin",
+            "Name": "PIN",
+            "Username": "",
+            "Password": "1234"
+        },
+        {
+            "ID": "credential-deleted",
+            "Name": "Deleted",
+            "Username": "",
+            "Password": "deleted"
+        },
+        {
+            "ID": "credential-ssh",
+            "Name": "Server key",
+            "Username": "",
+            "Password": "passphrase"
+        },
+        {
+            "ID": "credential-note",
+            "Name": "Note",
+            "Username": "",
+            "Password": ""
+        }
+    ],
+    "candidateIDs": ["credential-example", "credential-bank", "credential-pin"]
+}

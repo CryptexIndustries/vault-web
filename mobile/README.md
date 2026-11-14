@@ -86,10 +86,9 @@ The Simulator shares the Mac's network, so the `localhost` URLs in
 `.env.example` reach a local web container without `adb reverse`. For Face ID,
 open the Simulator's Features menu and turn on Face ID enrollment, then use
 Matching Face when the app asks. The Simulator has no camera, so QR scanning
-needs a physical device. The passkey provider, the SSH agent service, the
-in-app language picker and Google Play Billing are Android-only. There are no
-iOS release builds yet. [e2e/README.md](e2e/README.md) lists the suites that
-run on a Simulator.
+needs a physical device. The passkey provider, the SSH agent service and Google
+Play Billing are Android-only. There are no iOS release builds yet.
+[e2e/README.md](e2e/README.md) lists the suites that run on a Simulator.
 
 ### iOS AutoFill extension
 

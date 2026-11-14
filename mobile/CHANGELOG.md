@@ -12,6 +12,7 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - On iOS 26.2 and later, Cryptex Vault can save new and changed passwords. It encrypts them on the phone and adds them to the vault the next time the vault is unlocked.
 - On iOS 26.2 and later, Cryptex Vault suggests a strong password when you create an account, following the website's password rules.
 - On iOS, copied passwords and other secrets clear after 30 seconds even while Cryptex Vault is in the background, and don't reach your other Apple devices through Universal Clipboard.
+- On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
 
 ## 0.5.1 - 2026-11-02
 

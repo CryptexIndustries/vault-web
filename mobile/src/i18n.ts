@@ -5,7 +5,6 @@ import "@formatjs/intl-pluralrules/locale-data/hr.js";
 import { i18n } from "@lingui/core";
 import { getLocales } from "expo-localization";
 import { requireOptionalNativeModule } from "expo-modules-core";
-import { Platform } from "react-native";
 
 import { messages as en } from "@/locales/en/messages.po";
 import { messages as hr } from "@/locales/hr/messages.po";
@@ -19,10 +18,7 @@ type AppLocaleModule = {
     setAppLocale(tag: string | null): Promise<void>;
 };
 
-const native =
-    Platform.OS === "android"
-        ? requireOptionalNativeModule<AppLocaleModule>("CryptexAppLocale")
-        : null;
+const native = requireOptionalNativeModule<AppLocaleModule>("CryptexAppLocale");
 
 /** Whether the app can keep its own language apart from the device's. */
 export const appLocaleChoiceAvailable = native != null;
@@ -63,6 +59,8 @@ export function activateAppLocale(
 export async function chooseAppLocale(locale: AppLocale | null): Promise<void> {
     activateAppLocale(locale);
     await native?.setAppLocale(locale);
+    // getLocales() lists the old choice first until the native side drops it.
+    if (locale == null) activateAppLocale(null);
 }
 
 i18n.load({ en, hr });

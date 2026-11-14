@@ -495,6 +495,10 @@ msgstr "{title}. Expand"
 msgid "{urgentCount, plural, one {# with reused or critically weak passwords. Start there.} other {# with reused or critically weak passwords. Start there.}}"
 msgstr "{urgentCount, plural, one {# with reused or critically weak passwords. Start there.} other {# with reused or critically weak passwords. Start there.}}"
 
+#: src/components/backup-center/backup-status.tsx
+msgid "{used} of {total}"
+msgstr "{used} of {total}"
+
 #. {warning} is a full sentence saying the server's host key or name changed since it was last approved
 #: app/(app)/agent-request.tsx
 msgid "{warning} Approve only if you expected this change."
@@ -975,7 +979,7 @@ msgstr "Algorithm"
 msgid "All"
 msgstr "All"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "All backups deleted."
 msgstr "All backups deleted."
 
@@ -1248,11 +1252,15 @@ msgstr "Autofill"
 msgid "Autofill target {targetNumber}"
 msgstr "Autofill target {targetNumber}"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Automatic backups"
 msgstr "Automatic backups"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Automatic backups are off"
+msgstr "Automatic backups are off"
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Automatic backups paused. Existing history remains."
 msgstr "Automatic backups paused. Existing history remains."
 
@@ -1260,10 +1268,6 @@ msgstr "Automatic backups paused. Existing history remains."
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Automatic backups to {0}"
 msgstr "Automatic backups to {0}"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Automatic managed backups"
-msgstr "Automatic managed backups"
 
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
@@ -1320,7 +1324,7 @@ msgstr "Back to TURN servers"
 msgid "Back to unlock"
 msgstr "Back to unlock"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Back up now"
 msgstr "Back up now"
@@ -1330,16 +1334,21 @@ msgstr "Back up now"
 msgid "Backed up to {0}"
 msgstr "Backed up to {0}"
 
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Backing up every change"
+msgstr "Backing up every change"
+
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Backup Center"
 msgstr "Backup Center"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Backup deleted."
 msgstr "Backup deleted."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
+#: src/app_lib/managed-backup-coordinator.ts
 msgid "Backup failed."
 msgstr "Backup failed."
 
@@ -1351,7 +1360,7 @@ msgstr "Backup file"
 msgid "Backup from {createdAt}"
 msgstr "Backup from {createdAt}"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Backup history"
 msgstr "Backup history"
 
@@ -1395,6 +1404,11 @@ msgstr "Backup transfer timed out."
 #: src/app_lib/managed-backups.ts
 msgid "Backup transfer was cancelled."
 msgstr "Backup transfer was cancelled."
+
+#. placeholder {0}: failingDestination.Name
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Backups to {0} are failing"
+msgstr "Backups to {0} are failing"
 
 #: src/components/account/membership-benefits.tsx
 msgid "Basic security reports"
@@ -1536,7 +1550,7 @@ msgstr "Can't reach the share server. Check your connection and try again."
 #: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: app/(app)/settings/diagnostics.tsx
 #: app/(app)/settings/import-export/index.tsx
 #: app/(app)/settings/security/index.tsx
@@ -1634,6 +1648,14 @@ msgstr "Changed {years}y {months}m ago"
 msgid "Changed {years}y ago"
 msgstr "Changed {years}y ago"
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Changes since {managedWhen} are not backed up. Delete older backups to make room."
+msgstr "Changes since {managedWhen} are not backed up. Delete older backups to make room."
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Changes since {when} are not backed up. Delete older backups below to make room."
+msgstr "Changes since {when} are not backed up. Delete older backups below to make room."
+
 #: app/(app)/settings/diagnostics.tsx
 msgid "Check before sharing"
 msgstr "Check before sharing"
@@ -1669,7 +1691,7 @@ msgstr "Checking device support…"
 msgid "Checking key…"
 msgstr "Checking key…"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Checking managed backup status…"
 msgstr "Checking managed backup status…"
 
@@ -2483,11 +2505,11 @@ msgstr "Could not create and save this passkey."
 msgid "Could not decrypt vault with stored key."
 msgstr "Could not decrypt vault with stored key."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not delete backup."
 msgstr "Could not delete backup."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not delete backups."
 msgstr "Could not delete backups."
 
@@ -2503,7 +2525,7 @@ msgstr "Could not delete server. Please try again."
 msgid "Could not disable biometric unlock. Try again."
 msgstr "Could not disable biometric unlock. Try again."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not enable backups."
 msgstr "Could not enable backups."
 
@@ -2579,7 +2601,7 @@ msgstr "Could not open this URL."
 msgid "Could not parse this export file. Check that the selected source and file match."
 msgstr "Could not parse this export file. Check that the selected source and file match."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not pause automatic backups."
 msgstr "Could not pause automatic backups."
 
@@ -2856,7 +2878,7 @@ msgstr "Create vault"
 #. Backup detail row: creation time
 #. Date the account relationship was created
 #. Date the item was created
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/devices/device-overviews.tsx
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Created"
@@ -3073,7 +3095,7 @@ msgid "DEK stored behind device biometrics"
 msgstr "DEK stored behind device biometrics"
 
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Delete"
 msgstr "Delete"
@@ -3086,15 +3108,15 @@ msgstr "Delete account"
 msgid "Delete account?"
 msgstr "Delete account?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete all"
 msgstr "Delete all"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete all backups"
 msgstr "Delete all backups"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete backup"
 msgstr "Delete backup"
 
@@ -3119,6 +3141,14 @@ msgstr "Delete it and link"
 #: src/components/vault/vault-home.tsx
 msgid "Delete item"
 msgstr "Delete item"
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Delete older backups below to make room."
+msgstr "Delete older backups below to make room."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Delete older backups to make room."
+msgstr "Delete older backups to make room."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Delete older destination backups after replacement"
@@ -3407,21 +3437,13 @@ msgstr "Done"
 msgid "Done."
 msgstr "Done."
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Download a snapshot to restore it, or remove copies you no longer need."
-msgstr "Download a snapshot to restore it, or remove copies you no longer need."
-
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Download backup"
 msgstr "Download backup"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Download failed."
 msgstr "Download failed."
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Download or remove saved snapshots"
-msgstr "Download or remove saved snapshots"
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Downloaded backup files are independent copies and may still open with the credentials that protected them when downloaded."
@@ -3568,11 +3590,11 @@ msgstr "Enable to unlock without typing your password"
 msgid "Enabled"
 msgstr "Enabled"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted backup ready."
 msgstr "Encrypted backup ready."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted backup uploaded."
 msgstr "Encrypted backup uploaded."
 
@@ -3604,13 +3626,9 @@ msgstr "Encrypted invitation"
 msgid "Encrypted on this device"
 msgstr "Encrypted on this device"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted snapshot"
 msgstr "Encrypted snapshot"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Encrypted snapshots"
-msgstr "Encrypted snapshots"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Encrypted vault"
@@ -3920,6 +3938,10 @@ msgstr "Explore"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Export"
 msgstr "Export"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Export a backup file or add your own storage instead."
+msgstr "Export a backup file or add your own storage instead."
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Export an encrypted .cryx file"
@@ -4365,6 +4387,10 @@ msgstr "Free trial canceled. You won't be charged."
 #: src/components/account/account-summary.tsx
 msgid "Free trial. You'll be charged when it ends unless you cancel before then."
 msgstr "Free trial. You'll be charged when it ends unless you cancel before then."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Free up space"
+msgstr "Free up space"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "From another password manager or vault"
@@ -4845,10 +4871,6 @@ msgstr "Iterations"
 msgid "Just now"
 msgstr "Just now"
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Keep a recent encrypted copy and your recovery code available."
-msgstr "Keep a recent encrypted copy and your recovery code available."
-
 #: src/components/vault/credential-form.tsx
 msgid "Keep authenticator"
 msgstr "Keep authenticator"
@@ -5002,6 +5024,8 @@ msgstr "Label is too long"
 msgid "Language"
 msgstr "Language"
 
+#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Last backup {when}"
 msgstr "Last backup {when}"
@@ -5055,10 +5079,6 @@ msgstr "LastPass CSV export (.csv)"
 #: app/(app)/account/auth/recover.tsx
 msgid "Later"
 msgstr "Later"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Latest managed backup"
-msgstr "Latest managed backup"
 
 #: app/(app)/settings/security/index.tsx
 msgid "Leave blank if the protection phrase is already saved on this device."
@@ -5211,7 +5231,7 @@ msgstr "Live transfer cancelled. No vault was saved on this device."
 msgid "Live transfer stopped while the app was in the background. Start again."
 msgstr "Live transfer stopped while the app was in the background. Start again."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Load older backups"
 msgstr "Load older backups"
 
@@ -5231,7 +5251,7 @@ msgstr "Loading membership…"
 msgid "Loading prices…"
 msgstr "Loading prices…"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Loading saved backups…"
 msgstr "Loading saved backups…"
 
@@ -5380,11 +5400,15 @@ msgstr "Managed backup from {createdAt}"
 msgid "Managed backup Recovery Kit phrase"
 msgstr "Managed backup Recovery Kit phrase"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backup status is unavailable."
 msgstr "Managed backup status is unavailable."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: src/app_lib/managed-backup-coordinator.ts
+msgid "Managed backup storage is full, or the vault is too large for one backup."
+msgstr "Managed backup storage is full, or the vault is too large for one backup."
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backup storage is not configured by this service."
 msgstr "Managed backup storage is not configured by this service."
 
@@ -5393,8 +5417,17 @@ msgid "Managed backup user ID"
 msgstr "Managed backup user ID"
 
 #: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backups"
 msgstr "Managed backups"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed backups are failing"
+msgstr "Managed backups are failing"
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Managed backups are not available"
+msgstr "Managed backups are not available"
 
 #: src/app_lib/managed-backup-coordinator.ts
 msgid "Managed backups are not enabled."
@@ -5404,7 +5437,7 @@ msgstr "Managed backups are not enabled."
 msgid "Managed backups are unavailable."
 msgstr "Managed backups are unavailable."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 msgstr "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 
@@ -5412,7 +5445,7 @@ msgstr "Managed backups require an eligible subscription. Open Membership in Acc
 msgid "Managed encrypted backups"
 msgstr "Managed encrypted backups"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed encrypted backups enabled."
 msgstr "Managed encrypted backups enabled."
 
@@ -5427,6 +5460,18 @@ msgstr "Managed services"
 #: src/components/account/account-summary.tsx
 msgid "Managed services for your connected devices."
 msgstr "Managed services for your connected devices."
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage"
+msgstr "Managed storage"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage is full"
+msgstr "Managed storage is full"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage, {used} of {total} used"
+msgstr "Managed storage, {used} of {total} used"
 
 #: src/components/account/membership-benefits.tsx
 msgid "Manual encrypted backups"
@@ -5632,6 +5677,14 @@ msgstr "Namespace"
 msgid "Needed for MinIO, Garage and most self-hosted servers."
 msgstr "Needed for MinIO, Garage and most self-hosted servers."
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Needs an eligible subscription"
+msgstr "Needs an eligible subscription"
+
+#: src/components/unlocked/unlocked-ui.tsx
+msgid "Needs attention"
+msgstr "Needs attention"
+
 #: app/(app)/devices/link-send.tsx
 #: app/link-receive.tsx
 msgid "Negotiating the direct WebRTC connection."
@@ -5703,6 +5756,10 @@ msgstr "No"
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "No additional key protection"
 msgstr "No additional key protection"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "No automatic backups"
+msgstr "No automatic backups"
 
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "No backup yet"
@@ -5822,13 +5879,9 @@ msgstr "No logins match your search."
 msgid "No longer in the vault"
 msgstr "No longer in the vault"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "No managed backup yet"
 msgstr "No managed backup yet"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "No managed backups"
-msgstr "No managed backups"
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "No managed backups are available."
@@ -5960,6 +6013,10 @@ msgstr "Not granted to this agent"
 msgid "Not now"
 msgstr "Not now"
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Not offered by this service"
+msgstr "Not offered by this service"
+
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
 msgstr "Not set"
@@ -5995,6 +6052,7 @@ msgstr "Numbers"
 #. Auto-lock option: never lock on inactivity
 #. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
+#: app/(app)/settings/backup-center/index.tsx
 #: app/(app)/settings/security/index.tsx
 msgid "Off"
 msgstr "Off"
@@ -6027,6 +6085,7 @@ msgstr "Oldest first"
 
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
+#: app/(app)/settings/backup-center/index.tsx
 msgid "On"
 msgstr "On"
 
@@ -6049,6 +6108,15 @@ msgstr "On your other device, choose Create invitation and point this camera at 
 #: app/link-receive.tsx
 msgid "On your other device, open Cryptex Vault and start linking. Then scan its invitation here."
 msgstr "On your other device, open Cryptex Vault and start linking. Then scan its invitation here."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "On, last backup {managedWhen}"
+msgstr "On, last backup {managedWhen}"
+
+#. placeholder {0}: formatBytes(status.data.maxSnapshotBytes, i18n.locale)
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "One backup can be up to {0}. Export a backup file or add your own storage instead."
+msgstr "One backup can be up to {0}. Export a backup file or add your own storage instead."
 
 #: app/(app)/share/index.tsx
 msgid "One-time code setup"
@@ -6213,6 +6281,7 @@ msgid "Open a private connection"
 msgstr "Open a private connection"
 
 #: app/(app)/devices/link-send.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Open Account"
 msgstr "Open Account"
@@ -6571,11 +6640,11 @@ msgstr "Period must be at least 1 second"
 msgid "Permanently delete “{vaultName}” from this device?"
 msgstr "Permanently delete “{vaultName}” from this device?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Permanently delete every managed backup for this vault?"
 msgstr "Permanently delete every managed backup for this vault?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Permanently delete this encrypted backup?"
 msgstr "Permanently delete this encrypted backup?"
 
@@ -7552,6 +7621,10 @@ msgstr "RSA keys under 3072 bits are weak. Replace this key with a new Ed25519 k
 msgid "Runtime"
 msgstr "Runtime"
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "S3 buckets you control"
+msgstr "S3 buckets you control"
+
 #. Button: save vault details
 #: app/(app)/devices/connectivity/agent-relay.tsx
 #: app/(app)/share/server.tsx
@@ -7716,7 +7789,7 @@ msgstr "Save your recovery material"
 msgid "Save your User ID and recovery phrase"
 msgstr "Save your User ID and recovery phrase"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Saved backups could not be loaded."
 msgstr "Saved backups could not be loaded."
 
@@ -8165,7 +8238,7 @@ msgstr "Shared links"
 msgid "Sharing is not available on this device."
 msgstr "Sharing is not available on this device."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: app/(app)/settings/diagnostics.tsx
 #: app/(app)/settings/import-export/index.tsx
 msgid "Sharing is unavailable on this device."
@@ -8369,7 +8442,7 @@ msgid "Signing…"
 msgstr "Signing…"
 
 #. Backup detail row: file size
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Size"
 msgstr "Size"
 
@@ -8408,7 +8481,7 @@ msgstr "Sort: {sortLabel}"
 
 #. Backup detail row: device that made the backup
 #. Import step: where the data comes from
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/vault-import/import-wizard.tsx
 msgid "Source"
 msgstr "Source"
@@ -8515,6 +8588,10 @@ msgid "Stopping after current device…"
 msgstr "Stopping after current device…"
 
 #: app/(app)/settings/backup-center/index.tsx
+msgid "Storage is full"
+msgstr "Storage is full"
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Store encrypted snapshots using Online Services."
 msgstr "Store encrypted snapshots using Online Services."
 
@@ -8760,6 +8837,10 @@ msgstr "The association was saved, but the request expired before Cryptex Vault 
 msgid "The backup file is no longer in the bucket."
 msgstr "The backup file is no longer in the bucket."
 
+#: src/app_lib/managed-backup-coordinator.ts
+msgid "The backup service is limiting requests. Backups continue later."
+msgstr "The backup service is limiting requests. Backups continue later."
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "The bucket doesn't exist at this endpoint."
 msgstr "The bucket doesn't exist at this endpoint."
@@ -8847,6 +8928,10 @@ msgstr "The Kit you used no longer works, so this account has none. Create one n
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
 msgstr "The language the app uses"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "The last backup failed"
+msgstr "The last backup failed"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "The latest account data confirms this relationship is no longer registered. You can forget its saved link in this vault."
@@ -9515,6 +9600,10 @@ msgstr "This vault"
 msgid "This vault is no longer connected to Online Services."
 msgstr "This vault is no longer connected to Online Services."
 
+#: src/components/backup-center/backup-status.tsx
+msgid "This vault is too large for managed backups"
+msgstr "This vault is too large for managed backups"
+
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
 msgstr "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
@@ -9571,6 +9660,10 @@ msgstr "Timed out waiting for authenticated remote sync keys."
 msgid "Timeout seconds"
 msgstr "Timeout seconds"
 
+#: src/components/backup-center/backup-status.tsx
+msgid "today at {time}"
+msgstr "today at {time}"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Too many requests. Try again in a minute."
@@ -9624,6 +9717,10 @@ msgstr "Trying again…"
 #: src/components/devices/connectivity-panel.tsx
 msgid "TURN credential"
 msgstr "TURN credential"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Turn on managed backups or add your own storage, so losing this device does not mean losing your vault."
+msgstr "Turn on managed backups or add your own storage, so losing this device does not mean losing your vault."
 
 #: src/utils/test-ice-server.ts
 msgid "TURN relay allocation succeeded."
@@ -10495,10 +10592,6 @@ msgstr "Your backup stays encrypted until you unlock it"
 msgid "Your backup stays encrypted. After restoring, unlock it with its existing credentials or vault recovery code."
 msgstr "Your backup stays encrypted. After restoring, unlock it with its existing credentials or vault recovery code."
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Your backups"
-msgstr "Your backups"
-
 #: src/components/devices/device-details-sheet.tsx
 msgid "Your changes have been kept here. Return to settings and try saving again."
 msgstr "Your changes have been kept here. Return to settings and try saving again."
@@ -10527,7 +10620,7 @@ msgstr "Your master password is always required. A generated phrase adds another
 msgid "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
 msgstr "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Your next managed backup will appear here."
 msgstr "Your next managed backup will appear here."
 
@@ -10535,7 +10628,8 @@ msgstr "Your next managed backup will appear here."
 msgid "Your own relays"
 msgstr "Your own relays"
 
-#: src/components/backup-destinations/backup-destinations-section.tsx
+#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/storage.tsx
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your own storage"
 msgstr "Your own storage"
@@ -10592,6 +10686,10 @@ msgstr "Your vault essentials, free forever."
 #: app/(app)/devices/connect-agent.tsx
 msgid "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
 msgstr "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Your vault is backed up"
+msgstr "Your vault is backed up"
 
 #: src/components/vault/vault-home.tsx
 msgid "Your vault starts here."

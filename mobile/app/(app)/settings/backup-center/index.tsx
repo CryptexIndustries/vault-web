@@ -1,506 +1,181 @@
-import { useUnlockedConfirmation } from "@/components/unlocked/confirmation-sheet";
-import { useState } from "react";
-import { View } from "react-native";
 import { router } from "expo-router";
-import { i18n } from "@lingui/core";
+import { useAtomValue } from "jotai";
 import { useLingui } from "@lingui/react/macro";
-import { Archive, Cloud, KeyRound } from "lucide-react-native";
-import * as FileSystem from "expo-file-system/legacy";
-import { writeSecretTempFile } from "@/utils/secret-temp-files";
-import { useSecretRelease } from "@/utils/secret-release";
-import { shareSecretFile } from "@/utils/secret-share";
+import {
+    Archive,
+    Cloud,
+    Database,
+    KeyRound,
+    ShieldAlert,
+    ShieldCheck,
+    ShieldOff,
+} from "lucide-react-native";
+import { visibleBackupDestinations } from "@cryptex-industries/vault-core/vault-utils/backup-destinations";
 
-import { trpcReact } from "@/utils/trpc";
-import { uint8ToBase64 } from "@cryptex-industries/vault-core/encoding";
-import { managedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
-import { downloadBackupBytes } from "@/app_lib/managed-backups";
+import { useFailingBackupDestination } from "@/app_lib/backup-attention";
+import { backupDestinationStatusesAtom } from "@/app_lib/backup-destinations";
+import { managedBackupFailureAtom } from "@/app_lib/managed-backup-coordinator";
+import {
+    BackupStatusHeader,
+    StorageMeter,
+    formatBackupTime,
+    managedFailureKind,
+    managedFailureTitle,
+} from "@/components/backup-center/backup-status";
 import {
     UnlockedButton as Button,
     UnlockedMenuRow,
     UnlockedTaskScreen,
-    UnlockedText,
 } from "@/components/unlocked/unlocked-ui";
-import { Dialog, DialogHeader } from "@/components/ui/dialog";
-import { UnlockedDialogTitle } from "@/components/unlocked/unlocked-ui";
-import { Switch } from "@/components/ui/switch";
-import { InlineNotice } from "@/components/inline-notice";
-import { BackupDestinationsSection } from "@/components/backup-destinations/backup-destinations-section";
-import { colors } from "@/theme";
+import { unlockedVaultAtom } from "@/utils/atoms";
+import { trpcReact } from "@/utils/trpc";
 
-function formatBytes(bytes: number) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KiB`;
-    const size = (bytes / 1024 ** 2).toLocaleString(i18n.locale, {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-    });
-    return `${size} MiB`;
-}
-
-export function BackupCenterScreen({
-    view = "center",
-}: {
-    view?: "center" | "history";
-}) {
-    const { t } = useLingui();
-    const confirm = useUnlockedConfirmation();
-    const utils = trpcReact.useUtils();
+export default function BackupCenterRoute() {
+    const { t, i18n } = useLingui();
     const status = trpcReact.v1.backup.status.useQuery();
-    const history = trpcReact.v1.backup.list.useInfiniteQuery(
-        { cursor: undefined },
-        {
-            enabled:
-                status.data?.storageConfigured === true &&
-                (status.data.entitled ||
-                    (!!status.data.graceExpiresAt &&
-                        new Date(status.data.graceExpiresAt) > new Date())),
-            getNextPageParam: (page) => page.nextCursor ?? undefined,
-        },
+    const failure = useAtomValue(managedBackupFailureAtom);
+    const destinations = visibleBackupDestinations(
+        useAtomValue(unlockedVaultAtom).BackupDestinations ?? [],
     );
-    const enable = trpcReact.v1.backup.enable.useMutation();
-    const disable = trpcReact.v1.backup.disable.useMutation();
-    const remove = trpcReact.v1.backup.delete.useMutation();
-    const removeAll = trpcReact.v1.backup.deleteAll.useMutation();
-    const [busy, setBusy] = useState(false);
-    const [message, setMessage] = useState("");
-    const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
-        null,
-    );
-
-    const refresh = () =>
-        Promise.all([
-            utils.v1.backup.status.invalidate(),
-            utils.v1.backup.list.invalidate(),
-        ]);
-
-    const enableBackups = async () => {
-        setBusy(true);
-        setMessage("");
-        try {
-            await enable.mutateAsync();
-            managedBackupCoordinator.setEnabled(true);
-            await managedBackupCoordinator.backupNow();
-            await refresh();
-            setMessage(t`Managed encrypted backups enabled.`);
-        } catch (error) {
-            setMessage(
-                error instanceof Error
-                    ? error.message
-                    : t`Could not enable backups.`,
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const pauseBackups = async () => {
-        setBusy(true);
-        setMessage("");
-        try {
-            await disable.mutateAsync();
-            managedBackupCoordinator.setEnabled(false);
-            await refresh();
-            setMessage(t`Automatic backups paused. Existing history remains.`);
-        } catch (error) {
-            setMessage(
-                error instanceof Error
-                    ? error.message
-                    : t`Could not pause automatic backups.`,
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const backupNow = async () => {
-        setBusy(true);
-        setMessage("");
-        try {
-            await managedBackupCoordinator.backupNow();
-            await refresh();
-            setMessage(t`Encrypted backup uploaded.`);
-        } catch (error) {
-            setMessage(
-                error instanceof Error ? error.message : t`Backup failed.`,
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    // A downloaded backup on its way to the share sheet; a lock or leaving stops it.
-    const startDownloadRelease = useSecretRelease();
-
-    const download = async (snapshotId: string) => {
-        const release = startDownloadRelease();
-        setBusy(true);
-        setMessage("");
-        try {
-            const result = await downloadBackupBytes(snapshotId);
-            const shared = await shareSecretFile(
-                () =>
-                    writeSecretTempFile(
-                        "cryx",
-                        uint8ToBase64(result.bytes),
-                        FileSystem.EncodingType.Base64,
-                    ),
-                {
-                    isCurrent: release.current,
-                    mimeType: "application/octet-stream",
-                },
-            );
-            if (shared === "shared") setMessage(t`Encrypted backup ready.`);
-            else if (shared === "unavailable")
-                setMessage(t`Sharing is unavailable on this device.`);
-        } catch (error) {
-            setMessage(
-                error instanceof Error ? error.message : t`Download failed.`,
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
+    const destinationStatuses = useAtomValue(backupDestinationStatusesAtom);
+    const failingDestination = useFailingBackupDestination();
 
     const entitled =
         status.data?.entitled ||
         (!!status.data?.graceExpiresAt &&
             new Date(status.data.graceExpiresAt) > new Date());
-    const historyItems =
-        history.data?.pages.flatMap((page) => page.items) ?? [];
-
-    const selectedSnapshot = historyItems.find(
-        (snapshot) => snapshot.id === selectedSnapshotId,
+    const managed =
+        status.data?.storageConfigured && entitled ? status.data : undefined;
+    const kind = managedFailureKind(failure, managed);
+    const managedOn = !!managed?.enabled;
+    const lastBackup = Math.max(
+        managed?.latestReadyAt?.getTime() ?? 0,
+        ...destinations.map(
+            (d) => destinationStatuses[d.ID]?.lastSuccessAt ?? 0,
+        ),
     );
+    const when = lastBackup ? formatBackupTime(i18n, lastBackup) : null;
+    const managedWhen = managed?.latestReadyAt
+        ? formatBackupTime(i18n, managed.latestReadyAt)
+        : null;
 
-    const confirmDelete = (snapshotId: string) =>
-        confirm({
-            title: t`Delete backup`,
-            description: t`Permanently delete this encrypted backup?`,
-            cancelLabel: t`Cancel`,
-            confirmLabel: t`Delete`,
-            onConfirm: () => {
-                setMessage("");
-                void remove
-                    .mutateAsync({ snapshotId })
-                    .then(refresh)
-                    .then(() => setMessage(t`Backup deleted.`))
-                    .catch((error: unknown) =>
-                        setMessage(
-                            error instanceof Error
-                                ? error.message
-                                : t`Could not delete backup.`,
-                        ),
-                    );
-            },
-        });
-
-    const confirmDeleteAll = () =>
-        confirm({
-            title: t`Delete all backups`,
-            description: t`Permanently delete every managed backup for this vault?`,
-            cancelLabel: t`Cancel`,
-            confirmLabel: t`Delete all`,
-            onConfirm: () => {
-                setMessage("");
-                void removeAll
-                    .mutateAsync()
-                    .then(refresh)
-                    .then(() => setMessage(t`All backups deleted.`))
-                    .catch((error: unknown) =>
-                        setMessage(
-                            error instanceof Error
-                                ? error.message
-                                : t`Could not delete backups.`,
-                        ),
-                    );
-            },
-        });
-
-    if (view === "history") {
-        return (
-            <UnlockedTaskScreen title={t`Backup history`}>
-                {historyItems.length ? (
-                    <>
-                        <View
-                            style={{
-                                paddingBottom: 22,
-                                marginBottom: 6,
-                                borderBottomWidth: 1,
-                                borderBottomColor: colors.border,
-                            }}
-                        >
-                            <UnlockedText
-                                style={{
-                                    fontSize: 22,
-                                    fontWeight: "500",
-                                    marginTop: 10,
-                                    marginBottom: 6,
-                                }}
-                            >
-                                {t`Encrypted snapshots`}
-                            </UnlockedText>
-                            <UnlockedText
-                                style={{
-                                    fontSize: 13,
-                                    lineHeight: 20,
-                                    color: colors.muted,
-                                }}
-                            >
-                                {t`Download a snapshot to restore it, or remove copies you no longer need.`}
-                            </UnlockedText>
-                        </View>
-                        {historyItems.map((snapshot) => (
-                            <UnlockedMenuRow
-                                key={snapshot.id}
-                                icon={Archive}
-                                title={new Date(
-                                    snapshot.createdAt,
-                                ).toLocaleString(i18n.locale, {
-                                    month: "long",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })}
-                                subtitle={`${snapshot.sourceLabel} (${formatBytes(snapshot.byteLength)})`}
-                                onPress={() => {
-                                    setMessage("");
-                                    setSelectedSnapshotId(snapshot.id);
-                                }}
-                            />
-                        ))}
-                        <View style={{ marginTop: 24, gap: 10 }}>
-                            {history.hasNextPage ? (
-                                <Button
-                                    variant="outline"
-                                    loading={history.isFetchingNextPage}
-                                    onPress={() => void history.fetchNextPage()}
-                                >
-                                    {t`Load older backups`}
-                                </Button>
-                            ) : null}
-                            <Button
-                                variant="destructive"
-                                disabled={busy || removeAll.isPending}
-                                onPress={confirmDeleteAll}
-                            >
-                                {t`Delete all backups`}
-                            </Button>
-                        </View>
-                    </>
-                ) : history.isLoading ? (
-                    <InlineNotice
-                        tone="loading"
-                        message={t`Loading saved backups…`}
-                    />
-                ) : history.isError ? (
-                    <InlineNotice
-                        tone="error"
-                        message={t`Saved backups could not be loaded.`}
-                    />
-                ) : (
-                    <>
-                        <View style={{ paddingVertical: 28 }}>
-                            <Archive
-                                size={32}
-                                color={colors.muted}
-                                strokeWidth={1.7}
-                                style={{ marginBottom: 20 }}
-                            />
-                            <UnlockedText
-                                style={{
-                                    fontSize: 22,
-                                    fontWeight: "500",
-                                    marginBottom: 10,
-                                }}
-                            >
-                                {t`No managed backups`}
-                            </UnlockedText>
-                            <UnlockedText
-                                style={{
-                                    fontSize: 13,
-                                    lineHeight: 20,
-                                    color: colors.muted,
-                                }}
-                            >
-                                {t`Your next managed backup will appear here.`}
-                            </UnlockedText>
-                        </View>
-                        <Button
-                            className="mt-6"
-                            loading={busy}
-                            onPress={() => void backupNow()}
-                        >
-                            {t`Back up now`}
-                        </Button>
-                    </>
-                )}
-                <Dialog
-                    open={!!selectedSnapshot}
-                    onOpenChange={(open) =>
-                        !open && setSelectedSnapshotId(null)
+    const header = kind ? (
+        <BackupStatusHeader
+            icon={ShieldAlert}
+            tone="attention"
+            title={managedFailureTitle(i18n, kind)}
+            body={
+                kind === "full"
+                    ? managedWhen
+                        ? t`Changes since ${managedWhen} are not backed up. Delete older backups to make room.`
+                        : t`Delete older backups to make room.`
+                    : kind === "too-large"
+                      ? t`Export a backup file or add your own storage instead.`
+                      : failure?.message
+            }
+        >
+            {managed ? (
+                <StorageMeter
+                    i18n={i18n}
+                    status={managed}
+                    full={kind === "full"}
+                />
+            ) : null}
+            {kind === "full" ? (
+                <Button
+                    className="mt-6"
+                    onPress={() =>
+                        router.push("/(app)/settings/backup-center/managed")
                     }
-                    placement="bottom"
-                    scroll
-                    dismissible={!busy}
                 >
-                    <DialogHeader>
-                        <UnlockedDialogTitle>
-                            {t`Encrypted snapshot`}
-                        </UnlockedDialogTitle>
-                    </DialogHeader>
-                    {selectedSnapshot ? (
-                        <>
-                            <View>
-                                {[
-                                    [
-                                        t({
-                                            message: "Created",
-                                            comment:
-                                                "Backup detail row: creation time",
-                                        }),
-                                        new Date(
-                                            selectedSnapshot.createdAt,
-                                        ).toLocaleString(i18n.locale),
-                                    ],
-                                    [
-                                        t({
-                                            message: "Source",
-                                            comment:
-                                                "Backup detail row: device that made the backup",
-                                        }),
-                                        selectedSnapshot.sourceLabel,
-                                    ],
-                                    [
-                                        t({
-                                            message: "Size",
-                                            comment:
-                                                "Backup detail row: file size",
-                                        }),
-                                        formatBytes(
-                                            selectedSnapshot.byteLength,
-                                        ),
-                                    ],
-                                ].map(([label, value]) => (
-                                    <View
-                                        key={label}
-                                        style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            gap: 20,
-                                            paddingVertical: 16,
-                                            borderBottomWidth: 1,
-                                            borderBottomColor: colors.border,
-                                        }}
-                                    >
-                                        <UnlockedText
-                                            style={{
-                                                fontSize: 13,
-                                                color: colors.muted,
-                                            }}
-                                        >
-                                            {label}
-                                        </UnlockedText>
-                                        <UnlockedText
-                                            style={{
-                                                fontSize: 13,
-                                                maxWidth: "65%",
-                                                textAlign: "right",
-                                            }}
-                                        >
-                                            {value}
-                                        </UnlockedText>
-                                    </View>
-                                ))}
-                            </View>
-                            <View style={{ marginTop: 24, gap: 10 }}>
-                                <Button
-                                    variant="outline"
-                                    loading={busy}
-                                    onPress={() =>
-                                        void download(selectedSnapshot.id)
-                                    }
-                                >
-                                    {t`Download backup`}
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    disabled={busy || remove.isPending}
-                                    onPress={() => {
-                                        setSelectedSnapshotId(null);
-                                        confirmDelete(selectedSnapshot.id);
-                                    }}
-                                >
-                                    {t`Delete backup`}
-                                </Button>
-                            </View>
-                        </>
-                    ) : null}
-                    {message ? (
-                        <InlineNotice tone="info" message={message} />
-                    ) : null}
-                </Dialog>
-                {message ? (
-                    <InlineNotice tone="info" message={message} />
-                ) : null}
-            </UnlockedTaskScreen>
-        );
-    }
+                    {t`Free up space`}
+                </Button>
+            ) : null}
+        </BackupStatusHeader>
+    ) : failingDestination ? (
+        <BackupStatusHeader
+            icon={ShieldAlert}
+            tone="attention"
+            title={t`Backups to ${failingDestination.Name} are failing`}
+            body={
+                destinationStatuses[failingDestination.ID]?.lastError?.message
+            }
+        />
+    ) : status.isLoading ? (
+        <BackupStatusHeader
+            icon={ShieldCheck}
+            tone="neutral"
+            title={t`Checking…`}
+        />
+    ) : when && (managedOn || destinations.some((d) => !d.Paused)) ? (
+        <BackupStatusHeader
+            icon={ShieldCheck}
+            tone="positive"
+            title={t`Your vault is backed up`}
+            body={t`Last backup ${when}`}
+        >
+            {managed ? (
+                <StorageMeter i18n={i18n} status={managed} full={false} />
+            ) : null}
+        </BackupStatusHeader>
+    ) : (
+        <BackupStatusHeader
+            icon={ShieldOff}
+            tone="neutral"
+            title={t`No automatic backups`}
+            body={t`Turn on managed backups or add your own storage, so losing this device does not mean losing your vault.`}
+        />
+    );
 
     return (
         <UnlockedTaskScreen title={t`Backup Center`}>
-            <View
-                style={{
-                    paddingBottom: 22,
-                    marginBottom: 6,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                }}
-            >
-                <UnlockedText
-                    style={{ fontSize: 22, fontWeight: "500", marginTop: 10 }}
-                >
-                    {t`Your backups`}
-                </UnlockedText>
-                <UnlockedText className="mt-[6px] text-[13px] leading-5 text-muted-foreground">
-                    {t`Keep a recent encrypted copy and your recovery code available.`}
-                </UnlockedText>
-            </View>
-            <View
-                style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    gap: 20,
-                    paddingVertical: 16,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                }}
-            >
-                <UnlockedText style={{ fontSize: 13, color: colors.muted }}>
-                    {t`Latest managed backup`}
-                </UnlockedText>
-                <UnlockedText
-                    style={{
-                        fontSize: 13,
-                        maxWidth: "65%",
-                        textAlign: "right",
-                    }}
-                >
-                    {historyItems[0]
-                        ? new Date(historyItems[0].createdAt).toLocaleString(
-                              i18n.locale,
-                          )
-                        : status.isLoading || history.isLoading
-                          ? t`Checking…`
-                          : status.isError || history.isError
-                            ? t({
-                                  message: "Unavailable",
-                                  comment:
-                                      "Latest managed backup could not be loaded",
-                              })
-                            : t`No managed backup yet`}
-                </UnlockedText>
-            </View>
+            {header}
+            <UnlockedMenuRow
+                testID="backup-center-managed"
+                icon={Cloud}
+                title={t`Managed backups`}
+                subtitle={
+                    status.isLoading
+                        ? t`Checking…`
+                        : status.isError
+                          ? t({
+                                message: "Unavailable",
+                                comment:
+                                    "Latest managed backup could not be loaded",
+                            })
+                          : !status.data?.storageConfigured
+                            ? t`Not offered by this service`
+                            : !entitled
+                              ? t`Needs an eligible subscription`
+                              : kind === "full"
+                                ? t`Storage is full`
+                                : kind
+                                  ? t`The last backup failed`
+                                  : !managedOn
+                                    ? t`Off`
+                                    : managedWhen
+                                      ? t`On, last backup ${managedWhen}`
+                                      : t`On`
+                }
+                attention={!!kind}
+                onPress={() =>
+                    router.push("/(app)/settings/backup-center/managed")
+                }
+            />
+            <UnlockedMenuRow
+                testID="backup-center-storage"
+                icon={Database}
+                title={t`Your own storage`}
+                subtitle={
+                    destinations.length
+                        ? destinations.map((d) => d.Name).join(", ")
+                        : t`S3 buckets you control`
+                }
+                attention={!!failingDestination}
+                onPress={() =>
+                    router.push("/(app)/settings/backup-center/storage")
+                }
+            />
             <UnlockedMenuRow
                 icon={Archive}
                 title={t`Create local backup`}
@@ -523,90 +198,6 @@ export function BackupCenterScreen({
                     })
                 }
             />
-            <BackupDestinationsSection />
-            {status.isLoading ? (
-                <InlineNotice
-                    tone="loading"
-                    message={t`Checking managed backup status…`}
-                />
-            ) : status.isError ? (
-                <InlineNotice
-                    tone="error"
-                    message={t`Managed backup status is unavailable.`}
-                />
-            ) : !status.data?.storageConfigured ? (
-                <InlineNotice
-                    tone="info"
-                    message={t`Managed backup storage is not configured by this service.`}
-                />
-            ) : !entitled ? (
-                <InlineNotice
-                    tone="info"
-                    message={t`Managed backups require an eligible subscription. Open Membership in Account to upgrade.`}
-                />
-            ) : (
-                <View className="mb-0">
-                    <UnlockedText
-                        style={{
-                            color: colors.muted,
-                            fontSize: 11,
-                            letterSpacing: 1,
-                            marginTop: 26,
-                            marginBottom: 6,
-                            textTransform: "uppercase",
-                        }}
-                    >
-                        {t`Managed backups`}
-                    </UnlockedText>
-                    <View className="min-h-[70px] flex-row items-center justify-between gap-3 border-b border-border">
-                        <View className="flex-1">
-                            <UnlockedText className="text-sm text-foreground">
-                                {t`Automatic backups`}
-                            </UnlockedText>
-                            <UnlockedText className="mt-1 text-xs text-muted-foreground">
-                                {t`Store encrypted snapshots using Online Services.`}
-                            </UnlockedText>
-                        </View>
-                        <Switch
-                            value={status.data.enabled}
-                            disabled={busy}
-                            onValueChange={(enabled) =>
-                                void (enabled
-                                    ? enableBackups()
-                                    : pauseBackups())
-                            }
-                            accessibilityLabel={t`Automatic managed backups`}
-                        />
-                    </View>
-                </View>
-            )}
-
-            {message ? <InlineNotice tone="info" message={message} /> : null}
-            {status.data?.storageConfigured && entitled ? (
-                <UnlockedMenuRow
-                    icon={Cloud}
-                    title={t`Backup history`}
-                    subtitle={t`Download or remove saved snapshots`}
-                    onPress={() => {
-                        setMessage("");
-                        router.push("/(app)/settings/backup-center/history");
-                    }}
-                />
-            ) : null}
-            {status.data?.storageConfigured && entitled ? (
-                <Button
-                    className="mt-6"
-                    variant="outline"
-                    loading={busy}
-                    onPress={() => void backupNow()}
-                >
-                    {t`Back up now`}
-                </Button>
-            ) : null}
         </UnlockedTaskScreen>
     );
-}
-
-export default function BackupCenterRoute() {
-    return <BackupCenterScreen />;
 }

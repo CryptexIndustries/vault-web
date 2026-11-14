@@ -4,6 +4,10 @@ Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that ve
 
 ## Unreleased
 
+### Added
+
+- The Backup Center and the backup entry in the sidebar say when managed backups fail, and why. The warning stays until a backup succeeds.
+
 ### Changed
 
 - Backup Center and Vault Settings open as full screens instead of dialogs. They share one layout with Security Report, Shared Links and the agent page: a back button, the title and the screen's actions in a fixed header.

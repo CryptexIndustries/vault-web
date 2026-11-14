@@ -26,7 +26,6 @@ import {
     backupDestinationFieldError,
     describeBackupDestinationError,
 } from "@/app_lib/backup-destination-messages";
-import { AgentSectionLabel } from "@/components/agents/agent-rows";
 import { InlineNotice } from "@/components/inline-notice";
 import {
     Dialog,
@@ -323,35 +322,33 @@ export function BackupDestinationsSection() {
 
     return (
         <View>
-            <AgentSectionLabel
-                title={t`Your own storage`}
-                right={visible.length ? String(visible.length) : undefined}
-                style={{ marginTop: 26 }}
-            />
+            <Text
+                style={{
+                    color: colors.muted,
+                    fontSize: 13,
+                    lineHeight: 20,
+                    paddingBottom: 18,
+                }}
+            >
+                {t`Upload encrypted backups after every change to S3 buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage.`}
+            </Text>
             {visible.length ? (
-                visible.map((destination) => (
-                    <DestinationRow
-                        key={destination.ID}
-                        destination={destination}
-                        status={statuses[destination.ID]}
-                        onPress={() => open(destination)}
-                        onPausedChange={(paused) =>
-                            setPaused(destination, paused)
-                        }
-                    />
-                ))
-            ) : (
-                <Text
-                    style={{
-                        color: colors.muted,
-                        fontSize: 12,
-                        lineHeight: 18,
-                        paddingVertical: 14,
-                    }}
+                <View
+                    style={{ borderTopWidth: 1, borderTopColor: colors.border }}
                 >
-                    {t`Upload encrypted backups after every change to S3 buckets you control, such as AWS S3, Backblaze B2, Cloudflare R2, MinIO or Garage.`}
-                </Text>
-            )}
+                    {visible.map((destination) => (
+                        <DestinationRow
+                            key={destination.ID}
+                            destination={destination}
+                            status={statuses[destination.ID]}
+                            onPress={() => open(destination)}
+                            onPausedChange={(paused) =>
+                                setPaused(destination, paused)
+                            }
+                        />
+                    ))}
+                </View>
+            ) : null}
             <Button
                 testID="backup-destination-add"
                 variant="outline"

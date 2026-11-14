@@ -14,6 +14,7 @@ import {
 } from "lucide-react-native";
 
 import { AboutSheet } from "@/components/about-sheet";
+import { useBackupNeedsAttention } from "@/app_lib/backup-attention";
 import { LanguageDialog } from "@/components/language-dialog";
 import {
     UnlockedMenuRow as MoreRow,
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
     const { t } = useLingui();
     const [aboutOpen, setAboutOpen] = useState(false);
     const [languageOpen, setLanguageOpen] = useState(false);
+    const backupAttention = useBackupNeedsAttention();
     const chosenLocale = getChosenAppLocale();
 
     return (
@@ -81,6 +83,7 @@ export default function SettingsScreen() {
                 icon={Archive}
                 title={t`Backup Center`}
                 subtitle={t`Backup history and recovery readiness`}
+                attention={backupAttention}
                 onPress={() => router.push("/(app)/settings/backup-center")}
             />
             <MoreRow

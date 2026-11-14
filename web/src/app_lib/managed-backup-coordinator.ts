@@ -29,7 +29,8 @@ export type ManagedBackupCoordinatorStatus =
     | "scheduled"
     | "uploading"
     | "success"
-    | "error";
+    | "error"
+    | "stopped";
 
 export type ManagedBackupStatusDetail = {
     status: ManagedBackupCoordinatorStatus;
@@ -40,6 +41,8 @@ export type ManagedBackupStatusDetail = {
 };
 
 class ManagedBackupCoordinator {
+    // The last upload failure, kept until an upload succeeds or backups stop.
+    failure: ManagedBackupStatusDetail["error"];
     private enabled = false;
     private dirty = false;
     // SSH agent history goes into the next upload without starting one.
@@ -109,6 +112,7 @@ class ManagedBackupCoordinator {
         this.pendingHistoryPurgeSnapshot = null;
         if (this.timer) clearTimeout(this.timer);
         this.timer = null;
+        this.emit("stopped");
     }
 
     setEnabled(enabled: boolean): void {
@@ -362,17 +366,14 @@ class ManagedBackupCoordinator {
         error?: ManagedBackupError,
         retryInMs?: number,
     ): void {
+        if (status === "success" || status === "stopped") {
+            this.failure = undefined;
+        }
+        if (error) this.failure = { message: error.message, retryInMs };
         if (typeof window === "undefined") return;
         const detail: ManagedBackupStatusDetail = {
             status,
-            ...(error
-                ? {
-                      error: {
-                          message: error.message,
-                          retryInMs,
-                      },
-                  }
-                : {}),
+            ...(error ? { error: this.failure } : {}),
         };
         window.dispatchEvent(
             new CustomEvent(MANAGED_BACKUP_STATUS_EVENT, { detail }),

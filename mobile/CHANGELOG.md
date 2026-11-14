@@ -4,6 +4,15 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 
 ## Unreleased
 
+### Added
+
+- The Backup Center says when a managed backup or a backup destination fails, and why. A dot on the More tab and on the Backup Center row stays until backups work again.
+
+### Changed
+
+- The Backup Center opens on the vault's backup status and how much managed storage is used. Managed backups and backup destinations each have their own screen, and the backup history is on the managed backups screen.
+- When managed backup storage is full, the app no longer retries every minute. It tries again after the next change to the vault or a tap on Back up now.
+
 ### Fixed
 
 - Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.

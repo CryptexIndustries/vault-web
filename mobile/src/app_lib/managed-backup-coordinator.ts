@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { t } from "@lingui/core/macro";
+import { TRPCClientError } from "@trpc/client";
+import { atom } from "jotai";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { vaultWriteCoordinator } from "@cryptex-industries/vault-core/vault-utils/vault-write-coordinator";
@@ -22,9 +24,40 @@ import {
 } from "./managed-backups";
 import { registerManagedBackupHooks } from "./managed-backup-hooks";
 import { isAutoLockDue } from "@/utils/session-timeout";
+import { vaultLog } from "@/utils/logging";
 
 const DEBOUNCE_MS = 30_000;
 const RETRY_MS = 60_000;
+// A full account or a rejected request fails the same way on retry, so only
+// these and network errors retry on a timer. The rest wait for the next change.
+const RETRYABLE_CODES = new Set([
+    "TOO_MANY_REQUESTS",
+    "INTERNAL_SERVER_ERROR",
+    "TIMEOUT",
+]);
+
+/** The last managed backup failure, kept until an upload succeeds or backups stop. */
+export const managedBackupFailureAtom = atom<{
+    code: string | undefined;
+    message: string;
+    /** Size of the refused backup, when it was built. */
+    bytes: number | undefined;
+} | null>(null);
+
+function trpcCode(error: unknown) {
+    return error instanceof TRPCClientError
+        ? (error.data as { code?: string } | undefined)?.code
+        : undefined;
+}
+
+function managedBackupErrorMessage(error: unknown) {
+    const code = trpcCode(error);
+    if (code === "PAYLOAD_TOO_LARGE")
+        return t`Managed backup storage is full, or the vault is too large for one backup.`;
+    if (code === "TOO_MANY_REQUESTS")
+        return t`The backup service is limiting requests. Backups continue later.`;
+    return error instanceof Error ? error.message : t`Backup failed.`;
+}
 
 export class ManagedBackupCoordinator {
     private enabled = false;
@@ -73,6 +106,7 @@ export class ManagedBackupCoordinator {
         this.pendingHistoryPurgeSnapshot = null;
         if (this.timer) clearTimeout(this.timer);
         this.timer = null;
+        vaultStore.set(managedBackupFailureAtom, null);
     }
 
     private active(signal: AbortSignal) {
@@ -140,7 +174,8 @@ export class ManagedBackupCoordinator {
     private async flush(): Promise<void> {
         if (!this.enabled || !this.dirty) return;
         if (this.inFlight) {
-            await this.inFlight;
+            // Retry even if it failed: space may have been freed since it started.
+            await this.inFlight.catch(() => undefined);
             if (this.enabled && this.dirty) await this.flush();
             return;
         }
@@ -153,10 +188,20 @@ export class ManagedBackupCoordinator {
         this.inFlight = upload;
         try {
             await upload;
+            if (this.active(signal))
+                vaultStore.set(managedBackupFailureAtom, null);
         } catch (error) {
             if (this.active(signal)) {
+                const code = trpcCode(error);
+                vaultLog.error("Managed encrypted backup failed", { code });
+                vaultStore.set(managedBackupFailureAtom, {
+                    code,
+                    message: managedBackupErrorMessage(error),
+                    bytes: this.uploadAttempt?.bytes.byteLength,
+                });
                 this.dirty = true;
-                this.schedule(RETRY_MS);
+                if (code == null || RETRYABLE_CODES.has(code))
+                    this.schedule(RETRY_MS);
             }
             throw error;
         } finally {

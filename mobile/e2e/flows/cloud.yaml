@@ -4,24 +4,12 @@ name: Online Services fixture lifecycle
 - runFlow: setup-online-services.yaml
 - tapOn: More
 - tapOn: Backup Center,.*
-- scrollUntilVisible:
-      element:
-          text: Automatic managed backups
-      direction: DOWN
-- tapOn: Automatic managed backups
+- tapOn: Managed backups,.*
+- tapOn:
+      id: managed-backups-switch
 - assertVisible: Managed encrypted backups enabled.
-- scrollUntilVisible:
-      element:
-          text: Back up now
-      direction: DOWN
 - tapOn: Back up now
 - assertVisible: Encrypted backup uploaded.
-- scrollUntilVisible:
-      element:
-          text: Backup history,.*
-      direction: DOWN
-- tapOn: Backup history,.*
-- assertVisible: Encrypted snapshots
 - tapOn: .*Root device.*
 - assertVisible: Encrypted snapshot
 - tapOn: Delete backup
@@ -36,4 +24,4 @@ name: Online Services fixture lifecycle
           - assertVisible: Permanently delete every managed backup for this vault?
           - tapOn: Delete all
           - assertVisible: All backups deleted.
-- assertVisible: No managed backups
+- assertVisible: Your next managed backup will appear here.

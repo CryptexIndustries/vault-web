@@ -27,6 +27,7 @@ import {
     type LocalBackupReceipt,
 } from "@/app_lib/backup-status";
 import { useOnlineServicesData } from "@/app_lib/use-online-services-data";
+import { useManagedBackupFailure } from "@/app_lib/use-managed-backup-failure";
 import {
     MANAGED_BACKUP_STATUS_EVENT,
     type ManagedBackupStatusDetail,
@@ -84,6 +85,7 @@ export function BackupSidebarEntry({
         enabled: cloudServicesEnabled && hasOnlineServicesSession,
     });
     const refetchManagedStatus = managedStatus.refetch;
+    const managedFailure = useManagedBackupFailure();
 
     useEffect(() => {
         if (!cloudServicesEnabled || !hasOnlineServicesSession) return;
@@ -150,14 +152,18 @@ export function BackupSidebarEntry({
           ? "Off"
           : null;
     const statusLabel = `${managedStatePrefix ? `${managedStatePrefix} | ` : ""}${backupLabel}`;
-    const managedStateLabel = managedStatus.data?.enabled
-        ? "Managed on"
-        : managedStatus.data?.entitled
-          ? "Managed off"
-          : null;
-    const statusTitle = overview.needsReminder
-        ? `Backup due | ${statusLabel}`
-        : statusLabel;
+    const managedStateLabel = managedFailure
+        ? "Backup failed"
+        : managedStatus.data?.enabled
+          ? "Managed on"
+          : managedStatus.data?.entitled
+            ? "Managed off"
+            : null;
+    const statusTitle = managedFailure
+        ? `${managedFailure.message} | ${statusLabel}`
+        : overview.needsReminder
+          ? `Backup due | ${statusLabel}`
+          : statusLabel;
 
     return (
         <Button
@@ -177,7 +183,7 @@ export function BackupSidebarEntry({
                     <span
                         className={cn(
                             "text-[10px] font-normal",
-                            overview.needsReminder
+                            overview.needsReminder || managedFailure
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-muted-foreground",
                         )}
@@ -212,6 +218,7 @@ export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
     const managedStatus = trpcReact.v1.backup.status.useQuery(undefined, {
         enabled: backupApiEnabled,
     });
+    const managedFailure = useManagedBackupFailure();
 
     useEffect(() => {
         let active = true;
@@ -251,7 +258,9 @@ export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
         managedEnabled: managedStatus.data?.enabled === true,
         managedEntitled: managedStatus.data?.entitled === true,
     });
+    const needsAttention = overview.needsReminder || Boolean(managedFailure);
     const hasCurrentCoverage =
+        !needsAttention &&
         !overview.isStale &&
         (overview.latestSource === "managed" ||
             overview.latestSource === "destination" ||
@@ -341,15 +350,15 @@ export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
             <div className="space-y-4">
                 <div
                     className={
-                        overview.needsReminder
+                        needsAttention
                             ? "flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4"
                             : hasCurrentCoverage
                               ? "flex gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4"
                               : "flex gap-3 rounded-lg border bg-muted/30 p-4"
                     }
-                    role={overview.needsReminder ? "alert" : undefined}
+                    role={needsAttention ? "alert" : undefined}
                 >
-                    {overview.needsReminder ? (
+                    {needsAttention ? (
                         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
                     ) : hasCurrentCoverage ? (
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -359,13 +368,15 @@ export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium">
-                                {overview.needsReminder
-                                    ? "Your vault needs a fresh backup"
-                                    : hasCurrentCoverage
-                                      ? "Your backup coverage is current"
-                                      : !overview.latestBackupAt
-                                        ? "No completed backup yet"
-                                        : "Backup status"}
+                                {managedFailure
+                                    ? "Managed backups are failing"
+                                    : overview.needsReminder
+                                      ? "Your vault needs a fresh backup"
+                                      : hasCurrentCoverage
+                                        ? "Your backup coverage is current"
+                                        : !overview.latestBackupAt
+                                          ? "No completed backup yet"
+                                          : "Backup status"}
                             </p>
                             {managedStatus.data?.enabled ? (
                                 <Badge className="bg-emerald-600 hover:bg-emerald-600">
@@ -379,14 +390,16 @@ export function BackupView({ onBack, onOpenAccountDialog }: BackupViewProps) {
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {latestBackupLabel}.{" "}
-                            {overview.needsReminder
-                                ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
-                                : managedStatus.data?.enabled ||
-                                    overview.latestSource === "destination"
-                                  ? "Automatic backups will keep running while the vault is open and unlocked."
-                                  : !overview.isStale
-                                    ? "Keep the downloaded file in a separate, secure location."
-                                    : "Managed backups are not active for this account."}
+                            {managedFailure
+                                ? managedFailure.message
+                                : overview.needsReminder
+                                  ? "Managed backups are not active, so download an encrypted copy and store it somewhere safe."
+                                  : managedStatus.data?.enabled ||
+                                      overview.latestSource === "destination"
+                                    ? "Automatic backups will keep running while the vault is open and unlocked."
+                                    : !overview.isStale
+                                      ? "Keep the downloaded file in a separate, secure location."
+                                      : "Managed backups are not active for this account."}
                         </p>
                     </div>
                 </div>

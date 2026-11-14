@@ -15,6 +15,7 @@ import {
     type ManagedBackupStatusDetail,
 } from "@/app_lib/managed-backup-coordinator";
 import { managedBackupErrorMessage } from "@/app_lib/managed-backup-errors";
+import { useManagedBackupFailure } from "@/app_lib/use-managed-backup-failure";
 import {
     downloadBackupBytes,
     downloadBackupFile,
@@ -61,8 +62,7 @@ export function ManagedBackupsSettingsCard({
     const onlineServicesData = useOnlineServicesData();
     const [backupUploading, setBackupUploading] = useState(false);
     const [enableConfirmOpen, setEnableConfirmOpen] = useState(false);
-    const [backupFailure, setBackupFailure] =
-        useState<ManagedBackupStatusDetail["error"]>();
+    const backupFailure = useManagedBackupFailure();
     const cloudServicesEnabled = isCloudServicesEnabled();
     const backupApiEnabled =
         cloudServicesEnabled && Boolean(onlineServicesData?.sessionToken);
@@ -107,14 +107,6 @@ export function ManagedBackupsSettingsCard({
                 .detail;
             const status = detail?.status;
             if (status) setBackupUploading(status === "uploading");
-            if (detail?.error) setBackupFailure(detail.error);
-            if (
-                status === "scheduled" ||
-                status === "uploading" ||
-                status === "success"
-            ) {
-                setBackupFailure(undefined);
-            }
             if (status === "success") {
                 void refreshBackups();
             }

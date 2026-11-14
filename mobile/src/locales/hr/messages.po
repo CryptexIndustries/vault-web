@@ -495,6 +495,10 @@ msgstr "{title}. Proširi"
 msgid "{urgentCount, plural, one {# with reused or critically weak passwords. Start there.} other {# with reused or critically weak passwords. Start there.}}"
 msgstr "{urgentCount, plural, one {# s ponovljenom ili kritično slabom lozinkom. Kreni od nje.} few {# s ponovljenim ili kritično slabim lozinkama. Kreni od njih.} other {# s ponovljenim ili kritično slabim lozinkama. Kreni od njih.}}"
 
+#: src/components/backup-center/backup-status.tsx
+msgid "{used} of {total}"
+msgstr "{used} od {total}"
+
 #. {warning} is a full sentence saying the server's host key or name changed since it was last approved
 #: app/(app)/agent-request.tsx
 msgid "{warning} Approve only if you expected this change."
@@ -975,7 +979,7 @@ msgstr "Algoritam"
 msgid "All"
 msgstr "Sve"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "All backups deleted."
 msgstr "Sve sigurnosne kopije su izbrisane."
 
@@ -1248,11 +1252,15 @@ msgstr "Automatsko popunjavanje"
 msgid "Autofill target {targetNumber}"
 msgstr "Cilj automatskog popunjavanja {targetNumber}"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Automatic backups"
 msgstr "Automatske sigurnosne kopije"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Automatic backups are off"
+msgstr "Automatske sigurnosne kopije su isključene"
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Automatic backups paused. Existing history remains."
 msgstr "Automatske sigurnosne kopije su pauzirane. Postojeća povijest ostaje."
 
@@ -1260,10 +1268,6 @@ msgstr "Automatske sigurnosne kopije su pauzirane. Postojeća povijest ostaje."
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Automatic backups to {0}"
 msgstr "Automatske sigurnosne kopije: {0}"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Automatic managed backups"
-msgstr "Automatske upravljane sigurnosne kopije"
 
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
@@ -1320,7 +1324,7 @@ msgstr "Natrag na TURN poslužitelje"
 msgid "Back to unlock"
 msgstr "Natrag na otključavanje"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Back up now"
 msgstr "Izradi kopiju sada"
@@ -1330,16 +1334,21 @@ msgstr "Izradi kopiju sada"
 msgid "Backed up to {0}"
 msgstr "Sigurnosna kopija spremljena: {0}"
 
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Backing up every change"
+msgstr "Svaka promjena ide u sigurnosnu kopiju"
+
 #: app/(app)/(tabs)/settings.tsx
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Backup Center"
 msgstr "Centar za sigurnosne kopije"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Backup deleted."
 msgstr "Sigurnosna kopija je izbrisana."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
+#: src/app_lib/managed-backup-coordinator.ts
 msgid "Backup failed."
 msgstr "Izrada sigurnosne kopije nije uspjela."
 
@@ -1351,7 +1360,7 @@ msgstr "Datoteka sigurnosne kopije"
 msgid "Backup from {createdAt}"
 msgstr "Sigurnosna kopija od {createdAt}"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Backup history"
 msgstr "Povijest sigurnosnih kopija"
 
@@ -1395,6 +1404,11 @@ msgstr "Isteklo je vrijeme za prijenos sigurnosne kopije."
 #: src/app_lib/managed-backups.ts
 msgid "Backup transfer was cancelled."
 msgstr "Prijenos sigurnosne kopije je otkazan."
+
+#. placeholder {0}: failingDestination.Name
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Backups to {0} are failing"
+msgstr "Izrada sigurnosnih kopija na {0} ne uspijeva"
 
 #: src/components/account/membership-benefits.tsx
 msgid "Basic security reports"
@@ -1536,7 +1550,7 @@ msgstr "Nije moguće pristupiti poslužitelju za dijeljenje. Provjeri vezu i pok
 #: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: app/(app)/settings/diagnostics.tsx
 #: app/(app)/settings/import-export/index.tsx
 #: app/(app)/settings/security/index.tsx
@@ -1634,6 +1648,14 @@ msgstr "Promijenjeno prije {years} g. {months} mj."
 msgid "Changed {years}y ago"
 msgstr "Promijenjeno prije {years} g."
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Changes since {managedWhen} are not backed up. Delete older backups to make room."
+msgstr "Zadnja sigurnosna kopija: {managedWhen}. Novije promjene nisu spremljene. Izbriši starije sigurnosne kopije da oslobodiš prostor."
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Changes since {when} are not backed up. Delete older backups below to make room."
+msgstr "Zadnja sigurnosna kopija: {when}. Novije promjene nisu spremljene. Izbriši starije sigurnosne kopije ispod da oslobodiš prostor."
+
 #: app/(app)/settings/diagnostics.tsx
 msgid "Check before sharing"
 msgstr "Provjeri prije dijeljenja"
@@ -1669,7 +1691,7 @@ msgstr "Provjera podrške uređaja…"
 msgid "Checking key…"
 msgstr "Provjera ključa…"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Checking managed backup status…"
 msgstr "Provjera statusa upravljanih sigurnosnih kopija…"
 
@@ -2483,11 +2505,11 @@ msgstr "Nije moguće izraditi i spremiti ovaj pristupni ključ."
 msgid "Could not decrypt vault with stored key."
 msgstr "Nije moguće dešifrirati trezor spremljenim ključem."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not delete backup."
 msgstr "Brisanje sigurnosne kopije nije uspjelo."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not delete backups."
 msgstr "Brisanje sigurnosnih kopija nije uspjelo."
 
@@ -2503,7 +2525,7 @@ msgstr "Brisanje poslužitelja nije uspjelo. Pokušaj ponovno."
 msgid "Could not disable biometric unlock. Try again."
 msgstr "Isključivanje biometrijskog otključavanja nije uspjelo. Pokušaj ponovno."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not enable backups."
 msgstr "Uključivanje sigurnosnih kopija nije uspjelo."
 
@@ -2579,7 +2601,7 @@ msgstr "Nije moguće otvoriti ovaj URL."
 msgid "Could not parse this export file. Check that the selected source and file match."
 msgstr "Nije moguće obraditi ovu izvezenu datoteku. Provjeri odgovaraju li odabrani izvor i datoteka."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Could not pause automatic backups."
 msgstr "Pauziranje automatskih sigurnosnih kopija nije uspjelo."
 
@@ -2856,7 +2878,7 @@ msgstr "Izradi trezor"
 #. Backup detail row: creation time
 #. Date the account relationship was created
 #. Date the item was created
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/devices/device-overviews.tsx
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Created"
@@ -3073,7 +3095,7 @@ msgid "DEK stored behind device biometrics"
 msgstr "DEK je zaštićen biometrijom uređaja"
 
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Delete"
 msgstr "Izbriši"
@@ -3086,15 +3108,15 @@ msgstr "Izbriši račun"
 msgid "Delete account?"
 msgstr "Izbrisati račun?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete all"
 msgstr "Izbriši sve"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete all backups"
 msgstr "Izbriši sve sigurnosne kopije"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Delete backup"
 msgstr "Izbriši sigurnosnu kopiju"
 
@@ -3119,6 +3141,14 @@ msgstr "Izbriši ga i poveži"
 #: src/components/vault/vault-home.tsx
 msgid "Delete item"
 msgstr "Izbriši stavku"
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Delete older backups below to make room."
+msgstr "Izbriši starije sigurnosne kopije ispod da oslobodiš prostor."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Delete older backups to make room."
+msgstr "Izbriši starije sigurnosne kopije da oslobodiš prostor."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Delete older destination backups after replacement"
@@ -3407,21 +3437,13 @@ msgstr "Gotovo"
 msgid "Done."
 msgstr "Gotovo."
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Download a snapshot to restore it, or remove copies you no longer need."
-msgstr "Preuzmi snimku za vraćanje ili ukloni kopije koje ti više ne trebaju."
-
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Download backup"
 msgstr "Preuzmi sigurnosnu kopiju"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Download failed."
 msgstr "Preuzimanje nije uspjelo."
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Download or remove saved snapshots"
-msgstr "Preuzmi ili ukloni spremljene snimke"
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Downloaded backup files are independent copies and may still open with the credentials that protected them when downloaded."
@@ -3568,11 +3590,11 @@ msgstr "Uključi za otključavanje bez upisivanja lozinke"
 msgid "Enabled"
 msgstr "Uključeno"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted backup ready."
 msgstr "Šifrirana sigurnosna kopija je spremna."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted backup uploaded."
 msgstr "Šifrirana sigurnosna kopija je prenesena."
 
@@ -3604,13 +3626,9 @@ msgstr "Šifrirana pozivnica"
 msgid "Encrypted on this device"
 msgstr "Šifrirano na ovom uređaju"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Encrypted snapshot"
 msgstr "Šifrirana snimka"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Encrypted snapshots"
-msgstr "Šifrirane snimke"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Encrypted vault"
@@ -3920,6 +3938,10 @@ msgstr "Istraži"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Export"
 msgstr "Izvoz"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Export a backup file or add your own storage instead."
+msgstr "Umjesto toga izvezi datoteku sigurnosne kopije ili dodaj vlastitu pohranu."
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Export an encrypted .cryx file"
@@ -4365,6 +4387,10 @@ msgstr "Besplatno probno razdoblje je otkazano. Ništa ti se neće naplatiti."
 #: src/components/account/account-summary.tsx
 msgid "Free trial. You'll be charged when it ends unless you cancel before then."
 msgstr "Besplatno probno razdoblje. Kad završi, slijedi naplata, osim ako prije toga otkažeš pretplatu."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Free up space"
+msgstr "Oslobodi prostor"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "From another password manager or vault"
@@ -4845,10 +4871,6 @@ msgstr "Iteracije"
 msgid "Just now"
 msgstr "Upravo sada"
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Keep a recent encrypted copy and your recovery code available."
-msgstr "Čuvaj nedavnu šifriranu kopiju i kôd za oporavak pri ruci."
-
 #: src/components/vault/credential-form.tsx
 msgid "Keep authenticator"
 msgstr "Zadrži autentifikator"
@@ -5002,6 +5024,8 @@ msgstr "Oznaka je predugačka"
 msgid "Language"
 msgstr "Jezik"
 
+#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Last backup {when}"
 msgstr "Zadnja sigurnosna kopija: {when}"
@@ -5055,10 +5079,6 @@ msgstr "LastPass CSV izvoz (.csv)"
 #: app/(app)/account/auth/recover.tsx
 msgid "Later"
 msgstr "Kasnije"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Latest managed backup"
-msgstr "Najnovija upravljana sigurnosna kopija"
 
 #: app/(app)/settings/security/index.tsx
 msgid "Leave blank if the protection phrase is already saved on this device."
@@ -5211,7 +5231,7 @@ msgstr "Izravni prijenos je otkazan. Na ovom uređaju nije spremljen nijedan tre
 msgid "Live transfer stopped while the app was in the background. Start again."
 msgstr "Izravni prijenos se zaustavio dok je aplikacija bila u pozadini. Počni ponovno."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Load older backups"
 msgstr "Učitaj starije sigurnosne kopije"
 
@@ -5231,7 +5251,7 @@ msgstr "Učitavanje članstva…"
 msgid "Loading prices…"
 msgstr "Učitavanje cijena…"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Loading saved backups…"
 msgstr "Učitavanje spremljenih sigurnosnih kopija…"
 
@@ -5380,11 +5400,15 @@ msgstr "Upravljana sigurnosna kopija od {createdAt}"
 msgid "Managed backup Recovery Kit phrase"
 msgstr "Fraza kompleta za oporavak za upravljanu sigurnosnu kopiju"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backup status is unavailable."
 msgstr "Status upravljanih sigurnosnih kopija nije dostupan."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: src/app_lib/managed-backup-coordinator.ts
+msgid "Managed backup storage is full, or the vault is too large for one backup."
+msgstr "Prostor za upravljane sigurnosne kopije je pun ili je trezor prevelik za jednu sigurnosnu kopiju."
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backup storage is not configured by this service."
 msgstr "Ova usluga nema konfiguriranu pohranu za upravljane sigurnosne kopije."
 
@@ -5393,8 +5417,17 @@ msgid "Managed backup user ID"
 msgstr "ID korisnika za upravljanu sigurnosnu kopiju"
 
 #: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backups"
 msgstr "Upravljane sigurnosne kopije"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed backups are failing"
+msgstr "Izrada upravljanih sigurnosnih kopija ne uspijeva"
+
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "Managed backups are not available"
+msgstr "Upravljane sigurnosne kopije nisu dostupne"
 
 #: src/app_lib/managed-backup-coordinator.ts
 msgid "Managed backups are not enabled."
@@ -5404,7 +5437,7 @@ msgstr "Upravljane sigurnosne kopije nisu uključene."
 msgid "Managed backups are unavailable."
 msgstr "Upravljane sigurnosne kopije nisu dostupne."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 msgstr "Za upravljane sigurnosne kopije potrebna je odgovarajuća pretplata. Za nadogradnju otvori odjeljak „Članstvo“ na kartici „Račun“."
 
@@ -5412,7 +5445,7 @@ msgstr "Za upravljane sigurnosne kopije potrebna je odgovarajuća pretplata. Za 
 msgid "Managed encrypted backups"
 msgstr "Upravljane šifrirane sigurnosne kopije"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Managed encrypted backups enabled."
 msgstr "Upravljane šifrirane sigurnosne kopije su uključene."
 
@@ -5427,6 +5460,18 @@ msgstr "Usluge koje održavamo za tebe"
 #: src/components/account/account-summary.tsx
 msgid "Managed services for your connected devices."
 msgstr "Usluge koje održavamo za tvoje povezane uređaje."
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage"
+msgstr "Upravljana pohrana"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage is full"
+msgstr "Upravljana pohrana je puna"
+
+#: src/components/backup-center/backup-status.tsx
+msgid "Managed storage, {used} of {total} used"
+msgstr "Upravljana pohrana, iskorišteno {used} od {total}"
 
 #: src/components/account/membership-benefits.tsx
 msgid "Manual encrypted backups"
@@ -5632,6 +5677,14 @@ msgstr "Imenski prostor"
 msgid "Needed for MinIO, Garage and most self-hosted servers."
 msgstr "Potrebno za MinIO, Garage i većinu vlastitih poslužitelja."
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Needs an eligible subscription"
+msgstr "Potrebna je odgovarajuća pretplata"
+
+#: src/components/unlocked/unlocked-ui.tsx
+msgid "Needs attention"
+msgstr "Zahtijeva pažnju"
+
 #: app/(app)/devices/link-send.tsx
 #: app/link-receive.tsx
 msgid "Negotiating the direct WebRTC connection."
@@ -5703,6 +5756,10 @@ msgstr "Ne"
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "No additional key protection"
 msgstr "Bez dodatne zaštite ključa"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "No automatic backups"
+msgstr "Nema automatskih sigurnosnih kopija"
 
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "No backup yet"
@@ -5822,13 +5879,9 @@ msgstr "Nema pristupnih podataka koji odgovaraju pretraživanju."
 msgid "No longer in the vault"
 msgstr "Više nije u trezoru"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "No managed backup yet"
 msgstr "Još nema upravljane sigurnosne kopije"
-
-#: app/(app)/settings/backup-center/index.tsx
-msgid "No managed backups"
-msgstr "Nema upravljanih sigurnosnih kopija"
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "No managed backups are available."
@@ -5960,6 +6013,10 @@ msgstr "Nije dodijeljen ovom agentu"
 msgid "Not now"
 msgstr "Ne sada"
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Not offered by this service"
+msgstr "Ova usluga to ne nudi"
+
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
 msgstr "Nije postavljeno"
@@ -5995,6 +6052,7 @@ msgstr "Brojke"
 #. Auto-lock option: never lock on inactivity
 #. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
+#: app/(app)/settings/backup-center/index.tsx
 #: app/(app)/settings/security/index.tsx
 msgid "Off"
 msgstr "Isključeno"
@@ -6027,6 +6085,7 @@ msgstr "Najstarije prvo"
 
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
+#: app/(app)/settings/backup-center/index.tsx
 msgid "On"
 msgstr "Uključeno"
 
@@ -6049,6 +6108,15 @@ msgstr "Na drugom uređaju odaberi „Izradi pozivnicu“ i usmjeri ovu kameru n
 #: app/link-receive.tsx
 msgid "On your other device, open Cryptex Vault and start linking. Then scan its invitation here."
 msgstr "Na drugom uređaju otvori Cryptex Vault i pokreni povezivanje. Zatim ovdje skeniraj njegovu pozivnicu."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "On, last backup {managedWhen}"
+msgstr "Uključeno, zadnja kopija: {managedWhen}"
+
+#. placeholder {0}: formatBytes(status.data.maxSnapshotBytes, i18n.locale)
+#: app/(app)/settings/backup-center/managed.tsx
+msgid "One backup can be up to {0}. Export a backup file or add your own storage instead."
+msgstr "Jedna sigurnosna kopija može imati najviše {0}. Umjesto toga izvezi datoteku sigurnosne kopije ili dodaj vlastitu pohranu."
 
 #: app/(app)/share/index.tsx
 msgid "One-time code setup"
@@ -6213,6 +6281,7 @@ msgid "Open a private connection"
 msgstr "Otvori privatnu vezu"
 
 #: app/(app)/devices/link-send.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Open Account"
 msgstr "Otvori karticu „Račun“"
@@ -6571,11 +6640,11 @@ msgstr "Razdoblje mora biti najmanje 1 sekunda"
 msgid "Permanently delete “{vaultName}” from this device?"
 msgstr "Trajno izbrisati trezor „{vaultName}“ s ovog uređaja?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Permanently delete every managed backup for this vault?"
 msgstr "Trajno izbrisati sve upravljane sigurnosne kopije ovog trezora?"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Permanently delete this encrypted backup?"
 msgstr "Trajno izbrisati ovu šifriranu sigurnosnu kopiju?"
 
@@ -7552,6 +7621,10 @@ msgstr "RSA ključevi kraći od 3072 bita su slabi. Zamijeni ovaj ključ novim E
 msgid "Runtime"
 msgstr "Okruženje"
 
+#: app/(app)/settings/backup-center/index.tsx
+msgid "S3 buckets you control"
+msgstr "S3 spremnici kojima upravljaš"
+
 #. Button: save vault details
 #: app/(app)/devices/connectivity/agent-relay.tsx
 #: app/(app)/share/server.tsx
@@ -7716,7 +7789,7 @@ msgstr "Spremi podatke za oporavak"
 msgid "Save your User ID and recovery phrase"
 msgstr "Spremi svoj ID korisnika i frazu za oporavak"
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Saved backups could not be loaded."
 msgstr "Spremljene sigurnosne kopije nije moguće učitati."
 
@@ -8165,7 +8238,7 @@ msgstr "Dijeljene poveznice"
 msgid "Sharing is not available on this device."
 msgstr "Dijeljenje nije dostupno na ovom uređaju."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: app/(app)/settings/diagnostics.tsx
 #: app/(app)/settings/import-export/index.tsx
 msgid "Sharing is unavailable on this device."
@@ -8369,7 +8442,7 @@ msgid "Signing…"
 msgstr "Potpisivanje…"
 
 #. Backup detail row: file size
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Size"
 msgstr "Veličina"
 
@@ -8408,7 +8481,7 @@ msgstr "Poredak: {sortLabel}"
 
 #. Backup detail row: device that made the backup
 #. Import step: where the data comes from
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 #: src/components/vault-import/import-wizard.tsx
 msgid "Source"
 msgstr "Izvor"
@@ -8515,6 +8588,10 @@ msgid "Stopping after current device…"
 msgstr "Zaustavljanje nakon trenutačnog uređaja…"
 
 #: app/(app)/settings/backup-center/index.tsx
+msgid "Storage is full"
+msgstr "Pohrana je puna"
+
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Store encrypted snapshots using Online Services."
 msgstr "Spremaj šifrirane snimke putem usluge Online Services."
 
@@ -8760,6 +8837,10 @@ msgstr "Pridruživanje je spremljeno, ali zahtjev je istekao prije popunjavanja 
 msgid "The backup file is no longer in the bucket."
 msgstr "Datoteka sigurnosne kopije više nije u spremniku."
 
+#: src/app_lib/managed-backup-coordinator.ts
+msgid "The backup service is limiting requests. Backups continue later."
+msgstr "Usluga sigurnosnih kopija ograničava zahtjeve. Izrada sigurnosnih kopija nastavit će se kasnije."
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "The bucket doesn't exist at this endpoint."
 msgstr "Spremnik ne postoji na ovoj krajnjoj točki."
@@ -8847,6 +8928,10 @@ msgstr "Upotrijebljeni komplet više ne radi, pa ovaj račun sada nema nijedan. 
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
 msgstr "Jezik aplikacije"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "The last backup failed"
+msgstr "Zadnja sigurnosna kopija nije uspjela"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "The latest account data confirms this relationship is no longer registered. You can forget its saved link in this vault."
@@ -9515,6 +9600,10 @@ msgstr "Ovaj trezor"
 msgid "This vault is no longer connected to Online Services."
 msgstr "Ovaj trezor više nije povezan s uslugom Online Services."
 
+#: src/components/backup-center/backup-status.tsx
+msgid "This vault is too large for managed backups"
+msgstr "Ovaj trezor je prevelik za upravljane sigurnosne kopije"
+
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
 msgstr "Ovaj trezor koristi stari format. Prije promjene sigurnosnih postavki otključaj ga jednom radi nadogradnje."
@@ -9571,6 +9660,10 @@ msgstr "Isteklo je vrijeme čekanja na autentificirane ključeve za sinkronizaci
 msgid "Timeout seconds"
 msgstr "Vremensko ograničenje u sekundama"
 
+#: src/components/backup-center/backup-status.tsx
+msgid "today at {time}"
+msgstr "danas u {time}"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Previše zahtjeva. Pokušaj ponovno za minutu."
@@ -9624,6 +9717,10 @@ msgstr "Ponovni pokušaj…"
 #: src/components/devices/connectivity-panel.tsx
 msgid "TURN credential"
 msgstr "TURN vjerodajnica"
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Turn on managed backups or add your own storage, so losing this device does not mean losing your vault."
+msgstr "Uključi upravljane sigurnosne kopije ili dodaj vlastitu pohranu, da gubitak ovog uređaja ne znači i gubitak trezora."
 
 #: src/utils/test-ice-server.ts
 msgid "TURN relay allocation succeeded."
@@ -10495,10 +10592,6 @@ msgstr "Sigurnosna kopija ostaje šifrirana dok je ne otključaš"
 msgid "Your backup stays encrypted. After restoring, unlock it with its existing credentials or vault recovery code."
 msgstr "Sigurnosna kopija ostaje šifrirana. Nakon vraćanja otključaj je postojećim podacima za otključavanje ili kodom za oporavak trezora."
 
-#: app/(app)/settings/backup-center/index.tsx
-msgid "Your backups"
-msgstr "Tvoje sigurnosne kopije"
-
 #: src/components/devices/device-details-sheet.tsx
 msgid "Your changes have been kept here. Return to settings and try saving again."
 msgstr "Tvoje promjene su sačuvane ovdje. Vrati se u postavke i ponovno ih pokušaj spremiti."
@@ -10527,7 +10620,7 @@ msgstr "Glavna lozinka uvijek je potrebna. Generirana fraza dodaje još jednu ta
 msgid "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
 msgstr "Glavna lozinka uvijek je potrebna. Generirana zaštitna fraza dodaje još jednu tajnu i prikazuje se samo jednom tijekom postavljanja. Spremi je zasebno jer će ti trebati pri vraćanju na novom uređaju."
 
-#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/managed.tsx
 msgid "Your next managed backup will appear here."
 msgstr "Ovdje će se prikazati tvoja sljedeća upravljana sigurnosna kopija."
 
@@ -10535,7 +10628,8 @@ msgstr "Ovdje će se prikazati tvoja sljedeća upravljana sigurnosna kopija."
 msgid "Your own relays"
 msgstr "Vlastiti releji"
 
-#: src/components/backup-destinations/backup-destinations-section.tsx
+#: app/(app)/settings/backup-center/index.tsx
+#: app/(app)/settings/backup-center/storage.tsx
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your own storage"
 msgstr "Vlastita pohrana"
@@ -10592,6 +10686,10 @@ msgstr "Osnove tvog trezora, zauvijek besplatno."
 #: app/(app)/devices/connect-agent.tsx
 msgid "Your vault has no SSH keys yet. You can connect the agent now and add keys later with Edit keys on its page."
 msgstr "Tvoj trezor još nema SSH ključeva. Agenta možeš povezati sada, a ključeve dodati kasnije pomoću „Uredi ključeve“ na njegovoj stranici."
+
+#: app/(app)/settings/backup-center/index.tsx
+msgid "Your vault is backed up"
+msgstr "Trezor ima sigurnosnu kopiju"
 
 #: src/components/vault/vault-home.tsx
 msgid "Your vault starts here."

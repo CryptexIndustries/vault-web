@@ -180,3 +180,37 @@ describe("clipboard secret clear", () => {
         expect(getPendingClipboardSecretForTests()).toBeNull();
     });
 });
+
+describe("iOS clipboard secret", () => {
+    afterEach(() => {
+        jest.dontMock("expo-modules-core");
+        jest.resetModules();
+    });
+
+    it("copies through the native module and clears without reading the clipboard", async () => {
+        const ios = {
+            setSecretString: jest.fn(async () => "marker"),
+            clearSecretIfOwned: jest.fn(async () => {}),
+        };
+        jest.resetModules();
+        jest.doMock("expo-modules-core", () => ({
+            requireOptionalNativeModule: () => ios,
+        }));
+        const clipboard = await import("@/utils/clipboard");
+        const getString = jest.spyOn(
+            await import("expo-clipboard"),
+            "getStringAsync",
+        );
+
+        await expect(clipboard.copySecretToClipboard("s3cret")).resolves.toBe(
+            true,
+        );
+        expect(ios.setSecretString).toHaveBeenCalledWith(
+            "s3cret",
+            SECRET_CLEAR_MS,
+        );
+        await clipboard.clearPendingSecretFromClipboard();
+        expect(ios.clearSecretIfOwned).toHaveBeenCalledWith("marker");
+        expect(getString).not.toHaveBeenCalled();
+    });
+});

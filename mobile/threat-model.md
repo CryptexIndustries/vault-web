@@ -363,6 +363,7 @@ The security claims in this model depend on these assumptions:
 - On iOS, the vault store sits in the App Group container in MMKV's multi-process mode, and the Face ID wrap key and wrapped DEK sit in the App Group's keychain group with the same device-only accessibility. The AutoFill extension opens the vault store read-only and writes saved logins to a separate inbox store.
 - Android OS backup is disabled. Reviewed resources exclude every app-data domain from cloud backup and device-to-device transfer, including SecureStore. Explicit vault exports and managed backups remain available.
 - Secret clipboard writes use Android's sensitive-clipboard path when the native module is available. A native ownership marker limits clearing to the app's current clip; a 30-second native timer, resume check, and lock cleanup attempt to clear it. Android may defer a frozen process, and recipient apps may already have copied it.
+- On iOS, secret clipboard writes are local-only, so Universal Clipboard doesn't send them to the user's other Apple devices. They carry a 30-second expiration date that iOS enforces even while the app is suspended. Each write also adds a pasteboard type unique to that copy, and lock cleanup clears the clipboard only while that type is present, so it never reads another app's copy. Recipient apps may already have copied the secret.
 - App-created share files use a dedicated secret-temporary cache directory. Picker copies are removed after reading, and import/export and recovery-kit flows clean up app-owned files on completion or abandonment. Startup and lock purge the app-owned secret-temporary and picker cache directories; a killed process can leave cache files until the next launch.
 
 ### 11.2 MASVS-CRYPTO
@@ -864,7 +865,7 @@ Primary implementation anchors for this model:
 - SSH agent approval: `mobile/src/agent/`, `mobile/modules/cryptex-agent-service/`, `packages/vault-core/src/agent/`.
 - Import, export, and temporary files: `mobile/src/utils/mobile-import-picker.ts`, `mobile/src/utils/secret-temp-files.ts`, `mobile/app/(app)/settings/import-export/index.tsx`, `mobile/src/components/vault-import/`, `packages/vault-core/src/vault-utils/import-export.ts`.
 - QR handling: `mobile/src/utils/qr-scan-session.ts`, `packages/shared-ui/src/lib/chunked-qr.ts`.
-- Screen and clipboard privacy: `mobile/plugins/with-android-screen-privacy.js`, `mobile/src/utils/clipboard.ts`, `mobile/modules/cryptex-android-credentials/android/src/main/java/com/cryptex/vault/credentials/SensitiveClipboard.kt`.
+- Screen and clipboard privacy: `mobile/plugins/with-android-screen-privacy.js`, `mobile/src/utils/clipboard.ts`, `mobile/modules/cryptex-android-credentials/android/src/main/java/com/cryptex/vault/credentials/SensitiveClipboard.kt`, `mobile/modules/cryptex-ios-clipboard/ios/CryptexIosClipboardModule.swift`.
 - Logging: `mobile/src/utils/logging.ts`, `mobile/src/app_lib/vault-utils/storage.ts`.
 - Release and native verification: `mobile/release-config.json`, `mobile/release-signing.json`, `mobile/fdroid/`, `mobile/plugins/with-release-signing-config.js`, `mobile/scripts/build-android.mjs`, `mobile/scripts/verify-release.mjs`, `mobile/scripts/verify-reproducibility.mjs`, `mobile/scripts/verify-native-crypto.mjs`, `.github/workflows/mobile.yml`.
 

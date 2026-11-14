@@ -7,14 +7,16 @@
 	objects = {
 		A10000000000000000000001 = {isa = PBXBuildFile; fileRef = A10000000000000000000011; };
 		A10000000000000000000002 = {isa = PBXBuildFile; fileRef = A10000000000000000000012; };
+		A10000000000000000000003 = {isa = PBXBuildFile; fileRef = A10000000000000000000015; };
 		A10000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/App.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/TransferTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000014 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TransferTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000021 = {isa = PBXGroup; children = (A10000000000000000000011, A10000000000000000000012, A10000000000000000000022); sourceTree = "<group>"; };
+		A10000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/AutofillTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000021 = {isa = PBXGroup; children = (A10000000000000000000011, A10000000000000000000012, A10000000000000000000015, A10000000000000000000022); sourceTree = "<group>"; };
 		A10000000000000000000022 = {isa = PBXGroup; children = (A10000000000000000000013, A10000000000000000000014); name = Products; sourceTree = "<group>"; };
 		A10000000000000000000031 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };
-		A10000000000000000000032 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000032 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000002, A10000000000000000000003); runOnlyForDeploymentPostprocessing = 0; };
 		A10000000000000000000041 = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000071; buildPhases = (A10000000000000000000031); buildRules = (); dependencies = (); name = Runner; productName = Runner; productReference = A10000000000000000000013; productType = "com.apple.product-type.application"; };
 		A10000000000000000000042 = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000072; buildPhases = (A10000000000000000000032); buildRules = (); dependencies = (A10000000000000000000051); name = TransferTests; productName = TransferTests; productReference = A10000000000000000000014; productType = "com.apple.product-type.bundle.ui-testing"; };
 		A10000000000000000000051 = {isa = PBXTargetDependency; target = A10000000000000000000041; targetProxy = A10000000000000000000052; };

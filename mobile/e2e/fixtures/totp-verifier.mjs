@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-// Base32 JBSWY3DPEHPK3PXP, shared with setup-autofill-vault.yaml.
+// Base32 JBSWY3DPEHPK3PXP, shared with setup-autofill-vault.yaml and ios-autofill-setup.yaml.
 const fixtureSecret = Buffer.from("48656c6c6f21deadbeef", "hex");
 
 export function totpCode(step, secret = fixtureSecret) {

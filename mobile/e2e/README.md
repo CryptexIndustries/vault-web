@@ -7,10 +7,11 @@ and ignored. Check vendor-specific system screens on physical devices before rel
 ## iOS Simulator
 
 `smoke`, `credentials`, `security`, `cloud`, `devices`, `ssh-keys`,
-`backup-destinations`, `import-export` and `sync` run on an iOS Simulator. The
-other suites cover Android-only features. Maestro needs Java and version 2.9.0,
-the release CI pins. `backup-destinations` and `sync` also need Docker Compose.
-`cloud` and `devices` need a build against the [cloud fixture](#cloud-fixture).
+`backup-destinations`, `import-export`, `sync` and `ios-autofill` run on an iOS
+Simulator. The other suites cover Android-only features. Maestro needs Java and
+version 2.9.0, the release CI pins. `backup-destinations` and `sync` also need
+Docker Compose. `cloud` and `devices` need a build against the
+[cloud fixture](#cloud-fixture).
 
 ```sh
 brew install openjdk
@@ -23,6 +24,7 @@ pnpm mobile:e2e -- ssh-keys
 pnpm mobile:e2e -- backup-destinations
 pnpm mobile:e2e -- import-export
 pnpm mobile:e2e -- sync
+pnpm mobile:e2e -- ios-autofill
 ```
 
 The iOS E2E build never shows the software keyboard, which would cover the
@@ -37,6 +39,44 @@ relaunches the app with a keyboard, which is the only way XCUITest can type.
 Each run leaves its uniquely named test files under On My iPhone, because
 deleting them behind the Files service stalls its screens. The names count down,
 so the newest run's files sort first and the picker never has to scroll.
+
+`ios-autofill` tests the AutoFill extension. It has its own name because
+Android's `autofill` suite runs the Android flows. Maestro creates a vault with
+a login and a verification code, then turns on biometric unlock and copying
+codes after a fill. The `AutofillTests` XCUITest then:
+
+- turns Cryptex Vault on in Settings and waits for its setup screen to end,
+- cancels the fill sheet and checks the page stayed empty,
+- checks the fill sheet lists nothing before Face ID, then fills a login from
+  the Passwords key after the destination review an HTTP page gets, and the
+  script reads the copied code with `simctl pbpaste` as soon as the test
+  reports the fill,
+- on the HTTPS copy of the page, fills the login after adding the website to
+  it, then adds a login with a generated password from the fill sheet,
+- saves a new login and an update to an existing one from the save prompt,
+- unlocks the app and checks the notice, the new logins and the updated password.
+
+The script enrolls Face ID and serves the login pages on port 43120
+(`CRYPTEX_E2E_IOS_AUTOFILL_PORT`). It serves them over HTTPS on the next port,
+with a certificate it makes for each run and adds to the Simulator's trusted
+roots. The test asks it to match Face ID or read the clipboard by creating
+files in a temporary folder. Face ID matches only while the test asks for it,
+so the test can check what shows before the match. After the Maestro setup the
+script turns the Simulator's software keyboard back on, since only the full
+keyboard has the Passwords key.
+
+The suite doesn't check suggestions above the keyboard or filling a
+verification code. Both need the system's AutoFill identity store, which
+never starts on the Simulator. A code field's number pad has no Passwords
+key, and its AutoFill menu opens only Apple's Passwords. Check those on a
+device. The save steps need a Simulator on iOS 26.2 or later.
+
+It also doesn't check AutoFill from a text field's menu (iOS 18 and later) or
+the passwords the extension suggests for a new account (iOS 26.2 and later).
+Both work on the Simulator, so check them there by hand. For the menu,
+long-press a text field and choose AutoFill, then Passwords, then Cryptex
+Vault. For suggested passwords, focus a field with
+`autocomplete="new-password"` to get iOS's strong password sheet.
 
 `backup-destinations` uses Garage's plain loopback http port on a Simulator,
 because iOS rejects the 100-year validity of the test certificate.

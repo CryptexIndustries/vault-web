@@ -91,10 +91,10 @@ export const xcode = (action, ...args) =>
         ...args,
     ]);
 
-export const test = (name) =>
+export const test = (name, testClass = "TransferTests") =>
     xcode(
         "test-without-building",
-        `-only-testing:TransferTests/TransferTests/${name}`,
+        `-only-testing:TransferTests/${testClass}/${name}`,
         "-resultBundlePath",
         join(resultsDirectory, `${name}-${EXPORT_PREFIX}.xcresult`),
     );

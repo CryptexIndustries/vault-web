@@ -45,7 +45,7 @@ export default function SSHKeys() {
                 </p>
                 <p>
                     You can create and use SSH key items in the web app, the
-                    Chromium Extension and the Android app. New keys are always
+                    Browser Extension and the Android app. New keys are always
                     Ed25519. Imported keys can be Ed25519, ECDSA (P-256, P-384
                     or P-521) or RSA.
                 </p>

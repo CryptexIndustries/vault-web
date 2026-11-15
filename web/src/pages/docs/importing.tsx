@@ -256,7 +256,7 @@ export default function Importing() {
                     Try a few logins manually before setting up the{" "}
                     <Link href="/docs/browser-extension">
                         {" "}
-                        Chromium Extension
+                        Browser Extension
                     </Link>
                     . A successful item count alone does not prove every field
                     maps the way you expect.

@@ -32,7 +32,7 @@ export default function Sharing() {
                 <DocSteps
                     items={[
                         <p key="open">
-                            In the web app or the Chromium Extension, open the
+                            In the web app or the Browser Extension, open the
                             item and choose <strong>Share once</strong>, the
                             link icon next to Edit.
                         </p>,
@@ -229,7 +229,7 @@ export default function Sharing() {
                     happens to the Cryptex Vault service.
                 </p>
                 <p>
-                    In the Chromium Extension and on Android, open{" "}
+                    In the Browser Extension and on Android, open{" "}
                     <strong>Shared Links</strong>, choose the server icon, and
                     enter the server address and your creation token. A
                     self-hosted web app always uses its own server, so it only

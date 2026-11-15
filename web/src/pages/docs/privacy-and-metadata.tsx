@@ -399,9 +399,12 @@ export default function PrivacyAndMetadata() {
                     <div className={t.definition}>
                         <dt>Extension diagnostic logs</dt>
                         <dd>
-                            Stored locally in <code>chrome.storage.local</code>,
-                            capped at 2,000 entries. They survive closing the
-                            popup and are separate from the unlocked session.
+                            Held in memory by the popup and the extension&apos;s
+                            background, with up to 500 entries per category.
+                            Locking does not clear them. The popup&apos;s logs
+                            are lost when it closes. The background&apos;s logs
+                            are lost when the browser shuts it down after about
+                            30 seconds without activity.
                         </dd>
                     </div>
                     <div className={t.definition}>

@@ -31,9 +31,7 @@ export function getEffectiveOrigin(): {
 
 /**
  * Returns `true` when the script is running in the top-most window of
- * the tab. Autofill explicitly refuses to run in sub-frames to avoid
- * clickjacked iframe phishing; the SW also enforces this server-side
- * via `sender.frameId === 0`.
+ * the tab.
  *
  * Wrapped in a try/catch because `window.top` access throws when the
  * top frame is a different origin and the browser blocks the read.
@@ -41,6 +39,25 @@ export function getEffectiveOrigin(): {
 export function isTopFrame(): boolean {
     try {
         return window.top === window.self;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Returns `true` in the top frame and in sub-frames whose ancestors all
+ * share this frame's origin, such as Apple's sign-in iframe. Autofill
+ * refuses cross-origin frames to avoid clickjacked iframe phishing. Reading
+ * a cross-origin parent's location throws, which rejects the frame. The SW
+ * repeats the check against the top frame's origin.
+ */
+export function isSameOriginFrameChain(): boolean {
+    try {
+        for (let frame: Window = window; frame !== frame.top; ) {
+            frame = frame.parent;
+            if (frame.location.origin !== window.location.origin) return false;
+        }
+        return true;
     } catch {
         return false;
     }

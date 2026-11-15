@@ -46,7 +46,7 @@ Applied before decryption:
 | `autofill-menu`      | URL prefix `/autofill-menu.html`                                           |
 | `autofill-generator` | URL prefix `/autofill-generator.html`                                      |
 | `autofill-save`      | URL prefix `/autofill-save.html`                                           |
-| `autofill-cs`        | Extension id + `sender.tab` + **`sender.frameId === 0`**                   |
+| `autofill-cs`        | Extension id + `sender.tab` + **top frame or same origin as top frame**    |
 
 Content script sets origin explicitly via `setEnvelopeOriginOverride("autofill-cs")`
 because isolated-world URLs are not extension pages.
@@ -93,7 +93,7 @@ Diagnostics: `GetLogs`, `ClearLogs`
 
 None (empty allowlist)
 
-### `autofill-cs` (top frame only)
+### `autofill-cs` (top frame and same-origin sub-frames)
 
 `GetState`, `GetCredentialsForOrigin`, `GetCredentialSecret`, `GenerateTOTP`,
 `SaveCredentialPrompt`, `GetPendingSavePrompt`, `OpenPopup`,

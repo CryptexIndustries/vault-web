@@ -98,6 +98,7 @@ import {
 import {
     clearPageOrigin,
     getActivePageOrigin,
+    isTopOrSameOriginFrame,
     recordPageOrigin,
 } from "./background/page-origin-context";
 import {
@@ -373,6 +374,21 @@ async function processEnvelope(
         return createPlaintextEnvelope(
             envelope.type,
             { ok: false, error: validation.error, code: validation.code },
+            "worker",
+        );
+    }
+
+    if (
+        envelope.origin === "autofill-cs" &&
+        !(await isTopOrSameOriginFrame(sender))
+    ) {
+        return createPlaintextEnvelope(
+            envelope.type,
+            {
+                ok: false,
+                error: "autofill-cs is only allowed in the top frame or a same-origin sub-frame",
+                code: "INVALID_FRAME",
+            },
             "worker",
         );
     }

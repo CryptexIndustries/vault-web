@@ -217,8 +217,8 @@ export enum MessageType {
  * flow, which historically wasn't recognised by the origin validator.
  * The "autofill-*" origins cover the page-injected autofill surfaces:
  *   - `autofill-cs`: content script running in the host page (isolated
- *     world). Only ever validated when `sender.frameId === 0` so
- *     clickjacked sub-frames cannot pose as the top frame.
+ *     world). Only accepted from the top frame or a sub-frame with the
+ *     top frame's origin, so clickjacked cross-origin frames cannot use it.
  *   - `autofill-menu`: shared inline picker/unlock iframe loaded from the
  *     extension.
  *   - `autofill-generator`: inline password generator iframe loaded from

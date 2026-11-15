@@ -9,7 +9,7 @@ WebAuthn bridge on all `http:` and `https:` pages.
 js: assets/autofill-cs.js (IIFE, vite.config.content.ts)
 matches: http://*/*, https://*/*
 run_at: document_start
-all_frames: false
+all_frames: true
 match_about_blank: false
 ```
 
@@ -17,12 +17,15 @@ match_about_blank: false
 
 Before bootstrap:
 
-- `isTopFrame()` — refuses subframes (cross-origin `window.top` access failure → false)
+- `isSameOriginFrameChain()` accepts the top frame and sub-frames with the
+  same origin as every frame above them, such as Apple's sign-in iframe.
+  Reading a cross-origin parent's location throws, which refuses the frame.
 - Protocol must be `http:` or `https:`
 
-Service worker enforces `sender.frameId === 0` for `autofill-cs` origin
-(`security-utils.ts`). Sub-frame content scripts cannot message SW as autofill-cs
-even if injected.
+For a sub-frame `autofill-cs` sender, the service worker asks the top frame's
+content script for its origin and rejects the message unless it matches the
+sender URL's origin (`isTopOrSameOriginFrame()` in `page-origin-context.ts`).
+Only the top frame shows a pending save prompt or handles passkey requests.
 
 ## Autofill subsystem flow
 
@@ -34,7 +37,7 @@ cleanup, and save-on-submit.
 ```mermaid
 flowchart TD
     Page["Host page DOM"] --> Bootstrap["bootstrap()"]
-    Bootstrap --> Gate{"Top-level HTTP(S)?"}
+    Bootstrap --> Gate{"HTTP(S) top or same-origin frame?"}
     Gate -- No --> Stop["Do nothing"]
     Gate -- Yes --> Reconcile["reconcile()"]
 
@@ -247,7 +250,7 @@ Sensitive paths:
 - `GetCredentialSecret` / `GenerateTOTP` repeat the shared URL policy before
   releasing secrets.
 - `SaveCredentialPrompt` stashes the password in session storage for 5 minutes.
-- `GetState` reveals vault locked/unlocked state to a top-frame page.
+- `GetState` reveals vault locked/unlocked state to the page.
 
 ## Save-on-submit flow
 

@@ -2,6 +2,12 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
+## Unreleased
+
+### Fixed
+
+- Autofill works on sign-in forms inside a frame from the same domain as the page, such as Apple's developer sign-in. Choosing a login fills the username and password together.
+
 ## 1.11.0 - 2026-11-08
 
 ### Added

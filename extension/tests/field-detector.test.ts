@@ -206,6 +206,36 @@ describe("detectGroups", () => {
         expect(detectGroups()).toHaveLength(1);
     });
 
+    it("groups Apple's formless sign-in by its role=group wrapper", () => {
+        mount(`
+            <div role="group">
+                <div><div>
+                    <span id="apple_id_field_label">Email or Phone Number</span>
+                    <input id="account_name_text_field" type="text" autocomplete="off" aria-labelledby="apple_id_field_label" />
+                </div></div>
+                <div><div>
+                    <input id="password_text_field" type="password" autocomplete="current-password" />
+                </div></div>
+            </div>
+        `);
+        const groups = detectGroups();
+        expect(groups).toHaveLength(1);
+        expect(groups[0]!.fields.map((field) => field.kind)).toEqual([
+            "username",
+            "password",
+        ]);
+    });
+
+    it("prefers an outer role=form over per-field role=group wrappers", () => {
+        mount(`
+            <div role="form">
+                <div role="group"><input type="text" name="username" /></div>
+                <div role="group"><input type="password" name="password" /></div>
+            </div>
+        `);
+        expect(detectGroups()).toHaveLength(1);
+    });
+
     it("ignores loose OTP-like text fields without length cap", () => {
         mount(
             '<form><input type="text" name="verification_code" maxlength="20" /></form>',

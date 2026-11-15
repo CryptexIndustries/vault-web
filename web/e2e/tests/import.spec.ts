@@ -430,13 +430,10 @@ test("imports into an existing vault through the shared wizard", async ({
     await finishVaultCreation(page, "Existing Vault Import");
 
     await page.getByRole("button", { name: "Vault Settings" }).click();
-    const settings = page.getByRole("dialog", { name: "Vault Settings" });
-    await settings.getByRole("button", { name: "Import Passwords" }).click();
+    const settings = page.getByRole("main", { name: "Vault Settings" });
+    await settings.getByRole("button", { name: "Import", exact: true }).click();
     await selectImportFile(page, fixture);
-    await settings
-        .getByRole("button", { name: "Close", exact: true })
-        .first()
-        .click();
+    await settings.getByRole("button", { name: "Back to credentials" }).click();
     await expect(
         page.getByText(fixture.itemName, { exact: true }),
     ).toBeVisible();

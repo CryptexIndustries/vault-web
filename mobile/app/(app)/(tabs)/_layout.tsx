@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Tabs } from "expo-router";
 import { useLingui } from "@lingui/react/macro";
 
+import { useBackupNeedsAttention } from "@/app_lib/backup-attention";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { UnlockedTabBar } from "@/components/unlocked/unlocked-ui";
 import { AddItemSheet } from "@/components/vault/add-item-sheet";
@@ -15,6 +16,7 @@ export default function UnlockedTabsLayout() {
     });
     const reducedMotion = useReducedMotion();
     const [addDirectoryId, setAddDirectoryId] = useState<string | null>(null);
+    const backupAttention = useBackupNeedsAttention();
 
     return (
         <>
@@ -22,7 +24,11 @@ export default function UnlockedTabsLayout() {
                 initialRouteName="vault"
                 backBehavior="history"
                 tabBar={(props) => (
-                    <UnlockedTabBar {...props} onAdd={setAddDirectoryId} />
+                    <UnlockedTabBar
+                        {...props}
+                        onAdd={setAddDirectoryId}
+                        moreAttention={backupAttention}
+                    />
                 )}
                 screenOptions={{
                     headerShown: false,

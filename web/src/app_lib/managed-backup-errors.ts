@@ -36,7 +36,7 @@ const BACKUP_ERRORS = {
         true,
     ],
     BACKUP_TOO_LARGE: [
-        "This encrypted vault exceeds the managed-backup size limit.",
+        "Managed backup storage is full, or the vault is too large for one backup. Delete older backups in the Backup Center to make room.",
         false,
     ],
     BACKUP_UNAVAILABLE: [

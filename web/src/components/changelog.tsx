@@ -59,15 +59,17 @@ const CHANGE_TYPES = Object.fromEntries(
 ) as Record<string, ChangelogRelease["changes"][number]["type"]>;
 
 /**
- * Reads the "## 1.2.3 - 2026-01-31" sections of a component's CHANGELOG.md.
- * Throws on headings it doesn't know, so a typo fails the build instead of
- * dropping entries from the page.
+ * Reads the "## 1.2.3 - 2026-01-31" sections of a component's CHANGELOG.md
+ * and skips the "## Unreleased" section at the top. Throws on headings it
+ * doesn't know, so a typo fails the build instead of dropping entries from the
+ * page.
  */
 function parseChangelog(markdown: string): ChangelogRelease[] {
     const releases: ChangelogRelease[] = [];
     let type: ChangelogRelease["changes"][number]["type"] | undefined;
     let entry: ChangelogRelease["changes"][number] | undefined;
     for (const line of markdown.split(/\r?\n/)) {
+        if (line === "## Unreleased") continue;
         if (line.startsWith("## ")) {
             const match = /^## (\S+) - (\d{4}-\d{2}-\d{2})$/.exec(line);
             if (!match) throw new Error(`Bad changelog heading: ${line}`);

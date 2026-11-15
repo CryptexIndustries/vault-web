@@ -2,11 +2,32 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## Unreleased
+
+### Added
+
+- The Backup Center and the backup entry in the sidebar say when managed backups fail, and why. The warning stays until a backup succeeds.
+
+### Changed
+
+- Backup Center and Vault Settings open as full screens instead of dialogs. They share one layout with Security Report, Shared Links and the agent page: a back button, the title and the screen's actions in a fixed header.
+- Vault Settings lists each setting as a row, with its value or button on the right.
+
+### Fixed
+
+- Managed backups no longer upload the same vault twice when the session renews during an upload.
+- Using the SSH agent no longer uploads a managed backup for each request. The request history goes into the next backup.
+- Locking an unchanged vault no longer uploads a managed backup.
+
 ## 1.11.0 - 2026-11-08
 
 ### Changed
 
 - The password strength meter loads its scoring library the first time it appears, so pages without a meter load less code.
+
+### Fixed
+
+- Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.
 
 ## 1.10.0 - 2026-11-02
 

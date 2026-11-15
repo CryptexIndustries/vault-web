@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ArrowDownUp,
-    ArrowLeft,
     ExternalLink,
     Link2,
     ListFilter,
@@ -55,6 +54,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+    DashboardScreen,
+    SCREEN_COLUMN,
+} from "@/components/vault-dashboard/dashboard-screen";
 import { describeShareError, type ShareBackend } from "./share-backend";
 import { ShareServerSettingsForm } from "./share-server-settings";
 
@@ -106,7 +109,7 @@ export function SharedLinksView({
     /** Names of items that still exist, by ID. */
     credentialNames: Map<string, string>;
     backend: ShareBackend;
-    onBack?: () => void;
+    onBack: () => void;
     onShareSecret: () => void;
     onOpenItem?: (credentialId: string) => void;
     confirm: ShareConfirmFn;
@@ -200,179 +203,151 @@ export function SharedLinksView({
     };
 
     return (
-        <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground shadow-2xl">
-            {/* Header and controls stay put; only the list scrolls. */}
-            <div className="shrink-0 border-b border-border">
-                <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-3 sm:px-6 lg:px-8 lg:pt-6">
-                    <div className="flex items-center gap-2">
-                        {onBack ? (
+        <DashboardScreen
+            icon={Link2}
+            title="Shared Links"
+            description="One-time links you sent. Your vault keeps their status, not what you shared."
+            onBack={onBack}
+            scroll={false}
+            actions={
+                <>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Share server settings"
+                        title="Share server settings"
+                        onClick={() => void openSettings()}
+                    >
+                        <Server className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Refresh status"
+                        title="Refresh status"
+                        disabled={refreshing}
+                        onClick={() => void refresh()}
+                    >
+                        <RefreshCw
+                            className={cn(
+                                "h-4 w-4",
+                                refreshing && "animate-spin",
+                            )}
+                        />
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="gap-1.5"
+                        aria-label="Share a secret"
+                        onClick={onShareSecret}
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Share a secret</span>
+                    </Button>
+                </>
+            }
+            toolbar={
+                <div className="flex items-center gap-2">
+                    <div className="relative min-w-0 flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search name or server"
+                            aria-label="Search shared links"
+                            className="pl-9"
+                            autoComplete="off"
+                            spellCheck={false}
+                        />
+                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                             <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="icon"
-                                className="-ml-2 shrink-0"
-                                aria-label="Back to credentials"
-                                title="Back to credentials"
-                                onClick={onBack}
-                            >
-                                <ArrowLeft className="h-4 w-4" />
-                            </Button>
-                        ) : null}
-                        <Link2 className="h-4 w-4 shrink-0 text-primary" />
-                        <div className="min-w-0 flex-1">
-                            <h1 className="truncate text-lg font-semibold">
-                                Shared links
-                            </h1>
-                            {/* Only where there's height to spare. */}
-                            <p className="hidden text-sm text-foreground/75 [@media(min-height:700px)]:block">
-                                One-time links you sent. Your vault keeps their
-                                status, not what you shared.
-                            </p>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Share server settings"
-                            title="Share server settings"
-                            onClick={() => void openSettings()}
-                        >
-                            <Server className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Refresh status"
-                            title="Refresh status"
-                            disabled={refreshing}
-                            onClick={() => void refresh()}
-                        >
-                            <RefreshCw
-                                className={cn(
-                                    "h-4 w-4",
-                                    refreshing && "animate-spin",
-                                )}
-                            />
-                        </Button>
-                        <Button
-                            size="sm"
-                            className="shrink-0 gap-1.5"
-                            aria-label="Share a secret"
-                            onClick={onShareSecret}
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">
-                                Share a secret
-                            </span>
-                        </Button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <div className="relative min-w-0 flex-1">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                value={query}
-                                onChange={(event) =>
-                                    setQuery(event.target.value)
+                                className="relative shrink-0"
+                                aria-label={
+                                    statuses.length
+                                        ? `Filter by status, ${statuses.length} selected`
+                                        : "Filter by status"
                                 }
-                                placeholder="Search name or server"
-                                aria-label="Search shared links"
-                                className="pl-9"
-                                autoComplete="off"
-                                spellCheck={false}
-                            />
-                        </div>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="relative shrink-0"
-                                    aria-label={
-                                        statuses.length
-                                            ? `Filter by status, ${statuses.length} selected`
-                                            : "Filter by status"
-                                    }
-                                    title="Filter by status"
-                                >
-                                    <ListFilter className="h-4 w-4" />
-                                    {statuses.length ? (
-                                        <span
-                                            aria-hidden="true"
-                                            className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                                        >
-                                            {statuses.length}
-                                        </span>
-                                    ) : null}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
-                                <DropdownMenuLabel>Status</DropdownMenuLabel>
-                                {SHARE_LIST_STATUSES.map((option) => (
-                                    <DropdownMenuCheckboxItem
-                                        key={option.value}
-                                        checked={statuses.includes(
-                                            option.value,
-                                        )}
-                                        // Keep the menu open to tick several.
-                                        onSelect={(event) =>
-                                            event.preventDefault()
-                                        }
-                                        onCheckedChange={() =>
-                                            toggleStatus(option.value)
-                                        }
+                                title="Filter by status"
+                            >
+                                <ListFilter className="h-4 w-4" />
+                                {statuses.length ? (
+                                    <span
+                                        aria-hidden="true"
+                                        className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
                                     >
-                                        <span className="flex-1">
-                                            {option.label}
-                                        </span>
-                                        <span className="ml-3 tabular-nums text-muted-foreground">
-                                            {counts[option.value]}
-                                        </span>
-                                    </DropdownMenuCheckboxItem>
-                                ))}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    disabled={statuses.length === 0}
-                                    onSelect={() => setStatuses([])}
-                                >
-                                    Show all
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="shrink-0"
-                                    aria-label={`Sort: ${SHARE_LIST_SORTS.find((option) => option.value === sort)?.label}`}
-                                    title="Sort"
-                                >
-                                    <ArrowDownUp className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                                <DropdownMenuRadioGroup
-                                    value={sort}
-                                    onValueChange={(value) =>
-                                        setSort(value as ShareListSort)
+                                        {statuses.length}
+                                    </span>
+                                ) : null}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuLabel>Status</DropdownMenuLabel>
+                            {SHARE_LIST_STATUSES.map((option) => (
+                                <DropdownMenuCheckboxItem
+                                    key={option.value}
+                                    checked={statuses.includes(option.value)}
+                                    // Keep the menu open to tick several.
+                                    onSelect={(event) => event.preventDefault()}
+                                    onCheckedChange={() =>
+                                        toggleStatus(option.value)
                                     }
                                 >
-                                    {SHARE_LIST_SORTS.map((option) => (
-                                        <DropdownMenuRadioItem
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </DropdownMenuRadioItem>
-                                    ))}
-                                </DropdownMenuRadioGroup>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
+                                    <span className="flex-1">
+                                        {option.label}
+                                    </span>
+                                    <span className="ml-3 tabular-nums text-muted-foreground">
+                                        {counts[option.value]}
+                                    </span>
+                                </DropdownMenuCheckboxItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                disabled={statuses.length === 0}
+                                onSelect={() => setStatuses([])}
+                            >
+                                Show all
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                                aria-label={`Sort: ${SHARE_LIST_SORTS.find((option) => option.value === sort)?.label}`}
+                                title="Sort"
+                            >
+                                <ArrowDownUp className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                            <DropdownMenuRadioGroup
+                                value={sort}
+                                onValueChange={(value) =>
+                                    setSort(value as ShareListSort)
+                                }
+                            >
+                                {SHARE_LIST_SORTS.map((option) => (
+                                    <DropdownMenuRadioItem
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </DropdownMenuRadioItem>
+                                ))}
+                            </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
-            </div>
-
+            }
+        >
             <div className="min-h-0 flex-1">
                 {rows.length === 0 ? (
                     <EmptyList>
@@ -387,7 +362,7 @@ export function SharedLinksView({
                         data={visible}
                         computeItemKey={(_index, row) => row.record.ID}
                         itemContent={(_index, row) => (
-                            <div className="mx-auto w-full max-w-3xl px-4 py-1 sm:px-6 lg:px-8">
+                            <div className={`${SCREEN_COLUMN} py-1`}>
                                 <SharedLinkRow
                                     row={row}
                                     busy={busyId === row.record.ID}
@@ -435,13 +410,13 @@ export function SharedLinksView({
                     />
                 </DialogContent>
             </Dialog>
-        </main>
+        </DashboardScreen>
     );
 }
 
 function EmptyList({ children }: { children: React.ReactNode }) {
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6 lg:px-8">
+        <div className={`${SCREEN_COLUMN} pt-4`}>
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 {children}
             </div>

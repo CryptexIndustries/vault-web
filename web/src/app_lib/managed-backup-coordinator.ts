@@ -29,7 +29,8 @@ export type ManagedBackupCoordinatorStatus =
     | "scheduled"
     | "uploading"
     | "success"
-    | "error";
+    | "error"
+    | "stopped";
 
 export type ManagedBackupStatusDetail = {
     status: ManagedBackupCoordinatorStatus;
@@ -40,12 +41,19 @@ export type ManagedBackupStatusDetail = {
 };
 
 class ManagedBackupCoordinator {
+    // The last upload failure, kept until an upload succeeds or backups stop.
+    failure: ManagedBackupStatusDetail["error"];
     private enabled = false;
     private dirty = false;
+    // SSH agent history goes into the next upload without starting one.
+    private unscheduledChanges = false;
     private timer: ReturnType<typeof setTimeout> | null = null;
     private inFlight: Promise<void> | null = null;
     private retryMs = 5_000;
     private lifecycle = 0;
+    // Set while start compares the vault with the last upload. A lock in the
+    // meantime must not mark the vault as backed up.
+    private sourceCheckLifecycle: number | null = null;
     private onlineServicesDeviceId: string | null = null;
     // Re-encryption changes the checksum, so retry the exact bytes with the same key.
     private uploadAttempt: {
@@ -61,8 +69,16 @@ class ManagedBackupCoordinator {
     } | null = null;
 
     async start(): Promise<void> {
-        const lifecycle = ++this.lifecycle;
         const vault = vaultStore.get(unlockedVaultAtom);
+        // Session refreshes call start again. Restarting would cancel an upload
+        // in progress, so only recheck the status while backups are off.
+        if (
+            this.enabled &&
+            this.onlineServicesDeviceId === vault.OnlineServices?.DeviceId
+        ) {
+            return;
+        }
+        const lifecycle = ++this.lifecycle;
         if (!vault.OnlineServices) {
             this.enabled = false;
             this.onlineServicesDeviceId = null;
@@ -75,8 +91,10 @@ class ManagedBackupCoordinator {
             const status = await client.v1.backup.status.query();
             if (lifecycle !== this.lifecycle) return;
             this.enabled = status.enabled && status.entitled;
+            this.sourceCheckLifecycle = lifecycle;
             const sourceChanged = this.enabled && (await this.sourceChanged());
             if (lifecycle !== this.lifecycle) return;
+            this.sourceCheckLifecycle = null;
             if (sourceChanged) this.markDirty();
         } catch {
             if (lifecycle === this.lifecycle) this.enabled = false;
@@ -88,11 +106,13 @@ class ManagedBackupCoordinator {
         this.enabled = false;
         this.onlineServicesDeviceId = null;
         this.dirty = false;
+        this.unscheduledChanges = false;
         this.uploadAttempt = null;
         this.deleteOlderSnapshotsAfterUpload = false;
         this.pendingHistoryPurgeSnapshot = null;
         if (this.timer) clearTimeout(this.timer);
         this.timer = null;
+        this.emit("stopped");
     }
 
     setEnabled(enabled: boolean): void {
@@ -112,13 +132,19 @@ class ManagedBackupCoordinator {
         ) {
             this.stop();
         }
+        // An older status check still in flight must not turn this back off.
+        this.lifecycle += 1;
         this.onlineServicesDeviceId = nextDeviceId;
         this.enabled = true;
         this.markDirty();
     }
 
-    markDirty(): void {
+    markDirty(scheduleUpload = true): void {
         if (!this.enabled) return;
+        if (!scheduleUpload) {
+            this.unscheduledChanges = true;
+            return;
+        }
         this.dirty = true;
         this.emit("scheduled");
         if (this.timer) clearTimeout(this.timer);
@@ -148,11 +174,23 @@ class ManagedBackupCoordinator {
     // Best-effort upload before locking; keep the lock path bounded by timeoutMs.
     async flushBeforeLock(timeoutMs = 5_000): Promise<void> {
         if (!this.enabled) return;
-        this.dirty = true;
+        if (this.unscheduledChanges) this.dirty = true;
         await Promise.race([
             this.flush().catch(() => undefined),
             new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
         ]);
+        // Everything is uploaded, so the lock's save only re-encrypted the
+        // vault. Store the new hash so the next unlock doesn't upload it again.
+        if (
+            this.enabled &&
+            !this.dirty &&
+            !this.unscheduledChanges &&
+            !this.inFlight &&
+            this.sourceCheckLifecycle !== this.lifecycle
+        ) {
+            const sourceHash = await this.sourceHash();
+            if (sourceHash) localStorage.setItem(this.storageKey(), sourceHash);
+        }
     }
 
     private async flush(): Promise<void> {
@@ -165,6 +203,7 @@ class ManagedBackupCoordinator {
             return;
         }
         this.dirty = false;
+        this.unscheduledChanges = false;
         const upload = this.performUpload(this.lifecycle);
         this.inFlight = upload;
         try {
@@ -327,17 +366,14 @@ class ManagedBackupCoordinator {
         error?: ManagedBackupError,
         retryInMs?: number,
     ): void {
+        if (status === "success" || status === "stopped") {
+            this.failure = undefined;
+        }
+        if (error) this.failure = { message: error.message, retryInMs };
         if (typeof window === "undefined") return;
         const detail: ManagedBackupStatusDetail = {
             status,
-            ...(error
-                ? {
-                      error: {
-                          message: error.message,
-                          retryInMs,
-                      },
-                  }
-                : {}),
+            ...(error ? { error: this.failure } : {}),
         };
         window.dispatchEvent(
             new CustomEvent(MANAGED_BACKUP_STATUS_EVENT, { detail }),
@@ -347,7 +383,8 @@ class ManagedBackupCoordinator {
 
 export const managedBackupCoordinator = new ManagedBackupCoordinator();
 registerManagedBackupHooks({
-    markDirty: () => managedBackupCoordinator.markDirty(),
+    markDirty: (scheduleUpload) =>
+        managedBackupCoordinator.markDirty(scheduleUpload),
     backupNow: (deleteOlderSnapshots) =>
         managedBackupCoordinator.backupNow(deleteOlderSnapshots),
     flushBeforeLock: () => managedBackupCoordinator.flushBeforeLock(),

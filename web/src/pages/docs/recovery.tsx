@@ -97,7 +97,8 @@ export default function Recovery() {
                         <p key="settings">
                             In the unlocked web vault, open{" "}
                             <strong>Vault Settings</strong> and choose{" "}
-                            <strong>Manage Encryption &amp; Security</strong>.
+                            <strong>Manage</strong> next to Encryption &amp;
+                            Security.
                         </p>,
                         <p key="new-password">
                             Enter the same code under{" "}

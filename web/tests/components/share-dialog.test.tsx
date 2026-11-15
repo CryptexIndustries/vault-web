@@ -273,6 +273,7 @@ describe("SharedLinksView", () => {
                     records={[]}
                     credentialNames={new Map()}
                     backend={{ ...backendFor(), reload }}
+                    onBack={() => undefined}
                     onShareSecret={() => undefined}
                     confirm={() => undefined}
                 />,

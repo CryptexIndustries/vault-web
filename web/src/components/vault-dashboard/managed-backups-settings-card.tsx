@@ -15,6 +15,7 @@ import {
     type ManagedBackupStatusDetail,
 } from "@/app_lib/managed-backup-coordinator";
 import { managedBackupErrorMessage } from "@/app_lib/managed-backup-errors";
+import { useManagedBackupFailure } from "@/app_lib/use-managed-backup-failure";
 import {
     downloadBackupBytes,
     downloadBackupFile,
@@ -52,24 +53,19 @@ import { isCloudServicesEnabled } from "@/utils/online-services-api-url";
 import { trpcReact } from "@/utils/trpc";
 
 type ManagedBackupsSettingsCardProps = {
-    open: boolean;
     onAccountAction: () => void;
 };
 
 export function ManagedBackupsSettingsCard({
-    open,
     onAccountAction,
 }: ManagedBackupsSettingsCardProps) {
     const onlineServicesData = useOnlineServicesData();
     const [backupUploading, setBackupUploading] = useState(false);
     const [enableConfirmOpen, setEnableConfirmOpen] = useState(false);
-    const [backupFailure, setBackupFailure] =
-        useState<ManagedBackupStatusDetail["error"]>();
+    const backupFailure = useManagedBackupFailure();
     const cloudServicesEnabled = isCloudServicesEnabled();
     const backupApiEnabled =
-        open &&
-        cloudServicesEnabled &&
-        Boolean(onlineServicesData?.sessionToken);
+        cloudServicesEnabled && Boolean(onlineServicesData?.sessionToken);
     const backupUtils = trpcReact.useUtils();
     const backupStatus = trpcReact.v1.backup.status.useQuery(undefined, {
         enabled: backupApiEnabled,
@@ -111,14 +107,6 @@ export function ManagedBackupsSettingsCard({
                 .detail;
             const status = detail?.status;
             if (status) setBackupUploading(status === "uploading");
-            if (detail?.error) setBackupFailure(detail.error);
-            if (
-                status === "scheduled" ||
-                status === "uploading" ||
-                status === "success"
-            ) {
-                setBackupFailure(undefined);
-            }
             if (status === "success") {
                 void refreshBackups();
             }

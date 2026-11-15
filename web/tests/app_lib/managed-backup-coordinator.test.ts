@@ -27,6 +27,9 @@ const deleteManagedBackupHistoryBeforeMock = jest.fn(
     async (_replacement: { id: string; createdAt: Date }, _client?: unknown) =>
         undefined,
 );
+const sha256Base64UrlMock = jest.fn(
+    async (bytes: Uint8Array) => `hash-${bytes[0]}`,
+);
 const replacementCreatedAt = new Date("2026-09-17T10:00:00.000Z");
 const backupStatusQueryMock = jest.fn(async () => ({
     enabled: true,
@@ -73,7 +76,7 @@ jest.mock("../../src/utils/trpc", () => ({
 jest.mock("../../src/app_lib/managed-backups", () => ({
     createEncryptedBackupBytes: createEncryptedBackupBytesMock,
     deleteManagedBackupHistoryBefore: deleteManagedBackupHistoryBeforeMock,
-    sha256Base64Url: jest.fn(async (bytes: Uint8Array) => `hash-${bytes[0]}`),
+    sha256Base64Url: sha256Base64UrlMock,
     uploadEncryptedBackup: uploadEncryptedBackupMock,
 }));
 
@@ -155,6 +158,135 @@ describe("managed backup coordinator", () => {
         expect(uploadEncryptedBackupMock.mock.calls[1]?.[1]).not.toBe(
             uploadEncryptedBackupMock.mock.calls[0]?.[1],
         );
+    });
+
+    it("skips the pre-lock upload when nothing changed since the last one", async () => {
+        uploadEncryptedBackupMock.mockResolvedValue({});
+        managedBackupCoordinator.setEnabled(true);
+        await managedBackupCoordinator.backupNow();
+
+        // The lock's save re-encrypts the unchanged vault.
+        mockState.sourceVersion = 2;
+        await managedBackupCoordinator.flushBeforeLock(1_000);
+
+        expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(1);
+        expect(
+            localStorage.getItem("cryptex:managed-backup-source:vault-a"),
+        ).toBe("hash-2");
+    });
+
+    it("stores the lock's hash after waiting for an upload in progress", async () => {
+        const upload = deferred<unknown>();
+        uploadEncryptedBackupMock.mockReturnValueOnce(upload.promise);
+        managedBackupCoordinator.setEnabled(true);
+        const pending = managedBackupCoordinator.backupNow();
+        await expectUploadCalls(1);
+
+        mockState.sourceVersion = 2;
+        const locking = managedBackupCoordinator.flushBeforeLock(1_000);
+        upload.resolve({});
+        await pending;
+        await locking;
+
+        expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(1);
+        expect(
+            localStorage.getItem("cryptex:managed-backup-source:vault-a"),
+        ).toBe("hash-2");
+    });
+
+    it("does not store the lock's hash while start is still checking the vault", async () => {
+        localStorage.setItem("cryptex:managed-backup-source:vault-a", "hash-0");
+        const startHash = deferred<string>();
+        sha256Base64UrlMock.mockReturnValueOnce(startHash.promise);
+        const starting = managedBackupCoordinator.start();
+        for (let i = 0; i < 10 && !sha256Base64UrlMock.mock.calls.length; i++) {
+            await Promise.resolve();
+        }
+
+        await managedBackupCoordinator.flushBeforeLock(1_000);
+        managedBackupCoordinator.stop();
+        startHash.resolve("hash-1");
+        await starting;
+
+        expect(
+            localStorage.getItem("cryptex:managed-backup-source:vault-a"),
+        ).toBe("hash-0");
+    });
+
+    it("keeps a vault write made while start is still checking the vault", async () => {
+        localStorage.setItem("cryptex:managed-backup-source:vault-a", "hash-1");
+        const startHash = deferred<string>();
+        sha256Base64UrlMock.mockReturnValueOnce(startHash.promise);
+        uploadEncryptedBackupMock.mockResolvedValue({});
+        const starting = managedBackupCoordinator.start();
+        for (let i = 0; i < 10 && !sha256Base64UrlMock.mock.calls.length; i++) {
+            await Promise.resolve();
+        }
+
+        managedBackupCoordinator.markDirty();
+        startHash.resolve("hash-1");
+        await starting;
+        await managedBackupCoordinator.flushBeforeLock(1_000);
+
+        expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not let an older status check undo enabling backups", async () => {
+        const status = deferred<{ enabled: boolean; entitled: boolean }>();
+        backupStatusQueryMock.mockReturnValueOnce(status.promise);
+        uploadEncryptedBackupMock.mockResolvedValue({});
+
+        const starting = managedBackupCoordinator.start();
+        managedBackupCoordinator.setEnabled(true);
+        status.resolve({ enabled: false, entitled: true });
+        await starting;
+
+        await expect(managedBackupCoordinator.backupNow()).resolves.toBe(
+            undefined,
+        );
+    });
+
+    it("keeps an upload in progress when a session refresh calls start again", async () => {
+        const upload = deferred<unknown>();
+        uploadEncryptedBackupMock.mockReturnValueOnce(upload.promise);
+        managedBackupCoordinator.setEnabled(true);
+        const pending = managedBackupCoordinator.backupNow();
+        await expectUploadCalls(1);
+
+        await managedBackupCoordinator.start();
+        upload.resolve({});
+        await pending;
+
+        expect(backupStatusQueryMock).not.toHaveBeenCalled();
+        expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(1);
+        expect(
+            localStorage.getItem("cryptex:managed-backup-source:vault-a"),
+        ).toBe("hash-1");
+    });
+
+    it("uploads an unscheduled change only when the vault locks", async () => {
+        jest.useFakeTimers();
+        try {
+            const upload = deferred<unknown>();
+            uploadEncryptedBackupMock
+                .mockReturnValueOnce(upload.promise)
+                .mockResolvedValue({});
+            managedBackupCoordinator.setEnabled(true);
+            const pending = managedBackupCoordinator.backupNow();
+            await expectUploadCalls(1);
+
+            mockState.sourceVersion = 2;
+            managedBackupCoordinator.markDirty(false);
+            upload.resolve({});
+            await pending;
+            await jest.advanceTimersByTimeAsync(60_000);
+            expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(1);
+
+            await managedBackupCoordinator.flushBeforeLock(1_000);
+            expect(uploadEncryptedBackupMock).toHaveBeenCalledTimes(2);
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     it("does not publish or purge an upload after its vault lifecycle stops", async () => {

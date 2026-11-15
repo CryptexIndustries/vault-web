@@ -148,9 +148,9 @@ export default function Troubleshooting() {
                     Use the linking progress details to identify whether the
                     failure happened while joining signaling, finding the other
                     device, building the private connection, or transferring the
-                    vault. You can also open <strong>Vault Settings</strong>,
-                    then <strong>Developer Tools</strong> and{" "}
-                    <strong>Open Log Inspector</strong> to check recent errors.
+                    vault. You can also open <strong>Vault Settings</strong> and
+                    choose <strong>Open</strong> next to Log Inspector to check
+                    recent errors.
                 </p>
                 <p>
                     Choose <strong>Manage</strong> beside Linked Devices, then

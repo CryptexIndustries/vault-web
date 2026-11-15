@@ -44,10 +44,6 @@ import { unlockedVaultAtom, unlockedVaultMetadataAtom } from "@/utils/atoms";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { vaultLog } from "@/utils/logging";
 import {
-    VAULT_SECURITY_BACKUP_EVENT,
-    type VaultSecurityBackupEventDetail,
-} from "@/app_lib/managed-backup-hooks";
-import {
     reconfigureUnlockedVaultSecurity,
     rotateUnlockedVaultRecoveryCode,
 } from "@/utils/vault-security-mutations";
@@ -325,26 +321,6 @@ export function VaultSecurityDialog({ open, onOpenChange }: Props) {
     useEffect(() => {
         setKdfRiskAcknowledged(false);
     }, [memLimit, opsLimit]);
-
-    useEffect(() => {
-        const listener = (event: Event) => {
-            const detail = (
-                event as CustomEvent<VaultSecurityBackupEventDetail>
-            ).detail;
-            if (detail.status === "skipped") {
-                toast.info(
-                    "Managed backups are not enabled; the local security change is complete.",
-                );
-                return;
-            }
-            toast.error(
-                `The local security change succeeded, but its managed backup did not complete. ${detail.message}`,
-            );
-        };
-        window.addEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
-        return () =>
-            window.removeEventListener(VAULT_SECURITY_BACKUP_EVENT, listener);
-    }, []);
 
     const belowRecommendedKdf = isBelowOwaspRecommendedArgon2id(
         Number(memLimit),

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, jest } from "@jest/globals";
+import { TRPCClientError } from "@trpc/client";
 import { EncryptedBlob } from "@cryptex-industries/vault-core/proto";
 import { ManagedBackupCoordinator } from "@/app_lib/managed-backup-coordinator";
 import {
@@ -12,6 +13,7 @@ import { trpc } from "@/utils/trpc";
 const mockState = {
     vault: { OnlineServices: { DeviceId: "device-1" } },
     metadata: { Blob: EncryptedBlob.decode(new Uint8Array()) },
+    failure: null as { message: string } | null,
 };
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -27,6 +29,9 @@ jest.mock("@/utils/atoms", () => ({
     vaultStore: {
         get: (atom: string) =>
             atom === "vault" ? mockState.vault : mockState.metadata,
+        set: (_atom: unknown, failure: { message: string } | null) => {
+            mockState.failure = failure;
+        },
     },
 }));
 jest.mock("@/utils/vault-session", () => ({
@@ -50,6 +55,7 @@ jest.mock("@/app_lib/managed-backups", () => ({
 }));
 
 beforeEach(() => {
+    mockState.failure = null;
     jest.useFakeTimers();
     mockState.vault = { OnlineServices: { DeviceId: "device-1" } };
     mockState.metadata = {
@@ -97,6 +103,52 @@ it("retries a failed debounced backup and clears the retry on stop", async () =>
     expect(jest.getTimerCount()).toBe(1);
     coordinator.stop();
     expect(jest.getTimerCount()).toBe(0);
+});
+
+it("does not retry on a timer when backup storage is full", async () => {
+    jest.mocked(uploadEncryptedBackup).mockRejectedValueOnce(
+        new TRPCClientError("full", {
+            result: {
+                error: { data: { code: "PAYLOAD_TOO_LARGE" } },
+            },
+        } as never),
+    );
+    const coordinator = new ManagedBackupCoordinator();
+    coordinator.setEnabled(true);
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(jest.getTimerCount()).toBe(0);
+    expect(mockState.failure?.message).toMatch(/storage is full/);
+
+    coordinator.markDirty();
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(mockState.failure).toBeNull();
+});
+
+it("retries after a refused upload that a backup request waited for", async () => {
+    let refuseFirstUpload!: (error: unknown) => void;
+    jest.mocked(uploadEncryptedBackup).mockImplementationOnce(
+        () =>
+            new Promise((_, reject) => {
+                refuseFirstUpload = reject;
+            }) as never,
+    );
+    const coordinator = new ManagedBackupCoordinator();
+    coordinator.setEnabled(true);
+    const first = coordinator.backupNow();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const afterDelete = coordinator.backupNow();
+    refuseFirstUpload(
+        new TRPCClientError("full", {
+            result: { error: { data: { code: "PAYLOAD_TOO_LARGE" } } },
+        } as never),
+    );
+    await expect(first).rejects.toThrow("full");
+    await afterDelete;
+
+    expect(uploadEncryptedBackup).toHaveBeenCalledTimes(2);
+    expect(mockState.failure).toBeNull();
+    coordinator.stop();
 });
 
 it("cleans lock flush timers and cancels backup work", async () => {

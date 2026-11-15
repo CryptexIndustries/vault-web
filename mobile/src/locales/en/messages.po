@@ -1910,7 +1910,6 @@ msgstr "Cleartext export ready. Delete it after use."
 #: app/(app)/agent-request.tsx
 #: app/(app)/devices/connect-agent.tsx
 #: src/components/devices/device-details-sheet.tsx
-#: src/components/vault/password-generator.tsx
 msgid "Close"
 msgstr "Close"
 
@@ -2809,10 +2808,6 @@ msgstr "Create a new Recovery Kit?"
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
 msgstr "Create a Recovery Kit to restore access if you lose your devices."
-
-#: src/components/vault/password-generator.tsx
-msgid "Create a strong password or memorable passphrase."
-msgstr "Create a strong password or memorable passphrase."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Create a vault or restore a backup to get started."
@@ -5895,10 +5890,6 @@ msgstr "No matching items."
 msgid "No passkeys match this request."
 msgstr "No passkeys match this request."
 
-#: src/components/vault/password-generator.tsx
-msgid "No password generated"
-msgstr "No password generated"
-
 #: app/(app)/settings/security-report/index.tsx
 msgid "No passwords to check"
 msgstr "No passwords to check"
@@ -6484,10 +6475,6 @@ msgstr "Password health"
 #: src/components/vault/credential-form.tsx
 msgid "Password is required."
 msgstr "Password is required."
-
-#: src/components/vault/password-generator.tsx
-msgid "Password length"
-msgstr "Password length"
 
 #: src/components/autofill/request-ui.tsx
 msgid "Password only"

@@ -1910,7 +1910,6 @@ msgstr "Nešifrirani izvoz je spreman. Izbriši ga nakon upotrebe."
 #: app/(app)/agent-request.tsx
 #: app/(app)/devices/connect-agent.tsx
 #: src/components/devices/device-details-sheet.tsx
-#: src/components/vault/password-generator.tsx
 msgid "Close"
 msgstr "Zatvori"
 
@@ -2809,10 +2808,6 @@ msgstr "Izraditi novi komplet za oporavak?"
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
 msgstr "Izradi komplet za oporavak da možeš vratiti pristup ako izgubiš uređaje."
-
-#: src/components/vault/password-generator.tsx
-msgid "Create a strong password or memorable passphrase."
-msgstr "Izradi snažnu ili lako pamtljivu lozinku."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Create a vault or restore a backup to get started."
@@ -5895,10 +5890,6 @@ msgstr "Nema odgovarajućih stavki."
 msgid "No passkeys match this request."
 msgstr "Nijedan pristupni ključ ne odgovara ovom zahtjevu."
 
-#: src/components/vault/password-generator.tsx
-msgid "No password generated"
-msgstr "Lozinka nije generirana"
-
 #: app/(app)/settings/security-report/index.tsx
 msgid "No passwords to check"
 msgstr "Nema lozinki za provjeru"
@@ -6484,10 +6475,6 @@ msgstr "Zdravlje lozinki"
 #: src/components/vault/credential-form.tsx
 msgid "Password is required."
 msgstr "Lozinka je obavezna."
-
-#: src/components/vault/password-generator.tsx
-msgid "Password length"
-msgstr "Duljina lozinke"
 
 #: src/components/autofill/request-ui.tsx
 msgid "Password only"

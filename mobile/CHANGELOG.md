@@ -15,6 +15,10 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
 - On iOS 17 and later, Cryptex Vault can create and use passkeys in Safari and apps, from vaults with biometric unlock turned on. It asks for Face ID every time. A new passkey works right away, and the app adds it to the vault the next time you unlock that vault.
 
+### Changed
+
+- The password generator matches the one in iOS AutoFill.
+
 ## 0.5.1 - 2026-11-02
 
 ### Fixed

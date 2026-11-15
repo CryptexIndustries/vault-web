@@ -43,6 +43,7 @@
         "@noble/hashes": "2.2.0",
         "@react-native-async-storage/async-storage": "2.2.0",
         "@react-native-community/netinfo": "12.0.1",
+        "@react-native-menu/menu": "2.0.0",
         "@react-navigation/native": "7.3.18",
         "@rn-primitives/portal": "1.3.0",
         "@scure/bip39": "2.2.0",

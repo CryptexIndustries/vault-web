@@ -5,6 +5,7 @@ import {
     mkdirSync,
     mkdtempSync,
     readFileSync,
+    realpathSync,
     rmSync,
     symlinkSync,
     writeFileSync,
@@ -55,7 +56,10 @@ const identity = JSON.parse(
 );
 const config = loadReleaseConfig();
 const temporary = (run) => {
-    const directory = mkdtempSync(join(tmpdir(), "cryptex-profile-test-"));
+    // macOS keeps tmpdir() under the /var symlink, which the signing checks reject.
+    const directory = mkdtempSync(
+        join(realpathSync(tmpdir()), "cryptex-profile-test-"),
+    );
     try {
         return run(directory);
     } finally {

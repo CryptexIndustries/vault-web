@@ -266,6 +266,22 @@ test("HTTP tRPC transport supports batches and binary object uploads", async () 
             ),
             bytes,
         );
+        await fetch(`${origin}/fail-next`, {
+            method: "POST",
+            body: JSON.stringify({
+                path: "v1.backup.createDownload",
+                message: "Backup storage is unavailable.",
+                code: "INTERNAL_SERVER_ERROR",
+            }),
+        });
+        const download = () =>
+            fixture.dispatch(
+                "v1.backup.createDownload",
+                { snapshotId },
+                tokens.sessionToken,
+            );
+        assert.throws(download, /Backup storage is unavailable/);
+        assert.equal(download().snapshot.id, snapshotId);
     } finally {
         await new Promise((resolve) => fixture.server.close(resolve));
     }

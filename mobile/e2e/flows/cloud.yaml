@@ -12,6 +12,16 @@ name: Online Services fixture lifecycle
 - assertVisible: Encrypted backup uploaded.
 - tapOn: .*Root device.*
 - assertVisible: Encrypted snapshot
+# A snackbar would sit behind the sheet, so the error has to show inside it.
+- runScript:
+      file: fail-next.js
+      env:
+          PROCEDURE: v1.backup.createDownload
+          MESSAGE: Backup storage is unavailable.
+          CODE: INTERNAL_SERVER_ERROR
+- tapOn: Download backup
+- assertVisible: Backup storage is unavailable.
+- assertVisible: Encrypted snapshot
 - tapOn: Delete backup
 - assertVisible: Permanently delete this encrypted backup?
 - tapOn: Delete

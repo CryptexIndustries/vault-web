@@ -112,6 +112,8 @@ try {
         serial,
         "test",
         ...maestroProfileArgs(),
+        "-e",
+        `CRYPTEX_E2E_CLOUD_URL=${origin}`,
         ...process.argv.slice(2),
     ]);
 } finally {

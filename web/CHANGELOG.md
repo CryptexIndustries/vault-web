@@ -2,7 +2,7 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
-## Unreleased
+## 1.12.0 - 2026-11-15
 
 ### Added
 

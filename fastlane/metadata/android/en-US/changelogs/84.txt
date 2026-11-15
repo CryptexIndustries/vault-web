@@ -1,0 +1,1 @@
+The Backup Center opens on your backup status and says when a backup fails, and why. When managed storage is full, the app no longer retries every minute. Sync accepts STUN and TURN servers with an IP address, and the SSH agent no longer uploads a backup for each request.

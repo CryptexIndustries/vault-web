@@ -2,7 +2,7 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
-## Unreleased
+## 0.6.0 - 2026-11-15
 
 ### Added
 
@@ -12,6 +12,7 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 
 - The Backup Center opens on the vault's backup status and how much managed storage is used. Managed backups and backup destinations each have their own screen, and the backup history is on the managed backups screen.
 - When managed backup storage is full, the app no longer retries every minute. It tries again after the next change to the vault or a tap on Back up now.
+- SSH agents on a Mac show as macOS, and the pairing steps no longer assume the agent runs on Linux.
 
 ### Fixed
 

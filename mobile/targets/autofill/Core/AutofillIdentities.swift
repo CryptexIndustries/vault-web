@@ -1,13 +1,15 @@
 import Foundation
 
 /// What iOS gets for its suggestions above the keyboard: a website and a
-/// username or label, never a password or TOTP secret. The app's iOS module
+/// username or label, and for a passkey its IDs, never a password, TOTP
+/// secret or private key. The app's iOS module
 /// (from the logins the app sends) and the setup screen (from the vault) both
 /// build identities here. Tested with AutofillCoreTests/Fixtures/identity-vectors.json.
 struct AutofillIdentity: Equatable {
     enum Kind: String {
         case password
         case oneTimeCode
+        case passkey
     }
 
     let kind: Kind
@@ -16,6 +18,17 @@ struct AutofillIdentity: Equatable {
     let domain: String
     /// The username, or for a one-time code the label iOS shows.
     let user: String
+    /// A passkey's credential ID and user handle. Its domain is the RP ID.
+    var credentialID = Data()
+    var userHandle = Data()
+}
+
+/// What a passkey's identity needs, without its private key.
+struct IdentityPasskey: Equatable {
+    let credentialID: String
+    let rpID: String
+    let userHandle: String
+    let userName: String
 }
 
 /// A login that is neither deleted nor an SSH key, without its secrets.
@@ -25,6 +38,7 @@ struct IdentityLogin {
     let username: String
     let hasPassword: Bool
     let hasTotp: Bool
+    let passkey: IdentityPasskey?
     let rules: [CredentialURLRule]
 }
 
@@ -43,7 +57,23 @@ enum AutofillIdentities {
             }
             return (login.hasPassword && !login.username.isEmpty ? identities(.password, login.username) : [])
                 + (login.hasTotp ? identities(.oneTimeCode, login.username.isEmpty ? login.name : login.username) : [])
+                + passkeyIdentities(vaultIndex: vaultIndex, login: login)
         }
+    }
+
+    private static func passkeyIdentities(vaultIndex: Int, login: IdentityLogin) -> [AutofillIdentity] {
+        guard let passkey = login.passkey, !passkey.rpID.isEmpty,
+              let credentialID = Data(base64URL: passkey.credentialID), !credentialID.isEmpty,
+              let userHandle = Data(base64URL: passkey.userHandle)
+        else { return [] }
+        return [AutofillIdentity(
+            kind: .passkey,
+            recordIdentifier: "\(vaultIndex):\(login.id)",
+            domain: passkey.rpID.lowercased(),
+            user: passkey.userName,
+            credentialID: credentialID,
+            userHandle: userHandle
+        )]
     }
 
     /// The narrowest domain every page the rule matches shares.

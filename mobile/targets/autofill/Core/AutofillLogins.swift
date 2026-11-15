@@ -28,6 +28,7 @@ struct AutofillLogin: Identifiable {
     let password: String
     /// Nil without a TOTP secret.
     let totp: VaultUtilTypes_TOTP?
+    var passkey: VaultUtilTypes_PasskeyData?
     let rules: [CredentialURLRule]
     /// Saved through the inbox and not yet in the vault.
     var isPending = false
@@ -36,9 +37,10 @@ struct AutofillLogin: Identifiable {
 enum AutofillLogins {
     /// For passwords, the logins isAutofillCandidate in
     /// mobile/src/utils/android-autofill.ts accepts. For one-time codes, those
-    /// with a TOTP secret, as AutofillIdentities registers them. For text
-    /// insertion (nil), those with anything to insert. Pending inbox entries
-    /// are applied first.
+    /// with a TOTP secret, as AutofillIdentities registers them. For a passkey
+    /// request, those with a passkey or a password, as either can answer it.
+    /// For text insertion (nil), those with anything to insert. Pending inbox
+    /// entries are applied first.
     static func candidates(
         in vault: VaultUtilTypes_Vault,
         for kind: AutofillIdentity.Kind?,
@@ -53,6 +55,7 @@ enum AutofillLogins {
                     username: $0.username,
                     password: $0.password,
                     totp: $0.hasTotp && !$0.totp.secret.isEmpty ? $0.totp : nil,
+                    passkey: $0.hasPasskey ? $0.passkey : nil,
                     rules: CredentialURLMatching.rules(of: $0)
                 )
             }
@@ -61,10 +64,20 @@ enum AutofillLogins {
                 switch kind {
                 case .password: !login.password.isEmpty
                 case .oneTimeCode: login.totp != nil
+                case .passkey: login.passkey != nil || !login.password.isEmpty
                 case nil: !login.username.isEmpty || !login.password.isEmpty || login.totp != nil
                 }
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// The passkeys for the RP ID, limited to the allowed credential IDs
+    /// (base64url) when the website names any.
+    static func passkeys(_ logins: [AutofillLogin], rpID: String, allowed: [String]) -> [AutofillLogin] {
+        logins.filter { login in
+            guard let passkey = login.passkey, passkey.rpid.lowercased() == rpID.lowercased() else { return false }
+            return allowed.isEmpty || allowed.contains(passkey.credentialID)
+        }
     }
 
     /// Logins matching any target, best match first.
@@ -126,6 +139,7 @@ extension IdentityLogin {
             username: credential.username,
             hasPassword: !credential.password.isEmpty,
             hasTotp: credential.hasTotp && !credential.totp.secret.isEmpty,
+            passkey: credential.hasPasskey ? IdentityPasskey(credential.passkey) : nil,
             rules: CredentialURLMatching.rules(of: credential)
         )
     }
@@ -138,7 +152,14 @@ extension IdentityLogin {
             username: login.username,
             hasPassword: !login.password.isEmpty,
             hasTotp: login.totp != nil,
+            passkey: login.passkey.map(IdentityPasskey.init),
             rules: login.rules
         )
+    }
+}
+
+extension IdentityPasskey {
+    init(_ passkey: VaultUtilTypes_PasskeyData) {
+        self.init(credentialID: passkey.credentialID, rpID: passkey.rpid, userHandle: passkey.userHandle, userName: passkey.userName)
     }
 }

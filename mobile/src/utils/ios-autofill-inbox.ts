@@ -58,6 +58,8 @@ type InboxLogin =
 
 export type InboxMergeResult = {
     added: number;
+    /** New passkeys, which aren't counted as added logins. */
+    passkeys: number;
     updated: number;
     /** Updates of a login deleted since, saved as new logins instead. */
     savedAsNew: number;
@@ -109,11 +111,14 @@ function parseLogin(json: string): InboxLogin | null {
         !(login.decision === "update" && isString(login.targetId))
     )
         return null;
+    // Only a new login can carry a passkey, which makes it a passkey item.
+    const passkey =
+        login.decision === "new" ? (login.credential?.Passkey ?? null) : null;
     const form = CredentialFormSchema.safeParse({
         ...login.credential,
         ID: null,
-        Type: ItemType.Credentials,
-        Passkey: null,
+        Type: passkey ? ItemType.Passkey : ItemType.Credentials,
+        Passkey: passkey,
         SSHKey: null,
     });
     return form.success
@@ -242,7 +247,14 @@ async function mergeInbox(
         }
     }
     if (!opened.length)
-        return { added: 0, updated: 0, savedAsNew: 0, associated: 0, failed };
+        return {
+            added: 0,
+            passkeys: 0,
+            updated: 0,
+            savedAsNew: 0,
+            associated: 0,
+            failed,
+        };
 
     const result = await persistVaultMutation(
         "credential.upsert",
@@ -250,6 +262,7 @@ async function mergeInbox(
             let credentials: VaultCredential[] = current.Credentials;
             const done: string[] = [];
             let added = 0;
+            let passkeys = 0;
             let updated = 0;
             let savedAsNew = 0;
             let associated = 0;
@@ -285,7 +298,10 @@ async function mergeInbox(
                     continue;
                 done.push(entry.id);
                 if (login.decision === "new") {
-                    if (await addOnce(entry, login.credential)) added += 1;
+                    if (await addOnce(entry, login.credential)) {
+                        if (login.credential.Passkey) passkeys += 1;
+                        else added += 1;
+                    }
                     continue;
                 }
                 const target = credentials.find(
@@ -333,7 +349,14 @@ async function mergeInbox(
             next.Credentials = credentials;
             return {
                 vault: next,
-                result: { done, added, updated, savedAsNew, associated },
+                result: {
+                    done,
+                    added,
+                    passkeys,
+                    updated,
+                    savedAsNew,
+                    associated,
+                },
             };
         },
     );

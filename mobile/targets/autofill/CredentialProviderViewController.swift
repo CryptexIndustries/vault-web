@@ -49,6 +49,42 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         model.showList(for: serviceIdentifiers.compactMap(ServiceTarget.init), kind: .password)
     }
 
+    /// A website's passkey sign-in, from the passkey sheet when the user picks
+    /// this provider rather than one of its passkeys. The website's passwords
+    /// can answer it too.
+    @available(iOS 17.0, *)
+    override func prepareCredentialList(
+        for serviceIdentifiers: [ASCredentialServiceIdentifier],
+        requestParameters: ASPasskeyCredentialRequestParameters
+    ) {
+        model.showPasskeys(AutofillModel.PasskeyRequest(
+            rpID: requestParameters.relyingPartyIdentifier,
+            clientDataHash: requestParameters.clientDataHash,
+            allowed: requestParameters.allowedCredentials.map(\.base64URLEncodedString)
+        ), for: serviceIdentifiers.compactMap(ServiceTarget.init))
+    }
+
+    /// The user picked this provider in iOS's sheet to save a new passkey. Only
+    /// ES256 keys are supported.
+    @available(iOS 17.0, *)
+    override func prepareInterface(forPasskeyRegistration registrationRequest: any ASCredentialRequest) {
+        guard let request = registrationRequest as? ASPasskeyCredentialRequest,
+              let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity,
+              request.supportedAlgorithms.contains(.ES256)
+        else { return extensionContext.cancelRequest(withError: ASExtensionError(.failed)) }
+        var excluded: [String] = []
+        if #available(iOS 18.0, *) {
+            excluded = request.excludedCredentials?.map(\.credentialID.base64URLEncodedString) ?? []
+        }
+        model.createPasskey(AutofillModel.PasskeyRegistration(
+            rpID: identity.relyingPartyIdentifier,
+            userName: identity.userName,
+            userHandle: identity.userHandle,
+            clientDataHash: request.clientDataHash,
+            excluded: excluded
+        ))
+    }
+
     @available(iOS 26.2, *)
     override func prepareInterface(for savePasswordRequest: ASSavePasswordRequest) {
         model.save(
@@ -108,6 +144,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     @available(iOS 17.0, *)
     override func prepareInterfaceToProvideCredential(for credentialRequest: any ASCredentialRequest) {
+        if let request = credentialRequest as? ASPasskeyCredentialRequest,
+           let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity {
+            return model.fillPasskey(
+                recordIdentifier: identity.recordIdentifier,
+                AutofillModel.PasskeyRequest(
+                    rpID: identity.relyingPartyIdentifier,
+                    clientDataHash: request.clientDataHash,
+                    // The passkey iOS listed, which the vault may have replaced since.
+                    allowed: [identity.credentialID.base64URLEncodedString]
+                )
+            )
+        }
         var kind = AutofillIdentity.Kind.password
         if #available(iOS 18.0, *), credentialRequest.type == .oneTimeCode { kind = .oneTimeCode }
         model.fill(recordIdentifier: credentialRequest.credentialIdentity.recordIdentifier, kind: kind)
@@ -147,6 +195,30 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         case .saved:
             guard #available(iOS 26.2, *) else { return }
             extensionContext.completeSavePasswordRequest(completionHandler: addIdentities)
+        case let .passkey(assertion, request):
+            guard #available(iOS 17.0, *) else { return }
+            extensionContext.completeAssertionRequest(
+                using: ASPasskeyAssertionCredential(
+                    userHandle: assertion.userHandle,
+                    relyingParty: request.rpID,
+                    signature: assertion.signature,
+                    clientDataHash: request.clientDataHash,
+                    authenticatorData: assertion.authenticatorData,
+                    credentialID: assertion.credentialID
+                ),
+                completionHandler: addIdentities
+            )
+        case let .passkeyCreated(registration, request):
+            guard #available(iOS 17.0, *) else { return }
+            extensionContext.completeRegistrationRequest(
+                using: ASPasskeyRegistrationCredential(
+                    relyingParty: request.rpID,
+                    clientDataHash: request.clientDataHash,
+                    credentialID: registration.credentialID,
+                    attestationObject: registration.attestationObject
+                ),
+                completionHandler: addIdentities
+            )
         }
     }
 }
@@ -198,6 +270,25 @@ final class AutofillModel: ObservableObject {
         case oneTimeCode(String)
         case text(String)
         case saved
+        case passkey(Passkeys.Assertion, PasskeyRequest)
+        case passkeyCreated(Passkeys.Registration, PasskeyRegistration)
+    }
+
+    /// A website's passkey sign-in.
+    struct PasskeyRequest {
+        let rpID: String
+        let clientDataHash: Data
+        /// The credential IDs the website accepts, in base64url; empty accepts any.
+        let allowed: [String]
+    }
+
+    struct PasskeyRegistration {
+        let rpID: String
+        let userName: String
+        let userHandle: Data
+        let clientDataHash: Data
+        /// Credential IDs the website already has for this account, in base64url (iOS 18).
+        let excluded: [String]
     }
 
     private struct SaveRequest {
@@ -219,6 +310,8 @@ final class AutofillModel: ObservableObject {
     @Published private(set) var isSettingUp = false
     @Published private(set) var vaultName = ""
     @Published private(set) var suggested: [AutofillLogin] = []
+    /// A passkey request's passkeys for its website.
+    @Published private(set) var passkeys: [AutofillLogin] = []
     @Published private(set) var logins: [AutofillLogin] = []
     @Published var query = ""
     /// The website iOS asked for, when it named one.
@@ -247,6 +340,8 @@ final class AutofillModel: ObservableObject {
     /// Set when the user picked a suggestion above the keyboard.
     private var requestedCredentialID: String?
     private var saveRequest: SaveRequest?
+    private var passkeyRequest: PasskeyRequest?
+    private var passkeyRegistration: PasskeyRegistration?
     private var vaultKey: VaultKey?
     /// Identities for logins this request saved, added to iOS's suggestions as it ends.
     private var added: [AutofillIdentity] = []
@@ -271,6 +366,25 @@ final class AutofillModel: ObservableObject {
         self.targets = targets
         self.kind = kind
         destination = FillDestination(targets, fallbackName: String(localized: "New login"))
+        openChosenVault()
+    }
+
+    func showPasskeys(_ request: PasskeyRequest, for targets: [ServiceTarget]) {
+        passkeyRequest = request
+        // When Safari names no page, the RP ID is the website.
+        showList(for: targets.isEmpty ? [.domain(request.rpID)] : targets, kind: .passkey)
+    }
+
+    /// A passkey iOS offered above the keyboard or in its passkey sheet.
+    func fillPasskey(recordIdentifier: String?, _ request: PasskeyRequest) {
+        passkeyRequest = request
+        fill(recordIdentifier: recordIdentifier, kind: .passkey)
+    }
+
+    /// Saves the new passkey to the chosen vault through the inbox, after Face ID.
+    func createPasskey(_ registration: PasskeyRegistration) {
+        passkeyRegistration = registration
+        kind = .passkey
         openChosenVault()
     }
 
@@ -335,6 +449,10 @@ final class AutofillModel: ObservableObject {
         let kind = kind
         let reason = saveRequest != nil
             ? String(localized: "Unlock your vault to save a password")
+            : passkeyRegistration != nil
+            ? String(localized: "Unlock your vault to save a passkey")
+            : kind == .passkey
+            ? String(localized: "Unlock your vault to use a passkey")
             : kind == .password
             ? String(localized: "Unlock your vault to fill a password")
             : kind == .oneTimeCode
@@ -356,6 +474,9 @@ final class AutofillModel: ObservableObject {
         switch result {
         case let .success((logins, opened)):
             vaultKey = VaultKey(summary: summary, key: opened.key)
+            if let passkeyRegistration {
+                return savePasskey(passkeyRegistration, existing: logins)
+            }
             if let saveRequest {
                 phase = .saveChoice(
                     candidates: SaveDefaults.candidates(logins, source: saveRequest.source, username: saveRequest.username),
@@ -365,10 +486,26 @@ final class AutofillModel: ObservableObject {
                 return
             }
             if let requestedCredentialID {
-                guard let login = logins.first(where: { $0.id == requestedCredentialID }) else {
+                guard let login = logins.first(where: { $0.id == requestedCredentialID }),
+                      passkeyRequest == nil || isRequestedPasskey(login)
+                else {
                     return end { cancelRequest(.credentialIdentityNotFound) }
                 }
                 return select(login)
+            }
+            if let passkeyRequest {
+                let passkeys = AutofillLogins.passkeys(logins, rpID: passkeyRequest.rpID, allowed: passkeyRequest.allowed)
+                // A login holding one of these passkeys lists only under Passkeys, since picking it signs in.
+                let passwords = logins.filter { !$0.password.isEmpty && !isRequestedPasskey($0) }
+                let suggested = AutofillLogins.matching(passwords, targets: targets)
+                // As on Android, a single passkey signs in without a second
+                // choice, unless a password for the website competes with it.
+                if passkeys.count == 1, suggested.isEmpty { return select(passkeys[0]) }
+                self.passkeys = passkeys
+                self.logins = passwords
+                self.suggested = suggested
+                phase = .list
+                return
             }
             self.logins = logins
             suggested = AutofillLogins.matching(logins, targets: targets)
@@ -399,7 +536,8 @@ final class AutofillModel: ObservableObject {
     /// A row in the list: logins for another website go through the review,
     /// and text insertion asks which of the login's values to insert.
     func pick(_ login: AutofillLogin) {
-        guard kind == nil || destination?.needsReview(login) == true else {
+        // iOS checked the website a passkey is for.
+        guard kind == nil || !isRequestedPasskey(login) && destination?.needsReview(login) == true else {
             return select(login)
         }
         picked = login
@@ -462,7 +600,20 @@ final class AutofillModel: ObservableObject {
         guard !request.hasEnded, let kind else { return }
         let fill: Fill
         switch kind {
-        case .password:
+        case .passkey where isRequestedPasskey(login):
+            guard let passkeyRequest, let passkey = login.passkey,
+                  let assertion = try? Passkeys.assert(passkey, rpID: passkeyRequest.rpID, clientDataHash: passkeyRequest.clientDataHash)
+            else {
+                clear()
+                phase = .message(
+                    title: String(localized: "Can't Use Passkey"),
+                    detail: String(localized: "Could not sign in with this passkey.")
+                )
+                return
+            }
+            fill = .passkey(assertion, passkeyRequest)
+        // A password picked in a passkey request's list fills as usual.
+        case .password, .passkey:
             let codeToCopy = vault?.autoCopyTotp == true ? login.totp.flatMap { OneTimeCode.code(for: $0) } : nil
             fill = .password(user: login.username, password: login.password, codeToCopy: codeToCopy)
         case .oneTimeCode:
@@ -478,6 +629,12 @@ final class AutofillModel: ObservableObject {
         }
         if let vaultKey { IdentityStore.recordFill("\(vaultKey.summary.id):\(login.id)") }
         end { complete(fill, added) }
+    }
+
+    /// Whether `login` holds a passkey this request accepts. Otherwise a
+    /// passkey request fills the login's password.
+    private func isRequestedPasskey(_ login: AutofillLogin) -> Bool {
+        passkeyRequest.map { AutofillLogins.passkeys([login], rpID: $0.rpID, allowed: $0.allowed).count == 1 } ?? false
     }
 
     /// Text insertion's choice: a username, password or code.
@@ -497,6 +654,8 @@ final class AutofillModel: ObservableObject {
     private func end(_ tellIOS: () -> Void) {
         guard request.end() else { return }
         saveRequest = nil
+        passkeyRequest = nil
+        passkeyRegistration = nil
         vaultKey = nil
         draft = LoginDraft()
         openedDraft = LoginDraft()
@@ -526,6 +685,50 @@ final class AutofillModel: ObservableObject {
             self.phase = .message(
                 title: String(localized: "Can't Save Login"),
                 detail: String(localized: "Could not save this login. Try again from Cryptex Vault.")
+            )
+        } stale: {
+            // Unlocking again picks up the new key.
+            self.unlock(vaultKey.summary)
+        }
+    }
+
+    /// Creates the passkey, writes it to the inbox as a new passkey item as
+    /// Android does, then answers iOS. A website that already has one of this
+    /// vault's passkeys for the account gets an error instead.
+    private func savePasskey(_ registration: PasskeyRegistration, existing: [AutofillLogin]) {
+        guard let vaultKey else { return }
+        let isExcluded = existing.contains { login in
+            guard let passkey = login.passkey else { return false }
+            return passkey.rpid.lowercased() == registration.rpID.lowercased()
+                && registration.excluded.contains(passkey.credentialID)
+        }
+        if isExcluded, #available(iOS 18.0, *) {
+            return end { cancelRequest(.matchedExcludedCredential) }
+        }
+        guard let created = try? Passkeys.register(
+            rpID: registration.rpID,
+            userName: registration.userName,
+            userHandle: registration.userHandle
+        ) else {
+            phase = .message(
+                title: String(localized: "Can't Save Passkey"),
+                detail: String(localized: "This website's passkey request isn't valid.")
+            )
+            return
+        }
+        let login = InboxLogin(decision: .new, targetId: nil, credential: InboxCredential(
+            name: created.passkey.rpID,
+            username: registration.userName,
+            url: "https://" + created.passkey.rpID,
+            passkey: created.passkey
+        ))
+        write(login) { id in
+            self.register(AutofillInbox.applyPending([(id, login)], to: []))
+            self.end { self.complete(.passkeyCreated(created, registration), self.added) }
+        } failed: {
+            self.phase = .message(
+                title: String(localized: "Can't Save Passkey"),
+                detail: String(localized: "Could not save this passkey. Try again.")
             )
         } stale: {
             // Unlocking again picks up the new key.
@@ -646,6 +849,7 @@ final class AutofillModel: ObservableObject {
     private func clear() {
         logins = []
         suggested = []
+        passkeys = []
         query = ""
     }
 }

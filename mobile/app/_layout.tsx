@@ -135,6 +135,12 @@ function IosCredentialIdentityBridge() {
                                   other: "Saved # AutoFill logins to your vault.",
                               })
                             : "",
+                        result.passkeys
+                            ? plural(result.passkeys, {
+                                  one: "Saved # AutoFill passkey to your vault.",
+                                  other: "Saved # AutoFill passkeys to your vault.",
+                              })
+                            : "",
                         result.associated
                             ? plural(result.associated, {
                                   one: "Added # website from AutoFill to your logins.",

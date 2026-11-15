@@ -86,6 +86,11 @@ msgstr "{0, plural, one {Ista lozinka koristi se za # račun (prikazani rezultat
 msgid "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
 msgstr "{0, plural, one {Ista lozinka koristi se za # račun} few {Ista lozinka koristi se za # računa} other {Ista lozinka koristi se za # računa}}"
 
+#. placeholder {0}: result.passkeys
+#: app/_layout.tsx
+msgid "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
+msgstr "{0, plural, one {U trezor je spremljen # pristupni ključ iz automatskog popunjavanja.} few {U trezor su spremljena # pristupna ključa iz automatskog popunjavanja.} other {U trezor je spremljeno # pristupnih ključeva iz automatskog popunjavanja.}}"
+
 #: app/(app)/devices/agents/[id].tsx
 msgid "{approverName} (this device)"
 msgstr "{approverName} (ovaj uređaj)"
@@ -4837,8 +4842,8 @@ msgid "iOS integration"
 msgstr "Integracija s iOS-om"
 
 #: app/(app)/settings/autofill.tsx
-msgid "iOS receives the website and username of each login for its suggestions, never the password."
-msgstr "iOS za svoje prijedloge dobiva web-stranicu i korisničko ime svakih pristupnih podataka, nikad lozinku."
+msgid "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
+msgstr "iOS za svoje prijedloge dobiva web-stranicu i korisničko ime svakih pristupnih podataka i pristupnog ključa, nikad lozinku ni privatni ključ."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -10042,8 +10047,8 @@ msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Koristi spremljene lozinke i pristupne ključeve u aplikacijama i preglednicima."
 
 #: app/(app)/settings/autofill.tsx
-msgid "Use your saved passwords in apps and Safari."
-msgstr "Koristite spremljene lozinke u aplikacijama i Safariju."
+msgid "Use your saved passwords and passkeys in apps and Safari."
+msgstr "Koristite spremljene lozinke i pristupne ključeve u aplikacijama i Safariju."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."

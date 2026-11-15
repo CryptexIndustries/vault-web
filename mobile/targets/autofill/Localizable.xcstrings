@@ -253,6 +253,26 @@
         }
       }
     },
+    "Can't Save Passkey": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupni ključ nije moguće spremiti"
+          }
+        }
+      }
+    },
+    "Can't Use Passkey": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupni ključ nije moguće koristiti"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "hr": {
@@ -379,6 +399,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ove pristupne podatke nije moguće spremiti. Pokušajte ponovno iz aplikacije Cryptex Vault."
+          }
+        }
+      }
+    },
+    "Could not save this passkey. Try again.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovaj pristupni ključ nije moguće spremiti. Pokušajte ponovno."
+          }
+        }
+      }
+    },
+    "Could not sign in with this passkey.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prijava ovim pristupnim ključem nije uspjela."
           }
         }
       }
@@ -833,6 +873,16 @@
         }
       }
     },
+    "No passkeys for this website and no logins with a password in this vault.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U ovom trezoru nema pristupnih ključeva za ovu web-stranicu ni pristupnih podataka s lozinkom."
+          }
+        }
+      }
+    },
     "None": {
       "localizations": {
         "hr": {
@@ -899,6 +949,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uklj./isklj."
+          }
+        }
+      }
+    },
+    "Passkey": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupni ključ"
+          }
+        }
+      }
+    },
+    "Passkeys": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pristupni ključevi"
           }
         }
       }
@@ -1243,6 +1313,16 @@
         }
       }
     },
+    "This website's passkey request isn't valid.": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zahtjev ove web-stranice za pristupni ključ nije valjan."
+          }
+        }
+      }
+    },
     "To fill from a vault, open it in Cryptex Vault and turn on biometric unlock under Settings, then Security.": {
       "localizations": {
         "hr": {
@@ -1323,6 +1403,16 @@
         }
       }
     },
+    "Unlock your vault to save a passkey": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor za spremanje pristupnog ključa"
+          }
+        }
+      }
+    },
     "Unlock your vault to save a password": {
       "localizations": {
         "hr": {
@@ -1339,6 +1429,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Otključajte trezor kako bi se njegovi pristupni podaci prikazivali iznad tipkovnice"
+          }
+        }
+      }
+    },
+    "Unlock your vault to use a passkey": {
+      "localizations": {
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otključajte trezor za korištenje pristupnog ključa"
           }
         }
       }

@@ -182,13 +182,18 @@ private struct LoginList: View {
     @ObservedObject var model: AutofillModel
 
     var body: some View {
-        let results = AutofillLogins.search(model.logins, query: model.query)
+        let results = AutofillLogins.search(model.passkeys + model.logins, query: model.query)
         List {
             if model.query.isEmpty {
+                if !model.passkeys.isEmpty {
+                    Section { rows(model.passkeys) } header: { header(String(localized: "Passkeys")) }
+                }
                 if !model.suggested.isEmpty {
                     Section { rows(model.suggested) } header: { header(String(localized: "Suggested")) }
                 }
-                Section { rows(model.logins) } header: { header(String(localized: "All Logins")) }
+                if !model.logins.isEmpty {
+                    Section { rows(model.logins) } header: { header(String(localized: "All Logins")) }
+                }
             } else {
                 rows(results)
             }
@@ -198,8 +203,9 @@ private struct LoginList: View {
         .navigationTitle(model.destination?.name ?? model.vaultName)
         .modifier(VaultSubtitle(model: model))
         .toolbar {
-            // Text insertion has no website to save a login for.
-            if model.kind != nil {
+            // Text insertion has no website to save a login for, and iOS
+            // creates passkeys through its own request.
+            if model.kind == .password || model.kind == .oneTimeCode {
                 ToolbarItem(placement: .primaryAction) {
                     Button { model.addLogin() } label: {
                         Label(String(localized: "New Login"), systemImage: "plus")
@@ -208,7 +214,7 @@ private struct LoginList: View {
             }
         }
         .overlay {
-            if model.logins.isEmpty {
+            if model.logins.isEmpty, model.passkeys.isEmpty {
                 StatusView(symbol: "key", title: String(localized: "No Logins"), detail: emptyDetail)
             } else if !model.query.isEmpty, results.isEmpty {
                 if #available(iOS 17.0, *) { ContentUnavailableView.search(text: model.query) }
@@ -234,6 +240,7 @@ private struct LoginList: View {
         switch model.kind {
         case .password: String(localized: "No logins with a password in this vault.")
         case .oneTimeCode: String(localized: "No logins with a verification code in this vault.")
+        case .passkey: String(localized: "No passkeys for this website and no logins with a password in this vault.")
         case nil: String(localized: "No logins in this vault.")
         }
     }
@@ -244,7 +251,9 @@ private struct LoginList: View {
 
     private func rows(_ logins: [AutofillLogin]) -> some View {
         ForEach(logins) { login in
-            Button { model.pick(login) } label: { LoginLabel(login: login) }
+            Button { model.pick(login) } label: {
+                LoginLabel(login: login, isPasskey: model.passkeys.contains { $0.id == login.id })
+            }
             .listRowBackground(Palette.row)
         }
     }
@@ -265,15 +274,25 @@ private struct VaultSubtitle: ViewModifier {
 
 private struct LoginLabel: View {
     let login: AutofillLogin
+    var isPasskey = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(login.name).foregroundStyle(Palette.foreground)
-            if !login.username.isEmpty {
-                Text(login.username).font(.subheadline).foregroundStyle(Palette.muted)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(login.name).foregroundStyle(Palette.foreground)
+                if !login.username.isEmpty {
+                    Text(login.username).font(.subheadline).foregroundStyle(Palette.muted)
+                }
+                if login.isPending {
+                    Text(String(localized: "Not yet in your vault")).font(.caption).foregroundStyle(Palette.muted)
+                }
             }
-            if login.isPending {
-                Text(String(localized: "Not yet in your vault")).font(.caption).foregroundStyle(Palette.muted)
+            Spacer()
+            if isPasskey {
+                // iOS's own passkey symbol.
+                Image(systemName: "person.badge.key.fill")
+                    .foregroundStyle(Palette.muted)
+                    .accessibilityLabel(String(localized: "Passkey"))
             }
         }
     }

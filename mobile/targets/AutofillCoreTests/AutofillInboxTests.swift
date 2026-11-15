@@ -41,6 +41,17 @@ private let fullLogin = InboxLogin(decision: .new, targetId: nil, credential: In
     customFields: [.init(id: "field-1", name: "PIN", type: 1, value: "1234")]
 ))
 
+/// A passkey as the extension saves it.
+private func passkeyLogin() throws -> InboxLogin {
+    let created = try Passkeys.register(rpID: "example.com", userName: "pat", userHandle: Data("user".utf8))
+    return InboxLogin(decision: .new, targetId: nil, credential: InboxCredential(
+        name: "example.com",
+        username: "pat",
+        url: "https://example.com",
+        passkey: created.passkey
+    ))
+}
+
 /// Writes the fixture: CRYPTEX_WRITE_INBOX_FIXTURE=1 swift test --filter writesTheInboxFixture
 @Test(.enabled(if: ProcessInfo.processInfo.environment["CRYPTEX_WRITE_INBOX_FIXTURE"] != nil))
 func writesTheInboxFixture() throws {
@@ -66,6 +77,7 @@ func writesTheInboxFixture() throws {
             try seal("entry-associate-missing", association("missing", url: "https://bank.example.com"), at: 9000),
             // The app's CredentialFormSchema refuses a login without a name.
             try seal("entry-invalid", InboxLogin(decision: .new, targetId: nil, credential: InboxCredential(password: "x")), at: 10000),
+            try seal("entry-passkey", passkeyLogin(), at: 11000),
         ]
     )
     let encoder = JSONEncoder()

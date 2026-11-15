@@ -72,6 +72,27 @@ describe("iOS credential identities", () => {
                 login({ ID: "deleted", Deleted: true }),
                 login({ ID: "ssh", Type: ItemType.SSHKey }),
                 login({ ID: "empty", Username: "", Password: "" }),
+                login({
+                    ID: "passkey",
+                    Name: "example.com",
+                    Username: "pat",
+                    Password: "",
+                    Type: ItemType.Passkey,
+                    URL: "https://example.com",
+                    Passkey: {
+                        CredentialID: "AQIDBA",
+                        RPID: "example.com",
+                        RPName: "",
+                        UserHandle: "dXNlcg",
+                        UserName: "pat",
+                        UserDisplayName: "",
+                        PublicKey: "public-key",
+                        PrivateKey: "private-key-secret",
+                        Algorithm: -7,
+                        SignCount: 0,
+                        Discoverable: true,
+                    },
+                }),
             ]),
         ).toEqual([
             {
@@ -80,6 +101,7 @@ describe("iOS credential identities", () => {
                 username: "alice",
                 hasPassword: true,
                 hasTotp: true,
+                passkey: null,
                 urls: [
                     { url: "example.com", matchMode: 1 },
                     { url: "*.example.net", matchMode: 2 },
@@ -91,7 +113,22 @@ describe("iOS credential identities", () => {
                 username: "",
                 hasPassword: false,
                 hasTotp: false,
+                passkey: null,
                 urls: [{ url: "", matchMode: 0 }],
+            },
+            {
+                id: "passkey",
+                name: "example.com",
+                username: "pat",
+                hasPassword: false,
+                hasTotp: false,
+                passkey: {
+                    credentialId: "AQIDBA",
+                    rpId: "example.com",
+                    userHandle: "dXNlcg",
+                    userName: "pat",
+                },
+                urls: [{ url: "https://example.com", matchMode: 0 }],
             },
         ]);
     });

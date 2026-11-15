@@ -5,7 +5,7 @@
 	<key>AppGroup</key>
 	<string>group.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Unlock your vault with Face ID to fill and save passwords.</string>
+	<string>Unlock your vault with Face ID to fill and save passwords and passkeys.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -13,6 +13,8 @@
 			<key>ASCredentialProviderExtensionCapabilities</key>
 			<dict>
 				<key>ProvidesOneTimeCodes</key>
+				<true/>
+				<key>ProvidesPasskeys</key>
 				<true/>
 				<key>ProvidesPasswords</key>
 				<true/>

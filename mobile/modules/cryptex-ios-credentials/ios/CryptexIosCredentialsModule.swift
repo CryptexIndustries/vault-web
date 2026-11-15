@@ -7,13 +7,22 @@ struct CredentialURLRecord: Record {
     @Field var matchMode = 0
 }
 
-/// A login without its password or TOTP secret.
+/// A passkey without its private key.
+struct IdentityPasskeyRecord: Record {
+    @Field var credentialId = ""
+    @Field var rpId = ""
+    @Field var userHandle = ""
+    @Field var userName = ""
+}
+
+/// A login without its password, TOTP secret or passkey private key.
 struct IdentityLoginRecord: Record {
     @Field var id = ""
     @Field var name = ""
     @Field var username = ""
     @Field var hasPassword = false
     @Field var hasTotp = false
+    @Field var passkey: IdentityPasskeyRecord?
     @Field var urls: [CredentialURLRecord] = []
 }
 
@@ -40,6 +49,9 @@ public final class CryptexIosCredentialsModule: Module {
                         username: $0.username,
                         hasPassword: $0.hasPassword,
                         hasTotp: $0.hasTotp,
+                        passkey: $0.passkey.map {
+                            IdentityPasskey(credentialID: $0.credentialId, rpID: $0.rpId, userHandle: $0.userHandle, userName: $0.userName)
+                        },
                         rules: $0.urls.map { CredentialURLRule(url: $0.url, matchMode: .init(rawValue: $0.matchMode)) }
                     )
                 }

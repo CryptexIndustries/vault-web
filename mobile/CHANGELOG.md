@@ -13,6 +13,7 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - On iOS 26.2 and later, Cryptex Vault suggests a strong password when you create an account, following the website's password rules.
 - On iOS, copied passwords and other secrets clear after 30 seconds even while Cryptex Vault is in the background, and don't reach your other Apple devices through Universal Clipboard.
 - On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
+- On iOS 17 and later, Cryptex Vault can create and use passkeys in Safari and apps, from vaults with biometric unlock turned on. It asks for Face ID every time. A new passkey works right away, and the app adds it to the vault the next time you unlock that vault.
 
 ## 0.5.1 - 2026-11-02
 

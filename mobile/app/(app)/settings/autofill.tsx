@@ -175,7 +175,7 @@ function IosAutofillSettings() {
         <UnlockedTaskScreen title={t`AutoFill`}>
             <Intro
                 title={t`Fill from your vault`}
-                body={t`Use your saved passwords in apps and Safari.`}
+                body={t`Use your saved passwords and passkeys in apps and Safari.`}
             />
             <SectionLabel>{t`iOS integration`}</SectionLabel>
             <UnlockedMenuRow
@@ -216,7 +216,7 @@ function IosAutofillSettings() {
                         lineHeight: 18,
                     }}
                 >
-                    {t`iOS receives the website and username of each login for its suggestions, never the password.`}
+                    {t`iOS receives the website and username of each login and passkey for its suggestions, never a password or private key.`}
                 </UnlockedText>
             </View>
         </UnlockedTaskScreen>

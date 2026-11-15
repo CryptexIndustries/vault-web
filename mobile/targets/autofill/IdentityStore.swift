@@ -83,6 +83,16 @@ enum IdentityStore {
                 let code = ASOneTimeCodeCredentialIdentity(serviceIdentifier: service, label: identity.user, recordIdentifier: identity.recordIdentifier)
                 code.rank = history[identity.recordIdentifier] as? Int ?? 0
                 return code
+            case .passkey:
+                let passkey = ASPasskeyCredentialIdentity(
+                    relyingPartyIdentifier: identity.domain,
+                    userName: identity.user,
+                    credentialID: identity.credentialID,
+                    userHandle: identity.userHandle,
+                    recordIdentifier: identity.recordIdentifier
+                )
+                passkey.rank = history[identity.recordIdentifier] as? Int ?? 0
+                return passkey
             }
         }
     }

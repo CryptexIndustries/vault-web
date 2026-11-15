@@ -7,6 +7,7 @@ import { base64ToUint8 } from "@cryptex-industries/vault-core/encoding";
 import {
     CredentialURLMatchMode,
     CustomFieldType,
+    ItemType,
     TOTPAlgorithm,
 } from "@cryptex-industries/vault-core/proto";
 import {
@@ -52,6 +53,8 @@ jest.mock("@/utils/logging", () => ({ vaultLog: { warn: jest.fn() } }));
 // The test passes its own store.
 jest.mock("react-native-mmkv", () => ({ MMKV: class {}, Mode: {} }));
 
+import { ES256_ALGORITHM_IDENTIFIER } from "@/utils/android-passkey-authenticator-data";
+import { assertAndroidPasskey } from "@/utils/android-passkeys";
 import {
     clearIosAutofillInbox,
     type InboxStore,
@@ -106,6 +109,7 @@ describe("iOS AutoFill inbox merge", () => {
             mergeIosAutofillInbox(fixture.vaultIndex, inbox),
         ).resolves.toEqual({
             added: 2,
+            passkeys: 1,
             updated: 2,
             savedAsNew: 1,
             associated: 1,
@@ -145,6 +149,7 @@ describe("iOS AutoFill inbox merge", () => {
                 "full-password",
                 "https://example.com",
             ],
+            ["entry-passkey", "example.com", "pat", "", "https://example.com"],
         ]);
         expect(
             mockVault.Credentials.find(({ ID }) => ID === "existing")
@@ -192,6 +197,63 @@ describe("iOS AutoFill inbox merge", () => {
         ]);
     });
 
+    it("adds a passkey the extension created as a passkey item the app signs with", async () => {
+        await mergeIosAutofillInbox(fixture.vaultIndex, inboxStore());
+        const saved = mockVault.Credentials.find(
+            ({ ID }) => ID === "entry-passkey",
+        );
+        expect(saved).toMatchObject({
+            Type: ItemType.Passkey,
+            Passkey: {
+                RPID: "example.com",
+                UserName: "pat",
+                UserHandle: "dXNlcg",
+                Algorithm: ES256_ALGORITHM_IDENTIFIER,
+                SignCount: 0,
+                Discoverable: true,
+            },
+        });
+        const passkey = saved!.Passkey!;
+        await expect(
+            assertAndroidPasskey(
+                JSON.stringify({
+                    challenge: "Y2hhbGxlbmdl",
+                    rpId: "example.com",
+                }),
+                "https://example.com",
+                passkey,
+            ),
+        ).resolves.toContain(passkey.CredentialID);
+        // The public key is the private key's own.
+        const algorithm = { name: "ECDSA", namedCurve: "P-256" };
+        const data = new TextEncoder().encode("signed");
+        const signature = await crypto.subtle.sign(
+            { name: "ECDSA", hash: "SHA-256" },
+            await crypto.subtle.importKey(
+                "jwk",
+                JSON.parse(passkey.PrivateKey) as JsonWebKey,
+                algorithm,
+                false,
+                ["sign"],
+            ),
+            data,
+        );
+        await expect(
+            crypto.subtle.verify(
+                { name: "ECDSA", hash: "SHA-256" },
+                await crypto.subtle.importKey(
+                    "jwk",
+                    JSON.parse(passkey.PublicKey) as JsonWebKey,
+                    algorithm,
+                    false,
+                    ["verify"],
+                ),
+                signature,
+                data,
+            ),
+        ).resolves.toBe(true);
+    });
+
     it("files a login under no directory when its directory was deleted", async () => {
         mockVault.Directories = [];
         await mergeIosAutofillInbox(fixture.vaultIndex, inboxStore());
@@ -212,6 +274,7 @@ describe("iOS AutoFill inbox merge", () => {
             mergeIosAutofillInbox(fixture.vaultIndex, inbox),
         ).resolves.toEqual({
             added: 0,
+            passkeys: 0,
             updated: 0,
             savedAsNew: 0,
             associated: 0,
@@ -239,6 +302,7 @@ describe("iOS AutoFill inbox merge", () => {
         ]);
         expect(second).toEqual({
             added: 0,
+            passkeys: 0,
             updated: 0,
             savedAsNew: 0,
             associated: 0,
@@ -269,6 +333,7 @@ describe("iOS AutoFill inbox merge", () => {
                 mergeIosAutofillInbox(fixture.vaultIndex, inbox),
             ).resolves.toEqual({
                 added: 0,
+                passkeys: 0,
                 updated: 0,
                 savedAsNew: 0,
                 associated: 0,

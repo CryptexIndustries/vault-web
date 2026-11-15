@@ -1,12 +1,19 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
 
-/** A login without its password or TOTP secret. */
+/** A login without its password, TOTP secret or passkey private key. */
 export type IosIdentityLogin = {
     id: string;
     name: string;
     username: string;
     hasPassword: boolean;
     hasTotp: boolean;
+    /** A passkey's IDs and account, never its private key. */
+    passkey: {
+        credentialId: string;
+        rpId: string;
+        userHandle: string;
+        userName: string;
+    } | null;
     /** The primary URL first, with CredentialURLMatchMode values. */
     urls: { url: string; matchMode: number }[];
 };

@@ -63,6 +63,35 @@ struct InboxCredential: Codable, Equatable {
         }
     }
 
+    /// PasskeyData in vault.proto. A login with one becomes a passkey item.
+    struct Passkey: Codable, Equatable {
+        var credentialID: String
+        var rpID: String
+        var rpName = ""
+        var userHandle: String
+        var userName: String
+        var userDisplayName = ""
+        var publicKey: String
+        var privateKey: String
+        var algorithm = Passkeys.es256
+        var signCount = 0
+        var discoverable = true
+
+        enum CodingKeys: String, CodingKey {
+            case credentialID = "CredentialID"
+            case rpID = "RPID"
+            case rpName = "RPName"
+            case userHandle = "UserHandle"
+            case userName = "UserName"
+            case userDisplayName = "UserDisplayName"
+            case publicKey = "PublicKey"
+            case privateKey = "PrivateKey"
+            case algorithm = "Algorithm"
+            case signCount = "SignCount"
+            case discoverable = "Discoverable"
+        }
+    }
+
     var name = ""
     var username = ""
     var password = ""
@@ -74,6 +103,7 @@ struct InboxCredential: Codable, Equatable {
     var tags = ""
     var notes = ""
     var customFields: [CustomField] = []
+    var passkey: Passkey?
 
     enum CodingKeys: String, CodingKey {
         case name = "Name"
@@ -87,6 +117,7 @@ struct InboxCredential: Codable, Equatable {
         case tags = "Tags"
         case notes = "Notes"
         case customFields = "CustomFields"
+        case passkey = "Passkey"
     }
 
     var rules: [CredentialURLRule] {
@@ -106,6 +137,24 @@ struct InboxCredential: Codable, Equatable {
         vaultTotp.digits = Int32(clamping: totp.digits)
         vaultTotp.algorithm = .init(rawValue: totp.algorithm) ?? .sha1
         return vaultTotp
+    }
+
+    var vaultPasskey: VaultUtilTypes_PasskeyData? {
+        passkey.map {
+            var passkey = VaultUtilTypes_PasskeyData()
+            passkey.credentialID = $0.credentialID
+            passkey.rpid = $0.rpID
+            passkey.rpname = $0.rpName
+            passkey.userHandle = $0.userHandle
+            passkey.userName = $0.userName
+            passkey.userDisplayName = $0.userDisplayName
+            passkey.publicKey = $0.publicKey
+            passkey.privateKey = $0.privateKey
+            passkey.algorithm = Int32(clamping: $0.algorithm)
+            passkey.signCount = UInt32(clamping: $0.signCount)
+            passkey.discoverable = $0.discoverable
+            return passkey
+        }
     }
 }
 
@@ -179,6 +228,7 @@ enum AutofillInbox {
                     username: credential.username,
                     password: credential.password,
                     totp: credential.vaultTotp,
+                    passkey: credential.vaultPasskey,
                     rules: credential.rules,
                     isPending: true
                 ))
@@ -193,6 +243,7 @@ enum AutofillInbox {
                 username: update ? credential.username : target.username,
                 password: update ? credential.password : target.password,
                 totp: target.totp,
+                passkey: target.passkey,
                 rules: update ? target.rules : target.rules + [CredentialURLRule(url: credential.url, matchMode: .exactHost)],
                 isPending: true
             )

@@ -86,6 +86,11 @@ msgstr "{0, plural, one {Same password used by # account (showing search matches
 msgid "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
 msgstr "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
 
+#. placeholder {0}: result.passkeys
+#: app/_layout.tsx
+msgid "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
+msgstr "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
+
 #: app/(app)/devices/agents/[id].tsx
 msgid "{approverName} (this device)"
 msgstr "{approverName} (this device)"
@@ -4837,8 +4842,8 @@ msgid "iOS integration"
 msgstr "iOS integration"
 
 #: app/(app)/settings/autofill.tsx
-msgid "iOS receives the website and username of each login for its suggestions, never the password."
-msgstr "iOS receives the website and username of each login for its suggestions, never the password."
+msgid "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
+msgstr "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -10042,8 +10047,8 @@ msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Use your saved passwords and passkeys in apps and browsers."
 
 #: app/(app)/settings/autofill.tsx
-msgid "Use your saved passwords in apps and Safari."
-msgstr "Use your saved passwords in apps and Safari."
+msgid "Use your saved passwords and passkeys in apps and Safari."
+msgstr "Use your saved passwords and passkeys in apps and Safari."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."

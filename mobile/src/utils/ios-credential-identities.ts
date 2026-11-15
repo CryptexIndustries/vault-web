@@ -10,8 +10,8 @@ import { vaultLog } from "@/utils/logging";
 
 /**
  * What the iOS module needs to build a vault's AutoFill identities, in the
- * same Swift as the extension's setup screen: never a password or TOTP
- * secret, and nothing for deleted logins or SSH keys.
+ * same Swift as the extension's setup screen: never a password, TOTP secret
+ * or passkey private key, and nothing for deleted logins or SSH keys.
  */
 export function iosIdentityLogins(
     credentials: readonly VaultCredential[],
@@ -27,6 +27,14 @@ export function iosIdentityLogins(
             username: credential.Username,
             hasPassword: !!credential.Password,
             hasTotp: !!credential.TOTP?.Secret,
+            passkey: credential.Passkey
+                ? {
+                      credentialId: credential.Passkey.CredentialID,
+                      rpId: credential.Passkey.RPID,
+                      userHandle: credential.Passkey.UserHandle,
+                      userName: credential.Passkey.UserName,
+                  }
+                : null,
             urls: [
                 {
                     url: credential.URL,

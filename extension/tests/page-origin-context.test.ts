@@ -13,6 +13,7 @@ import {
 import {
     clearPageOrigin,
     getActivePageOrigin,
+    isTopOrSameOriginFrame,
     pageOriginFromSender,
     recordPageOrigin,
 } from "../src/background/page-origin-context";
@@ -114,5 +115,32 @@ describe("page origin context", () => {
         };
 
         await expect(getActivePageOrigin()).resolves.toBeNull();
+    });
+
+    it("accepts a sub-frame only when it shares the top frame's origin", async () => {
+        const subFrame = (url: string) => ({
+            frameId: 3,
+            url,
+            tab: { id: 17 } as chrome.tabs.Tab,
+        });
+
+        await expect(
+            isTopOrSameOriginFrame(
+                subFrame("https://accounts.example.com/frame"),
+            ),
+        ).resolves.toBe(true);
+        expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+            17,
+            expect.anything(),
+            { frameId: 0 },
+        );
+        await expect(
+            isTopOrSameOriginFrame(subFrame("https://evil.example.com/login")),
+        ).resolves.toBe(false);
+        await expect(
+            isTopOrSameOriginFrame(
+                subFrame("http://accounts.example.com/frame"),
+            ),
+        ).resolves.toBe(false);
     });
 });

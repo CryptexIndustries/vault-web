@@ -5,7 +5,8 @@ import {
     Label,
     Section,
     Action,
-    BROWSER_EXTENSION,
+    CHROME_WEB_STORE,
+    FIREFOX_ADD_ONS,
     s,
 } from "@/components/marketing/site";
 import d from "@/styles/Download.module.css";
@@ -14,13 +15,13 @@ export default function Downloads() {
     return (
         <Site
             title="Download"
-            description="Use Cryptex Vault in your browser, with the Chromium Extension or on Android."
+            description="Use Cryptex Vault in your browser, with the Browser Extension or on Android."
         >
             <section className={s.pageHero}>
                 <Label>PLATFORMS</Label>
                 <h1>Download</h1>
                 <p>
-                    Use Cryptex Vault in your browser, with the Chromium
+                    Use Cryptex Vault in your browser, with the Browser
                     Extension or on Android.
                 </p>
             </section>
@@ -35,14 +36,19 @@ export default function Downloads() {
                         <Action />
                     </article>
                     <article>
-                        <h3>Chromium Extension</h3>
+                        <h3>Browser Extension</h3>
                         <p>
-                            Autofill for logins and passkeys in Chrome, Edge,
-                            Brave and other Chromium browsers.
+                            Autofill for logins and passkeys in Firefox, Chrome,
+                            Edge, Brave and other Chromium browsers.
                         </p>
-                        <Action href={BROWSER_EXTENSION}>
-                            Open Chrome Web Store
-                        </Action>
+                        <div className="mt-auto flex flex-col gap-3">
+                            <Action href={CHROME_WEB_STORE}>
+                                Open Chrome Web Store
+                            </Action>
+                            <Action href={FIREFOX_ADD_ONS}>
+                                Open Firefox Add-ons
+                            </Action>
+                        </div>
                     </article>
                     <article>
                         <h3>Android</h3>
@@ -67,8 +73,7 @@ export default function Downloads() {
                     </article>
                 </div>
                 <p className={d.planned}>
-                    Firefox and iOS are planned.{" "}
-                    <Link href="/roadmap">See the roadmap</Link>
+                    iOS is planned. <Link href="/roadmap">See the roadmap</Link>
                 </p>
             </Section>
         </Site>

@@ -65,16 +65,16 @@ async function openBackupCenter(page: Page) {
         .getByRole("button", { name: /^Backups/ })
         .first()
         .click();
-    const center = page.getByRole("dialog", { name: "Backup Center" });
+    const center = page.getByRole("main", { name: "Backup Center" });
     await expect(center).toBeVisible();
     return center;
 }
 
 async function closeBackupCenter(page: Page) {
-    const center = page.getByRole("dialog", { name: "Backup Center" });
-    // A closing nested dialog still hides the center from the role query.
+    const center = page.getByRole("main", { name: "Backup Center" });
+    // A closing dialog still hides the center from the role query.
     await expect(center).toBeVisible();
-    await page.keyboard.press("Escape");
+    await center.getByRole("button", { name: "Back to credentials" }).click();
     await expect(center).toBeHidden();
 }
 
@@ -447,8 +447,8 @@ for (const rotateKey of [false, true]) {
             .getByRole("button", { name: "Vault Settings", exact: true })
             .click();
         await page
-            .getByRole("dialog", { name: "Vault Settings", exact: true })
-            .getByRole("button", { name: "Manage Encryption & Security" })
+            .getByRole("main", { name: "Vault Settings", exact: true })
+            .getByRole("button", { name: "Manage", exact: true })
             .click();
         const security = page.getByRole("dialog", {
             name: "Encryption & Security",

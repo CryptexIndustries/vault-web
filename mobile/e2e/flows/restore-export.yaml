@@ -16,6 +16,10 @@ name: Restore the actual encrypted export into a clean installation
       env:
           EXPORTED_FILE: e2e-export.cryx
 - assertVisible: After restore, unlock with the existing master password.*
+- scrollUntilVisible:
+      element:
+          text: Restored vault name
+      direction: DOWN
 - tapOn: Restored vault name
 - eraseText: 100
 - inputText: E2E Restored Vault

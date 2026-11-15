@@ -265,6 +265,7 @@ export function UnlockedMenuRow({
     value,
     destructive = false,
     disabled = false,
+    attention = false,
     onPress,
     testID,
 }: {
@@ -274,14 +275,18 @@ export function UnlockedMenuRow({
     value?: string;
     destructive?: boolean;
     disabled?: boolean;
+    /** Puts a dot on the icon when something inside needs a look. */
+    attention?: boolean;
     onPress: () => void;
     testID?: string;
 }) {
+    const { t } = useLingui();
     return (
         <Pressable
             testID={testID}
             accessibilityRole="button"
             accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}`}
+            accessibilityHint={attention ? t`Needs attention` : undefined}
             accessibilityState={{ disabled }}
             disabled={disabled}
             onPress={onPress}
@@ -295,11 +300,14 @@ export function UnlockedMenuRow({
                 borderBottomColor: colors.border,
             }}
         >
-            <Icon
-                size={22}
-                color={destructive ? colors.primary : colors.muted}
-                strokeWidth={1.7}
-            />
+            <View>
+                <Icon
+                    size={22}
+                    color={destructive ? colors.primary : colors.muted}
+                    strokeWidth={1.7}
+                />
+                {attention ? <AttentionDot ring={colors.background} /> : null}
+            </View>
             <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
                 <UnlockedText
                     style={{
@@ -336,6 +344,25 @@ export function UnlockedMenuRow({
             ) : null}
             <ChevronRight size={17} color={colors.muted} />
         </Pressable>
+    );
+}
+
+/** `ring` matches the background, so the dot stands clear of the icon. */
+function AttentionDot({ ring }: { ring: string }) {
+    return (
+        <View
+            style={{
+                position: "absolute",
+                top: -3,
+                right: -4,
+                width: 11,
+                height: 11,
+                borderRadius: 6,
+                borderWidth: 2,
+                borderColor: ring,
+                backgroundColor: colors.primary,
+            }}
+        />
     );
 }
 
@@ -1335,6 +1362,7 @@ const DESTINATIONS: Array<{
 ];
 
 type UnlockedTabBarProps = {
+    moreAttention: boolean;
     state: {
         index: number;
         routes: Array<Parameters<typeof getFocusedRouteNameFromRoute>[0]>;
@@ -1348,6 +1376,7 @@ export function UnlockedTabBar({
     state,
     navigation,
     onAdd,
+    moreAttention,
 }: UnlockedTabBarProps) {
     const { t } = useLingui();
     const insets = useSafeAreaInsets();
@@ -1368,12 +1397,14 @@ export function UnlockedTabBar({
     const activeRoute = focusedTab?.name;
     const destination = (item: (typeof DESTINATIONS)[number]) => {
         const selected = activeRoute === item.route;
+        const attention = moreAttention && item.route === "settings";
         const Icon = item.icon;
         return (
             <Pressable
                 key={item.route}
                 accessibilityRole="tab"
                 accessibilityLabel={t(item.label)}
+                accessibilityHint={attention ? t`Needs attention` : undefined}
                 accessibilityState={{ selected }}
                 onPress={() => navigation.navigate(item.route)}
                 style={{
@@ -1384,11 +1415,16 @@ export function UnlockedTabBar({
                     gap: 5,
                 }}
             >
-                <Icon
-                    size={22}
-                    color={selected ? colors.primary : colors.muted}
-                    strokeWidth={1.7}
-                />
+                <View>
+                    <Icon
+                        size={22}
+                        color={selected ? colors.primary : colors.muted}
+                        strokeWidth={1.7}
+                    />
+                    {attention ? (
+                        <AttentionDot ring={colors.navigation} />
+                    ) : null}
+                </View>
                 <UnlockedText
                     style={{
                         color: selected ? colors.primary : colors.muted,

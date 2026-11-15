@@ -32,8 +32,8 @@ The popup styling shares CSS variables with the web client via
 
 All extension code routes log records through
 [`extension/src/utils/ext-logging.ts`](src/utils/ext-logging.ts), which wraps
-the shared web `vaultLogger` and additionally persists each entry to
-`chrome.storage.local` for internal diagnostics.
+the shared web `vaultLogger`. Entries stay in memory only. The log inspector
+shows the popup's and the background's entries together.
 
 The unlocked dashboard can also be opened as a full browser tab from its
 top-bar action. The tab reuses `popup.html` with a full-viewport layout rather

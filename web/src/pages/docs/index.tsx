@@ -27,9 +27,9 @@ const userGuides = [
         "Use your vault's SSH keys on Linux or macOS and approve each signature on your phone or in the web app.",
     ],
     [
-        "Chromium Extension & autofill",
+        "Browser Extension & autofill",
         "/docs/browser-extension",
-        "Install the Chromium Extension, link your vault, and fill a login.",
+        "Install the Browser Extension, link your vault, and fill a login.",
     ],
     [
         "Linking devices",
@@ -124,7 +124,7 @@ export default function Docs() {
                     <h2>Practical guides</h2>
                     <p>
                         Set up your vault, link devices, and manage backups in
-                        the web app and Chromium Extension.
+                        the web app and Browser Extension.
                     </p>
                 </div>
                 <DocsGrid>

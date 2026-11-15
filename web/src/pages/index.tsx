@@ -18,7 +18,6 @@ import {
     Network,
     Plans,
     FinalCTA,
-    BROWSER_EXTENSION,
     REPO,
     s,
 } from "@/components/marketing/site";
@@ -32,7 +31,7 @@ const steps = [
     ],
     [
         "Login details",
-        "Open a credential to view its details. Connect the Chromium Extension for autofill.",
+        "Open a credential to view its details. Connect the Browser Extension for autofill.",
         "credential",
     ],
     [
@@ -42,7 +41,7 @@ const steps = [
     ],
     [
         "In your browser",
-        "The linked Chromium Extension receives the same credentials. Both vaults stay on your devices.",
+        "The linked Browser Extension receives the same credentials. Both vaults stay on your devices.",
         "extension",
     ],
     [
@@ -123,7 +122,7 @@ function Walkthrough({
                             {video
                                 ? "CRYPTEX VAULT / WEB AND ANDROID"
                                 : current[2] === "extension"
-                                  ? "CRYPTEX VAULT / CHROMIUM EXTENSION"
+                                  ? "CRYPTEX VAULT / BROWSER EXTENSION"
                                   : "CRYPTEX VAULT / WEB APPLICATION"}
                         </span>
                         <span>{video ? "DEMO VIDEO" : "DEMO VAULT"}</span>
@@ -434,7 +433,7 @@ export default function Home() {
                     {[
                         [
                             "Browser autofill",
-                            "Use credentials from your encrypted vault through the Chromium Extension.",
+                            "Use credentials from your encrypted vault through the Browser Extension.",
                         ],
                         [
                             "An easier move",
@@ -586,11 +585,11 @@ export default function Home() {
                         {[
                             ["Source code on GitHub", REPO],
                             [
-                                "Chromium Extension threat model",
+                                "Browser Extension threat model",
                                 "/docs/threat-model",
                             ],
                             [
-                                "Chromium Extension architecture",
+                                "Browser Extension architecture",
                                 "/docs/architecture",
                             ],
                             [
@@ -629,7 +628,7 @@ export default function Home() {
                         <p>
                             <Link href="/app">Web app</Link>,{" "}
                             <Link href="/download/android">Android app</Link>,{" "}
-                            <a href={BROWSER_EXTENSION}>Chromium Extension</a>,{" "}
+                            <Link href="/download">Browser Extension</Link>,{" "}
                             <Link href="/docs/ssh-agent#install">
                                 SSH agent
                             </Link>{" "}
@@ -672,8 +671,8 @@ export default function Home() {
                         <Label>PLANNED</Label>
                         <h3>What comes next.</h3>
                         <p>
-                            Advanced Security Report, and Firefox and iOS
-                            support. Priorities and target dates may change.
+                            Advanced Security Report and iOS support. Priorities
+                            and target dates may change.
                         </p>
                     </article>
                 </div>

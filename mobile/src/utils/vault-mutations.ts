@@ -58,7 +58,9 @@ export async function persistVaultMutation<T>(
             return err("VAULT_MUTATION_FAILED");
 
         vaultStore.set(unlockedVaultAtom, mutation.vault);
-        markManagedBackupDirty();
+        // SSH agent history changes on every request, so it goes into the next
+        // managed backup instead of starting one.
+        if (kind !== "agent.history") markManagedBackupDirty();
         markBackupDestinationsDirty();
         return ok(mutation.result);
     });

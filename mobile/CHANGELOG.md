@@ -2,12 +2,23 @@
 
 Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
 
-## Unreleased
+## 0.6.0 - 2026-11-15
+
+### Added
+
+- The Backup Center says when a managed backup or a backup destination fails, and why. A dot on the More tab and on the Backup Center row stays until backups work again.
+
+### Changed
+
+- The Backup Center opens on the vault's backup status and how much managed storage is used. Managed backups and backup destinations each have their own screen, and the backup history is on the managed backups screen.
+- When managed backup storage is full, the app no longer retries every minute. It tries again after the next change to the vault or a tap on Back up now.
+- SSH agents on a Mac show as macOS, and the pairing steps no longer assume the agent runs on Linux.
 
 ### Fixed
 
 - Sync accepts STUN and TURN server URLs with an IP address, such as `turn:192.0.2.1:3478`.
 - Saving a STUN or TURN server whose host is named `stun` or `turn`, such as `turn:3478`, keeps the host name.
+- Using the SSH agent no longer uploads a managed backup for each request. The request history goes into the next backup.
 
 ## 0.5.1 - 2026-11-02
 

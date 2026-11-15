@@ -22,8 +22,10 @@ import {
 } from "@/lib/price-lists";
 
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
-export const BROWSER_EXTENSION =
+export const CHROME_WEB_STORE =
     "https://chromewebstore.google.com/detail/mmkjefiodfpafhkckekfdeccnkhphfhp";
+export const FIREFOX_ADD_ONS =
+    "https://addons.mozilla.org/en-US/firefox/addon/cryptex-vault/";
 export const GOOGLE_PLAY =
     "https://play.google.com/store/apps/details?id=com.cryptexindustries.vault";
 export { s };
@@ -222,9 +224,9 @@ export function Site({
                         <Link href="/app">Open Vault</Link>
                         <Link href="/pricing">Pricing</Link>
                         <Link href="/roadmap">Roadmap</Link>
-                        <a href={BROWSER_EXTENSION} className="mt-3">
-                            Chromium Extension
-                        </a>
+                        <Link href="/download" className="mt-3">
+                            Browser Extension
+                        </Link>
                         <Link href="/download/android">Android app</Link>
                         <Link href="/docs/ssh-agent#install">SSH agent</Link>
                     </div>
@@ -382,7 +384,7 @@ export function FinalCTA() {
                 </p>
                 <div className={s.finalActions}>
                     <Action />
-                    <Action href={BROWSER_EXTENSION} secondary>
+                    <Action href="/download" secondary>
                         Install browser extension
                     </Action>
                     <Action href="/download/android" secondary>
@@ -674,7 +676,7 @@ export function Network({
 }
 const coreFeatures: { title: string; description?: string }[] = [
     { title: "Local encrypted vault" },
-    { title: "Web app, Android & Chromium Extension" },
+    { title: "Web app, Android & Browser Extension" },
     { title: "Browser autofill" },
     { title: "Passkey support" },
     {

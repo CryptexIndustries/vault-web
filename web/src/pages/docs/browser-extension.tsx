@@ -1,10 +1,9 @@
 import Link from "next/link";
 
-import { BROWSER_EXTENSION } from "@/components/marketing/site";
+import { CHROME_WEB_STORE, FIREFOX_ADD_ONS } from "@/components/marketing/site";
 import {
     DocArticle,
     DocScreenshot,
-    DocCallout,
     DocSection,
     DocSteps,
 } from "@/components/marketing/doc-article";
@@ -12,8 +11,8 @@ import {
 export default function BrowserExtension() {
     return (
         <DocArticle
-            title="Chromium Extension & autofill"
-            description="Install the Chromium Extension, link it to an existing vault, and use the inline picker on a login page."
+            title="Browser Extension & autofill"
+            description="Install the Browser Extension, link it to an existing vault, and use the inline picker on a login page."
             toc={[
                 { href: "#install", label: "Install" },
                 { href: "#link", label: "Link the vault" },
@@ -39,23 +38,27 @@ export default function BrowserExtension() {
                 },
             ]}
         >
-            <DocSection id="install" title="Install the Chromium Extension">
+            <DocSection id="install" title="Install the Browser Extension">
                 <p>
-                    The Chromium Extension is designed for desktop Chrome,
-                    Microsoft Edge, and Brave. Install it from the Chrome Web
-                    Store. Firefox support is planned and is not available yet.
+                    The Browser Extension is designed for desktop Chrome,
+                    Microsoft Edge, Brave and Firefox, version 140 or later.
                 </p>
                 <DocSteps
                     items={[
                         <p key="store">
-                            Open the{" "}
-                            <a href={BROWSER_EXTENSION}>
-                                official Chrome Web Store listing
+                            Open the official{" "}
+                            <a href={CHROME_WEB_STORE}>
+                                Chrome Web Store listing
+                            </a>{" "}
+                            or{" "}
+                            <a href={FIREFOX_ADD_ONS}>
+                                Firefox Add-ons listing
                             </a>{" "}
                             and follow your browser&apos;s installation prompt.
                             In Chrome, choose <strong>Add to Chrome</strong>.
                             Edge may ask you to allow extensions from other
-                            stores.
+                            stores. In Firefox, choose{" "}
+                            <strong>Add to Firefox</strong>.
                         </p>,
                         <p key="pin">
                             Pin Cryptex Vault to the toolbar so it is easier to
@@ -74,13 +77,6 @@ export default function BrowserExtension() {
                     alt="Empty extension vault with the Use invitation button"
                     caption="Use invitation opens the extension's receiving screen in a new tab."
                 />
-                <DocCallout title="Firefox support is planned">
-                    <p>
-                        The Firefox extension has not been released yet. See the{" "}
-                        <Link href="/roadmap">roadmap</Link> for planned browser
-                        support.
-                    </p>
-                </DocCallout>
             </DocSection>
 
             <DocSection id="link" title="Link the extension to your vault">
@@ -91,7 +87,7 @@ export default function BrowserExtension() {
                 <p>
                     Follow the{" "}
                     <Link href="/docs/linking-devices?receiver=extension#receive">
-                        Chromium Extension linking instructions
+                        Browser Extension linking instructions
                     </Link>
                     , then return here to set up autofill. The linking guide
                     covers connection requirements and creating an invitation
@@ -135,7 +131,7 @@ export default function BrowserExtension() {
                 />
                 <DocScreenshot
                     src="/images/walkthrough/extension.png"
-                    alt="Unlocked Chromium Extension showing a synced credential and Connected status"
+                    alt="Unlocked Browser Extension showing a synced credential and Connected status"
                     caption="The linked extension holds the same credential locally. Check its saved website if the inline picker does not offer the expected login."
                     width={1440}
                 />
@@ -174,8 +170,11 @@ export default function BrowserExtension() {
                     on a shared machine.
                 </p>
                 <p>
-                    The extension locks after 30 minutes of system idle. Closing
-                    its popup does not lock it immediately. Open the three-dot
+                    The extension locks after 30 minutes of system idle, and in
+                    Chromium browsers also when you lock your screen. Firefox
+                    can&apos;t report a screen lock, so there only the idle
+                    timeout applies. Closing its popup does not lock it
+                    immediately. Open the three-dot
                     <strong> Vault actions</strong> menu and choose{" "}
                     <strong>Lock vault</strong> when you need an immediate lock.
                 </p>
@@ -183,7 +182,7 @@ export default function BrowserExtension() {
                     src="/images/docs/extension-lock.png"
                     width={600}
                     height={480}
-                    alt="Chromium Extension Vault actions menu with Lock vault visible"
+                    alt="Browser Extension Vault actions menu with Lock vault visible"
                     caption="Choose Lock vault from the three-dot menu to clear the unlocked session."
                 />
             </DocSection>

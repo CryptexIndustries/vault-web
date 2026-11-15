@@ -36,11 +36,11 @@ export default function ThreatModel() {
         >
             <DocSection id="assets" title="Scope and assumptions">
                 <p>
-                    This page summarizes the web application, Chromium
-                    Extension, linked-device connections, one-time share links,
-                    and optional Online Services. Detailed controls,
-                    implementation references, and known limitations remain in
-                    the repository documents linked below.
+                    This page summarizes the web application, Browser Extension,
+                    linked-device connections, one-time share links, and
+                    optional Online Services. Detailed controls, implementation
+                    references, and known limitations remain in the repository
+                    documents linked below.
                 </p>
                 <p>
                     The protected data includes vault contents, the keys and
@@ -219,7 +219,7 @@ export default function ThreatModel() {
                     Operating a signaling, relay, or backup service does not by
                     itself grant access to the client's decrypted vault.
                 </p>
-                <h3>Chromium Extension</h3>
+                <h3>Browser Extension</h3>
                 <p>
                     The installed extension and its updates are trusted
                     application code. Visited websites do not receive the
@@ -239,7 +239,7 @@ export default function ThreatModel() {
             <DocSection id="practice" title="Detailed documentation">
                 <dl>
                     <div className={t.definition}>
-                        <dt>Chromium Extension</dt>
+                        <dt>Browser Extension</dt>
                         <dd>
                             <a href={extensionModel}>Repository threat model</a>
                             . The detailed reference for extension-specific

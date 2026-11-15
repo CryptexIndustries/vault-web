@@ -90,7 +90,8 @@ but shares the DOM.
 
 **Controls:**
 
-- Top-frame only (`all_frames: false`, `isTopFrame()`, `frameId === 0`)
+- Top frame and same-origin sub-frames only (`isSameOriginFrameChain()` in the
+  content script, `isTopOrSameOriginFrame()` in the SW)
 - Iframe bootstrap nonce registered in SW; host cannot learn nonce or hijack
   MessageChannel ([autofill/iframe-bootstrap.md](autofill/iframe-bootstrap.md))
 - Exact, domain, and wildcard credential release rules ([autofill/origin-matching.md](autofill/origin-matching.md))
@@ -350,7 +351,7 @@ holds the whole vault.
 
 | Technique           | Control                             | Residual risk |
 | ------------------- | ----------------------------------- | ------------- |
-| Pose as autofill-cs | `frameId === 0` + top-frame CS gate | Low — blocked |
+| Pose as autofill-cs | Same-origin frame gate in CS and SW | Low: blocked  |
 
 ### A3 — Network attacker
 
@@ -409,7 +410,7 @@ holds the whole vault.
 | ----------------------------------- | ----------------------------------------- | ----------------------------------------------- |
 | ECDH envelope encryption            | Eavesdropping on extension message bus    | `session-utils.ts`                              |
 | Origin + capability ACL             | Unauthorized SW operations                | `security-utils.ts`, `background.ts`            |
-| Top-frame CS gate                   | Subframe autofill attacks                 | `autofill-cs.ts`, `security-utils.ts`           |
+| Same-origin frame gate              | Cross-origin subframe autofill attacks    | `origin-utils.ts`, `page-origin-context.ts`     |
 | Iframe nonce bootstrap              | Host hijack of MessageChannel             | `autofill-frame-bootstrap.ts`                   |
 | RP-bound assertion ceremony         | Cross-origin/replay/passkey substitution  | `passkey-assertion-service.ts`                  |
 | Vault-password assertion UV         | Signing without requested verification    | `session-dek-store.ts`                          |

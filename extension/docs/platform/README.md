@@ -16,7 +16,7 @@ build hardening.
 | `host_permissions` | `https://*/*`, `http://*/*`                   | API host + Pusher host only |
 | `permissions`      | `storage`, `idle`, `activeTab`, `alarms`      | Same                        |
 | CSP                | `script-src 'self' 'wasm-unsafe-eval'`        | Same                        |
-| Content scripts    | `autofill-cs.js` on all http/https, top frame | Same                        |
+| Content scripts    | `autofill-cs.js` on all http/https, any frame | Same                        |
 | WAR                | Three autofill panel pages + `assets/*`       | Same                        |
 
 `activeTab` is declared but unused in extension source. `alarms` schedules the
@@ -42,9 +42,9 @@ to pages that probe `chrome.runtime.getURL()`.
 
 Single bundled IIFE: `assets/autofill-cs.js`
 
-- Manifest: `all_frames: false`, `document_idle`
-- Runtime: `isTopFrame()` + http/https protocol check
-- SW: `frameId === 0` for `autofill-cs` origin
+- Manifest: `all_frames: true`, `document_idle`
+- Runtime: `isSameOriginFrameChain()` + http/https protocol check
+- SW: top frame, or a sub-frame with the top frame's origin, for `autofill-cs`
 
 Orchestrates field detection, iframe injection, SW messaging, fill, and
 save-on-submit. See [content-scripts.md](content-scripts.md) and

@@ -29,7 +29,7 @@ export default function PrivacyAndMetadata() {
         >
             <DocSection id="local" title="Data kept on your device">
                 <p>
-                    The web application and Chromium Extension each keep a
+                    The web application and Browser Extension each keep a
                     separate encrypted vault in IndexedDB. Unlocking makes vault
                     contents and the data-encryption key available locally. See{" "}
                     <Link href="/docs/architecture">Architecture</Link> for
@@ -71,7 +71,7 @@ export default function PrivacyAndMetadata() {
                                     Vault contents, active key, temporary
                                     credential drafts, and service session in{" "}
                                     <code>chrome.storage.session</code>. Cleared
-                                    on vault lock or when Chrome clears the
+                                    on vault lock or when the browser clears the
                                     extension session.
                                 </td>
                             </tr>
@@ -123,7 +123,7 @@ export default function PrivacyAndMetadata() {
                 </p>
                 <p>
                     Closing the extension popup does not clear its unlocked
-                    session. Chrome clears{" "}
+                    session. The browser clears{" "}
                     <a href="https://developer.chrome.com/docs/extensions/reference/api/storage#property-session">
                         extension session storage
                     </a>{" "}
@@ -399,9 +399,12 @@ export default function PrivacyAndMetadata() {
                     <div className={t.definition}>
                         <dt>Extension diagnostic logs</dt>
                         <dd>
-                            Stored locally in <code>chrome.storage.local</code>,
-                            capped at 2,000 entries. They survive closing the
-                            popup and are separate from the unlocked session.
+                            Held in memory by the popup and the extension&apos;s
+                            background, with up to 500 entries per category.
+                            Locking does not clear them. The popup&apos;s logs
+                            are lost when it closes. The background&apos;s logs
+                            are lost when the browser shuts it down after about
+                            30 seconds without activity.
                         </dd>
                     </div>
                     <div className={t.definition}>

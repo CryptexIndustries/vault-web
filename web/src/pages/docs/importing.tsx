@@ -180,9 +180,8 @@ export default function Importing() {
                     ) : (
                         <p>
                             In your unlocked vault, open{" "}
-                            <strong>Vault Settings</strong>, find{" "}
-                            <strong>Import</strong>, and choose{" "}
-                            <strong>Import Passwords</strong>.
+                            <strong>Vault Settings</strong> and choose{" "}
+                            <strong>Import</strong> next to Import passwords.
                         </p>
                     )}
                     <DocScreenshot
@@ -192,17 +191,17 @@ export default function Importing() {
                                 ? "/images/docs/import-create.png"
                                 : "/images/docs/import-settings.png"
                         }
-                        width={entryPoint === "create" ? 500 : 1024}
-                        height={entryPoint === "create" ? 930 : 880}
+                        width={entryPoint === "create" ? 500 : 1772}
+                        height={entryPoint === "create" ? 930 : 980}
                         alt={
                             entryPoint === "create"
                                 ? "Create tab with the Import button under Import existing passwords"
-                                : "Vault Settings with the Import Passwords button"
+                                : "Vault Settings with the Import button next to Import passwords"
                         }
                         caption={
                             entryPoint === "create"
                                 ? "Import is optional during vault creation. Choose your export before selecting Create Vault."
-                                : "Import Passwords adds items to the unlocked vault. Existing items are kept."
+                                : "Import adds items to the unlocked vault. Existing items are kept."
                         }
                     />
                 </div>
@@ -257,7 +256,7 @@ export default function Importing() {
                     Try a few logins manually before setting up the{" "}
                     <Link href="/docs/browser-extension">
                         {" "}
-                        Chromium Extension
+                        Browser Extension
                     </Link>
                     . A successful item count alone does not prove every field
                     maps the way you expect.

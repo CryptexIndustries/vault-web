@@ -27,7 +27,8 @@ Keep these notes in sync with:
 
 ## Invariants
 
-- Autofill runs only in the top-level `http:` / `https:` frame.
+- Autofill runs only in the top-level `http:` / `https:` frame and in sub-frames
+  with the same origin as every frame above them.
 - Extension iframes must not accept a parent `init` message unless it carries the
   nonce claimed from the service worker for the current mount id and iframe kind.
 - Discovery, password release, and TOTP release use the same matcher against the

@@ -34,7 +34,7 @@ export default function LinkingDevices() {
     return (
         <DocArticle
             title="Linking devices"
-            description="Connect your phone, another browser or the Chromium Extension to your vault, then sync your passwords between them."
+            description="Connect your phone, another browser or the Browser Extension to your vault, then sync your passwords between them."
             toc={[
                 { href: "#prepare", label: "Before you start" },
                 { href: "#invite", label: "Create an invitation" },
@@ -57,7 +57,7 @@ export default function LinkingDevices() {
                 <p>
                     Open and unlock the vault you want to synchronize. On the
                     other device, install the Android app, open the web app or
-                    install the Chromium Extension. Both devices need to be
+                    install the Browser Extension. Both devices need to be
                     online. Keep both apps open until linking finishes.
                 </p>
                 <p>
@@ -227,7 +227,7 @@ export default function LinkingDevices() {
                         aria-controls="receiving-instructions"
                         onClick={() => setReceiver("extension")}
                     >
-                        Chromium Extension
+                        Browser Extension
                     </button>
                 </div>
                 <div id="receiving-instructions">
@@ -375,7 +375,7 @@ export default function LinkingDevices() {
                                 alt={
                                     receiver === "web"
                                         ? "Web app Linked Devices menu showing Use invitation"
-                                        : "Chromium Extension receiving screen with Scan QR, Import file and Verification words"
+                                        : "Browser Extension receiving screen with Scan QR, Import file and Verification words"
                                 }
                                 caption={
                                     receiver === "web"
@@ -456,7 +456,7 @@ export default function LinkingDevices() {
                                 <DocSteps
                                     items={[
                                         <p key="open">
-                                            Open the Chromium Extension and
+                                            Open the Browser Extension and
                                             choose{" "}
                                             <strong>Use invitation</strong> on
                                             its opening screen. The receiving

@@ -169,10 +169,8 @@ function validateOrigin(
     }
 
     // Content script: lives in an isolated world inside a tab. Chrome
-    // populates `sender.tab` for content-script messages. We additionally
-    // enforce `frameId === 0` so messages originating from sub-frames
-    // (clickjacking risk) can never claim the autofill-cs origin even if
-    // a future content_scripts entry allows `all_frames`.
+    // populates `sender.tab` for content-script messages. `processEnvelope`
+    // additionally rejects cross-origin sub-frames (clickjacking risk).
     if (claimedOrigin === "autofill-cs") {
         if (sender.id !== chrome.runtime.id) {
             return {
@@ -186,13 +184,6 @@ function validateOrigin(
                 valid: false,
                 error: "autofill-cs must come from a tab",
                 code: "INVALID_ORIGIN",
-            };
-        }
-        if (sender.frameId !== 0) {
-            return {
-                valid: false,
-                error: "autofill-cs is only allowed in the top frame",
-                code: "INVALID_FRAME",
             };
         }
         return { valid: true };

@@ -7,6 +7,8 @@ final class AutofillTests: XCTestCase {
   private let environment = ProcessInfo.processInfo.environment
   private let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
   private let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+  /// iOS's passkey sheets, which run outside Safari.
+  private let passkeys = XCUIApplication(bundleIdentifier: "com.apple.AuthenticationServicesUI")
   private var site: String { environment["CRYPTEX_SITE"]! }
   private var secureSite: String { environment["CRYPTEX_SECURE_SITE"]! }
   private var appName: String { environment["CRYPTEX_APP_NAME"]! }
@@ -104,6 +106,58 @@ final class AutofillTests: XCTestCase {
     XCTAssertTrue(update.waitForNonExistence(timeout: 30), "The sheet stayed open")
   }
 
+  func testCreatePasskeys() {
+    for account in ["A", "B"] {
+      open("/passkeys", on: secureSite)
+      tap(safari, label("Create account \(account)", in: safari))
+      // iOS's own sheet, with this provider picked.
+      assertVisible(passkeys, label("Save in \(appName)", in: passkeys))
+      withFaceID {
+        tap(passkeys, label("Add Passkey", in: passkeys))
+        // The page checks the registration's format and signature.
+        assertVisible(safari, label("Passkey \(account) created", in: safari))
+      }
+    }
+  }
+
+  func testRejectDuplicatePasskey() {
+    open("/passkeys", on: secureSite)
+    tap(safari, label("Try duplicate account A", in: safari))
+    withFaceID {
+      tap(passkeys, label("Add Passkey", in: passkeys))
+      assertVisible(safari, label("Duplicate rejected: InvalidStateError", in: safari))
+    }
+  }
+
+  func testSignInWithPasskey() {
+    choosePasskeys(button: "Use account A")
+    let accountA = label("fixture-a@example.test", in: passkeys)
+    withFaceID { assertVisible(passkeys, accountA) }
+    // The website allows only account A's passkey. Its saved login can answer too.
+    XCTAssertFalse(label("fixture-b@example.test", in: passkeys).exists)
+    XCTAssertTrue(label("Autofill Login", in: passkeys).exists)
+    tap(passkeys, accountA)
+    assertVisible(safari, label("Authenticated account A", in: safari))
+  }
+
+  func testChoosePasskey() {
+    choosePasskeys(button: "Use any passkey")
+    let accountB = label("fixture-b@example.test", in: passkeys)
+    withFaceID { assertVisible(passkeys, accountB) }
+    XCTAssertTrue(label("fixture-a@example.test", in: passkeys).exists)
+    tap(passkeys, accountB)
+    assertVisible(safari, label("Authenticated account B", in: safari))
+  }
+
+  /// Picks this provider in iOS's sign-in sheet, which can't list its
+  /// passkeys because the Simulator's identity store never starts.
+  private func choosePasskeys(button: String) {
+    open("/passkeys", on: secureSite)
+    tap(safari, label(button, in: safari))
+    tap(passkeys, prefix("More from \(appName)", in: passkeys))
+    tap(passkeys, label("Continue", in: passkeys))
+  }
+
   func testAppAddsSavedLogins() {
     let vault = XCUIApplication(bundleIdentifier: environment["CRYPTEX_APP_ID"]!)
     vault.launchArguments = ["-cryptexE2EKeyboard", "YES"]
@@ -112,8 +166,13 @@ final class AutofillTests: XCTestCase {
     tap(vault, password)
     password.typeText("CorrectHorseBatteryStaple42")
     tap(vault, element("identifier == %@", "unlock-vault", in: vault))
-    assertVisible(vault, label("Saved 3 AutoFill logins to your vault. Added 1 website from AutoFill to your logins.", in: vault))
+    assertVisible(vault, label(
+      "Saved 3 AutoFill logins to your vault. Saved 2 AutoFill passkeys to your vault. Added 1 website from AutoFill to your logins.",
+      in: vault
+    ))
     assertVisible(vault, prefix("localhost", in: vault))
+    assertVisible(vault, label("localhost, Passkey: fixture-a@example.test", in: vault))
+    assertVisible(vault, label("localhost, Passkey: fixture-b@example.test", in: vault))
     tap(vault, prefix("Autofill Login", in: vault))
     tap(vault, label("Reveal Password", in: vault))
     assertVisible(vault, label("autofill-password-43", in: vault))

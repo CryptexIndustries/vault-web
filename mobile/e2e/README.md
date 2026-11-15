@@ -51,10 +51,16 @@ codes after a fill. The `AutofillTests` XCUITest then:
   the Passwords key after the destination review an HTTP page gets, and the
   script reads the copied code with `simctl pbpaste` as soon as the test
   reports the fill,
-- on the HTTPS copy of the page, fills the login after adding the website to
-  it, then adds a login with a generated password from the fill sheet,
+- on Android's passkey page over HTTPS, which verifies each registration and
+  signature, creates two passkeys and checks that a duplicate is refused,
+- signs in with the one passkey the page allows, from a list that also offers
+  the website's login, and picks one of two passkeys when the page allows any,
+- on the HTTPS copy of the login page, fills the login after adding the
+  website to it, then adds a login with a generated password from the fill
+  sheet,
 - saves a new login and an update to an existing one from the save prompt,
-- unlocks the app and checks the notice, the new logins and the updated password.
+- unlocks the app and checks the notice, the new logins and passkeys, and the
+  updated password.
 
 The script enrolls Face ID and serves the login pages on port 43120
 (`CRYPTEX_E2E_IOS_AUTOFILL_PORT`). It serves them over HTTPS on the next port,
@@ -67,9 +73,11 @@ keyboard has the Passwords key.
 
 The suite doesn't check suggestions above the keyboard or filling a
 verification code. Both need the system's AutoFill identity store, which
-never starts on the Simulator. A code field's number pad has no Passwords
-key, and its AutoFill menu opens only Apple's Passwords. Check those on a
-device. The save steps need a Simulator on iOS 26.2 or later.
+never starts on the Simulator. iOS's sign-in sheet can't list the passkeys
+for the same reason, so the test picks "More from Cryptex Vault" there. A code
+field's number pad has no Passwords key, and its AutoFill menu opens only
+Apple's Passwords. Check those on a device. The save steps need a Simulator on
+iOS 26.2 or later.
 
 It also doesn't check AutoFill from a text field's menu (iOS 18 and later) or
 the passwords the extension suggests for a new account (iOS 26.2 and later).

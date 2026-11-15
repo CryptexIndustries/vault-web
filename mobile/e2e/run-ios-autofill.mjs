@@ -15,6 +15,7 @@ import { createServer } from "node:http";
 import { createServer as createSecureServer } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passkeyPage } from "./fixtures/passkey-page.mjs";
 import { fixtureTotpAccepted } from "./fixtures/totp-verifier.mjs";
 import { flow, resultsDirectory, test, xcode } from "./ios-simulator.mjs";
 
@@ -48,13 +49,21 @@ const pages = {
     "/login": credentialForm("Sign in", "current-password"),
     "/signup": credentialForm("Create account", "new-password"),
     "/signed-in": page("Signed in", "<p>Signed in</p>"),
+    // Android's passkey page, which checks every response the extension gives.
+    "/passkeys": passkeyPage,
+    "/passkey-verifier.mjs": readFileSync(
+        new URL("./fixtures/passkey-verifier.mjs", import.meta.url),
+        "utf8",
+    ),
 };
 
 const servePage = (request, response) => {
     const url = new URL(request.url, site);
     const body = pages[url.pathname];
     response.writeHead(body ? 200 : 404, {
-        "content-type": "text/html; charset=utf-8",
+        "content-type": url.pathname.endsWith(".mjs")
+            ? "text/javascript; charset=utf-8"
+            : "text/html; charset=utf-8",
         "cache-control": "no-store",
     });
     response.end(body ?? "Not found");
@@ -210,6 +219,10 @@ try {
     await autofillTest("testFillPassword");
     if (!copied || !fixtureTotpAccepted(copied.code, copied.at))
         throw new Error("The fill did not copy the current verification code.");
+    await autofillTest("testCreatePasskeys");
+    await autofillTest("testRejectDuplicatePasskey");
+    await autofillTest("testSignInWithPasskey");
+    await autofillTest("testChoosePasskey");
     await autofillTest("testAssociateWebsite");
     await autofillTest("testAddLogin");
     await autofillTest("testSaveNewLogin");

@@ -421,9 +421,11 @@ rotates refresh tokens and stores actual encrypted backup bytes in memory.
 Disposable accounts receive backup entitlement. The cloud journey creates an
 account, saves its Recovery Kit, enables backups, uploads an encrypted vault,
 inspects backup history and deletes its snapshots. Through the fixture's
-`/fail-next`, it also fails one download and checks that the error shows inside
-the snapshot sheet. Production accounts and storage are not used. Host contract
-tests live in `fixtures/online-services.test.mjs`.
+`/fail-next`, it also refuses one upload as a full account would and fails one
+download. It checks that the Backup Center reports full storage until a deleted
+backup makes room, and that the download error shows inside the snapshot sheet.
+Production accounts and storage are not used. Host contract tests live in
+`fixtures/online-services.test.mjs`.
 
 To cover the human check, serve its page from the production web app with
 Cloudflare's always-pass test key, and build against both:

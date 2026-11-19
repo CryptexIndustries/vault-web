@@ -21,15 +21,11 @@ const securityHeadersBase = [
     },
     {
         key: "X-DNS-Prefetch-Control",
-        value: "on",
+        value: "off",
     },
     {
         key: "X-Frame-Options",
         value: "DENY",
-    },
-    {
-        key: "X-XSS-Protection",
-        value: "1; mode=block",
     },
     {
         key: "X-Content-Type-Options",
@@ -41,7 +37,31 @@ const securityHeadersBase = [
     },
     {
         key: "Permissions-Policy",
-        value: "microphone=(), geolocation=(), interest-cohort=()",
+        // Stripe's checkout frames request payment, plus
+        // publickey-credentials-get for Link passkey sign-in. Its 3-D Secure
+        // frame requests publickey-credentials-create for bank passkey
+        // registration. Vault security keys use WebAuthn PRF, so self keeps
+        // both credential features. Turnstile's frame requests autoplay,
+        // fullscreen, gamepad, keyboard-map, xr-spatial-tracking and
+        // cross-origin-isolated, so those stay unlisted.
+        value: [
+            "camera=(self)",
+            'payment=(self "https://js.stripe.com")',
+            'publickey-credentials-get=(self "https://js.stripe.com")',
+            'publickey-credentials-create=(self "https://js.stripe.com")',
+            "microphone=()",
+            "geolocation=()",
+            "display-capture=()",
+            "usb=()",
+            "serial=()",
+            "hid=()",
+            "midi=()",
+            "accelerometer=()",
+            "gyroscope=()",
+            "magnetometer=()",
+            "idle-detection=()",
+            "browsing-topics=()",
+        ].join(", "),
     },
 ];
 

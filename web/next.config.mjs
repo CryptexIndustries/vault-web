@@ -1,4 +1,3 @@
-// NOTE: In order to run bundle analysis, this file needs to be a .js file
 import { fileURLToPath } from "node:url";
 
 const workspaceRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -84,9 +83,6 @@ const nextConfig = {
         "@cryptex-industries/vault-core",
     ],
     reactStrictMode: true,
-    images: {
-        domains: [],
-    },
     headers,
     compiler: {
         removeConsole: rmConsoleFromBuild,
@@ -126,12 +122,4 @@ const nextConfig = {
         .filter(Boolean),
 };
 
-// Comment out this part if using ANALYZE=true
 export default defineNextConfig(nextConfig);
-
-// Uncomment this part if using ANALYZE=true
-// const withBundleAnalyzer = require("@next/bundle-analyzer")({
-//     enabled: process.env.ANALYZE === "true",
-// });
-// module.exports = withBundleAnalyzer(defineNextConfig(nextConfig));
-////////////////

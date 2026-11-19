@@ -135,6 +135,7 @@ export function MembershipUpgrade({
               premiumYearly: {
                   price: `€${currentPriceList.yearly.price}`,
                   caption: t`Save €${savings} a year`,
+                  highlight: true,
               },
           };
     const trial = storeBuild ? !!selectedPlan?.trial : trialEligible;

@@ -100,9 +100,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 	s.mux.ServeHTTP(rec, r)
 	took := time.Since(start)
-	// Log the route pattern, not the path: paths contain share IDs.
-	s.cfg.Logger.Info("request", "method", r.Method, "route", r.Pattern,
-		"status", rec.status, "duration_ms", took.Milliseconds())
+	// Log the route pattern, not the path: paths contain share IDs. Skip
+	// passing health checks, which Docker runs every 30 seconds.
+	if r.Pattern != "GET /healthz" || rec.status >= 400 {
+		s.cfg.Logger.Info("request", "method", r.Method, "route", r.Pattern,
+			"status", rec.status, "duration_ms", took.Milliseconds())
+	}
 	s.cfg.Metrics.observeRequest(r.Pattern, methodLabel(r.Method), rec.status, took)
 }
 

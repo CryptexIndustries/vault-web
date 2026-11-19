@@ -25,6 +25,8 @@
  *     promptly and never keeping module-scoped copies.)
  */
 
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
+
 import {
     ACTIVE_PAGE_ORIGIN_QUERY,
     MessageType,
@@ -66,7 +68,7 @@ import {
     isSameOriginFrameChain,
     isTopFrame,
 } from "./origin-utils";
-import { base64UrlEncode } from "../utils/crypto-utils";
+import { copyBytes } from "../utils/bytes";
 import {
     generatePasskeyRegistration,
     PASSKEY_CONTENT_SOURCE,
@@ -75,7 +77,6 @@ import {
     type PasskeyCreateResult,
 } from "./passkey-registration";
 import {
-    encodeBase64Url,
     type PasskeyGetCancel,
     type PasskeyGetRequest,
     type PasskeyGetResult,
@@ -878,7 +879,7 @@ function postPasskeyGetResult(result: Omit<PasskeyGetResult, "source">): void {
 
 // Stands in for sender.documentId in Firefox. randomUUID() is missing on http
 // pages, where this script also runs.
-const passkeyDocumentToken = base64UrlEncode(
+const passkeyDocumentToken = uint8ToBase64Url(
     crypto.getRandomValues(new Uint8Array(32)),
 );
 
@@ -934,12 +935,12 @@ function serializePasskeyRequest(
     request: PublicKeyCredentialRequestOptions,
 ): import("../types/sw-messaging").PasskeyRequestOptionsDTO {
     return {
-        challenge: encodeBase64Url(request.challenge),
+        challenge: uint8ToBase64Url(copyBytes(request.challenge)),
         rpId: request.rpId,
         allowCredentials: (request.allowCredentials ?? []).map(
             (descriptor) => ({
                 type: "public-key",
-                id: encodeBase64Url(descriptor.id),
+                id: uint8ToBase64Url(copyBytes(descriptor.id)),
             }),
         ),
         userVerification: request.userVerification ?? "preferred",

@@ -1,3 +1,4 @@
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
 import type { PasskeyData } from "@cryptex-industries/vault-core/proto";
 
 import {
@@ -42,16 +43,6 @@ type GeneratedRegistration = {
 
 function exactBuffer(value: Uint8Array): ArrayBuffer {
     return value.slice().buffer;
-}
-
-export function base64Url(value: BufferSource): string {
-    const data = copyBytes(value);
-    let binary = "";
-    for (const byte of data) binary += String.fromCharCode(byte);
-    return btoa(binary)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/u, "");
 }
 
 function selectAlgorithm(
@@ -99,19 +90,19 @@ export async function generatePasskeyRegistration(
     const clientDataJSON = new TextEncoder().encode(
         JSON.stringify({
             type: "webauthn.create",
-            challenge: base64Url(publicKey.challenge),
+            challenge: uint8ToBase64Url(copyBytes(publicKey.challenge)),
             origin,
             crossOrigin: false,
         }),
     );
-    const id = base64Url(credentialId);
+    const id = uint8ToBase64Url(credentialId);
 
     return {
         passkey: {
             CredentialID: id,
             RPID: rpId,
             RPName: publicKey.rp.name,
-            UserHandle: base64Url(publicKey.user.id),
+            UserHandle: uint8ToBase64Url(copyBytes(publicKey.user.id)),
             UserName: publicKey.user.name,
             UserDisplayName: publicKey.user.displayName,
             PublicKey: JSON.stringify(publicJwk),

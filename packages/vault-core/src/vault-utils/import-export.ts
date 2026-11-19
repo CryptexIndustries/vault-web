@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import type { ZodIssue } from "zod";
 
 import { CredentialConstants, TOTPConstants } from "../consts";
+import { base64UrlToUint8 } from "../encoding";
 import { isCredentialUrlRuleValid } from "../credential-url";
 import {
     type Credential,
@@ -891,13 +892,6 @@ const bitwardenUriMode = (match: string | number | null | undefined) => {
     } as const;
 };
 
-const base64UrlBytes = (value: string): Uint8Array => {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-    const binary = atob(padded);
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-};
-
 const convertBitwardenPasskey = async (
     source: BitwardenPasskey,
 ): Promise<PasskeyData> => {
@@ -913,7 +907,7 @@ const convertBitwardenPasskey = async (
     }
     const privateKey = await crypto.subtle.importKey(
         "pkcs8",
-        base64UrlBytes(source.keyValue).slice().buffer as ArrayBuffer,
+        base64UrlToUint8(source.keyValue).slice().buffer as ArrayBuffer,
         { name: "ECDSA", namedCurve: "P-256" },
         true,
         ["sign"],

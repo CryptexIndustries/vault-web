@@ -1,3 +1,5 @@
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
+
 import {
     MessageType,
     type AutofillFrameKind,
@@ -19,10 +21,7 @@ export type AutofillFrameBootstrap = {
 function randomToken(): string {
     const bytes = new Uint8Array(TOKEN_BYTES);
     crypto.getRandomValues(bytes);
-    return btoa(String.fromCharCode(...bytes))
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/g, "");
+    return uint8ToBase64Url(bytes);
 }
 
 export function withAutofillFrameMount(url: string, mountId: string): string {

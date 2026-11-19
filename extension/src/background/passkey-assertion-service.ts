@@ -1,9 +1,7 @@
 import type * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import { isRegistrableDomain } from "@cryptex-industries/vault-core/credential-url";
-import {
-    decodeBase64Url,
-    generatePasskeyAssertion,
-} from "../content/passkey-assertion";
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
+import { generatePasskeyAssertion } from "../content/passkey-assertion";
 import type {
     BeginPasskeyAssertionRequest,
     BeginPasskeyAssertionResponse,
@@ -152,7 +150,7 @@ function isValidRequest(
         return false;
     }
     try {
-        const challenge = decodeBase64Url(request.publicKey.challenge);
+        const challenge = base64UrlToUint8(request.publicKey.challenge);
         if (!challenge.length || challenge.length > MAX_CHALLENGE_BYTES) {
             return false;
         }
@@ -178,7 +176,7 @@ function isValidRequest(
             return false;
         }
         try {
-            const id = decodeBase64Url(descriptor.id);
+            const id = base64UrlToUint8(descriptor.id);
             return id.length > 0 && id.length <= MAX_CREDENTIAL_ID_BYTES;
         } catch {
             return false;

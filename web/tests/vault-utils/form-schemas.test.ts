@@ -1,19 +1,4 @@
-import { describe, it, expect, jest } from "@jest/globals";
-
-jest.mock(
-    "@/lib/utils",
-    () => ({
-        base64ToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64url"),
-    }),
-    { virtual: true },
-);
+import { describe, it, expect } from "@jest/globals";
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {

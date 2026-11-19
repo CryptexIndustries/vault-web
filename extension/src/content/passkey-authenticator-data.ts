@@ -9,6 +9,8 @@
  * @see https://www.rfc-editor.org/rfc/rfc9053.html#name-double-coordinate-curves
  */
 
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
+
 export const ES256_ALGORITHM_IDENTIFIER = -7;
 
 const MAX_CREDENTIAL_ID_LENGTH = 1023;
@@ -147,17 +149,6 @@ function encodeCbor(value: CborValue): Uint8Array {
     );
 }
 
-function decodeBase64Url(value: string): Uint8Array {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    const padded = base64.padEnd(
-        base64.length + ((4 - (base64.length % 4)) % 4),
-        "=",
-    );
-    return Uint8Array.from(atob(padded), (character) =>
-        character.charCodeAt(0),
-    );
-}
-
 function encodeEs256CosePublicKey(publicKey: JsonWebKey): Uint8Array {
     if (!publicKey.x || !publicKey.y) {
         throw new Error("Generated ES256 public key is missing coordinates");
@@ -168,8 +159,8 @@ function encodeEs256CosePublicKey(publicKey: JsonWebKey): Uint8Array {
             [COSE_KEY_LABEL.KEY_TYPE, COSE_KEY_TYPE_EC2],
             [COSE_KEY_LABEL.ALGORITHM, ES256_ALGORITHM_IDENTIFIER],
             [COSE_KEY_LABEL.CURVE, COSE_CURVE_P256],
-            [COSE_KEY_LABEL.X_COORDINATE, decodeBase64Url(publicKey.x)],
-            [COSE_KEY_LABEL.Y_COORDINATE, decodeBase64Url(publicKey.y)],
+            [COSE_KEY_LABEL.X_COORDINATE, base64UrlToUint8(publicKey.x)],
+            [COSE_KEY_LABEL.Y_COORDINATE, base64UrlToUint8(publicKey.y)],
         ]),
     );
 }

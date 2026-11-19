@@ -1,3 +1,7 @@
+import {
+    base64UrlToUint8,
+    uint8ToBase64Url,
+} from "@cryptex-industries/vault-core/encoding";
 import type { PasskeyData } from "@cryptex-industries/vault-core/proto";
 import { sha256 } from "@noble/hashes/sha2.js";
 
@@ -34,18 +38,12 @@ type AssertionJSON = Omit<
 const BASE64URL = /^[A-Za-z0-9_-]+$/u;
 
 function decodeBase64Url(value: string, errorCode: string): Uint8Array {
-    if (!value || !BASE64URL.test(value)) throw new Error(errorCode);
-    try {
-        const base64 = value
-            .replaceAll("-", "+")
-            .replaceAll("_", "/")
-            .padEnd(Math.ceil(value.length / 4) * 4, "=");
-        return Uint8Array.from(atob(base64), (character) =>
-            character.charCodeAt(0),
-        );
-    } catch {
+    // No valid base64url string has a length of 4n + 1, but the Android
+    // fromBase64 polyfill decodes one instead of throwing.
+    if (!value || !BASE64URL.test(value) || value.length % 4 === 1) {
         throw new Error(errorCode);
     }
+    return base64UrlToUint8(value);
 }
 
 function validRpId(value: unknown): value is string {
@@ -162,19 +160,6 @@ function parseAssertionRequest(requestJson: string): AssertionJSON {
 
 function exactBuffer(value: Uint8Array): ArrayBuffer {
     return value.slice().buffer;
-}
-
-function base64Url(value: BufferSource): string {
-    const bytes =
-        value instanceof ArrayBuffer
-            ? new Uint8Array(value)
-            : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/u, "");
 }
 
 function derInteger(value: Uint8Array): Uint8Array {
@@ -295,7 +280,7 @@ export async function createAndroidPasskey(
                   crossOrigin: false,
               }),
           );
-    const id = base64Url(credentialId);
+    const id = uint8ToBase64Url(credentialId);
     const passkey: PasskeyData = {
         CredentialID: id,
         RPID: rpId,
@@ -319,11 +304,11 @@ export async function createAndroidPasskey(
             authenticatorAttachment: "platform",
             response: {
                 ...(clientDataJSON
-                    ? { clientDataJSON: base64Url(clientDataJSON) }
+                    ? { clientDataJSON: uint8ToBase64Url(clientDataJSON) }
                     : {}),
-                attestationObject: base64Url(exactBuffer(attestationObject)),
-                authenticatorData: base64Url(exactBuffer(authenticatorData)),
-                publicKey: base64Url(publicSpki),
+                attestationObject: uint8ToBase64Url(attestationObject),
+                authenticatorData: uint8ToBase64Url(authenticatorData),
+                publicKey: uint8ToBase64Url(new Uint8Array(publicSpki)),
                 publicKeyAlgorithm: supported.alg,
                 transports: ["internal"],
             },
@@ -414,9 +399,9 @@ export async function assertAndroidPasskey(
         response: {
             ...(clientDataHash
                 ? {}
-                : { clientDataJSON: base64Url(clientDataJSON) }),
-            authenticatorData: base64Url(exactBuffer(authenticatorData)),
-            signature: base64Url(exactBuffer(signatureToDer(signature))),
+                : { clientDataJSON: uint8ToBase64Url(clientDataJSON) }),
+            authenticatorData: uint8ToBase64Url(authenticatorData),
+            signature: uint8ToBase64Url(signatureToDer(signature)),
             userHandle: passkey.UserHandle,
         },
         clientExtensionResults: {},

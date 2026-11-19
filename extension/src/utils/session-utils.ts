@@ -1,3 +1,4 @@
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
 import { ulid } from "ulidx";
 import {
     EncryptedEnvelope,
@@ -12,7 +13,6 @@ import {
     decryptWithAESGCM,
     generateSalt,
     base64UrlEncode,
-    base64UrlDecode,
 } from "./crypto-utils";
 import { copyBytes } from "./bytes";
 import { err, Err } from "neverthrow";
@@ -190,7 +190,7 @@ export async function decryptEnvelope<T>(
     );
 
     // Decode salt and derive session key
-    const salt = base64UrlDecode(envelope.payload.salt);
+    const salt = base64UrlToUint8(envelope.payload.salt);
     const sessionKey = await deriveSessionKey(
         serverPrivateKey,
         ephemeralPublicKey,
@@ -199,8 +199,8 @@ export async function decryptEnvelope<T>(
     );
 
     // Decode IV and ciphertext
-    const iv = base64UrlDecode(envelope.payload.iv);
-    const ciphertext = base64UrlDecode(envelope.payload.ciphertext);
+    const iv = base64UrlToUint8(envelope.payload.iv);
+    const ciphertext = base64UrlToUint8(envelope.payload.ciphertext);
 
     // Decrypt payload
     const decryptedBytes = await decryptWithAESGCM(sessionKey, iv, ciphertext);
@@ -362,8 +362,8 @@ export async function decryptResponseEnvelope<T>(
         };
     }
 
-    const iv = base64UrlDecode(envelope.payload.iv);
-    const ciphertext = base64UrlDecode(envelope.payload.ciphertext);
+    const iv = base64UrlToUint8(envelope.payload.iv);
+    const ciphertext = base64UrlToUint8(envelope.payload.ciphertext);
 
     try {
         const decryptedBytes = await decryptWithAESGCM(

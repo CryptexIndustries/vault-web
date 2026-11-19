@@ -1,3 +1,5 @@
+import { uint8ToBase64Url } from "../encoding";
+
 /**
  * ECDSA P-256 device signing key pair (software JWK in vault; not browser WebAuthn).
  * Private key is stored as JWK inside the encrypted vault.
@@ -65,25 +67,5 @@ export async function signChallenge(
         new Uint8Array(challenge),
     );
 
-    const bytes = new Uint8Array(signature);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]!);
-    }
-    return btoa(binary)
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-}
-
-export function base64UrlToUint8Array(b64url: string): Uint8Array {
-    const padded = b64url.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = padded.length % 4;
-    const b64 = pad ? padded + "=".repeat(4 - pad) : padded;
-    const bin = atob(b64);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) {
-        out[i] = bin.charCodeAt(i);
-    }
-    return out;
+    return uint8ToBase64Url(new Uint8Array(signature));
 }

@@ -10620,8 +10620,8 @@ msgid "Web app"
 msgstr "Web aplikacija"
 
 #: src/components/account/membership-benefits.tsx
-msgid "Web app, Android app & Chromium extension"
-msgstr "Web-aplikacija, Android aplikacija i proširenje za Chromium"
+msgid "Web app, Android & iOS apps, Chromium extension"
+msgstr "Web-aplikacija, aplikacije za Android i iOS, proširenje za Chromium"
 
 #: src/components/vault-manager/unlock-tab.tsx
 #: src/components/vault-security/vault-security-dialog.tsx

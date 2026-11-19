@@ -41,7 +41,7 @@ type ManagedBenefit = {
 
 const vaultBenefits = [
     "Local encrypted vault",
-    "Web app, Android app & Chromium extension",
+    "Web app, Android & iOS apps, Chromium extension",
     "Autofill and passkey support",
     "Basic security reports",
     "Imports, exports & manual encrypted backups",

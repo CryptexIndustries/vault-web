@@ -3,7 +3,7 @@ import { createElement, type ComponentProps } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import {
-    isGooglePlayBuild,
+    storeBilling,
     loadStorePlans,
     purchaseMembership,
     checkStorePurchaseStatus,
@@ -28,7 +28,7 @@ jest.mock("@/components/account/membership-benefits", () => ({
     MembershipBenefits: () => null,
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: jest.fn(() => true),
+    storeBilling: jest.fn(() => "google_play"),
     loadStorePlans: jest.fn(),
     purchaseMembership: jest.fn(),
     checkStorePurchaseStatus: jest.fn(),
@@ -92,7 +92,7 @@ async function renderUpgrade(
 }
 beforeEach(() => {
     jest.resetAllMocks();
-    jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+    jest.mocked(storeBilling).mockReturnValue("google_play");
     mockDimensions = { fontScale: 1, width: 390 };
     jest.mocked(loadStorePlans).mockResolvedValue(plans);
     (
@@ -348,7 +348,7 @@ it("retries Play preflight failures through the same selected tier and expires a
 it.each([true, false])(
     "ignores stale %p provider completion and recovers local busy state without clearing a new owner's busy flag",
     async (play) => {
-        jest.mocked(isGooglePlayBuild).mockReturnValue(play);
+        jest.mocked(storeBilling).mockReturnValue(play ? "google_play" : null);
         const payment =
             deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
         jest.mocked(purchaseMembership).mockReturnValueOnce(payment.promise);
@@ -479,7 +479,7 @@ it.each([
 );
 
 it("reports one Stripe busy lifecycle for duplicate taps and clears it on success or failure", async () => {
-    jest.mocked(isGooglePlayBuild).mockReturnValue(false);
+    jest.mocked(storeBilling).mockReturnValue(null);
     const onBillingBusyChange = jest.fn();
     const checkout = deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
     jest.mocked(purchaseMembership).mockReturnValueOnce(checkout.promise);

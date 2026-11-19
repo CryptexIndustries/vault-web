@@ -13,7 +13,7 @@ import {
 import {
     type CheckoutTier,
     purchaseMembership,
-    isGooglePlayBuild,
+    storeBilling,
     checkStorePurchaseStatus,
 } from "@/app_lib/online-services-billing";
 import {
@@ -226,10 +226,10 @@ function SubscriptionSignupSheet({
                     );
                 return;
             }
-            const play = isGooglePlayBuild();
-            if (play) markPending(!checking && !confirmed);
+            const store = storeBilling() !== null;
+            if (store) markPending(!checking && !confirmed);
             account.clearRecoveryKit();
-            onExternalBillingOpened(play || confirmed ? "success" : undefined);
+            onExternalBillingOpened(store || confirmed ? "success" : undefined);
             onOpenChange(false);
         } catch {
             if (isCurrent())

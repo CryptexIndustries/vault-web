@@ -15,6 +15,7 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
 - On iOS 17 and later, Cryptex Vault can create and use passkeys in Safari and apps, from vaults with biometric unlock turned on. It asks for Face ID every time. A new passkey works right away, and the app adds it to the vault the next time you unlock that vault.
 - The Backup Center says when a managed backup or a backup destination fails, and why. A dot on the More tab and on the Backup Center row stays until backups work again.
+- On iOS, you can subscribe to Online Services through the App Store, with a 14-day free trial for new subscribers. Restore purchases and the link to your App Store subscriptions are on the Account tab.
 
 ### Changed
 

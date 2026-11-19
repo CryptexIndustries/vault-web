@@ -17,7 +17,7 @@ const packages = {
 const sources = [
     "mobile/config/play-dependencies.gradle",
     "mobile/config/play-verification-metadata.xml",
-    "mobile/src/app_lib/google-play-billing.ts",
+    "mobile/src/app_lib/store-billing.ts",
 ];
 
 function inside(root, path) {

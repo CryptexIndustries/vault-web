@@ -10,7 +10,7 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import {
-    isGooglePlayBuild,
+    storeBilling,
     restoreStorePurchases,
     openBillingManagement,
     billingManagement,
@@ -195,6 +195,7 @@ export function AccountSummary({
         : trialing
           ? t`Trial ends`
           : t`Renews`;
+    const appStore = storeBilling() === "app_store";
     const management = billingManagement(subscription?.provider);
     const canManageBilling =
         hasSession && !!subscription?.nonFree && management !== null;
@@ -202,16 +203,24 @@ export function AccountSummary({
         hasSession && !!subscription?.nonFree && management === null
             ? subscription.provider === "app_store"
                 ? t`Billed through the App Store`
-                : t`Billed outside Google Play`
+                : !appStore
+                  ? t`Billed outside Google Play`
+                  : subscription.provider === "stripe"
+                    ? t`Billed on the web`
+                    : t`Billed outside the App Store`
             : null;
     const managementCaption =
         management === "google_play"
             ? t`Manage or cancel in Google Play Subscriptions`
-            : t`Billing opens in your browser`;
+            : management === "app_store"
+              ? t`Manage or cancel in your Apple Account settings`
+              : t`Billing opens in your browser`;
     const managementNote =
         management === "google_play"
             ? t`Manage or cancel in Google Play Subscriptions. Your membership updates when you return.`
-            : t`Billing opens in your browser. Your membership updates when you return.`;
+            : management === "app_store"
+              ? t`Manage or cancel in your Apple Account settings. Your membership updates when you return.`
+              : t`Billing opens in your browser. Your membership updates when you return.`;
     const canUpgrade =
         hasSession && subscription?.nonFree === false && !pending;
     const displayTierName = subscription
@@ -230,7 +239,9 @@ export function AccountSummary({
                 : trialing
                   ? subscription?.cancelAtPeriodEnd
                       ? t`Free trial canceled. You won't be charged.`
-                      : t`Free trial. You'll be charged when it ends unless you cancel before then.`
+                      : subscription?.provider === "app_store"
+                        ? t`Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then.`
+                        : t`Free trial. You'll be charged when it ends unless you cancel before then.`
                   : null;
 
     const handleBilling = async (
@@ -268,7 +279,9 @@ export function AccountSummary({
                 if ("pending" in result && result.pending) {
                     pendingRef.current = true;
                     onPendingChange(true);
-                } else
+                } else {
+                    // A restore that found nothing may still have changed membership on the server.
+                    if (operation === "restore") onRefresh();
                     onMessage(
                         result.message,
                         "retryable" in result && result.retryable === false
@@ -283,6 +296,7 @@ export function AccountSummary({
                                   },
                               },
                     );
+                }
             } else {
                 if (operation === "restore") {
                     pendingRef.current = true;
@@ -312,7 +326,7 @@ export function AccountSummary({
     const handleBillingRef = useRef(handleBilling);
     handleBillingRef.current = handleBilling;
     const restoreButton =
-        isGooglePlayBuild() && hasSession ? (
+        storeBilling() !== null && hasSession ? (
             <View style={{ gap: 8 }}>
                 {!pending ? (
                     <Button
@@ -321,7 +335,9 @@ export function AccountSummary({
                         disabled={refreshing}
                         onPress={() => void handleBilling("restore")}
                     >
-                        {t`Restore Google Play purchases`}
+                        {appStore
+                            ? t`Restore App Store purchases`
+                            : t`Restore Google Play purchases`}
                     </Button>
                 ) : null}
                 {!subscription?.nonFree ? (
@@ -330,7 +346,9 @@ export function AccountSummary({
                         disabled={billingBusy || refreshing}
                         onPress={() => void handleBilling()}
                     >
-                        {t`Manage Google Play subscriptions`}
+                        {appStore
+                            ? t`Manage App Store subscriptions`
+                            : t`Manage Google Play subscriptions`}
                     </Button>
                 ) : null}
             </View>

@@ -50,11 +50,12 @@ const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
     // Runtime checks cannot keep an imported SDK out of Metro's dependency graph.
     if (
+        platform !== "ios" &&
         (!playBillingEnabled || platform !== "android") &&
         (moduleName === "react-native-purchases" ||
             moduleName.startsWith("react-native-purchases/") ||
             moduleName.startsWith("@revenuecat/") ||
-            (moduleName === "./google-play-billing" &&
+            (moduleName === "./store-billing" &&
                 context.originModulePath ===
                     path.join(
                         projectRoot,

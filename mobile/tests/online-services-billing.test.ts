@@ -47,8 +47,8 @@ jest.mock("@/utils/logging", () => ({
     onlineServicesLog: { error: jest.fn() },
 }));
 
-jest.mock("@/app_lib/google-play-billing", () => ({
-    purchaseGooglePlayPlan: (...args: unknown[]) => mockPlayPurchase(...args),
+jest.mock("@/app_lib/store-billing", () => ({
+    purchasePlan: (...args: unknown[]) => mockPlayPurchase(...args),
 }));
 const mockPlayPurchase = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
@@ -429,6 +429,40 @@ it.each<
     },
 );
 
+it.each<
+    [
+        Parameters<typeof billingManagement>[0],
+        ReturnType<typeof billingManagement>,
+    ]
+>([
+    ["stripe", null],
+    ["google_play", null],
+    ["app_store", "app_store"],
+    [undefined, "app_store"],
+])(
+    "manages an iOS build's %s subscription through %s",
+    (provider, expected) => {
+        Object.assign(Platform, { OS: "ios" });
+        expect(billingManagement(provider)).toBe(expected);
+    },
+);
+
+it("sells and manages iOS memberships through the App Store, never Stripe", async () => {
+    Object.assign(Platform, { OS: "ios" });
+    mockPlayPurchase.mockResolvedValue({ ok: true });
+    const terms = { trialEligible: true, trial: true };
+    expect(await purchaseMembership("premiumMonthly", terms)).toEqual({
+        ok: true,
+    });
+    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumMonthly", terms);
+    await openBillingManagement();
+    expect(Linking.openURL).toHaveBeenCalledWith(
+        "https://apps.apple.com/account/subscriptions",
+    );
+    expect(checkout).not.toHaveBeenCalled();
+    expect(portal).not.toHaveBeenCalled();
+});
+
 it("keeps F-Droid Stripe management on the portal and sends Play subscribers to Google Play", async () => {
     Constants.expoConfig!.extra!.buildDetails.distribution = "fdroid";
     expect(await openBillingManagement(billingManagement("stripe"))).toEqual({
@@ -455,7 +489,6 @@ it("opens nothing for a subscription this build cannot manage", async () => {
 
 it.each([
     ["android", "fdroid"],
-    ["ios", "play"],
     ["web", "play"],
 ])("preserves existing billing on %s / %s", async (os, distribution) => {
     Object.assign(Platform, { OS: os });

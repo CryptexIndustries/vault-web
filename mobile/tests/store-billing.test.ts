@@ -1,13 +1,14 @@
 import { beforeEach, expect, it, jest } from "@jest/globals";
 
 let userId = "account-a",
-    generation = 1;
+    generation = 1,
+    store = "google_play";
 let session: {
     deviceId: string;
     sessionToken: string;
     sessionExpiresAt: number;
 } | null;
-let billing: typeof import("@/app_lib/google-play-billing");
+let billing: typeof import("@/app_lib/store-billing");
 const subscribers: Array<() => void> = [];
 const mockSdk = {
     configure: jest.fn(),
@@ -20,6 +21,9 @@ const mockSdk = {
         jest.fn<() => Promise<{ activeSubscriptions: string[] }>>(),
     getProducts: jest.fn<() => Promise<unknown>>(),
     purchaseSubscriptionOption: jest.fn<() => Promise<unknown>>(),
+    purchaseStoreProduct: jest.fn<() => Promise<unknown>>(),
+    checkTrialOrIntroductoryPriceEligibility:
+        jest.fn<() => Promise<Record<string, { status: number }>>>(),
     restorePurchases:
         jest.fn<() => Promise<{ activeSubscriptions: string[] }>>(),
 };
@@ -48,7 +52,7 @@ jest.mock("@/utils/trpc", () => ({
 }));
 jest.mock("react-native", () => ({ Linking: { openURL: jest.fn() } }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: () => true,
+    storeBilling: () => store,
 }));
 jest.mock("react-native-purchases", () => ({
     __esModule: true,
@@ -108,6 +112,7 @@ beforeEach(async () => {
     subscribers.length = 0;
     userId = "account-a";
     generation = 1;
+    store = "google_play";
     session = {
         deviceId: "device-a",
         sessionToken: "token",
@@ -131,20 +136,18 @@ beforeEach(async () => {
     mockSdk.restorePurchases.mockResolvedValue({
         activeSubscriptions: ["premium:monthly"],
     });
-    billing = await import("@/app_lib/google-play-billing");
+    billing = await import("@/app_lib/store-billing");
 });
 it("loads public base-plan prices before signup, then identifies the backend account for purchase", async () => {
     session = null;
     mockSdk.isConfigured.mockResolvedValue(false);
-    expect((await billing.loadGooglePlayPlans())[0].price).toBe("$4.99");
+    expect((await billing.loadPlans())[0].price).toBe("$4.99");
     expect(mockSdk.configure).toHaveBeenCalledWith({
         apiKey: "goog_public",
     });
     expect(mockCustomer).not.toHaveBeenCalled();
     expect(mockSdk.logIn).not.toHaveBeenCalled();
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        false,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
     session = {
         deviceId: "device-a",
@@ -153,13 +156,11 @@ it("loads public base-plan prices before signup, then identifies the backend acc
     };
     mockSdk.isConfigured.mockResolvedValue(true);
     mockSdk.getAppUserID.mockResolvedValue("$RCAnonymousID:test");
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        true,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(true);
     expect(mockSdk.logIn).toHaveBeenCalledWith("rc-account-a");
 });
 it("keeps an existing SDK identity during catalog lookup and rejects introductory plans", async () => {
-    expect(await billing.loadGooglePlayPlans()).toHaveLength(2);
+    expect(await billing.loadPlans()).toHaveLength(2);
     expect(mockSdk.configure).not.toHaveBeenCalled();
     expect(mockSdk.logIn).not.toHaveBeenCalled();
     expect(mockSdk.logOut).not.toHaveBeenCalled();
@@ -170,9 +171,7 @@ it("keeps an existing SDK identity during catalog lookup and rejects introductor
             ],
         },
     ]);
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        false,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
 });
 it("leaves anonymous catalog setup alone when signing out during price lookup", async () => {
@@ -180,7 +179,7 @@ it("leaves anonymous catalog setup alone when signing out during price lookup", 
     mockSdk.isConfigured.mockResolvedValue(false);
     mockSdk.isAnonymous.mockResolvedValue(true);
     mockSdk.getProducts.mockReturnValue(pending.promise);
-    const prices = billing.loadGooglePlayPlans();
+    const prices = billing.loadPlans();
     await tick();
     session = null;
     subscribers.forEach((callback) => callback());
@@ -197,7 +196,7 @@ it.each(["lock", "logout"])(
     async (change) => {
         const pending = deferred();
         mockSdk.getProducts.mockReturnValue(pending.promise);
-        const purchase = billing.purchaseGooglePlayPlan("premiumMonthly");
+        const purchase = billing.purchasePlan("premiumMonthly");
         await tick();
         if (change === "lock") generation++;
         else {
@@ -214,10 +213,10 @@ it.each(["lock", "logout"])(
 it("serializes account switches behind purchases and rejects old-account results", async () => {
     const pending = deferred();
     mockSdk.purchaseSubscriptionOption.mockReturnValueOnce(pending.promise);
-    const purchase = billing.purchaseGooglePlayPlan("premiumMonthly");
+    const purchase = billing.purchasePlan("premiumMonthly");
     await tick();
     userId = "account-b";
-    const restore = billing.restoreGooglePlayPurchases();
+    const restore = billing.restorePurchases();
     await tick();
     expect(mockSdk.logIn).not.toHaveBeenCalled();
     expect(mockSdk.restorePurchases).not.toHaveBeenCalled();
@@ -230,18 +229,16 @@ it("blocks duplicate charges while backend confirmation is delayed", async () =>
     mockSdk.getCustomerInfo.mockResolvedValue({
         activeSubscriptions: ["premium:monthly"],
     });
-    expect(await billing.purchaseGooglePlayPlan("premiumYearly")).toMatchObject(
-        {
-            ok: false,
-            pending: true,
-        },
-    );
+    expect(await billing.purchasePlan("premiumYearly")).toMatchObject({
+        ok: false,
+        pending: true,
+    });
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
 });
 it("does not log out a new session when queued native cleanup finally runs", async () => {
     const pending = deferred();
     mockSdk.purchaseSubscriptionOption.mockReturnValueOnce(pending.promise);
-    const purchase = billing.purchaseGooglePlayPlan("premiumMonthly");
+    const purchase = billing.purchasePlan("premiumMonthly");
     await tick();
     const previous = session;
     session = null;
@@ -258,34 +255,47 @@ it("does not log out a new session when queued native cleanup finally runs", asy
 });
 
 it("syncs backend membership only after completed purchase and restore", async () => {
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        true,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(true);
     expect(mockSync).toHaveBeenCalledTimes(1);
     expect(mockSync.mock.invocationCallOrder[0]).toBeGreaterThan(
         mockSdk.purchaseSubscriptionOption.mock.invocationCallOrder[0]!,
     );
-    mockSdk.restorePurchases.mockResolvedValue({ activeSubscriptions: [] });
-    expect((await billing.restoreGooglePlayPurchases()).ok).toBe(true);
+    expect((await billing.restorePurchases()).ok).toBe(true);
     expect(mockSync).toHaveBeenCalledTimes(2);
+});
+
+it("reports an empty restore instead of waiting for membership", async () => {
+    const empty = {
+        ok: false,
+        retryable: false,
+        message: "No Google Play subscription to restore.",
+    };
+    mockSdk.restorePurchases.mockResolvedValue({ activeSubscriptions: [] });
+    expect(await billing.restorePurchases()).toEqual(empty);
+    mockSync.mockRejectedValueOnce(new Error("timeout"));
+    expect(await billing.restorePurchases()).toEqual(empty);
+});
+
+it("syncs a subscription bought in the other store on restore", async () => {
+    mockSdk.restorePurchases.mockResolvedValue({
+        activeSubscriptions: ["online_services_monthly"],
+    });
+    expect((await billing.restorePurchases()).ok).toBe(true);
+    expect(mockSync).toHaveBeenCalledTimes(1);
 });
 
 it("permits catalog and restore while backend purchase permission is false", async () => {
     mockCustomer.mockResolvedValue({ ...customer(), canPurchase: false });
-    expect(await billing.loadGooglePlayPlans()).toHaveLength(2);
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        false,
-    );
+    expect(await billing.loadPlans()).toHaveLength(2);
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
-    expect((await billing.restoreGooglePlayPurchases()).ok).toBe(true);
+    expect((await billing.restorePurchases()).ok).toBe(true);
     expect(mockSync).toHaveBeenCalledTimes(1);
 });
 
 it("refuses disabled backend billing before touching the SDK", async () => {
     mockCustomer.mockResolvedValue({ ...customer(), enabled: false });
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        false,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
     expect(mockSdk.configure).not.toHaveBeenCalled();
     expect(mockSdk.logIn).not.toHaveBeenCalled();
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
@@ -296,7 +306,7 @@ it("does not configure an identity response from a previous vault account", asyn
     mockCustomer.mockReturnValue(
         pending.promise as ReturnType<typeof mockCustomer>,
     );
-    const purchase = billing.purchaseGooglePlayPlan("premiumMonthly");
+    const purchase = billing.purchasePlan("premiumMonthly");
     await tick();
     userId = "account-b";
     pending.resolve({ ...customer(), appUserId: "rc-account-a" });
@@ -308,26 +318,25 @@ it("does not configure an identity response from a previous vault account", asyn
 it("does not sync canceled or pending native purchases", async () => {
     for (const code of ["1", "20"]) {
         mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce({ code });
-        expect(
-            (await billing.purchaseGooglePlayPlan("premiumMonthly")).ok,
-        ).toBe(false);
+        expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
     }
     mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce({
         userCancelled: true,
     });
-    expect(
-        await billing.purchaseGooglePlayPlan("premiumMonthly"),
-    ).toMatchObject({ ok: false, canceled: true });
+    expect(await billing.purchasePlan("premiumMonthly")).toMatchObject({
+        ok: false,
+        canceled: true,
+    });
     expect(mockSync).not.toHaveBeenCalled();
 });
 
 it("checks backend confirmation without another native purchase or restore", async () => {
-    expect(await billing.checkGooglePlayPurchaseStatus()).toMatchObject({
+    expect(await billing.checkPurchaseStatus()).toMatchObject({
         ok: false,
         pending: true,
     });
     mockSubscription.mockResolvedValue({ nonFree: true });
-    expect(await billing.checkGooglePlayPurchaseStatus()).toEqual({ ok: true });
+    expect(await billing.checkPurchaseStatus()).toEqual({ ok: true });
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
     expect(mockSdk.restorePurchases).not.toHaveBeenCalled();
     expect(mockConfiguration).toHaveBeenCalledTimes(2);
@@ -341,7 +350,7 @@ it("does not check another account after a switch during backend synchronization
     mockSync.mockReturnValueOnce(
         pending.promise as ReturnType<typeof mockSync>,
     );
-    const check = billing.checkGooglePlayPurchaseStatus();
+    const check = billing.checkPurchaseStatus();
     await tick();
     userId = "account-b";
     pending.resolve(undefined);
@@ -354,9 +363,7 @@ it("does not expose native diagnostic messages as payment feedback", async () =>
     mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce(
         new Error("Internal raw diagnostic"),
     );
-    expect(
-        await billing.purchaseGooglePlayPlan("premiumMonthly"),
-    ).toMatchObject({
+    expect(await billing.purchasePlan("premiumMonthly")).toMatchObject({
         ok: false,
         message: "Google Play billing could not complete. Please try again.",
     });
@@ -367,7 +374,7 @@ it("points a refused Play payment at the Google Play payment method", async () =
     mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce(
         Object.assign(new Error("native"), { code: "3" }),
     );
-    const result = await billing.purchaseGooglePlayPlan("premiumMonthly");
+    const result = await billing.purchasePlan("premiumMonthly");
     expect(result).toEqual({
         ok: false,
         message:
@@ -388,8 +395,8 @@ it.each<["purchase" | "restore", string]>([
         else mockSdk.restorePurchases.mockRejectedValueOnce(refused);
         const result =
             operation === "purchase"
-                ? await billing.purchaseGooglePlayPlan("premiumMonthly")
-                : await billing.restoreGooglePlayPurchases();
+                ? await billing.purchasePlan("premiumMonthly")
+                : await billing.restorePurchases();
         expect(result).toEqual({
             ok: false,
             retryable: false,
@@ -407,8 +414,8 @@ it.each(["purchase", "restore"])(
         mockSync.mockRejectedValue(new Error("Offline"));
         const result =
             operation === "purchase"
-                ? await billing.purchaseGooglePlayPlan("premiumMonthly")
-                : await billing.restoreGooglePlayPurchases();
+                ? await billing.purchasePlan("premiumMonthly")
+                : await billing.restorePurchases();
         expect(result).toMatchObject({
             ok: false,
             pending: true,
@@ -423,7 +430,7 @@ it.each(["purchase", "restore"])(
 it("does not sync a native purchase for a new account after an account switch", async () => {
     const pending = deferred();
     mockSdk.purchaseSubscriptionOption.mockReturnValue(pending.promise);
-    const purchase = billing.purchaseGooglePlayPlan("premiumMonthly");
+    const purchase = billing.purchasePlan("premiumMonthly");
     await tick();
     userId = "account-b";
     pending.resolve({});
@@ -462,28 +469,24 @@ it("starts the matching 14-day trial offer only for eligible accounts", async ()
             ],
         },
     ]);
-    expect(await billing.loadGooglePlayPlans(true)).toEqual([
+    expect(await billing.loadPlans(true)).toEqual([
         { tier: "premiumMonthly", price: "$4.99", trial: true },
         { tier: "premiumYearly", price: "$4.99", trial: true },
     ]);
-    expect(await billing.loadGooglePlayPlans(false)).toEqual([
+    expect(await billing.loadPlans(false)).toEqual([
         { tier: "premiumMonthly", price: "$4.99", trial: false },
         { tier: "premiumYearly", price: "$4.99", trial: false },
     ]);
     const trial = { trialEligible: true, trial: true };
-    expect(
-        (await billing.purchaseGooglePlayPlan("premiumYearly", trial)).ok,
-    ).toBe(true);
+    expect((await billing.purchasePlan("premiumYearly", trial)).ok).toBe(true);
     expect(purchased().id).toBe("yearly:trial-14d-yearly");
     mockSdk.purchaseSubscriptionOption.mockClear();
-    expect((await billing.purchaseGooglePlayPlan("premiumMonthly")).ok).toBe(
-        true,
-    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(true);
     expect(purchased().id).toBe("monthly");
 });
 
 it("falls back to the base plan when the trial offer is missing", async () => {
-    expect(await billing.loadGooglePlayPlans(true)).toEqual([
+    expect(await billing.loadPlans(true)).toEqual([
         { tier: "premiumMonthly", price: "$4.99", trial: false },
         { tier: "premiumYearly", price: "$4.99", trial: false },
     ]);
@@ -519,7 +522,7 @@ it.each<[string, (offer: ReturnType<typeof trialOffer>) => object]>([
                 ],
             },
         ]);
-        expect((await billing.loadGooglePlayPlans(true))[0]!.trial).toBe(false);
+        expect((await billing.loadPlans(true))[0]!.trial).toBe(false);
     },
 );
 
@@ -536,11 +539,105 @@ it.each([
         },
     ]);
     expect(
-        await billing.purchaseGooglePlayPlan("premiumMonthly", {
+        await billing.purchasePlan("premiumMonthly", {
             trialEligible: true,
             trial: shownTrial,
         }),
     ).toMatchObject({ ok: false, offerChanged: { trial: offerAtPurchase } });
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
     expect(mockSync).not.toHaveBeenCalled();
+});
+
+const freeTrial = { price: 0, cycles: 1, period: "P2W" };
+function appleProduct(
+    identifier: string,
+    period: string,
+    introPrice = freeTrial,
+) {
+    return {
+        identifier,
+        subscriptionPeriod: period,
+        priceString: "$4.99",
+        introPrice,
+    };
+}
+async function useAppStore(
+    products = [
+        appleProduct("online_services_monthly", "P1M"),
+        appleProduct("online_services_yearly", "P1Y"),
+    ],
+) {
+    store = "app_store";
+    Object.assign(process.env, {
+        EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY: "appl_public",
+        EXPO_PUBLIC_APP_STORE_MONTHLY_PRODUCT_ID: "online_services_monthly",
+        EXPO_PUBLIC_APP_STORE_YEARLY_PRODUCT_ID: "online_services_yearly",
+    });
+    mockSdk.getProducts.mockResolvedValue(products);
+    // 2 is eligible, 0 is unknown.
+    mockSdk.checkTrialOrIntroductoryPriceEligibility.mockResolvedValue({
+        online_services_monthly: { status: 2 },
+        online_services_yearly: { status: 0 },
+    });
+    jest.resetModules();
+    billing = await import("@/app_lib/store-billing");
+}
+
+it("shows the App Store trial only when Apple confirms the Apple Account is eligible", async () => {
+    await useAppStore();
+    // Apple decides the trial, whatever the account's own eligibility.
+    expect(await billing.loadPlans(false)).toEqual([
+        { tier: "premiumMonthly", price: "$4.99", trial: true },
+        { tier: "premiumYearly", price: "$4.99", trial: false },
+    ]);
+    expect(
+        await billing.purchasePlan("premiumYearly", {
+            trialEligible: true,
+            trial: true,
+        }),
+    ).toMatchObject({ ok: false, offerChanged: { trial: false } });
+    expect(
+        (
+            await billing.purchasePlan("premiumMonthly", {
+                trialEligible: false,
+                trial: true,
+            })
+        ).ok,
+    ).toBe(true);
+    expect(mockSdk.purchaseStoreProduct).toHaveBeenCalledTimes(1);
+    expect(mockSdk.purchaseStoreProduct).toHaveBeenCalledWith(
+        expect.objectContaining({ identifier: "online_services_monthly" }),
+    );
+    expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
+    expect(mockSync).toHaveBeenCalledTimes(1);
+});
+
+it("refuses an App Store product whose introductory offer is not the 14-day free trial", async () => {
+    await useAppStore([
+        appleProduct("online_services_monthly", "P1M", {
+            price: 0.99,
+            cycles: 1,
+            period: "P1M",
+        }),
+        appleProduct("online_services_yearly", "P1Y"),
+    ]);
+    await expect(billing.loadPlans()).rejects.toThrow(
+        "The selected App Store subscription is unavailable",
+    );
+    expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
+    expect(mockSdk.purchaseStoreProduct).not.toHaveBeenCalled();
+});
+
+it("reports App Store billing as not configured without the RevenueCat Apple key", async () => {
+    await useAppStore();
+    delete process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY;
+    await expect(billing.loadPlans()).rejects.toThrow(
+        "App Store billing is not configured. Please update the app.",
+    );
+    expect(await billing.purchasePlan("premiumMonthly")).toEqual({
+        ok: false,
+        message: "App Store billing is not configured. Please update the app.",
+    });
+    expect(mockSdk.configure).not.toHaveBeenCalled();
+    expect(mockSdk.getProducts).not.toHaveBeenCalled();
 });

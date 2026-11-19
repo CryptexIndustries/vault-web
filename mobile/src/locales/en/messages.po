@@ -410,8 +410,16 @@ msgid "{namespace} signature"
 msgstr "{namespace} signature"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "{planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
 msgstr "{planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "{planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
@@ -1149,6 +1157,18 @@ msgstr "App ID"
 msgid "App reported by Android"
 msgstr "App reported by Android"
 
+#: src/app_lib/store-billing.ts
+msgid "App Store billing could not complete. Please try again."
+msgstr "App Store billing could not complete. Please try again."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is not configured. Please update the app."
+msgstr "App Store billing is not configured. Please update the app."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is unavailable for this account."
+msgstr "App Store billing is unavailable for this account."
+
 #: src/components/vault/password-generator.tsx
 msgid "Append digits"
 msgstr "Append digits"
@@ -1457,8 +1477,16 @@ msgid "Billed monthly"
 msgstr "Billed monthly"
 
 #: src/components/account/account-summary.tsx
+msgid "Billed on the web"
+msgstr "Billed on the web"
+
+#: src/components/account/account-summary.tsx
 msgid "Billed outside Google Play"
 msgstr "Billed outside Google Play"
+
+#: src/components/account/account-summary.tsx
+msgid "Billed outside the App Store"
+msgstr "Billed outside the App Store"
 
 #: src/components/account/account-summary.tsx
 msgid "Billed through the App Store"
@@ -1750,6 +1778,10 @@ msgstr "Checking…"
 #: src/components/account/membership-upgrade.tsx
 msgid "Checkout opens in Google Play."
 msgstr "Checkout opens in Google Play."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Checkout opens in the App Store."
+msgstr "Checkout opens in the App Store."
 
 #: app/(app)/settings/security-report/index.tsx
 msgid "Checks password strength, reuse, and age, and SSH key sizes. Data breaches are not checked. Age alone does not mean a password is compromised."
@@ -2143,7 +2175,11 @@ msgstr "Connect to {invitationLabel}"
 msgid "Connect to sending device"
 msgstr "Connect to sending device"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Connect your account and unlock your vault before using App Store billing."
+msgstr "Connect your account and unlock your vault before using App Store billing."
+
+#: src/app_lib/store-billing.ts
 msgid "Connect your account and unlock your vault before using Google Play billing."
 msgstr "Connect your account and unlock your vault before using Google Play billing."
 
@@ -2493,9 +2529,13 @@ msgstr "Could not connect"
 msgid "Could not connect or authorize presence channel. Check host, ports, key, and secret."
 msgstr "Could not connect or authorize presence channel. Check host, ports, key, and secret."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Could not connect to Google Play. Check your connection and try again."
 msgstr "Could not connect to Google Play. Check your connection and try again."
+
+#: src/app_lib/store-billing.ts
+msgid "Could not connect to the App Store. Check your connection and try again."
+msgstr "Could not connect to the App Store. Check your connection and try again."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Could not connect to the signaling server. Check your connection settings."
@@ -2590,12 +2630,20 @@ msgid "Could not load account permissions. Refresh to try again."
 msgstr "Could not load account permissions. Refresh to try again."
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Could not load App Store prices. Please try again."
+msgstr "Could not load App Store prices. Please try again."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Could not load Google Play prices. Please try again."
 msgstr "Could not load Google Play prices. Please try again."
 
 #: src/components/account/turnstile-challenge.tsx
 msgid "Could not load verification page."
 msgstr "Could not load verification page."
+
+#: src/app_lib/online-services-billing.ts
+msgid "Could not open App Store subscriptions."
+msgstr "Could not open App Store subscriptions."
 
 #: src/app_lib/stripe-billing.ts
 msgid "Could not open billing portal."
@@ -4389,12 +4437,20 @@ msgid "Free"
 msgstr "Free"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
@@ -4407,6 +4463,10 @@ msgstr "Free for 14 days, then {fullPrice} every year. You're charged when the t
 #: src/components/account/account-summary.tsx
 msgid "Free trial canceled. You won't be charged."
 msgstr "Free trial canceled. You won't be charged."
+
+#: src/components/account/account-summary.tsx
+msgid "Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then."
+msgstr "Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then."
 
 #: src/components/account/account-summary.tsx
 msgid "Free trial. You'll be charged when it ends unless you cancel before then."
@@ -4495,23 +4555,23 @@ msgstr "Git signature"
 msgid "Gives them the TOTP secret, so they can keep generating codes."
 msgstr "Gives them the TOTP secret, so they can keep generating codes."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play already has an active subscription. Membership confirmation is pending."
 msgstr "Google Play already has an active subscription. Membership confirmation is pending."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing could not complete. Please try again."
 msgstr "Google Play billing could not complete. Please try again."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is not configured. Please update the app."
 msgstr "Google Play billing is not configured. Please update the app."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is unavailable for this account."
 msgstr "Google Play billing is unavailable for this account."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 msgstr "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 
@@ -5381,6 +5441,10 @@ msgid "Make the connection."
 msgstr "Make the connection."
 
 #: src/components/account/account-summary.tsx
+msgid "Manage App Store subscriptions"
+msgstr "Manage App Store subscriptions"
+
+#: src/components/account/account-summary.tsx
 msgid "Manage billing"
 msgstr "Manage billing"
 
@@ -5403,6 +5467,14 @@ msgstr "Manage or cancel in Google Play Subscriptions"
 #: src/components/account/account-summary.tsx
 msgid "Manage or cancel in Google Play Subscriptions. Your membership updates when you return."
 msgstr "Manage or cancel in Google Play Subscriptions. Your membership updates when you return."
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings"
+msgstr "Manage or cancel in your Apple Account settings"
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings. Your membership updates when you return."
+msgstr "Manage or cancel in your Apple Account settings. Your membership updates when you return."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Manage registered devices and linking relationships, promote trusted devices, and revoke access."
@@ -5550,7 +5622,7 @@ msgstr "Member device"
 msgid "Membership"
 msgstr "Membership"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Membership confirmation is pending. Check status again shortly."
 msgstr "Membership confirmation is pending. Check status again shortly."
 
@@ -5797,6 +5869,10 @@ msgstr "No"
 msgid "No additional key protection"
 msgstr "No additional key protection"
 
+#: src/app_lib/store-billing.ts
+msgid "No App Store subscription to restore."
+msgstr "No App Store subscription to restore."
+
 #: app/(app)/settings/backup-center/index.tsx
 msgid "No automatic backups"
 msgstr "No automatic backups"
@@ -5877,6 +5953,10 @@ msgstr "No findings in this category."
 #: app/(app)/settings/security-report/index.tsx
 msgid "No findings match your search."
 msgstr "No findings match your search."
+
+#: src/app_lib/store-billing.ts
+msgid "No Google Play subscription to restore."
+msgstr "No Google Play subscription to restore."
 
 #: app/(app)/settings/security-report/index.tsx
 msgid "No issues found"
@@ -6658,13 +6738,17 @@ msgstr "Paused. Requests from this agent are refused without asking."
 msgid "Pausing…"
 msgstr "Pausing…"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly."
 msgstr "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Payment is pending in Google Play. Membership will update after payment is approved."
 msgstr "Payment is pending in Google Play. Membership will update after payment is approved."
+
+#: src/app_lib/store-billing.ts
+msgid "Payment is pending in the App Store. Membership will update after payment is approved."
+msgstr "Payment is pending in the App Store. Membership will update after payment is approved."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Peer-to-peer synchronization"
@@ -6746,6 +6830,7 @@ msgid "Primary website"
 msgstr "Primary website"
 
 #: src/components/about-sheet.tsx
+#: src/components/account/membership-upgrade.tsx
 msgid "Privacy policy"
 msgstr "Privacy policy"
 
@@ -6843,11 +6928,11 @@ msgstr "Public key"
 msgid "Public key from {publicKeyFileName}"
 msgstr "Public key from {publicKeyFileName}"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Purchase canceled. Your membership has not changed."
 msgstr "Purchase canceled. Your membership has not changed."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Purchases restored. Membership confirmation is pending. Refresh Membership shortly."
 msgstr "Purchases restored. Membership confirmation is pending. Refresh Membership shortly."
 
@@ -7407,6 +7492,10 @@ msgstr "Restore account access"
 #: src/components/vault-manager/index.tsx
 msgid "Restore an encrypted Cryptex Vault backup."
 msgstr "Restore an encrypted Cryptex Vault backup."
+
+#: src/components/account/account-summary.tsx
+msgid "Restore App Store purchases"
+msgstr "Restore App Store purchases"
 
 #: app/(locked)/_layout.tsx
 msgid "Restore backup"
@@ -8781,6 +8870,10 @@ msgstr "Tap to enlarge"
 msgid "Tap to scan"
 msgstr "Tap to scan"
 
+#: src/components/account/membership-upgrade.tsx
+msgid "Terms of use"
+msgstr "Terms of use"
+
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Test and save"
 msgstr "Test and save"
@@ -8871,6 +8964,14 @@ msgstr "The agent didn't confirm the pairing."
 msgid "The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
 msgstr "The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
 
+#: src/app_lib/store-billing.ts
+msgid "The App Store already has an active subscription. Membership confirmation is pending."
+msgstr "The App Store already has an active subscription. Membership confirmation is pending."
+
+#: src/app_lib/store-billing.ts
+msgid "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
+msgstr "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
+
 #: app/credential-request.tsx
 msgid "The association could not be saved. The login was not filled. Go back to fill once."
 msgstr "The association could not be saved. The login was not filled. Go back to fill once."
@@ -8935,7 +9036,7 @@ msgstr "The file could not be opened."
 msgid "The file is saved as <0>{fileName}</0>. Before using it with ssh, run <1>chmod 600 {fileName}</1>."
 msgstr "The file is saved as <0>{fileName}</0>. Before using it with ssh, run <1>chmod 600 {fileName}</1>."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "The free trial is no longer available for this plan. Check the plan and try again."
 msgstr "The free trial is no longer available for this plan. Check the plan and try again."
 
@@ -8950,6 +9051,14 @@ msgid "The invitation comes from a different Online Services account. Linking mo
 msgstr "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
 "\n"
 "This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone."
+
+#: app/link-receive.tsx
+msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
+"\n"
+"This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone."
+msgstr "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
+"\n"
+"This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone."
 
 #: app/link-receive.tsx
 msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
@@ -9100,6 +9209,10 @@ msgstr "The saved link was kept. Try again after checking that this vault can sa
 msgid "The secure connection has finished."
 msgstr "The secure connection has finished."
 
+#: src/app_lib/store-billing.ts
+msgid "The selected App Store subscription is unavailable. Please try again later."
+msgstr "The selected App Store subscription is unavailable. Please try again later."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The selected file is not a valid 1Password 1PUX archive."
 msgstr "The selected file is not a valid 1Password 1PUX archive."
@@ -9108,7 +9221,7 @@ msgstr "The selected file is not a valid 1Password 1PUX archive."
 msgid "The selected file is not valid XML."
 msgstr "The selected file is not valid XML."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "The selected Google Play subscription is unavailable. Please try again later."
 msgstr "The selected Google Play subscription is unavailable. Please try again later."
 
@@ -9198,9 +9311,13 @@ msgstr "These are configured servers. This view does not confirm whether the act
 msgid "This account cannot change root permissions."
 msgstr "This account cannot change root permissions."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership."
 msgstr "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership."
+
+#: src/app_lib/store-billing.ts
+msgid "This account cannot purchase an App Store subscription. Restore purchases or refresh Membership."
+msgstr "This account cannot purchase an App Store subscription. Restore purchases or refresh Membership."
 
 #: src/components/devices/use-device-topology.ts
 msgid "This account connection is no longer available. Refresh devices before unlinking."
@@ -9221,6 +9338,10 @@ msgstr "This agent can't use any keys yet. You can add them later with Edit keys
 #: app/(app)/devices/agents/[id].tsx
 msgid "This agent was revoked or isn't in this vault anymore."
 msgstr "This agent was revoked or isn't in this vault anymore."
+
+#: src/app_lib/store-billing.ts
+msgid "This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it."
+msgstr "This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "This backup uses security-key protection that Android cannot open with a password. Restore it only if you have the vault recovery code, or link from a device where it already opens."
@@ -9419,7 +9540,7 @@ msgstr "This file is not a readable Cryptex Vault backup."
 msgid "This file is too large to be an SSH key."
 msgstr "This file is too large to be an SSH key."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again."
 msgstr "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again."
 
@@ -9540,7 +9661,7 @@ msgstr "This permanently removes the server account. Root device only. This acti
 msgid "This phrase authorizes the live transfer. It is separate from vault recovery details."
 msgstr "This phrase authorizes the live transfer. It is separate from vault recovery details."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This plan now starts with a 14-day free trial. Check the plan and try again."
 msgstr "This plan now starts with a 14-day free trial. Check the plan and try again."
 
@@ -10630,7 +10751,11 @@ msgstr "You will receive an encrypted vault and merge it with this one."
 msgid "Your account"
 msgstr "Your account"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Your account changed. Reopen Membership before using App Store billing."
+msgstr "Your account changed. Reopen Membership before using App Store billing."
+
+#: src/app_lib/store-billing.ts
 msgid "Your account changed. Reopen Membership before using Google Play billing."
 msgstr "Your account changed. Reopen Membership before using Google Play billing."
 

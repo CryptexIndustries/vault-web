@@ -8,7 +8,7 @@ import { getVaultDEKFromSession } from "@/utils/vault-session";
 import { vaultLockStateAtom } from "@/utils/vault-lock";
 import {
     billingManagement,
-    isGooglePlayBuild,
+    storeBilling,
     restoreStorePurchases,
     purchaseMembership,
     openBillingManagement,
@@ -51,7 +51,7 @@ jest.mock("@/hooks/use-auto-lock", () => ({
     useAutoLock: jest.fn(() => ({ resumeAfterFailedLock: jest.fn() })),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: jest.fn(() => false),
+    storeBilling: jest.fn(() => null),
     restoreStorePurchases: jest.fn(),
     purchaseMembership: jest.fn(),
     openBillingManagement: jest.fn(),
@@ -75,7 +75,7 @@ const { mockUnlockedAtom } = jest.requireMock<{
 }>("@/utils/atoms");
 
 beforeEach(() => {
-    jest.mocked(isGooglePlayBuild).mockReturnValue(false);
+    jest.mocked(storeBilling).mockReturnValue(null);
     jest.mocked(billingManagement).mockReturnValue("stripe");
     (
         globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -247,7 +247,7 @@ it("continues to use the customer portal for paid members", async () => {
 it.each(["overview", "membership"] as const)(
     "shows a Play build's Stripe subscriber where they are billed without linking to Stripe in %s",
     async (mode) => {
-        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        jest.mocked(storeBilling).mockReturnValue("google_play");
         jest.mocked(billingManagement).mockReturnValue(null);
         await act(async () => {
             renderer = create(
@@ -314,7 +314,7 @@ it.each([
 ])(
     "delegates restored purchases %p to the account owner and blocks retries while parent props lag",
     async (result) => {
-        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        jest.mocked(storeBilling).mockReturnValue("google_play");
         jest.mocked(restoreStorePurchases).mockResolvedValueOnce(result);
         await act(async () => {
             renderer = create(createElement(AccountSummary, summaryProps));
@@ -351,7 +351,7 @@ it.each([
 );
 
 it("keeps canceled restore quiet", async () => {
-    jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+    jest.mocked(storeBilling).mockReturnValue("google_play");
     jest.mocked(restoreStorePurchases).mockResolvedValueOnce({
         ok: false,
         canceled: true,

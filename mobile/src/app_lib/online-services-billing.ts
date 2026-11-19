@@ -39,15 +39,18 @@ export function isGooglePlayBuild(): boolean {
     );
 }
 
+/** The app store that sells memberships in this build, if any. */
+export function storeBilling(): "google_play" | "app_store" | null {
+    if (Platform?.OS === "ios") return "app_store";
+    return isGooglePlayBuild() ? "google_play" : null;
+}
+
 export async function purchaseMembership(
     tier: CheckoutTier = "premiumMonthly",
     terms: PlanTerms = { trialEligible: false, trial: false },
 ): Promise<BillingResult> {
-    if (isGooglePlayBuild()) {
-        return (await import("./google-play-billing")).purchaseGooglePlayPlan(
-            tier,
-            terms,
-        );
+    if (storeBilling()) {
+        return (await import("./store-billing")).purchasePlan(tier, terms);
     }
     // Stripe checkout decides the trial on the server.
     return stripe.openCheckoutExternal(tier);
@@ -55,17 +58,20 @@ export async function purchaseMembership(
 type BillingProvider = NonNullable<
     BillingConfirmation["subscription"]
 >["provider"];
-export type BillingManagement = "google_play" | "stripe" | null;
+export type BillingManagement = "google_play" | "app_store" | "stripe" | null;
 
 /** Where the current subscription is managed, or null when this build cannot link to it. */
 export function billingManagement(
     provider: BillingProvider | undefined,
 ): BillingManagement {
-    if (provider === "google_play") return "google_play";
-    if (provider === "app_store") return null;
-    // Google Play builds must not link to another payment method.
-    if (provider === "stripe") return isGooglePlayBuild() ? null : "stripe";
-    return isGooglePlayBuild() ? "google_play" : "stripe";
+    const store = storeBilling();
+    // Store builds must not link to another payment method.
+    if (provider === "google_play")
+        return store === "app_store" ? null : "google_play";
+    if (provider === "app_store")
+        return store === "app_store" ? "app_store" : null;
+    if (provider === "stripe") return store ? null : "stripe";
+    return store ?? "stripe";
 }
 
 /** Play builds open their own subscription; other builds cannot know which app bought it. */
@@ -80,14 +86,21 @@ function googlePlaySubscriptionsUrl() {
 export async function openBillingManagement(
     management: BillingManagement = billingManagement(undefined),
 ) {
-    if (management === "google_play") {
+    if (management === "google_play" || management === "app_store") {
+        const appStore = management === "app_store";
         try {
-            await Linking.openURL(googlePlaySubscriptionsUrl());
+            await Linking.openURL(
+                appStore
+                    ? "https://apps.apple.com/account/subscriptions"
+                    : googlePlaySubscriptionsUrl(),
+            );
             return { ok: true } as const;
         } catch {
             return {
                 ok: false,
-                message: t`Could not open Google Play subscriptions.`,
+                message: appStore
+                    ? t`Could not open App Store subscriptions.`
+                    : t`Could not open Google Play subscriptions.`,
             } as const;
         }
     }
@@ -98,15 +111,11 @@ export async function openBillingManagement(
     } as const;
 }
 export async function loadStorePlans(trialEligible: boolean) {
-    return (await import("./google-play-billing")).loadGooglePlayPlans(
-        trialEligible,
-    );
+    return (await import("./store-billing")).loadPlans(trialEligible);
 }
 export async function restoreStorePurchases() {
-    return (await import("./google-play-billing")).restoreGooglePlayPurchases();
+    return (await import("./store-billing")).restorePurchases();
 }
 export async function checkStorePurchaseStatus() {
-    return (
-        await import("./google-play-billing")
-    ).checkGooglePlayPurchaseStatus();
+    return (await import("./store-billing")).checkPurchaseStatus();
 }

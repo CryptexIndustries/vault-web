@@ -15,7 +15,7 @@ import {
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
-    isGooglePlayBuild,
+    storeBilling,
     refreshSubscriptionAfterExternalBilling,
 } from "@/app_lib/online-services-billing";
 import {
@@ -127,7 +127,7 @@ jest.mock("@/app_lib/auth-session", () => ({
     syncOnlineServicesRemoteConfiguration: jest.fn(),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: jest.fn(() => false),
+    storeBilling: jest.fn(() => null),
     refreshSubscriptionAfterExternalBilling: jest.fn(),
     checkStorePurchaseStatus: jest.fn(),
 }));
@@ -219,7 +219,7 @@ async function state(next: string) {
     await render();
 }
 beforeEach(() => {
-    jest.mocked(isGooglePlayBuild).mockReturnValue(false);
+    jest.mocked(storeBilling).mockReturnValue(null);
     (
         globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -821,7 +821,7 @@ it("discards retained signup state when the unlocked vault session changes", asy
 it.each(["success", "resume"] as const)(
     "refreshes Play %s outcomes immediately without waiting for browser return",
     async (outcome) => {
-        jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+        jest.mocked(storeBilling).mockReturnValue("google_play");
         await render();
         await act(async () =>
             renderer!.root
@@ -836,7 +836,7 @@ it.each(["success", "resume"] as const)(
 );
 
 it("refreshes Google subscription management only after returning from the browser", async () => {
-    jest.mocked(isGooglePlayBuild).mockReturnValue(true);
+    jest.mocked(storeBilling).mockReturnValue("google_play");
     await render();
     await act(async () =>
         renderer!.root

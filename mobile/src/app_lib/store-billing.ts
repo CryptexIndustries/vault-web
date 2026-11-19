@@ -1,6 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { trpc } from "@/utils/trpc";
 import type {
+    IntroEligibility,
     PurchasesStoreProduct,
     SubscriptionOption,
 } from "react-native-purchases";
@@ -16,7 +17,7 @@ import {
     isSameActiveVaultSession,
 } from "@/utils/vault-session";
 import {
-    isGooglePlayBuild,
+    storeBilling,
     type BillingResult,
     type CheckoutTier,
     type PlanTerms,
@@ -25,20 +26,21 @@ import {
 import { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
 
 class BillingError extends Error {}
+const appStore = storeBilling() === "app_store";
 
-let sdk: typeof import("react-native-purchases").default | undefined;
+type Sdk = typeof import("react-native-purchases").default;
+let sdk: Sdk | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 let authEpoch = 0;
 onlineServicesStore.sub(onlineServicesDataAtom, () => {
     if (!onlineServicesStore.get(onlineServicesDataAtom)?.sessionToken) {
         authEpoch++;
-        clearGooglePlayBillingIdentity();
+        clearStoreBillingIdentity();
     }
 });
 
 vaultStore.sub(unlockedVaultMetadataAtom, () => {
-    if (!vaultStore.get(unlockedVaultMetadataAtom))
-        clearGooglePlayBillingIdentity();
+    if (!vaultStore.get(unlockedVaultMetadataAtom)) clearStoreBillingIdentity();
 });
 
 function serialized<T>(operation: () => Promise<T>): Promise<T> {
@@ -46,26 +48,43 @@ function serialized<T>(operation: () => Promise<T>): Promise<T> {
     queue = result.catch(() => undefined);
     return result;
 }
+/** Product ID, then the Google Play base-plan ID. */
+type PlanIds = [string, string?];
 function configuration() {
-    const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY ?? "";
-    const plans: Record<CheckoutTier, [string, string]> = {
-        premiumMonthly: [
-            process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID ?? "",
-            process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID ?? "",
-        ],
-        premiumYearly: [
-            process.env.EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_PRODUCT_ID ?? "",
-            process.env.EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_BASE_PLAN_ID ?? "",
-        ],
-    };
+    const apiKey =
+        (appStore
+            ? process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY
+            : process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY) ?? "";
+    const plans: Record<CheckoutTier, PlanIds> = appStore
+        ? {
+              premiumMonthly: [
+                  process.env.EXPO_PUBLIC_APP_STORE_MONTHLY_PRODUCT_ID ?? "",
+              ],
+              premiumYearly: [
+                  process.env.EXPO_PUBLIC_APP_STORE_YEARLY_PRODUCT_ID ?? "",
+              ],
+          }
+        : {
+              premiumMonthly: [
+                  process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_PRODUCT_ID ?? "",
+                  process.env.EXPO_PUBLIC_GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID ??
+                      "",
+              ],
+              premiumYearly: [
+                  process.env.EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_PRODUCT_ID ?? "",
+                  process.env.EXPO_PUBLIC_GOOGLE_PLAY_YEARLY_BASE_PLAN_ID ?? "",
+              ],
+          };
     if (
-        !isGooglePlayBuild() ||
-        !apiKey.startsWith("goog_") ||
+        !storeBilling() ||
+        !apiKey.startsWith(appStore ? "appl_" : "goog_") ||
         !Object.values(plans).flat().every(Boolean) ||
         plans.premiumMonthly.join(":") === plans.premiumYearly.join(":")
     ) {
         throw new BillingError(
-            t`Google Play billing is not configured. Please update the app.`,
+            appStore
+                ? t`App Store billing is not configured. Please update the app.`
+                : t`Google Play billing is not configured. Please update the app.`,
         );
     }
     return { apiKey, plans };
@@ -83,7 +102,9 @@ function captureSession() {
         (session.sessionExpiresAt ?? 0) <= Date.now()
     ) {
         throw new BillingError(
-            t`Connect your account and unlock your vault before using Google Play billing.`,
+            appStore
+                ? t`Connect your account and unlock your vault before using App Store billing.`
+                : t`Connect your account and unlock your vault before using Google Play billing.`,
         );
     }
     return { generation, userId, deviceId: session.deviceId, authEpoch };
@@ -97,7 +118,9 @@ function assertSession(session: ReturnType<typeof captureSession>) {
         current.authEpoch !== session.authEpoch
     ) {
         throw new BillingError(
-            t`Your account changed. Reopen Membership before using Google Play billing.`,
+            appStore
+                ? t`Your account changed. Reopen Membership before using App Store billing.`
+                : t`Your account changed. Reopen Membership before using Google Play billing.`,
         );
     }
 }
@@ -110,12 +133,16 @@ async function prepare(
     assertSession(session);
     if (!customer.enabled || !customer.appUserId.trim()) {
         throw new BillingError(
-            t`Google Play billing is unavailable for this account.`,
+            appStore
+                ? t`App Store billing is unavailable for this account.`
+                : t`Google Play billing is unavailable for this account.`,
         );
     }
     if (purchasing && !customer.canPurchase) {
         throw new BillingError(
-            t`This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership.`,
+            appStore
+                ? t`This account cannot purchase an App Store subscription. Restore purchases or refresh Membership.`
+                : t`This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership.`,
         );
     }
     sdk ??= (await import("react-native-purchases")).default;
@@ -156,12 +183,48 @@ function isExpectedOption(
                 ["P2W", "P14D"].includes(free.billingPeriod.iso8601)))
     );
 }
-function selectOption(
+const unavailable = () =>
+    new BillingError(
+        appStore
+            ? t`The selected App Store subscription is unavailable. Please try again later.`
+            : t`The selected Google Play subscription is unavailable. Please try again later.`,
+    );
+/** Picks what the store will charge, and how to buy exactly that. */
+function selectPlan(
     products: PurchasesStoreProduct[],
     tier: CheckoutTier,
-    [productId, basePlanId]: [string, string],
+    [productId, basePlanId]: PlanIds,
     trialEligible: boolean,
+    // iOS only: Apple grants the introductory offer once per Apple Account.
+    introEligibility: Record<string, IntroEligibility>,
 ) {
+    if (appStore) {
+        const product = products.find(
+            (product) => product.identifier === productId,
+        );
+        // 2 is INTRO_ELIGIBILITY_STATUS_ELIGIBLE. Unknown shows the full price.
+        const intro =
+            introEligibility[productId]?.status === 2
+                ? product?.introPrice
+                : null;
+        if (
+            !product ||
+            product.subscriptionPeriod !==
+                (tier === "premiumMonthly" ? "P1M" : "P1Y") ||
+            (intro &&
+                !(
+                    intro.price === 0 &&
+                    intro.cycles === 1 &&
+                    ["P2W", "P14D"].includes(intro.period)
+                ))
+        )
+            throw unavailable();
+        return {
+            trial: !!intro,
+            price: product.priceString,
+            buy: (purchases: Sdk) => purchases.purchaseStoreProduct(product),
+        };
+    }
     const options = products
         .flatMap((product) => product.subscriptionOptions ?? [])
         .filter((option) => option.productId === productId);
@@ -169,18 +232,25 @@ function selectOption(
         (option) => option.id === `${basePlanId}:${trialOffers[tier]}`,
     );
     // A missing or unexpected offer falls back to the base plan.
-    if (trialEligible && isExpectedOption(offer, tier, true)) {
-        return { option: offer, trial: true };
-    }
-    const option = options.find(
-        (option) => option.id === basePlanId && option.isBasePlan,
-    );
-    if (!isExpectedOption(option, tier, false)) {
-        throw new BillingError(
-            t`The selected Google Play subscription is unavailable. Please try again later.`,
-        );
-    }
-    return { option, trial: false };
+    const trial = trialEligible && isExpectedOption(offer, tier, true);
+    const option = trial
+        ? offer
+        : options.find(
+              (option) => option.id === basePlanId && option.isBasePlan,
+          );
+    if (!isExpectedOption(option, tier, trial)) throw unavailable();
+    return {
+        trial,
+        price: option.fullPricePhase!.price.formatted,
+        buy: (purchases: Sdk) => purchases.purchaseSubscriptionOption(option),
+    };
+}
+async function loadPlanSelection(purchases: Sdk, productIds: string[]) {
+    const products = await purchases.getProducts([...new Set(productIds)]);
+    const introEligibility = appStore
+        ? await purchases.checkTrialOrIntroductoryPriceEligibility(productIds)
+        : {};
+    return { products, introEligibility };
 }
 function hasSubscription(
     active: string[],
@@ -213,25 +283,35 @@ function failure(error: unknown): BillingResult {
         return {
             ok: false,
             pending: true,
-            message: t`Payment is pending in Google Play. Membership will update after payment is approved.`,
+            message: appStore
+                ? t`Payment is pending in the App Store. Membership will update after payment is approved.`
+                : t`Payment is pending in Google Play. Membership will update after payment is approved.`,
         };
     // Purchases stay with the account that bought them; RevenueCat refuses transfers.
     if (["6", "7", "13"].includes(code))
         return {
             ok: false,
             retryable: false,
-            message: t`This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again.`,
+            message: appStore
+                ? t`This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it.`
+                : t`This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again.`,
         };
     return {
         ok: false,
         message:
             error instanceof BillingError
                 ? error.message
-                : code === "10"
-                  ? t`Could not connect to Google Play. Check your connection and try again.`
-                  : code === "3"
-                    ? t`Google Play couldn't complete the purchase. Check your payment method in Google Play.`
-                    : t`Google Play billing could not complete. Please try again.`,
+                : appStore
+                  ? code === "10"
+                      ? t`Could not connect to the App Store. Check your connection and try again.`
+                      : code === "3"
+                        ? t`The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings.`
+                        : t`App Store billing could not complete. Please try again.`
+                  : code === "10"
+                    ? t`Could not connect to Google Play. Check your connection and try again.`
+                    : code === "3"
+                      ? t`Google Play couldn't complete the purchase. Check your payment method in Google Play.`
+                      : t`Google Play billing could not complete. Please try again.`,
     };
 }
 async function syncMembership(
@@ -249,35 +329,30 @@ async function syncMembership(
     // Only the backend subscription endpoint grants membership.
     return { ok: true };
 }
-export async function loadGooglePlayPlans(
-    trialEligible = false,
-): Promise<StorePlan[]> {
+export async function loadPlans(trialEligible = false): Promise<StorePlan[]> {
     const config = configuration();
     return serialized(async () => {
         // Store prices are public; only payment operations identify an account.
         sdk ??= (await import("react-native-purchases")).default;
         if (!(await sdk.isConfigured()))
             sdk.configure({ apiKey: config.apiKey });
-        const productIds = Object.values(config.plans).map(
-            ([product]) => product,
+        const { products, introEligibility } = await loadPlanSelection(
+            sdk,
+            Object.values(config.plans).map(([product]) => product),
         );
-        const products = await sdk.getProducts([...new Set(productIds)]);
         return (Object.keys(config.plans) as CheckoutTier[]).map((tier) => {
-            const { option, trial } = selectOption(
+            const { price, trial } = selectPlan(
                 products,
                 tier,
                 config.plans[tier],
                 trialEligible,
+                introEligibility,
             );
-            return {
-                tier,
-                price: option.fullPricePhase!.price.formatted,
-                trial,
-            };
+            return { tier, price, trial };
         });
     });
 }
-export async function purchaseGooglePlayPlan(
+export async function purchasePlan(
     tier: CheckoutTier,
     terms: PlanTerms = { trialEligible: false, trial: false },
 ): Promise<BillingResult> {
@@ -291,18 +366,22 @@ export async function purchaseGooglePlayPlan(
                 return {
                     ok: false,
                     pending: true,
-                    message: t`Google Play already has an active subscription. Membership confirmation is pending.`,
+                    message: appStore
+                        ? t`The App Store already has an active subscription. Membership confirmation is pending.`
+                        : t`Google Play already has an active subscription. Membership confirmation is pending.`,
                 };
             }
-            const products = await purchases.getProducts([
-                config.plans[tier][0],
-            ]);
+            const { products, introEligibility } = await loadPlanSelection(
+                purchases,
+                [config.plans[tier][0]],
+            );
             assertSession(session);
-            const { option, trial } = selectOption(
+            const { buy, trial } = selectPlan(
                 products,
                 tier,
                 config.plans[tier],
                 terms.trialEligible,
+                introEligibility,
             );
             // Never buy different terms than the ones the user saw.
             if (trial !== terms.trial) {
@@ -314,7 +393,7 @@ export async function purchaseGooglePlayPlan(
                         : t`The free trial is no longer available for this plan. Check the plan and try again.`,
                 };
             }
-            await purchases.purchaseSubscriptionOption(option);
+            await buy(purchases);
             return syncMembership(
                 session,
                 t`Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly.`,
@@ -324,24 +403,34 @@ export async function purchaseGooglePlayPlan(
         return failure(error);
     }
 }
-export async function restoreGooglePlayPurchases(): Promise<BillingResult> {
+export async function restorePurchases(): Promise<BillingResult> {
     try {
         const session = captureSession();
         const config = configuration();
         return await serialized(async () => {
             const purchases = await prepare(session, config.apiKey);
-            await purchases.restorePurchases();
-            return syncMembership(
+            const customer = await purchases.restorePurchases();
+            const synced = await syncMembership(
                 session,
                 t`Purchases restored. Membership confirmation is pending. Refresh Membership shortly.`,
             );
+            // With no subscription in any store, there is no membership to wait for.
+            if (!customer.activeSubscriptions.length)
+                return {
+                    ok: false,
+                    retryable: false,
+                    message: appStore
+                        ? t`No App Store subscription to restore.`
+                        : t`No Google Play subscription to restore.`,
+                };
+            return synced;
         });
     } catch (error) {
         return failure(error);
     }
 }
 /** Checking confirmation never starts a purchase or restores store ownership. */
-export async function checkGooglePlayPurchaseStatus(): Promise<BillingResult> {
+export async function checkPurchaseStatus(): Promise<BillingResult> {
     try {
         const session = captureSession();
         return await serialized(async () => {
@@ -366,7 +455,7 @@ export async function checkGooglePlayPurchaseStatus(): Promise<BillingResult> {
     }
 }
 /** Logout waits for native operations and skips a superseded lock or sign-out. */
-export function clearGooglePlayBillingIdentity(): void {
+export function clearStoreBillingIdentity(): void {
     if (!sdk) return;
     void serialized(async () => {
         try {

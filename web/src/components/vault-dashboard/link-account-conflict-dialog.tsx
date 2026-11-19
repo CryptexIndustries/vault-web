@@ -46,7 +46,7 @@ export function LinkAccountConflictDialog({
                             </p>
                             <p>
                                 {canDelete
-                                    ? "Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone."
+                                    ? "Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store, or an App Store subscription in your Apple Account settings. Deleting cannot be undone."
                                     : "Only that account's root device can delete it."}
                             </p>
                         </div>

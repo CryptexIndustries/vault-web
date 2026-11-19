@@ -28,7 +28,7 @@ import {
 import {
     refreshSubscriptionAfterExternalBilling,
     checkStorePurchaseStatus,
-    isGooglePlayBuild,
+    storeBilling,
     type BillingConfirmation,
 } from "@/app_lib/online-services-billing";
 import {
@@ -528,7 +528,7 @@ export default function AccountScreen() {
         statusCheckInFlight.current = request;
         dismissFeedback();
         try {
-            if (isGooglePlayBuild()) {
+            if (storeBilling() !== null) {
                 setBusy(true);
                 const result = await checkStorePurchaseStatus();
                 if (!isCurrent()) return;

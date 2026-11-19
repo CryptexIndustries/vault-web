@@ -160,7 +160,7 @@ jest.mock("@/app_lib/auth-session", () => ({
     logoutOnlineServicesSession: () => mockLogout(),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: () => mockPlayBuild,
+    storeBilling: () => (mockPlayBuild ? "google_play" : null),
     loadStorePlans: () => mockStorePlans(),
 
     purchaseMembership: (...args: unknown[]) => mockCheckout(...args),

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Linking, View } from "react-native";
 import { t as translate } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
@@ -10,7 +10,7 @@ import {
 import {
     type CheckoutTier,
     purchaseMembership,
-    isGooglePlayBuild,
+    storeBilling,
     type StorePlan,
     loadStorePlans,
     checkStorePurchaseStatus,
@@ -49,7 +49,9 @@ export function MembershipUpgrade({
     initialTier = "premiumMonthly",
 }: MembershipUpgradeProps) {
     const { t } = useLingui();
-    const play = isGooglePlayBuild();
+    const store = storeBilling();
+    const storeBuild = store !== null;
+    const appStore = store === "app_store";
     const mounted = useRef(true);
     const feedbackLifetime = useRef(onMessage);
     feedbackLifetime.current = onMessage;
@@ -80,7 +82,7 @@ export function MembershipUpgrade({
         };
     }, []);
     useEffect(() => {
-        if (!play) return;
+        if (!storeBuild) return;
         let current = true;
         setPlans(undefined);
         setPricesUnavailable(false);
@@ -92,7 +94,9 @@ export function MembershipUpgrade({
                 if (!current) return;
                 setPricesUnavailable(true);
                 onMessage(
-                    translate`Could not load Google Play prices. Please try again.`,
+                    appStore
+                        ? translate`Could not load App Store prices. Please try again.`
+                        : translate`Could not load Google Play prices. Please try again.`,
                     {
                         label: translate`Retry prices`,
                         onPress: () => {
@@ -105,12 +109,12 @@ export function MembershipUpgrade({
         return () => {
             current = false;
         };
-    }, [play, onMessage, reload, trialEligible]);
+    }, [storeBuild, appStore, onMessage, reload, trialEligible]);
     const savings = (
         Number(currentPriceList.monthly.price) * 12 -
         Number(currentPriceList.yearly.price)
     ).toFixed(2);
-    const intervalPlans = play
+    const intervalPlans = storeBuild
         ? Object.fromEntries(
               plans?.map((plan) => [
                   plan.tier,
@@ -133,7 +137,7 @@ export function MembershipUpgrade({
                   caption: t`Save €${savings} a year`,
               },
           };
-    const trial = play ? !!selectedPlan?.trial : trialEligible;
+    const trial = storeBuild ? !!selectedPlan?.trial : trialEligible;
     const fullPrice = intervalPlans[tier]?.price;
     const planPrice = selectedPlan?.price;
     const disabled = busy || refreshing;
@@ -145,7 +149,7 @@ export function MembershipUpgrade({
             (!checking &&
                 (pendingRef.current ||
                     !canUpgrade ||
-                    (play && !onContinue && !plans)))
+                    (storeBuild && !onContinue && !plans)))
         )
             return;
         inFlight.current = true;
@@ -168,7 +172,7 @@ export function MembershipUpgrade({
                 ? await checkStorePurchaseStatus()
                 : await purchaseMembership(tier, { trialEligible, trial });
             if (!isCurrent()) return;
-            if (!play) {
+            if (!storeBuild) {
                 if (result.ok) onExternalBillingOpened();
                 else
                     onMessage(
@@ -197,7 +201,7 @@ export function MembershipUpgrade({
         } catch {
             if (isCurrent())
                 onMessage(
-                    play
+                    storeBuild
                         ? t`Could not complete billing. Please try again.`
                         : t`Could not open checkout. Please try again.`,
                     recovery,
@@ -241,13 +245,13 @@ export function MembershipUpgrade({
                         disabled={
                             disabled ||
                             !canUpgrade ||
-                            (play &&
+                            (storeBuild &&
                                 !onContinue &&
                                 !plans &&
                                 !pricesUnavailable)
                         }
                         onPress={() =>
-                            play && !onContinue && pricesUnavailable
+                            storeBuild && !onContinue && pricesUnavailable
                                 ? setReload((value) => value + 1)
                                 : void submit()
                         }
@@ -256,9 +260,9 @@ export function MembershipUpgrade({
                             ? t`Continue`
                             : trial
                               ? t`Start 14-day free trial`
-                              : play && pricesUnavailable
+                              : storeBuild && pricesUnavailable
                                 ? t`Retry prices`
-                                : play && !plans
+                                : storeBuild && !plans
                                   ? t`Loading prices…`
                                   : tier === "premiumYearly"
                                     ? t`Continue with yearly`
@@ -274,15 +278,19 @@ export function MembershipUpgrade({
                             }}
                         >
                             {tier === "premiumMonthly"
-                                ? play
-                                    ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                    : t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                : play
-                                  ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                  : t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`}
+                                ? appStore
+                                    ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
+                                    : storeBuild
+                                      ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                      : t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                : appStore
+                                  ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
+                                  : storeBuild
+                                    ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                    : t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`}
                         </Text>
                     ) : null}
-                    {onContinue || !play || selectedPlan ? (
+                    {onContinue || !storeBuild || selectedPlan ? (
                         <Text
                             style={{
                                 color: colors.muted,
@@ -293,9 +301,11 @@ export function MembershipUpgrade({
                         >
                             {onContinue
                                 ? t`No email required. Save your Recovery Kit before payment.`
-                                : play
-                                  ? t`Checkout opens in Google Play.`
-                                  : t`VAT included. Checkout opens in your browser.`}
+                                : appStore
+                                  ? t`Checkout opens in the App Store.`
+                                  : storeBuild
+                                    ? t`Checkout opens in Google Play.`
+                                    : t`VAT included. Checkout opens in your browser.`}
                         </Text>
                     ) : null}
                     {selectedPlan && !trial ? (
@@ -308,10 +318,46 @@ export function MembershipUpgrade({
                             }}
                         >
                             {tier === "premiumMonthly"
-                                ? t`${planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`
-                                : t`${planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
+                                ? appStore
+                                    ? t`${planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
+                                    : t`${planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`
+                                : appStore
+                                  ? t`${planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
+                                  : t`${planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
                         </Text>
                     ) : null}
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            justifyContent: "center",
+                            gap: 16,
+                        }}
+                    >
+                        {(
+                            [
+                                [t`Terms of use`, "terms"],
+                                [t`Privacy policy`, "privacy"],
+                            ] as const
+                        ).map(([label, page]) => (
+                            <Text
+                                key={page}
+                                accessibilityRole="link"
+                                onPress={() =>
+                                    void Linking.openURL(
+                                        `https://www.cryptex-vault.com/${page}`,
+                                    )
+                                }
+                                style={{
+                                    color: colors.muted,
+                                    fontSize: 11,
+                                    lineHeight: 17,
+                                    textDecorationLine: "underline",
+                                }}
+                            >
+                                {label}
+                            </Text>
+                        ))}
+                    </View>
                     {!canUpgrade && !refreshing ? (
                         <Text
                             style={{

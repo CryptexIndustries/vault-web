@@ -16,7 +16,7 @@ export default function TermsOfService() {
                     These terms cover Cryptex Vault and the optional Online
                     Services operated by Cryptex Industries d.o.o., Croatia.
                 </p>
-                <p>Last updated: 2 November 2026</p>
+                <p>Last updated: 19 November 2026</p>
             </section>
 
             <Section
@@ -113,11 +113,26 @@ export default function TermsOfService() {
                     and handles payment support, receipts and payment methods.
                 </p>
                 <p>
+                    For subscriptions bought in the iOS app from the App Store,
+                    Apple processes the payment under the{" "}
+                    <a href="https://www.apple.com/legal/internet-services/itunes/">
+                        Apple Media Services Terms and Conditions
+                    </a>{" "}
+                    and handles payment support, receipts and payment methods.
+                    An App Store subscription renews automatically unless you
+                    turn off renewal at least 24 hours before the end of the
+                    current period.
+                </p>
+                <p>
                     To cancel renewal of a Stripe subscription, open{" "}
                     <strong>Manage billing</strong> in your Online Services
                     account. To cancel a Google Play subscription, open{" "}
                     <a href="https://play.google.com/store/account/subscriptions">
                         Subscriptions in Google Play
+                    </a>
+                    . To cancel an App Store subscription, open{" "}
+                    <a href="https://apps.apple.com/account/subscriptions">
+                        Subscriptions in your Apple Account
                     </a>
                     . Cancellation takes effect at the end of your paid billing
                     period. You retain the paid service until then and will not
@@ -127,11 +142,13 @@ export default function TermsOfService() {
                 <p>
                     Your first Online Services subscription, monthly or yearly,
                     starts with a 14-day free trial. Each account can have one
-                    free trial, and only if it has never had a Stripe or Google
-                    Play subscription. Google Play also allows one free trial
-                    per Google account and may decline a trial on that basis.
-                    During the trial you get the same Online Services as a paid
-                    subscriber.
+                    free trial on the web or Google Play, and only if it has
+                    never had a Stripe, Google Play or App Store subscription.
+                    Google Play also allows one free trial per Google account
+                    and may decline a trial on that basis. For App Store
+                    subscriptions, Apple decides eligibility instead and allows
+                    one free trial per Apple Account. During the trial you get
+                    the same Online Services as a paid subscriber.
                 </p>
                 <p>
                     You must add a payment method to start the trial. When the
@@ -148,9 +165,14 @@ export default function TermsOfService() {
                     <a href="https://play.google.com/store/account/subscriptions">
                         Subscriptions in Google Play
                     </a>{" "}
-                    for a Google Play subscription. If you cancel during the
-                    trial, you keep Online Services until the trial ends, you
-                    are not charged, and the subscription then ends.
+                    for a Google Play subscription, or{" "}
+                    <a href="https://apps.apple.com/account/subscriptions">
+                        Subscriptions in your Apple Account
+                    </a>{" "}
+                    for an App Store subscription. Cancel an App Store
+                    subscription at least 24 hours before the trial ends. If you
+                    cancel in time, you keep Online Services until the trial
+                    ends, you are not charged, and the subscription then ends.
                 </p>
             </Section>
 
@@ -165,7 +187,8 @@ export default function TermsOfService() {
                     Cancelling renewal does not itself refund the current
                     billing period. We do not offer voluntary refunds for
                     non-use or a change of mind beyond refunds available under
-                    Link's terms, Google Play's policies or applicable law.
+                    Link's terms, Google Play's policies, Apple's policies or
+                    applicable law.
                 </p>
                 <p>
                     For Stripe purchases, under{" "}
@@ -195,6 +218,10 @@ export default function TermsOfService() {
                     . For a Google Play purchase, follow{" "}
                     <a href="https://support.google.com/googleplay/answer/2479637">
                         Google Play's refund instructions
+                    </a>
+                    . For an App Store purchase, follow{" "}
+                    <a href="https://support.apple.com/118223">
+                        Apple's refund instructions
                     </a>
                     .
                 </p>

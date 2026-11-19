@@ -551,14 +551,17 @@ export default function LinkingDevices() {
                     </li>
                 </ul>
                 <DocCallout
-                    title="Google Play subscriptions keep running"
+                    title="Google Play and App Store subscriptions keep running"
                     tone="warning"
                 >
                     <p>
                         Deleting an account doesn&apos;t cancel a subscription
-                        bought through Google Play. Cancel it in the Play Store
-                        under <strong>Payments &amp; subscriptions</strong>,
-                        then <strong>Subscriptions</strong>.
+                        bought through Google Play or the App Store. Cancel a
+                        Google Play subscription in the Play Store under{" "}
+                        <strong>Payments &amp; subscriptions</strong>, then{" "}
+                        <strong>Subscriptions</strong>. Cancel an App Store
+                        subscription on your iPhone in <strong>Settings</strong>
+                        : tap your name, then <strong>Subscriptions</strong>.
                     </p>
                 </DocCallout>
             </DocSection>

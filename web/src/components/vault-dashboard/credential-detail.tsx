@@ -155,6 +155,7 @@ function CopyableField({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Open website"
                                         onClick={onOpenUrl}
                                         className="h-7 w-7"
                                     >
@@ -303,6 +304,7 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleCopy}
+                                    aria-label="Copy authenticator code"
                                     className={cn(
                                         "h-7 w-7",
                                         isCopied && "text-primary",
@@ -832,6 +834,7 @@ export function CredentialDetail({
                                 <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Delete credential"
                                     onClick={() =>
                                         onDeleteCredential(credential)
                                     }

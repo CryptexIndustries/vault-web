@@ -3254,6 +3254,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         variant="ghost"
                                                                         size="icon"
                                                                         className="h-7 w-7"
+                                                                        aria-label="Copy username"
                                                                         onClick={() =>
                                                                             copyToClipboard(
                                                                                 getValues(
@@ -3319,6 +3320,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
+                                                                        aria-label={
+                                                                            showFormPassword
+                                                                                ? "Hide password"
+                                                                                : "Show password"
+                                                                        }
                                                                         className="h-7 w-7"
                                                                         onClick={() =>
                                                                             setShowFormPassword(
@@ -3349,6 +3355,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
+                                                                        aria-label="Generate password"
                                                                         className="h-7 w-7"
                                                                         onClick={() =>
                                                                             setShowPasswordGenerator(
@@ -3375,6 +3382,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         variant="ghost"
                                                                         size="icon"
                                                                         className="h-7 w-7"
+                                                                        aria-label="Copy password"
                                                                         onClick={() =>
                                                                             copyToClipboard(
                                                                                 getValues(
@@ -3773,6 +3781,11 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                                                         type="button"
                                                                                                         variant="ghost"
                                                                                                         size="icon"
+                                                                                                        aria-label={
+                                                                                                            isRevealed
+                                                                                                                ? "Hide value"
+                                                                                                                : "Show value"
+                                                                                                        }
                                                                                                         className="h-7 w-7"
                                                                                                         onClick={() =>
                                                                                                             toggleCustomFieldReveal(
@@ -3854,6 +3867,7 @@ const VaultView: React.FC<VaultViewProps> = ({
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
+                                                                        aria-label="Remove custom field"
                                                                         onClick={() =>
                                                                             removeCustomField(
                                                                                 index,

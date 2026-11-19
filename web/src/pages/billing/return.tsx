@@ -23,6 +23,7 @@ export default function BillingReturnPage() {
         <Site
             title="Return to Cryptex"
             description="Return to Cryptex Vault to refresh your membership status."
+            linkPreview={false}
         >
             <Head>
                 <meta name="robots" content="noindex, nofollow" />

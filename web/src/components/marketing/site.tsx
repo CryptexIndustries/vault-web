@@ -172,15 +172,22 @@ function SiteHeader() {
         </div>
     );
 }
+// Marketing pages are prerendered when the image is built, before the
+// deployment's NEXT_PUBLIC_APP_URL is known, so the public origin is fixed.
+const SITE_ORIGIN = "https://www.cryptex-vault.com";
+
 export function Site({
     title,
     description,
+    linkPreview = true,
     children,
 }: {
     title: string;
     description: string;
+    linkPreview?: boolean;
     children: ReactNode;
 }) {
+    const { pathname } = useRouter();
     return (
         <div className={`dark ${s.site}`}>
             <HTMLHeader
@@ -190,6 +197,7 @@ export function Site({
                         : `${title} - Cryptex Vault`
                 }
                 description={description}
+                url={linkPreview ? SITE_ORIGIN + pathname : undefined}
             />
             <a className={s.skip} href="#main">
                 Skip to content

@@ -1,0 +1,64 @@
+diff --git a/ios/Fabric/RNCSafeAreaProviderComponentView.mm b/ios/Fabric/RNCSafeAreaProviderComponentView.mm
+index f315ccda83ea81b1ce24ca2c33dad2513e299b17..065d830dd8719210fe83bf60a808a863b59f067c 100644
+--- a/ios/Fabric/RNCSafeAreaProviderComponentView.mm
++++ b/ios/Fabric/RNCSafeAreaProviderComponentView.mm
+@@ -82,7 +82,7 @@ - (void)invalidateSafeAreaInsets
+     return;
+   }
+ 
+-  UIEdgeInsets safeAreaInsets = self.safeAreaInsets;
++  UIEdgeInsets safeAreaInsets = RNCSafeAreaInsets(self);
+   CGRect frame = [self convertRect:self.bounds toView:RNCParentViewController(self).view];
+ 
+   if (_initialInsetsSent &&
+diff --git a/ios/Fabric/RNCSafeAreaViewComponentView.mm b/ios/Fabric/RNCSafeAreaViewComponentView.mm
+index 827fa4dd978e75aa0cf8e9b2fe7713bf0cd10849..1fb82212df7d6ea9209e448ab0fb5916279b16bf 100644
+--- a/ios/Fabric/RNCSafeAreaViewComponentView.mm
++++ b/ios/Fabric/RNCSafeAreaViewComponentView.mm
+@@ -97,7 +97,7 @@ - (void)updateStateIfNecessary
+     return;
+   }
+ #if TARGET_OS_IPHONE
+-  UIEdgeInsets safeAreaInsets = _providerView.safeAreaInsets;
++  UIEdgeInsets safeAreaInsets = RNCSafeAreaInsets(_providerView);
+ 
+   if (UIEdgeInsetsEqualToEdgeInsetsWithThreshold(safeAreaInsets, _currentSafeAreaInsets, 1.0 / RCTScreenScale())) {
+     return;
+diff --git a/ios/RNCSafeAreaUtils.h b/ios/RNCSafeAreaUtils.h
+index 28961246c70c8cd5bf3701f5f720effbbf860587..2e542f4c0bafbdcada13c7fffbf788f09a459826 100644
+--- a/ios/RNCSafeAreaUtils.h
++++ b/ios/RNCSafeAreaUtils.h
+@@ -16,6 +16,10 @@ UIEdgeInsetsEqualToEdgeInsetsWithThreshold(UIEdgeInsets insets1, UIEdgeInsets in
+ NSEdgeInsetsEqualToEdgeInsetsWithThreshold(NSEdgeInsets insets1, NSEdgeInsets insets2, CGFloat threshold);
+ #endif
+ 
++#if TARGET_OS_IPHONE
++RCT_EXTERN UIEdgeInsets RNCSafeAreaInsets(UIView *view);
++#endif
++
+ #if TARGET_OS_IPHONE
+ RCT_EXTERN UIViewController *RNCParentViewController(UIView *view);
+ #elif TARGET_OS_OSX
+diff --git a/ios/RNCSafeAreaUtils.m b/ios/RNCSafeAreaUtils.m
+index c71d09118375c6812c3793990190c539af9e7a5f..1aa55c4ea39db83c5c92d6cfe100e0c2a78dfd64 100644
+--- a/ios/RNCSafeAreaUtils.m
++++ b/ios/RNCSafeAreaUtils.m
+@@ -15,6 +15,18 @@ BOOL NSEdgeInsetsEqualToEdgeInsetsWithThreshold(NSEdgeInsets insets1, NSEdgeInse
+ }
+ 
+ #if TARGET_OS_IPHONE
++UIEdgeInsets RNCSafeAreaInsets(UIView *view)
++{
++#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
++  // iPadOS window controls sit inside the plain safe area; this region keeps content below them.
++  if (@available(iOS 26.0, *)) {
++    return [view edgeInsetsForLayoutRegion:[UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:
++                                                                   UIViewLayoutRegionAdaptivityAxisVertical]];
++  }
++#endif
++  return view.safeAreaInsets;
++}
++
+ UIViewController *RNCParentViewController(UIView *view)
+ {
+   UIResponder *responder = view.nextResponder;

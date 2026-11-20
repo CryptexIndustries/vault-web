@@ -25,7 +25,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { KeyboardScrollProvider } from "@/components/keyboard-scroll";
-import { colors } from "@/theme";
+import { colors, isTabletViewport, layout } from "@/theme";
 
 import { Text, type TextProps } from "./text";
 import {
@@ -132,6 +132,10 @@ function Dialog({
     const sheetBodyHeight = bottomSheetVariant
         ? deviceSheetBodyHeight(availableHeight, bottomSheetVariant)
         : Math.max(0, availableHeight);
+    // Bottom sheets keep a form-sheet width on tablets instead of spanning the screen.
+    const sheetWidth = isTabletViewport(window.width, window.height)
+        ? Math.min(window.width, layout.panelMaxWidth)
+        : undefined;
     const bottomContentClassName =
         devicePresentation?.contentClassName ?? "gap-3 px-6 pb-5 pt-3";
 
@@ -351,8 +355,8 @@ function Dialog({
                     }
                     drawUnderStatusBar={false}
                     useBottomSafeAreaPadding
-                    containerStyle={
-                        deviceSheet
+                    containerStyle={{
+                        ...(deviceSheet
                             ? deviceSheetPresentation.containerStyle
                             : {
                                   backgroundColor: colors.background,
@@ -362,8 +366,10 @@ function Dialog({
                                   borderRightWidth: 1,
                                   borderTopLeftRadius: 12,
                                   borderTopRightRadius: 12,
-                              }
-                    }
+                              }),
+                        // An undefined width would replace the sheet's own 100% default.
+                        ...(sheetWidth && { width: sheetWidth }),
+                    }}
                     indicatorStyle={
                         devicePresentation
                             ? {

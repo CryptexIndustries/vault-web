@@ -1,8 +1,21 @@
 diff --git a/dist/src/index.js b/dist/src/index.js
-index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c261b7ec8a 100644
+index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..185894c4df61f323bc815a3c912f66bfe7e88643 100644
 --- a/dist/src/index.js
 +++ b/dist/src/index.js
-@@ -420,6 +420,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -386,6 +386,12 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         underlayTranslateY,
+         moveSheetWithAnimation,
+     ]);
++    useEffect(function () {
++        // Window size changes (rotation, iPad window resizing) don't resize
++        // the sheet content, so its own onLayout never re-runs the position.
++        if (visibleRef.current.value && !hiding.current && sheetHeightRef.current > 0)
++            onSheetLayout(sheetHeightRef.current);
++    }, [dimensions.width, dimensions.height]);
+     var hideSheet = React.useCallback(function (vy, data, isSheetManagerOrRef, gestureEnd) {
+         if (hiding.current)
+             return;
+@@ -420,6 +426,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
                      hiding.current = false;
                  }
                  (_b = hardwareBackPressEvent.current) === null || _b === void 0 ? void 0 : _b.remove();
@@ -10,7 +23,7 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
                  if (sheetId) {
                      SheetManager.remove(sheetId, currentContext);
                      hiding.current = false;
-@@ -477,6 +478,18 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -477,6 +484,18 @@ export default forwardRef(function ActionSheet(_a, ref) {
          enableRouterBackNavigation,
          visible,
      ]);
@@ -29,7 +42,7 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
      /**
       * Snap towards the top
       */
-@@ -959,7 +972,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -959,7 +978,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
                  testID: ((_b = props.testIDs) === null || _b === void 0 ? void 0 : _b.root) || props.testID,
                  onLayout: function () {
                      var _a;
@@ -37,3 +50,12 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
                      (_a = props === null || props === void 0 ? void 0 : props.onOpen) === null || _a === void 0 ? void 0 : _a.call(props);
                  },
                  style: {
+@@ -1064,7 +1082,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+                         ? getElevation(typeof elevation === 'number'
+                             ? elevation
+                             : 5)
+-                        : {})), { height: dimensions.height, maxHeight: dimensions.height }),
++                        : {})), { alignSelf: 'center', height: dimensions.height, maxHeight: dimensions.height }),
+                     animatedActionSheetStyle,
+                 ]}>
+                           <GestureMobileOnly {...(Platform.OS === 'web'

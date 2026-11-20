@@ -6039,6 +6039,7 @@ msgid "No recorded links"
 msgstr "No recorded links"
 
 #: src/components/devices/device-map-canvas.tsx
+#: src/components/devices/device-network.tsx
 msgid "No recorded links ({isolatedCount})"
 msgstr "No recorded links ({isolatedCount})"
 

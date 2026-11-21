@@ -1,0 +1,14 @@
+diff --git a/ios/ScreenCaptureModule.swift b/ios/ScreenCaptureModule.swift
+index 870ba58246812f72bac6c5918cefccdde8a17941..e624fe640abdcd1f0b701fc491b26e81b161553b 100644
+--- a/ios/ScreenCaptureModule.swift
++++ b/ios/ScreenCaptureModule.swift
+@@ -122,7 +122,8 @@ public final class ScreenCaptureModule: Module {
+   }
+ 
+   private func preventScreenshots() {
+-    guard let keyWindow = keyWindow else {
++    // A second call would nest the window in another secure field and blank the app.
++    guard protectionTextField == nil, let keyWindow = keyWindow else {
+       return
+     }
+ 

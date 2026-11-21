@@ -81,3 +81,4 @@ patchedDependencies:
   expo-router@57.0.17: patches/expo-router@57.0.17.patch
   '@bacons/apple-targets@5.0.0': patches/@bacons__apple-targets@5.0.0.patch
   react-native-safe-area-context@5.7.0: patches/react-native-safe-area-context@5.7.0.patch
+  expo-screen-capture@57.0.2: patches/expo-screen-capture@57.0.2.patch

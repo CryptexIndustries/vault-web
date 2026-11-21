@@ -150,6 +150,81 @@
                 width: 560px;
                 transform: translateX(-50%);
             }
+
+            /* App Store iPhone 6.9-inch (1320x2868): open with ?format=ios-phone. */
+            .ios-phone .stage {
+                width: 1320px;
+                height: 2868px;
+            }
+            .ios-phone .copy {
+                top: 210px;
+                width: auto;
+                right: 64px;
+            }
+            .ios-phone .brand {
+                font-size: 35px;
+            }
+            .ios-phone .brand img {
+                width: 57px;
+                height: 57px;
+            }
+            .ios-phone .label {
+                font-size: 26px;
+            }
+            .ios-phone h1 {
+                font-size: 96px;
+            }
+            .ios-phone .description {
+                font-size: 36px;
+            }
+            .ios-phone .capture {
+                top: 860px;
+                left: 50%;
+                right: auto;
+                width: 860px;
+                border-radius: 44px;
+                transform: translateX(-50%);
+            }
+
+            /* App Store iPad 13-inch (2064x2752): open with ?format=ios-tablet. */
+            .ios-tablet .stage {
+                width: 2064px;
+                height: 2752px;
+            }
+            .ios-tablet .copy {
+                top: 220px;
+                width: auto;
+                right: 64px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                column-gap: 96px;
+                align-items: end;
+            }
+            .ios-tablet .brand {
+                font-size: 44px;
+            }
+            .ios-tablet .brand img {
+                width: 72px;
+                height: 72px;
+            }
+            .ios-tablet .label {
+                grid-column: 1 / -1;
+                font-size: 32px;
+            }
+            .ios-tablet h1 {
+                font-size: 104px;
+            }
+            .ios-tablet .description {
+                margin: 0;
+                font-size: 40px;
+            }
+            .ios-tablet .capture {
+                top: 720px;
+                left: 50%;
+                right: auto;
+                width: 1440px;
+                transform: translateX(-50%);
+            }
         </style>
     </head>
     <body>
@@ -173,6 +248,8 @@
                     <p
                         class="description"
                         data-hr="Lozinke i podaci za prijavu zajedno, na tvom telefonu."
+                        data-ipad="Keep passwords and sign-in details together on your iPad."
+                        data-hr-ipad="Lozinke i podaci za prijavu zajedno, na tvom iPadu."
                     >
                         Keep passwords and sign-in details together on your
                         phone.
@@ -273,22 +350,30 @@
                 });
             }
             const params = new URLSearchParams(location.search);
-            document.body.classList.toggle(
-                "play",
-                params.get("format") === "play",
-            );
-            // ?lang=hr swaps in the Croatian copy and the raw/hr captures.
-            if (params.get("lang") === "hr") {
+            const format = params.get("format");
+            if (format) document.body.classList.add(format);
+            // The App Store formats use the raw/ios/<iphone|ipad> captures.
+            const device = { "ios-phone": "iphone", "ios-tablet": "ipad" }[
+                format
+            ];
+            const hr = params.get("lang") === "hr";
+            // ?lang=hr swaps in the Croatian copy and the hr captures.
+            if (hr) {
                 document.documentElement.lang = "hr";
                 document.querySelectorAll("[data-hr]").forEach((element) => {
                     element.innerHTML = element.dataset.hr;
                 });
-                document.querySelectorAll(".capture img").forEach((image) => {
-                    image.src = image
-                        .getAttribute("src")
-                        .replace("raw/", "raw/hr/");
-                });
             }
+            if (device === "ipad")
+                document.querySelectorAll("[data-ipad]").forEach((element) => {
+                    element.innerHTML = hr
+                        ? element.dataset.hrIpad
+                        : element.dataset.ipad;
+                });
+            const raw = `raw/${device ? `ios/${device}/` : ""}${hr ? "hr/" : ""}`;
+            document.querySelectorAll(".capture img").forEach((image) => {
+                image.src = image.getAttribute("src").replace("raw/", raw);
+            });
             window.addEventListener("hashchange", selectSlide);
             selectSlide();
         </script>

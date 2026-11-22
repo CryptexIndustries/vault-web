@@ -845,7 +845,7 @@ export function UnlockTab({
                         accessibilityLabel={t`Unlock with biometrics`}
                         onPress={() => void handleBiometric()}
                     >
-                        {t`Use fingerprint`}
+                        {t`Use biometrics`}
                     </VaultEntryAction>
                 ) : null}
 

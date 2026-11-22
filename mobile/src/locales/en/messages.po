@@ -2109,8 +2109,8 @@ msgid "Confirm your new master password."
 msgstr "Confirm your new master password."
 
 #: app/(app)/settings/security/index.tsx
-msgid "Confirm your vault password, then authenticate with your fingerprint."
-msgstr "Confirm your vault password, then authenticate with your fingerprint."
+msgid "Confirm your vault password, then authenticate with biometrics."
+msgstr "Confirm your vault password, then authenticate with biometrics."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Confirmation code {spelledCode}"
@@ -10197,13 +10197,13 @@ msgstr "Use Android password autofill first. Some browsers also need their own s
 msgid "Use another autofill service"
 msgstr "Use another autofill service"
 
+#: src/components/vault-manager/unlock-tab.tsx
+msgid "Use biometrics"
+msgstr "Use biometrics"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Use browser-protected autofill where available"
 msgstr "Use browser-protected autofill where available"
-
-#: src/components/vault-manager/unlock-tab.tsx
-msgid "Use fingerprint"
-msgstr "Use fingerprint"
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "Use folder names separated by /, without . or .. parts."

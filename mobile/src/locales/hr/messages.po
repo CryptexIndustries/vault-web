@@ -2109,8 +2109,8 @@ msgid "Confirm your new master password."
 msgstr "Potvrdi novu glavnu lozinku."
 
 #: app/(app)/settings/security/index.tsx
-msgid "Confirm your vault password, then authenticate with your fingerprint."
-msgstr "Potvrdi lozinku trezora, a zatim potvrdi identitet otiskom prsta."
+msgid "Confirm your vault password, then authenticate with biometrics."
+msgstr "Potvrdi lozinku trezora, a zatim potvrdi identitet biometrijom."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Confirmation code {spelledCode}"
@@ -10197,13 +10197,13 @@ msgstr "Najprije koristi automatsko popunjavanje lozinki u Androidu. Neki pregle
 msgid "Use another autofill service"
 msgstr "Koristi drugu uslugu automatskog popunjavanja"
 
+#: src/components/vault-manager/unlock-tab.tsx
+msgid "Use biometrics"
+msgstr "Upotrijebi biometriju"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Use browser-protected autofill where available"
 msgstr "Koristi automatsko popunjavanje zaštićeno preglednikom gdje je dostupno"
-
-#: src/components/vault-manager/unlock-tab.tsx
-msgid "Use fingerprint"
-msgstr "Upotrijebi otisak prsta"
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "Use folder names separated by /, without . or .. parts."

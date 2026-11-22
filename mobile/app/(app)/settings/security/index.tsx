@@ -465,7 +465,7 @@ export default function SecuritySettingsScreen() {
                 <DialogHeader>
                     <DialogTitle>{t`Enable biometric unlock`}</DialogTitle>
                     <DialogDescription>
-                        {t`Confirm your vault password, then authenticate with your fingerprint.`}
+                        {t`Confirm your vault password, then authenticate with biometrics.`}
                     </DialogDescription>
                 </DialogHeader>
                 <Label>{t`Master password`}</Label>

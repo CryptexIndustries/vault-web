@@ -2,14 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { type ReactNode, useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import {
-    ArrowRight,
-    ArrowLeft,
-    ArrowDown,
-    Expand,
-    Play,
-    X,
-} from "lucide-react";
+import { ArrowRight, ArrowLeft, Expand, Play, X } from "lucide-react";
 import {
     Site,
     Label,
@@ -77,8 +70,7 @@ function Walkthrough({
     return (
         <div id="demo" className={s.walkthrough}>
             <div className={s.walkthroughControls}>
-                <span>INSIDE THE APP</span>
-                <div className="flex gap-7">
+                <div className="ml-auto flex gap-7">
                     <button
                         className="aria-pressed:text-[var(--coral)]"
                         onClick={() => {
@@ -112,21 +104,6 @@ function Walkthrough({
                 }}
             >
                 <div className={s.walkthroughScreen}>
-                    <div className={s.screenBar}>
-                        <span>
-                            <i />
-                            <i />
-                            <i />
-                        </span>
-                        <span>
-                            {video
-                                ? "CRYPTEX VAULT / WEB AND ANDROID"
-                                : current[2] === "extension"
-                                  ? "CRYPTEX VAULT / BROWSER EXTENSION"
-                                  : "CRYPTEX VAULT / WEB APPLICATION"}
-                        </span>
-                        <span>{video ? "DEMO VIDEO" : "DEMO VAULT"}</span>
-                    </div>
                     {video ? (
                         <DemoVideo />
                     ) : (
@@ -341,8 +318,6 @@ export default function Home() {
                         A local-first password manager.
                         <br />
                         Browser autofill. Peer-to-peer synchronization.
-                        <br />
-                        Your passwords, within reach.
                     </p>
                     <div className={s.actions}>
                         <Action />
@@ -362,45 +337,9 @@ export default function Home() {
                         <Play size={14} aria-hidden="true" />
                         Watch the demo ({DEMO_DURATION})
                     </a>
-                    <p className={s.heroBusiness}>
-                        Use it on your own, self-host the sync infrastructure,
-                        or choose Online Services for managed P2P infrastructure
-                        and encrypted backups.
-                    </p>
                 </div>
                 <Network hero minimal />
-                <div className={s.heroFoot}>
-                    <span>
-                        No account required for local use <b>-</b> AGPL-3.0
-                    </span>
-                    <a href="#product">
-                        EXPLORE THE VAULT <ArrowDown size={14} />
-                    </a>
-                </div>
             </section>
-            <aside
-                className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 border-y border-[color-mix(in_srgb,var(--coral)_25%,transparent)] bg-[color-mix(in_srgb,var(--coral)_5%,transparent)] px-[5%] py-6"
-                aria-labelledby="company-story-title"
-            >
-                <div>
-                    <h2
-                        id="company-story-title"
-                        className="m-0 !text-lg !leading-[1.4] !tracking-[-0.02em]"
-                    >
-                        The company behind Cryptex Vault.
-                    </h2>
-                    <p className="mb-0 mt-1 !text-sm !leading-[1.7]">
-                        Why we started Cryptex Industries and what we want to
-                        build.
-                    </p>
-                </div>
-                <a
-                    href="https://cryptexindustries.com/blog/2026/10/04/having-a-way-to-stay"
-                    className="inline-flex min-h-11 shrink-0 items-center border border-[color-mix(in_srgb,var(--coral)_45%,transparent)] px-4 py-2.5 text-[13px] font-medium text-[var(--coral)] hover:border-[var(--coral)] hover:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)] focus-visible:border-[var(--coral)] focus-visible:bg-[color-mix(in_srgb,var(--coral)_10%,transparent)]"
-                >
-                    Read our story
-                </a>
-            </aside>
             <div className={s.importStrip}>
                 <span>BRING YOUR PASSWORDS FROM</span>
                 <div>
@@ -429,27 +368,6 @@ export default function Home() {
                     </p>
                 </div>
                 <Walkthrough video={video} setVideo={setVideo} />
-                <div className={s.featureRow}>
-                    {[
-                        [
-                            "Browser autofill",
-                            "Use credentials from your encrypted vault through the Browser Extension.",
-                        ],
-                        [
-                            "An easier move",
-                            "Import from Bitwarden, 1Password, KeePass, LastPass, Chrome and Firefox.",
-                        ],
-                        [
-                            "Always portable",
-                            "Export your data and create manual encrypted backups at any time.",
-                        ],
-                    ].map(([title, text]) => (
-                        <article key={title}>
-                            <h3>{title}</h3>
-                            <p>{text}</p>
-                        </article>
-                    ))}
-                </div>
             </Section>
             <Section id="architecture" className={s.architectureSection}>
                 <div className={s.sectionHeading}>
@@ -465,19 +383,6 @@ export default function Home() {
                     </p>
                 </div>
                 <Network detailed minimal />
-                <div className={s.tradeoff}>
-                    <span>THE TRADEOFF, UP FRONT</span>
-                    <p>
-                        Both vaults must be open and unlocked.
-                        <br />
-                        New links sync automatically when connected.
-                    </p>
-                    <span>
-                        The same rules apply with
-                        <br />
-                        self-hosted infrastructure and Online Services.
-                    </span>
-                </div>
             </Section>
             <Section>
                 <div className={s.sectionHeading}>
@@ -486,16 +391,18 @@ export default function Home() {
                         <br />
                         Convenience when you want it.
                     </h2>
-                    <p>
-                        The password manager is free forever. A subscription
-                        pays for managed infrastructure and encrypted backup
-                        storage.
-                    </p>
+                    <div className="mb-[3px] flex max-w-[345px] flex-col gap-[24px] max-[1100px]:max-w-[300px] max-[720px]:mt-[25px] max-[720px]:max-w-none">
+                        <p className="m-0 !text-[14px]">
+                            The password manager is free forever. A subscription
+                            pays for managed infrastructure and encrypted backup
+                            storage.
+                        </p>
+                        <Action href="/pricing" secondary>
+                            See what each plan includes
+                        </Action>
+                    </div>
                 </div>
                 <Plans />
-                <Link className={s.textLink} href="/pricing">
-                    Explore pricing and what’s included <ArrowRight size={16} />
-                </Link>
             </Section>
             <Section id="section-recovery" className={s.recoverySection}>
                 <div className={s.sectionHeading}>
@@ -596,6 +503,10 @@ export default function Home() {
                                 "Responsible disclosure",
                                 "/security/responsible-disclosure",
                             ],
+                            [
+                                "Why we started Cryptex Industries",
+                                "https://cryptexindustries.com/blog/2026/10/04/having-a-way-to-stay",
+                            ],
                         ].map(([label, href]) => (
                             <Link key={label} href={href!}>
                                 {label}
@@ -626,38 +537,11 @@ export default function Home() {
                         <Label>AVAILABLE NOW</Label>
                         <h3>Your daily vault.</h3>
                         <p>
-                            <Link href="/app">Web app</Link>,{" "}
-                            <Link href="/download/android">Android app</Link>,{" "}
-                            <Link href="/download">Browser Extension</Link>,{" "}
-                            <Link href="/docs/ssh-agent#install">
-                                SSH agent
-                            </Link>{" "}
-                            for Linux and macOS,{" "}
-                            <Link href="/docs/browser-extension#autofill">
-                                autofill
-                            </Link>
-                            ,{" "}
-                            <Link href="/docs/importing">
-                                imports and exports
-                            </Link>
-                            , <Link href="/docs/synchronization">P2P sync</Link>
-                            ,{" "}
-                            <Link href="/docs/backups#manual">
-                                manual backups
-                            </Link>
-                            ,{" "}
-                            <Link href="/docs/backup-destinations">
-                                custom backup destinations
-                            </Link>
-                            ,{" "}
-                            <Link href="/docs/sharing">
-                                one-time share links
-                            </Link>{" "}
-                            and optional{" "}
-                            <Link href="/docs/online-services">
-                                managed services
-                            </Link>
-                            .
+                            Web, Android, Browser Extension and an SSH agent,
+                            with autofill, P2P sync, backups and one-time share
+                            links. Start from the{" "}
+                            <Link href="/download">downloads</Link> or the{" "}
+                            <Link href="/docs">docs</Link>.
                         </p>
                     </article>
                     <article>

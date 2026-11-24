@@ -1,11 +1,11 @@
 name: Web end-to-end
 
-# Runs when something the web app or its e2e setup uses changes. Tag pushes
-# ignore the paths.
+# Runs when something the web app or its e2e setup uses changes. CI also calls
+# it for web-v* tags and publishes the release image only if it passes.
 on:
+    workflow_call:
     push:
         branches: [development, master]
-        tags: ["web-v*"]
         paths:
             - "web/**"
             - "packages/**"

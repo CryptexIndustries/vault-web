@@ -170,10 +170,20 @@ jobs:
                       playwright-report/extension-e2e
                   if-no-files-found: ignore
 
+    web-e2e:
+        name: Web end-to-end
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'web-v')
+        uses: ./.github/workflows/web-e2e.yml
+
     container-image:
         name: Production container image
-        needs: [lockfile, web-quality]
-        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'web-v')
+        needs: [lockfile, web-quality, web-e2e]
+        # Every development push publishes :development for pre-production.
+        # web-e2e runs only for web-v* tags, so a release waits for it to pass.
+        if: >-
+            !cancelled() && github.event_name == 'push'
+            && needs.lockfile.result == 'success' && needs.web-quality.result == 'success'
+            && (github.ref == 'refs/heads/development' || needs.web-e2e.result == 'success')
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -188,20 +198,17 @@ jobs:
                   repository="${GITHUB_REPOSITORY,,}"
                   image="ghcr.io/${repository}"
 
-                  tag=""
-                  if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-                    tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
-                    tag="${tag:0:128}"
-                    if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
-                      tag="tag-${tag:0:124}"
-                    fi
+                  tag="${GITHUB_REF_NAME//[^a-zA-Z0-9_.-]/-}"
+                  tag="${tag:0:128}"
+                  if [[ ! "${tag}" =~ ^[a-zA-Z0-9_] ]]; then
+                    tag="tag-${tag:0:124}"
                   fi
 
                   {
                     echo "name=${image}"
                     echo "tags<<EOF"
                     echo "${image}:${GITHUB_SHA}"
-                    if [[ -n "${tag}" ]]; then echo "${image}:${tag}"; fi
+                    echo "${image}:${tag}"
                     echo "EOF"
                   } >> "$GITHUB_OUTPUT"
 
@@ -241,8 +248,9 @@ jobs:
     share-server-image:
         name: Share server container image
         needs: [services-quality]
-        # Released on its own tags so web releases never restart it.
-        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'share-server-v')
+        # Released on its own tags so web releases never restart it. Every
+        # development push also publishes :development for pre-production.
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || (github.ref_type == 'tag' && startsWith(github.ref_name, 'share-server-v')))
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -261,7 +269,9 @@ jobs:
 
                   # share-server-v1.2.3 publishes the image tag v1.2.3.
                   version="${GITHUB_REF_NAME#share-server-}"
-                  if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+                  if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
+                    version=development
+                  elif [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
                     echo "Release tags look like share-server-v1.2.3 or share-server-v1.2.3-rc1, not ${GITHUB_REF_NAME}" >&2
                     exit 1
                   fi
@@ -314,8 +324,9 @@ jobs:
     relay-server-image:
         name: Agent relay container image
         needs: [services-quality]
-        # Released on its own tags so web releases never restart it.
-        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'relay-server-v')
+        # Released on its own tags so web releases never restart it. Every
+        # development push also publishes :development for pre-production.
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || (github.ref_type == 'tag' && startsWith(github.ref_name, 'relay-server-v')))
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -334,7 +345,9 @@ jobs:
 
                   # relay-server-v1.2.3 publishes the image tag v1.2.3.
                   version="${GITHUB_REF_NAME#relay-server-}"
-                  if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+                  if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
+                    version=development
+                  elif [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
                     echo "Release tags look like relay-server-v1.2.3 or relay-server-v1.2.3-rc1, not ${GITHUB_REF_NAME}" >&2
                     exit 1
                   fi
@@ -393,6 +406,7 @@ jobs:
     web-release:
         name: Draft web release
         needs: [container-image]
+        if: github.ref_type == 'tag'
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -415,6 +429,7 @@ jobs:
     share-server-release:
         name: Draft share server release
         needs: [share-server-image]
+        if: github.ref_type == 'tag'
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -441,6 +456,7 @@ jobs:
     relay-server-release:
         name: Draft relay server release
         needs: [relay-server-image]
+        if: github.ref_type == 'tag'
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:

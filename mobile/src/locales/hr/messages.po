@@ -1768,10 +1768,6 @@ msgstr "Provjeri ID korisnika i sve 24 riječi pa pokušaj ponovno. Ništa se ni
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
 msgstr "Provjeri postavke poslužitelja za ovu vezu i pokušaj ponovno kad su oba uređaja na mreži i otključana."
 
-#: src/components/account/recovery-status.tsx
-msgid "Check your connection and try again."
-msgstr "Provjeri vezu i pokušaj ponovno."
-
 #: app/(app)/(tabs)/devices.tsx
 msgid "Checking account devices and connections."
 msgstr "Provjera uređaja i veza na računu."
@@ -3363,6 +3359,10 @@ msgstr "Uništena"
 #: app/(app)/share/links.tsx
 msgid "Destroyed after five wrong passphrases"
 msgstr "Uništena nakon pet pogrešnih pristupnih fraza"
+
+#: src/components/account/recovery-status.tsx
+msgid "Details"
+msgstr "Pojedinosti"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "Device"
@@ -6285,6 +6285,10 @@ msgstr "Bilješka"
 msgid "Notes"
 msgstr "Bilješke"
 
+#: src/components/account/recovery-status.tsx
+msgid "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+msgstr "Ništa se nije promijenilo. Oporavak dopušta {attempts} pokušaja svaka {hours} sata s jedne mreže i svaki se pokušaj broji. Pokušaj ponovno nakon {time} ili s druge mreže."
+
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Ništa što ova usluga pročita ne napušta tvoj telefon. Pristupni podaci koje spremiš idu u tvoj šifrirani trezor."
@@ -7295,10 +7299,6 @@ msgstr "Kôd za oporavak i ključ za šifriranje trezora su zamijenjeni."
 msgid "Recovery didn't finish"
 msgstr "Oporavak nije dovršen"
 
-#: src/components/account/account-controller.tsx
-msgid "Recovery failed."
-msgstr "Oporavak nije uspio."
-
 #: src/components/account/recovery-status.tsx
 msgid "Recovery Kit"
 msgstr "Komplet za oporavak"
@@ -7342,6 +7342,10 @@ msgstr "Fraza za oporavak mora imati točno {wordCount} riječi."
 #: src/components/account/recovery-kit-text.ts
 msgid "Recovery phrase: {phrase}"
 msgstr "Fraza za oporavak: {phrase}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
+msgstr "Oporavak se zaustavio na ovom uređaju prije slanja kompleta. Ništa se nije promijenilo i tvoj komplet i dalje vrijedi."
 
 #: src/components/devices/device-network.tsx
 msgid "Reduced motion is enabled on this device."
@@ -9419,6 +9423,10 @@ msgstr "Relej više ne prepoznaje ovog agenta"
 msgid "The relay no longer knows this agent. Pair it again or remove it."
 msgstr "Relej više ne prepoznaje ovog agenta. Ponovno ga upari ili ga ukloni."
 
+#: src/components/account/recovery-status.tsx
+msgid "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+msgstr "Zahtjev je možda stigao do usluge Online Services. Provjeri vezu i pokušaj ponovno. Ako tada komplet bude odbijen, već je upotrijebljen. Provjeri karticu „Račun“ ili upotrijebi noviji komplet ako ga imaš."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The rest of each affected item will still be added."
 msgstr "Ostatak svake zahvaćene stavke ipak će biti dodan."
@@ -9503,6 +9511,10 @@ msgstr "Ključ trezora je zamijenjen, ali biometrijsko otključavanje nije mogu�
 #: src/app_lib/backup-destinations.ts
 msgid "The vault locked before the backup was ready."
 msgstr "Trezor se zaključao prije nego što je sigurnosna kopija bila spremna."
+
+#: src/components/account/recovery-status.tsx
+msgid "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
+msgstr "Trezor se zaključao ili promijenio prije slanja kompleta. Ništa se nije promijenilo i tvoj komplet i dalje vrijedi. Otključaj trezor i pokušaj ponovno."
 
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
@@ -9995,8 +10007,8 @@ msgid "This vault"
 msgstr "Ovaj trezor"
 
 #: src/components/account/recovery-status.tsx
-msgid "This vault becomes the only device on the account."
-msgstr "Ovaj trezor postaje jedini uređaj na računu."
+msgid "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
+msgstr "Ovaj trezor postaje jedini uređaj na računu. Oporavak dopušta {attempts} pokušaja svaka {hours} sata, zato najprije provjeri komplet."
 
 #: src/components/account/recovery-status.tsx
 msgid "This vault is connected to your Online Services account. Other devices were signed out."
@@ -10793,10 +10805,6 @@ msgstr "Prikaži repozitorij projekta"
 #: src/components/devices/device-browser.tsx
 msgid "Wait"
 msgstr "Čekaj"
-
-#: src/components/account/recovery-status.tsx
-msgid "Wait a few minutes, then try again. Nothing has changed."
-msgstr "Pričekaj nekoliko minuta pa pokušaj ponovno. Ništa se nije promijenilo."
 
 #: app/(app)/account/auth/recover.tsx
 msgid "Wait for account recovery to finish before leaving this screen."

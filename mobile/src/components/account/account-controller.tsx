@@ -46,6 +46,7 @@ import {
 } from "@/utils/vault-session";
 import { onlineServicesLog } from "@/utils/logging";
 import { holdAutoLock } from "@/utils/session-timeout";
+import { RECOVERY_WINDOW_HOURS } from "@/app_lib/recovery-limit";
 import { trpcReact } from "@/utils/trpc";
 import {
     Dialog,
@@ -145,17 +146,25 @@ async function rollbackFailedRegistrationBinding(options: {
     }
 }
 
-/** The outcome shown for a recovery request the server refused. */
-function refusedRecovery(code: string | undefined): RecoveryOutcome["state"] {
-    if (code === "TOO_MANY_REQUESTS") return "rateLimited";
+/**
+ * The outcome shown for a sent recovery request that failed. Only a refusal
+ * is definite; anything else may have reached the server.
+ */
+function refusedRecovery(code: string | undefined): RecoveryOutcome {
+    if (code === "TOO_MANY_REQUESTS")
+        // The latest the refusal can last; shown, never enforced here.
+        return {
+            state: "rateLimited",
+            until: Date.now() + RECOVERY_WINDOW_HOURS * 60 * 60 * 1000,
+        };
     if (
         code === "UNAUTHORIZED" ||
         code === "FORBIDDEN" ||
         code === "NOT_FOUND" ||
         code === "BAD_REQUEST"
     )
-        return "rejected";
-    return "unreachable";
+        return { state: "rejected" };
+    return { state: "unreachable" };
 }
 
 function useCreateAccountController(humanCheckDialog: boolean) {
@@ -389,14 +398,20 @@ function useCreateAccountController(humanCheckDialog: boolean) {
         userId: string;
         publicKeyJWK: string;
         privateKeyJWK: string;
-        releaseLockHold: () => void;
     } | null>(null);
+    // Held from sending the Kit until the accepted account is saved.
+    const lockHoldRef = useRef<(() => void) | null>(null);
+    const releaseLockHold = () => {
+        lockHoldRef.current?.();
+        lockHoldRef.current = null;
+    };
     const mountedRef = useRef(true);
     useEffect(() => {
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
-            acceptedRecoveryRef.current?.releaseLockHold();
+            lockHoldRef.current?.();
+            lockHoldRef.current = null;
         };
     }, []);
 
@@ -441,7 +456,7 @@ function useCreateAccountController(humanCheckDialog: boolean) {
                 });
                 return { state: "saveFailed" };
             }
-            accepted.releaseLockHold();
+            releaseLockHold();
             acceptedRecoveryRef.current = null;
             setOnlineServicesData({
                 deviceId,
@@ -507,6 +522,8 @@ function useCreateAccountController(humanCheckDialog: boolean) {
             const publicKeyJWK = publicKeyJwkToString(publicKey);
             const privateKeyJWK = privateKeyJwkToString(privateKey);
             step = "recovery request";
+            // A lock while the answer is out would lose an acceptance.
+            if (mountedRef.current) lockHoldRef.current = holdAutoLock();
             onlineServicesLog.info("Account recovery request sent");
             const { deviceId } = await recoverMut.mutateAsync({
                 userId,
@@ -521,11 +538,6 @@ function useCreateAccountController(humanCheckDialog: boolean) {
                 userId,
                 publicKeyJWK,
                 privateKeyJWK,
-                // A lock while the request was out already ended this session.
-                releaseLockHold:
-                    mountedRef.current && isSameActiveVaultSession(generation)
-                        ? holdAutoLock()
-                        : () => undefined,
             };
             captchaToken = "";
             setRecoverPhrase("");
@@ -536,27 +548,30 @@ function useCreateAccountController(humanCheckDialog: boolean) {
                 error instanceof TRPCClientError
                     ? (error.data as { code?: string } | undefined)?.code
                     : undefined;
-            const state =
-                isSameActiveVaultSession(generation) &&
+            // Once sent, a vault change says nothing about what the server did.
+            const outcome: RecoveryOutcome =
                 step === "recovery request"
                     ? refusedRecovery(code)
-                    : "failed";
+                    : !isSameActiveVaultSession(generation)
+                      ? { state: "failed", cause: "vault" }
+                      : {
+                            state: "failed",
+                            cause: "device",
+                            detail:
+                                error instanceof Error
+                                    ? error.message
+                                    : undefined,
+                        };
             onlineServicesLog.error("Account recovery failed", {
                 step,
-                reason: state,
+                reason:
+                    outcome.state === "failed" ? outcome.cause : outcome.state,
                 code,
                 name: error instanceof Error ? error.name : undefined,
             });
-            return state === "failed"
-                ? {
-                      state,
-                      message:
-                          error instanceof Error
-                              ? error.message
-                              : t`Recovery failed.`,
-                  }
-                : { state };
+            return outcome;
         } finally {
+            if (!acceptedRecoveryRef.current) releaseLockHold();
             captchaToken = null;
             recoveringRef.current = false;
             setBusy(false);

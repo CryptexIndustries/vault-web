@@ -815,6 +815,7 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
             );
             // The Kit is spent once the server accepts it.
             expect(await result).toMatchObject({
+                ...(phase === "captcha" && { cause: "vault" }),
                 state:
                     phase === "captcha"
                         ? "failed"
@@ -826,8 +827,8 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
         if (!next) throw new Error("Next vault session was not installed.");
         expectCurrentSession(next);
         expect(mockSync).not.toHaveBeenCalled();
-        // A response that lands after the session ended must not hold off auto-lock.
-        if (phase === "captcha" || phase === "recovery")
+        // A session that ended before sending takes no auto-lock hold.
+        if (phase === "captcha")
             expect(mockHoldAutoLock).not.toHaveBeenCalled();
         if (phase === "captcha") expect(mockRecover).not.toHaveBeenCalled();
         if (phase === "captcha" || phase === "recovery")
@@ -929,7 +930,6 @@ it("ends recovery in a retryable state when the human check does not finish", as
 });
 
 it.each([
-    ["TOO_MANY_REQUESTS", "rateLimited"],
     ["UNAUTHORIZED", "rejected"],
     [undefined, "unreachable"],
 ])("reads a recovery request refused with %s as %s", async (code, state) => {
@@ -1038,6 +1038,87 @@ it("logs where recovery failed by step and code, never the server's text", async
         }),
     ]);
     expect(JSON.stringify(logged)).not.toContain("private server detail");
+});
+
+it("shows a rate-limit refusal with its latest end and still lets the next attempt through", async () => {
+    const clock = jest.spyOn(Date, "now").mockReturnValue(1_000);
+    const outcome = await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(
+            new TRPCClientError("Too many requests", {
+                result: {
+                    error: {
+                        message: "Too many requests",
+                        code: -32029,
+                        data: { code: "TOO_MANY_REQUESTS" },
+                    },
+                },
+            }),
+        ),
+    );
+    clock.mockRestore();
+    expect(outcome).toEqual({
+        state: "rateLimited",
+        until: 1_000 + 2 * 60 * 60 * 1000,
+    });
+    let again: unknown;
+    await act(async () => {
+        again = await account().handleRecover(jest.fn());
+    });
+    // The server doesn't count refusals, so the app doesn't block retries.
+    expect(again).toEqual({ state: "kitMissing" });
+    expect(mockRecover).toHaveBeenCalledTimes(2);
+});
+
+it("holds off auto-lock from the moment the recovery request is sent", async () => {
+    let whileOut: number[] = [];
+    const outcome = await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            whileOut = [
+                mockHoldAutoLock.mock.calls.length,
+                mockReleaseLockHold.mock.calls.length,
+            ];
+            throw new TRPCClientError("Network request failed");
+        }),
+    );
+    expect(whileOut).toEqual([1, 0]);
+    expect(outcome).toEqual({ state: "unreachable" });
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+});
+
+it("releases the auto-lock hold when the screen goes away while the request is out", async () => {
+    mockPersist.mockResolvedValue(err("VAULT_MUTATION_FAILED"));
+    await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            renderer?.unmount();
+            renderer = undefined;
+            return { deviceId: "recovered-device" };
+        }),
+    );
+    expect(mockHoldAutoLock).toHaveBeenCalledTimes(1);
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+});
+
+it("never reports a sent request as stopped on this device after a vault switch", async () => {
+    const outcome = await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            replaceVaultSession();
+            throw new TRPCClientError("Network request failed");
+        }),
+    );
+    // Not "nothing has changed": the server may have the Kit.
+    expect(outcome).toEqual({ state: "unreachable" });
+});
+
+it("explains a recovery stopped on this device before the Kit was sent", async () => {
+    const outcome = await recoverWith(() =>
+        mockRequestToken.mockRejectedValueOnce(new Error("Keychain busy")),
+    );
+    expect(outcome).toEqual({
+        state: "failed",
+        cause: "device",
+        detail: "Keychain busy",
+    });
+    expect(mockRecover).not.toHaveBeenCalled();
 });
 
 it("reports a recovered account that could not sign in as not connected", async () => {

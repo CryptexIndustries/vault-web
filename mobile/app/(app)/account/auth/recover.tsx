@@ -20,7 +20,7 @@ export default function AccountRecoverScreen() {
     const { t } = useLingui();
     const account = useAccountController();
     const [stage, setStage] = useState<Stage>("kit");
-    const [failure, setFailure] = useState("");
+    const [outcome, setOutcome] = useState<RecoveryOutcome | null>(null);
     const { cancelHumanCheck, setRecoverPhrase } = account;
     // Leaving before a failed save succeeds would lose the recovered account.
     usePreventRemove(
@@ -43,10 +43,10 @@ export default function AccountRecoverScreen() {
     );
 
     // Null means another attempt is running; it owns the screen.
-    const settle = (outcome: RecoveryOutcome | null) => {
-        if (!outcome) return;
-        setFailure(outcome.state === "failed" ? outcome.message : "");
-        setStage(outcome.state === "invalid" ? "kit" : outcome.state);
+    const settle = (next: RecoveryOutcome | null) => {
+        if (!next) return;
+        setOutcome(next);
+        setStage(next.state === "invalid" ? "kit" : next.state);
     };
     const recover = async () => settle(await account.handleRecover(setStage));
     const saveAgain = async () => {
@@ -64,6 +64,7 @@ export default function AccountRecoverScreen() {
                 params: { auto: "1" },
             }),
         notConnected: toAccount,
+        rateLimited: toAccount,
         saveFailed: () => void saveAgain(),
         rejected: editKit,
     };
@@ -129,10 +130,14 @@ export default function AccountRecoverScreen() {
                     ) : (
                         <RecoveryStatus
                             state={stage}
-                            message={failure}
+                            outcome={outcome}
                             onPrimary={primary[stage] ?? (() => void recover())}
                             onSecondary={
-                                stage === "kitMissing" ? toAccount : editKit
+                                stage === "kitMissing"
+                                    ? toAccount
+                                    : stage === "rateLimited"
+                                      ? () => void recover()
+                                      : editKit
                             }
                         />
                     )}

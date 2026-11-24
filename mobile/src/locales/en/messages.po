@@ -1768,10 +1768,6 @@ msgstr "Check the User ID and all 24 words, then try again. Nothing has changed.
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
 msgstr "Check this connection's server settings and try again when both devices are online and unlocked."
 
-#: src/components/account/recovery-status.tsx
-msgid "Check your connection and try again."
-msgstr "Check your connection and try again."
-
 #: app/(app)/(tabs)/devices.tsx
 msgid "Checking account devices and connections."
 msgstr "Checking account devices and connections."
@@ -3363,6 +3359,10 @@ msgstr "Destroyed"
 #: app/(app)/share/links.tsx
 msgid "Destroyed after five wrong passphrases"
 msgstr "Destroyed after five wrong passphrases"
+
+#: src/components/account/recovery-status.tsx
+msgid "Details"
+msgstr "Details"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "Device"
@@ -6285,6 +6285,10 @@ msgstr "Note"
 msgid "Notes"
 msgstr "Notes"
 
+#: src/components/account/recovery-status.tsx
+msgid "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+msgstr "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
@@ -7295,10 +7299,6 @@ msgstr "Recovery code and vault encryption key replaced."
 msgid "Recovery didn't finish"
 msgstr "Recovery didn't finish"
 
-#: src/components/account/account-controller.tsx
-msgid "Recovery failed."
-msgstr "Recovery failed."
-
 #: src/components/account/recovery-status.tsx
 msgid "Recovery Kit"
 msgstr "Recovery Kit"
@@ -7342,6 +7342,10 @@ msgstr "Recovery phrase must be exactly {wordCount} words."
 #: src/components/account/recovery-kit-text.ts
 msgid "Recovery phrase: {phrase}"
 msgstr "Recovery phrase: {phrase}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
+msgstr "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
 
 #: src/components/devices/device-network.tsx
 msgid "Reduced motion is enabled on this device."
@@ -9419,6 +9423,10 @@ msgstr "The relay no longer knows this agent"
 msgid "The relay no longer knows this agent. Pair it again or remove it."
 msgstr "The relay no longer knows this agent. Pair it again or remove it."
 
+#: src/components/account/recovery-status.tsx
+msgid "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+msgstr "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The rest of each affected item will still be added."
 msgstr "The rest of each affected item will still be added."
@@ -9503,6 +9511,10 @@ msgstr "The vault key was rotated, but biometric unlock could not be refreshed a
 #: src/app_lib/backup-destinations.ts
 msgid "The vault locked before the backup was ready."
 msgstr "The vault locked before the backup was ready."
+
+#: src/components/account/recovery-status.tsx
+msgid "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
+msgstr "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
 
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
@@ -9995,8 +10007,8 @@ msgid "This vault"
 msgstr "This vault"
 
 #: src/components/account/recovery-status.tsx
-msgid "This vault becomes the only device on the account."
-msgstr "This vault becomes the only device on the account."
+msgid "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
+msgstr "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
 
 #: src/components/account/recovery-status.tsx
 msgid "This vault is connected to your Online Services account. Other devices were signed out."
@@ -10793,10 +10805,6 @@ msgstr "View the project repository"
 #: src/components/devices/device-browser.tsx
 msgid "Wait"
 msgstr "Wait"
-
-#: src/components/account/recovery-status.tsx
-msgid "Wait a few minutes, then try again. Nothing has changed."
-msgstr "Wait a few minutes, then try again. Nothing has changed."
 
 #: app/(app)/account/auth/recover.tsx
 msgid "Wait for account recovery to finish before leaving this screen."

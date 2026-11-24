@@ -168,3 +168,22 @@ it("ends an open human check and forgets the phrase when the screen closes", asy
     expect(mockAccount.cancelHumanCheck).toHaveBeenCalledTimes(1);
     expect(mockAccount.setRecoverPhrase).toHaveBeenCalledWith("");
 });
+
+it("offers Account or another try after a rate-limit refusal", async () => {
+    const until = Date.now() + 2 * 60 * 60 * 1000;
+    mockAccount.handleRecover.mockResolvedValueOnce({
+        state: "rateLimited",
+        until,
+    });
+    await confirmAndRecover();
+    expect(status()).toMatchObject({
+        state: "rateLimited",
+        outcome: { state: "rateLimited", until },
+    });
+    await act(async () => status().onPrimary());
+    expect(router.dismissTo).toHaveBeenCalledWith("/(app)/(tabs)/account");
+    mockAccount.handleRecover.mockResolvedValueOnce({ state: "recovered" });
+    await act(async () => status().onSecondary());
+    expect(mockAccount.handleRecover).toHaveBeenCalledTimes(2);
+    expect(status().state).toBe("recovered");
+});

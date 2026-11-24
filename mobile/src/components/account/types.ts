@@ -20,7 +20,9 @@ export type RecoveryOutcome =
               | "invalid"
               | "checkIncomplete"
               | "rejected"
-              | "rateLimited"
               | "unreachable";
       }
-    | { state: "failed"; message: string };
+    /** Refused for too many attempts; until is the latest it can last. */
+    | { state: "rateLimited"; until: number }
+    /** Stopped on this device before the Kit was sent. */
+    | { state: "failed"; cause: "vault" | "device"; detail?: string };

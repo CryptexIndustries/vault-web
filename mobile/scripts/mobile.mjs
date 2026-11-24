@@ -32,6 +32,7 @@ export const flows = {
     security: "security.yaml",
     cloud: "cloud.yaml",
     devices: "devices.yaml",
+    "account-recovery": "account-recovery.yaml",
     "import-export": "import-export.yaml",
 };
 
@@ -640,7 +641,7 @@ export function runMobile(
             ],
             deviceEnv,
         );
-    } else if (["cloud", "devices"].includes(suite)) {
+    } else if (["cloud", "devices", "account-recovery"].includes(suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
         execute(

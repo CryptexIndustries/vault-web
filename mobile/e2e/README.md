@@ -6,12 +6,12 @@ and ignored. Check vendor-specific system screens on physical devices before rel
 
 ## iOS Simulator
 
-`smoke`, `credentials`, `security`, `cloud`, `devices`, `ssh-keys`,
-`backup-destinations`, `import-export`, `sync` and `ios-autofill` run on an iOS
-Simulator. The other suites cover Android-only features. Maestro needs Java and
-version 2.9.0, the release CI pins. `backup-destinations` and `sync` also need
-Docker Compose. `cloud` and `devices` need a build against the
-[cloud fixture](#cloud-fixture).
+`smoke`, `credentials`, `security`, `cloud`, `devices`, `account-recovery`,
+`ssh-keys`, `backup-destinations`, `import-export`, `sync` and `ios-autofill`
+run on an iOS Simulator. The other suites cover Android-only features. Maestro
+needs Java and version 2.9.0, the release CI pins. `backup-destinations` and
+`sync` also need Docker Compose. `cloud`, `devices` and `account-recovery` need
+a build against the [cloud fixture](#cloud-fixture).
 
 ```sh
 brew install openjdk
@@ -146,6 +146,7 @@ pnpm mobile:e2e -- passkeys
 pnpm mobile:e2e -- security
 pnpm mobile:e2e -- cloud
 pnpm mobile:e2e -- devices
+pnpm mobile:e2e -- account-recovery
 pnpm mobile:e2e -- import-export
 pnpm mobile:e2e -- ssh-keys
 pnpm mobile:e2e -- ssh-agent
@@ -426,6 +427,18 @@ download. It checks that the Backup Center reports full storage until a deleted
 backup makes room, and that the download error shows inside the snapshot sheet.
 Production accounts and storage are not used. Host contract tests live in
 `fixtures/online-services.test.mjs`.
+
+Sign-up ends on the payment step. On Android, requesting the fixture's
+synthetic Stripe Checkout marks the account paid. The flow returns from the
+browser without a return link, and the app finds the payment and welcomes the
+new member. iOS sells through the App Store, which can't take a payment against
+the fixture, so the payment step shows Payment not completed and the flow taps
+Not now. The account stays on the free plan, which the fixture still entitles to
+backups and devices.
+
+`pnpm mobile:e2e -- account-recovery` registers an account, notes its User ID,
+disconnects the vault and recovers the account with the fixture's Recovery Kit
+phrase. A Kit with an unknown User ID is refused first.
 
 To cover the human check, serve its page from the production web app with
 Cloudflare's always-pass test key, and build against both:

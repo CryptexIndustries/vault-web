@@ -1,0 +1,54 @@
+appId: ${CRYPTEX_APP_ID}
+name: Recover an Online Services account with its Recovery Kit
+---
+- runFlow: setup-online-services.yaml
+- scrollUntilVisible:
+      element:
+          text: Account identifiers,.*
+      direction: DOWN
+- tapOn: Account identifiers,.*
+- copyTextFrom: "fixture-user-[0-9]+"
+- runFlow: close-sheet.yaml
+- scrollUntilVisible:
+      element:
+          text: Recovery & access,.*
+      direction: UP
+- tapOn: Recovery & access,.*
+- tapOn: Disconnect this device,.*
+- tapOn: Disconnect device
+- tapOn: Recover account
+- assertVisible: Restore account access
+# Fixture user IDs count from 1, so this Kit is refused.
+- tapOn: Online Services user ID
+- inputText: fixture-user-0
+- runFlow: hide-keyboard.yaml
+# The phrase field shares its name with its label. Its placeholder tells them
+# apart: iOS adds it to the field's name, Android reports it as the hint.
+- tapOn: (Account recovery phrase )?Enter all 24 words in order
+# The fixture's RECOVERY_PHRASE.
+- inputText: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art
+- runFlow: hide-keyboard.yaml
+- tapOn: Continue
+- tapOn:
+      text: Recover account
+      below: Recover this account\?.*
+- extendedWaitUntil:
+      visible: Kit not accepted.*
+      timeout: 15000
+- tapOn: Edit Kit
+- tapOn: Online Services user ID
+- eraseText: 50
+- inputText: ${maestro.copiedText}
+- runFlow: hide-keyboard.yaml
+- tapOn: Continue
+- tapOn:
+      text: Recover account
+      below: Recover this account\?.*
+- extendedWaitUntil:
+      visible: Account recovered.*
+      timeout: 15000
+- tapOn: Done
+- scrollUntilVisible:
+      element:
+          text: Recovery & access,.*
+      direction: DOWN

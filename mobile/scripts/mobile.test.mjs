@@ -486,6 +486,7 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
         "security",
         "cloud",
         "devices",
+        "account-recovery",
         "import-export",
     ]);
     for (const [suite, flow] of Object.entries(flows)) {
@@ -499,7 +500,7 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
             "quick",
         ]);
         const biometric = ["security", "passkeys"].includes(suite);
-        const cloud = ["cloud", "devices"].includes(suite);
+        const cloud = ["cloud", "devices", "account-recovery"].includes(suite);
         assert.equal(
             binary,
             biometric ? "bash" : cloud ? process.execPath : "maestro",

@@ -4650,6 +4650,10 @@ msgstr "Google Play billing is unavailable for this account."
 msgid "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 msgstr "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 
+#: src/app_lib/store-billing.ts
+msgid "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+msgstr "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+
 #: src/components/account/payment-status.tsx
 msgid "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
 msgstr "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
@@ -5544,6 +5548,7 @@ msgid "Make the connection."
 msgstr "Make the connection."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage App Store subscriptions"
 msgstr "Manage App Store subscriptions"
 
@@ -5560,6 +5565,7 @@ msgid "Manage directories"
 msgstr "Manage directories"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage Google Play subscriptions"
 msgstr "Manage Google Play subscriptions"
 
@@ -6292,6 +6298,10 @@ msgstr "Nothing has changed. Recovery allows {attempts} attempts every {hours} h
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
+msgstr "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
 
 #: src/components/account/payment-status.tsx
 msgid "Nothing was charged. You can subscribe now or later from the Account tab."
@@ -9198,6 +9208,10 @@ msgstr "The agent is saved in your vault, but this phone couldn't start answerin
 msgid "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
 msgstr "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
 
+#: src/app_lib/store-billing.ts
+msgid "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+msgstr "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+
 #: src/components/account/payment-status.tsx
 msgid "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
 msgstr "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
@@ -11054,6 +11068,18 @@ msgstr "Your account does not allow granting root access to another device."
 msgid "Your App Store account already has a subscription, but we couldn't link it yet."
 msgstr "Your App Store account already has a subscription, but we couldn't link it yet."
 
+#: src/app_lib/store-billing.ts
+msgid "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+msgstr "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account is already subscribed"
+msgstr "Your Apple Account is already subscribed"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
+msgstr "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
+
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your backup stays encrypted until you unlock it"
 msgstr "Your backup stays encrypted until you unlock it"
@@ -11073,6 +11099,18 @@ msgstr "Your directories"
 #: src/components/vault/directory-manager.tsx
 msgid "Your directory name has not been saved."
 msgstr "Your directory name has not been saved."
+
+#: src/app_lib/store-billing.ts
+msgid "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+msgstr "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account is already subscribed"
+msgstr "Your Google account is already subscribed"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
+msgstr "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
 
 #: src/components/account/payment-status.tsx
 msgid "Your Google Play account already has a subscription, but we couldn't link it yet."

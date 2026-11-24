@@ -26,8 +26,18 @@ export type BillingResult =
     /** The store offer differs from the one shown; nothing was bought. */
     | { ok: false; offerChanged: { trial: boolean } }
     | { ok: false; canceled: true }
-    /** retryable is false when trying again cannot change the outcome. */
-    | { ok: false; message: string; retryable?: false };
+    /**
+     * retryable is false when trying again cannot change the outcome.
+     * alreadySubscribed is set when the store account already has the
+     * subscription: storeAccount while its owner is unknown, otherAccount when
+     * another Cryptex Vault account owns it.
+     */
+    | {
+          ok: false;
+          message: string;
+          retryable?: false;
+          alreadySubscribed?: "storeAccount" | "otherAccount";
+      };
 export function isGooglePlayBuild(): boolean {
     return (
         Platform?.OS === "android" &&

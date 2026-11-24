@@ -20,6 +20,7 @@ import {
     confirmMembership,
     purchaseMembership,
     restoreStorePurchases,
+    openBillingManagement,
 } from "@/app_lib/online-services-billing";
 import {
     getVaultSessionGeneration,
@@ -143,6 +144,7 @@ jest.mock("@/app_lib/online-services-billing", () => ({
     confirmMembership: jest.fn(),
     purchaseMembership: jest.fn(),
     restoreStorePurchases: jest.fn(),
+    openBillingManagement: jest.fn(),
     confirmationSchedules: {
         store: "store",
         stripe: "stripe",
@@ -951,6 +953,32 @@ it("restores an already-owned subscription from Still confirming", async () => {
         schedule: "store",
         sync: "afterFirst",
     });
+});
+
+it("asks to restore when the store account already subscribes, then explains another owner", async () => {
+    jest.mocked(storeBilling).mockReturnValue("app_store");
+    purchase.mockResolvedValue({
+        ok: false,
+        retryable: false,
+        alreadySubscribed: "storeAccount",
+        message: "Already subscribed",
+    });
+    jest.mocked(restoreStorePurchases).mockResolvedValueOnce({
+        ok: false,
+        retryable: false,
+        alreadySubscribed: "otherAccount",
+        message: "Belongs to another account",
+    });
+    jest.mocked(openBillingManagement).mockResolvedValueOnce({ ok: true });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    expect(panel()).toMatchObject({ state: "storeOwned" });
+    await act(async () => panel()!.onPrimary());
+    expect(restoreStorePurchases).toHaveBeenCalledTimes(1);
+    expect(panel()).toMatchObject({ state: "ownedElsewhere" });
+    await act(async () => panel()!.onPrimary());
+    expect(openBillingManagement).toHaveBeenCalledTimes(1);
 });
 
 it("keeps canceled and failed payments in the sheet and retries the same terms", async () => {

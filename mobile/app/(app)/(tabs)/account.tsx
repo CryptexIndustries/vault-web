@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, View } from "react-native";
+import { Alert, AppState, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
 import { ArrowLeft, Shield, Smartphone, User } from "lucide-react-native";
@@ -33,11 +33,13 @@ import {
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
+    type BillingResult,
     type CheckoutTier,
     type ConfirmationRun,
     type PlanTerms,
     confirmMembership,
     confirmationSchedules,
+    openBillingManagement,
     purchaseMembership,
     restoreStorePurchases,
     startConfirmation,
@@ -64,6 +66,21 @@ type Payment = Omit<
     PaymentStatusProps,
     "store" | "compact" | "onPrimary" | "onSecondary"
 > & { run?: ConfirmationRun };
+
+/** The panel for a refused purchase or restore. */
+function failedPayment(
+    result: Extract<BillingResult, { message: string }>,
+): Payment {
+    if (result.alreadySubscribed === "storeAccount")
+        return { state: "storeOwned" };
+    if (result.alreadySubscribed === "otherAccount")
+        return { state: "ownedElsewhere" };
+    return {
+        state: "error",
+        message: result.message,
+        retryable: result.retryable !== false,
+    };
+}
 
 /** Paid, held by the store, or unknown after Stripe; these outlive the sheet. */
 const awaiting = (payment: Payment | null): payment is Payment =>
@@ -444,13 +461,7 @@ export default function AccountScreen() {
                 });
             else if ("canceled" in result)
                 setPayment({ ...plan, state: "canceled" });
-            else
-                setPayment({
-                    ...plan,
-                    state: "error",
-                    message: result.message,
-                    retryable: result.retryable !== false,
-                });
+            else setPayment({ ...plan, ...failedPayment(result) });
         } finally {
             payingRef.current = false;
         }
@@ -493,9 +504,7 @@ export default function AccountScreen() {
         else if ("message" in result)
             setPayment((current) => ({
                 tier: current?.tier,
-                state: "error",
-                message: result.message,
-                retryable: result.retryable !== false,
+                ...failedPayment(result),
             }));
         else
             setPayment((current) => current && { ...current, checking: false });
@@ -696,9 +705,19 @@ export default function AccountScreen() {
                         : payment.state === "returned" ||
                             (payment.state === "unconfirmed" && !payment.owned)
                           ? check
-                          : payment.state === "unconfirmed"
+                          : payment.state === "unconfirmed" ||
+                              payment.state === "storeOwned"
                             ? () => void restore()
-                            : closePanel
+                            : payment.state === "ownedElsewhere"
+                              ? () =>
+                                    void openBillingManagement().then(
+                                        (result) => {
+                                            // A system alert shows over the open sheet.
+                                            if (!result.ok)
+                                                Alert.alert(result.message);
+                                        },
+                                    )
+                              : closePanel
                 }
                 onSecondary={
                     payment.state === "returned" ? retryPayment : closePanel

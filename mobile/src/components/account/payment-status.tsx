@@ -21,6 +21,10 @@ export type PaymentStatusState =
     | "error"
     | "unconfirmed"
     | "storePending"
+    /** The store account already subscribes; the owner is not known yet. */
+    | "storeOwned"
+    /** The store subscription belongs to another Cryptex Vault account. */
+    | "ownedElsewhere"
     | "offerChanged"
     /** Stripe: the user came back from the browser without a return link. */
     | "returned";
@@ -164,9 +168,7 @@ export function PaymentStatus({
         error: {
             tone: "error",
             icon: AlertCircle,
-            title: retryable
-                ? t`Payment not completed`
-                : t`Subscription belongs to another account`,
+            title: t`Payment not completed`,
             body: message,
             primary: retryable ? t`Try again` : undefined,
             secondary: retryable ? t`Not now` : t`Close`,
@@ -210,6 +212,30 @@ export function PaymentStatus({
                 : t`Check again`,
             secondary: t`Close`,
             action: t`Check now`,
+        },
+        storeOwned: {
+            tone: "waiting",
+            icon: CreditCard,
+            title: appStore
+                ? t`Your Apple Account is already subscribed`
+                : t`Your Google account is already subscribed`,
+            body: t`Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account.`,
+            primary: appStore
+                ? t`Restore App Store purchases`
+                : t`Restore Google Play purchases`,
+            secondary: t`Not now`,
+        },
+        ownedElsewhere: {
+            tone: "waiting",
+            icon: Tag,
+            title: t`Subscription belongs to another account`,
+            body: appStore
+                ? t`Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends.`
+                : t`Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends.`,
+            primary: appStore
+                ? t`Manage App Store subscriptions`
+                : t`Manage Google Play subscriptions`,
+            secondary: t`Close`,
         },
         storePending: {
             tone: "waiting",

@@ -278,11 +278,23 @@ function failure(error: unknown): BillingResult {
     )
         return { ok: false, canceled: true };
     if (code === "20") return { ok: false, pending: "store" };
-    // Purchases stay with the account that bought them; RevenueCat refuses transfers.
-    if (["6", "7", "13"].includes(code))
+    // PRODUCT_ALREADY_PURCHASED (Play: ITEM_ALREADY_OWNED). A restore tells
+    // whether this account or another one owns it.
+    if (code === "6")
         return {
             ok: false,
             retryable: false,
+            alreadySubscribed: "storeAccount",
+            message: appStore
+                ? t`Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it.`
+                : t`Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it.`,
+        };
+    // Purchases stay with the account that bought them; RevenueCat refuses transfers.
+    if (code === "7" || code === "13")
+        return {
+            ok: false,
+            retryable: false,
+            alreadySubscribed: "otherAccount",
             message: appStore
                 ? t`This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it.`
                 : t`This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again.`,
@@ -297,12 +309,16 @@ function failure(error: unknown): BillingResult {
                       ? t`Could not connect to the App Store. Check your connection and try again.`
                       : code === "3"
                         ? t`The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings.`
-                        : t`App Store billing could not complete. Please try again.`
+                        : code === "2"
+                          ? t`The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead.`
+                          : t`App Store billing could not complete. Please try again.`
                   : code === "10"
                     ? t`Could not connect to Google Play. Check your connection and try again.`
                     : code === "3"
                       ? t`Google Play couldn't complete the purchase. Check your payment method in Google Play.`
-                      : t`Google Play billing could not complete. Please try again.`,
+                      : code === "2"
+                        ? t`Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead.`
+                        : t`Google Play billing could not complete. Please try again.`,
     };
 }
 async function syncMembership(

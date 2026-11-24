@@ -4650,6 +4650,10 @@ msgstr "Naplata putem trgovine Google Play nije dostupna za ovaj račun."
 msgid "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 msgstr "Kupnju u trgovini Google Play nije moguće dovršiti. Provjeri način plaćanja u trgovini Google Play."
 
+#: src/app_lib/store-billing.ts
+msgid "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+msgstr "Google Play je imao problem s ovom kupnjom. Pokušaj ponovno za trenutak. Ako tvoj Google račun već ima ovu pretplatu, umjesto toga upotrijebi „Vrati kupnje iz trgovine Google Play“ na kartici „Račun“."
+
 #: src/components/account/payment-status.tsx
 msgid "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
 msgstr "Trgovina Google Play čeka da se plaćanje dovrši. Članstvo počinje čim bude plaćeno."
@@ -5544,6 +5548,7 @@ msgid "Make the connection."
 msgstr "Poveži uređaje."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage App Store subscriptions"
 msgstr "Upravljaj pretplatama u trgovini App Store"
 
@@ -5560,6 +5565,7 @@ msgid "Manage directories"
 msgstr "Upravljaj mapama"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage Google Play subscriptions"
 msgstr "Upravljaj pretplatama u trgovini Google Play"
 
@@ -6292,6 +6298,10 @@ msgstr "Ništa se nije promijenilo. Oporavak dopušta {attempts} pokušaja svaka
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Ništa što ova usluga pročita ne napušta tvoj telefon. Pristupni podaci koje spremiš idu u tvoj šifrirani trezor."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
+msgstr "Ništa nije naplaćeno. Ako ju je kupio ovaj Cryptex Vault račun, vrati je ovdje. Ako ju je kupio drugi, upotrijebi trezor s tim računom."
 
 #: src/components/account/payment-status.tsx
 msgid "Nothing was charged. You can subscribe now or later from the Account tab."
@@ -9198,6 +9208,10 @@ msgstr "Agent je spremljen u tvoj trezor, ali ovaj telefon mu nije mogao početi
 msgid "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
 msgstr "Kupnju u trgovini App Store nije moguće dovršiti. Provjeri jesu li kupnje dopuštene na ovom uređaju te način plaćanja u postavkama Apple računa."
 
+#: src/app_lib/store-billing.ts
+msgid "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+msgstr "App Store je imao problem s ovom kupnjom. Pokušaj ponovno za trenutak. Ako tvoj Apple račun već ima ovu pretplatu, umjesto toga upotrijebi „Vrati kupnje iz trgovine App Store“ na kartici „Račun“."
+
 #: src/components/account/payment-status.tsx
 msgid "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
 msgstr "Trgovina App Store čeka odobrenje ove kupnje, na primjer od organizatora obitelji. Članstvo počinje čim bude odobreno."
@@ -11054,6 +11068,18 @@ msgstr "Tvoj račun ne dopušta dodjelu root pristupa drugom uređaju."
 msgid "Your App Store account already has a subscription, but we couldn't link it yet."
 msgstr "Tvoj račun u trgovini App Store već ima pretplatu, ali je još nismo uspjeli povezati."
 
+#: src/app_lib/store-billing.ts
+msgid "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+msgstr "Tvoj Apple račun već ima ovu pretplatu. Vrati kupnje iz trgovine App Store da je koristiš ovdje ili upotrijebi trezor koji ju je kupio."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account is already subscribed"
+msgstr "Tvoj Apple račun već ima pretplatu"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
+msgstr "Pretplata tvog Apple računa pripada drugom Cryptex Vault računu. Upotrijebi trezor s tim računom ili otkaži pretplatu u postavkama Apple računa i pretplati se ovdje kad istekne."
+
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your backup stays encrypted until you unlock it"
 msgstr "Sigurnosna kopija ostaje šifrirana dok je ne otključaš"
@@ -11073,6 +11099,18 @@ msgstr "Tvoje mape"
 #: src/components/vault/directory-manager.tsx
 msgid "Your directory name has not been saved."
 msgstr "Naziv mape nije spremljen."
+
+#: src/app_lib/store-billing.ts
+msgid "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+msgstr "Tvoj Google račun već ima ovu pretplatu. Vrati kupnje iz trgovine Google Play da je koristiš ovdje ili upotrijebi trezor koji ju je kupio."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account is already subscribed"
+msgstr "Tvoj Google račun već ima pretplatu"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
+msgstr "Pretplata tvog Google računa pripada drugom Cryptex Vault računu. Upotrijebi trezor s tim računom ili otkaži pretplatu u trgovini Google Play i pretplati se ovdje kad istekne."
 
 #: src/components/account/payment-status.tsx
 msgid "Your Google Play account already has a subscription, but we couldn't link it yet."

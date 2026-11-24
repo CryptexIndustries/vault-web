@@ -364,7 +364,7 @@ it.each<["purchase" | "restore", string]>([
     ["restore", "7"],
     ["restore", "13"],
 ])(
-    "explains a %s refused because the subscription belongs to another account (code %s)",
+    "explains a %s refused because the store account already has the subscription (code %s)",
     async (operation, code) => {
         const refused = Object.assign(new Error("native"), { code });
         if (operation === "purchase")
@@ -377,8 +377,11 @@ it.each<["purchase" | "restore", string]>([
         expect(result).toEqual({
             ok: false,
             retryable: false,
+            alreadySubscribed: code === "6" ? "storeAccount" : "otherAccount",
             message: expect.stringContaining(
-                "belongs to another Cryptex Vault account",
+                code === "6"
+                    ? "already has this subscription"
+                    : "belongs to another Cryptex Vault account",
             ),
         });
         expect(mockSync).not.toHaveBeenCalled();

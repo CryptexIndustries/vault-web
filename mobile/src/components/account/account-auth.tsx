@@ -23,6 +23,8 @@ type AccountAuthProps = {
     registerPending: boolean;
     recoverPending: boolean;
     busy: boolean;
+    /** Why the Kit as entered cannot be used, shown under the phrase. */
+    error?: string;
 };
 
 export function AccountAuth({
@@ -36,6 +38,7 @@ export function AccountAuth({
     registerPending,
     recoverPending,
     busy,
+    error,
 }: AccountAuthProps) {
     const { t } = useLingui();
     const captchaOn = isTurnstileConfigured();
@@ -107,25 +110,7 @@ export function AccountAuth({
                     {t`Restore account access`}
                 </Text>
                 <Text className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
-                    {t`Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account.`}
-                </Text>
-            </View>
-            <View
-                style={{
-                    borderLeftWidth: 2,
-                    borderLeftColor: colors.muted,
-                    paddingLeft: 13,
-                    marginVertical: 20,
-                }}
-            >
-                <Text
-                    style={{
-                        color: colors.muted,
-                        fontSize: 12,
-                        lineHeight: 18,
-                    }}
-                >
-                    {t`The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault.`}
+                    {t`Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here.`}
                 </Text>
             </View>
             <View style={{ marginVertical: 20 }}>
@@ -151,6 +136,7 @@ export function AccountAuth({
                     autoCorrect={false}
                     spellCheck={false}
                     editable={!busy}
+                    invalid={!!error}
                     accessibilityLabel={t`Account recovery phrase`}
                     multiline
                     numberOfLines={5}
@@ -163,28 +149,23 @@ export function AccountAuth({
                     }}
                 />
                 <Text
+                    accessibilityLiveRegion={error ? "polite" : undefined}
                     style={{
-                        color: colors.muted,
+                        color: error ? colors.destructive : colors.muted,
                         fontSize: 12,
                         lineHeight: 18,
                         marginTop: 7,
                     }}
                 >
-                    {t`Enter all 24 words in order.`}
+                    {error ?? t`Enter all 24 words in order.`}
                 </Text>
             </View>
-            <Text className="text-xs text-muted-foreground">
-                {captchaOn
-                    ? t`Human verification opens when you recover the account.`
-                    : t`Human verification is not configured for this local service.`}
-            </Text>
             <Button
                 className="mt-6"
                 loading={busy || recoverPending}
                 onPress={onRecover}
-                accessibilityLabel={t`Recover account`}
             >
-                {t`Recover account`}
+                {t`Continue`}
             </Button>
         </View>
     );

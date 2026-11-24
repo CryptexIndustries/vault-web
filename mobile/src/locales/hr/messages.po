@@ -658,7 +658,9 @@ msgstr "Pristup nije dostupan"
 msgid "Accessibility fallback"
 msgstr "Rezervna opcija putem pristupačnosti"
 
+#. Recovery step
 #: app/(app)/(tabs)/_layout.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Account"
 msgstr "Račun"
@@ -715,6 +717,10 @@ msgstr "Podaci računa ne odgovaraju ovom uređaju. Ponovno se prijavi."
 #: src/components/account/account-security.tsx
 msgid "Account management"
 msgstr "Upravljanje računom"
+
+#: src/components/account/recovery-status.tsx
+msgid "Account recovered"
+msgstr "Račun je oporavljen"
 
 #: src/components/account/account-security.tsx
 msgid "Account recovery"
@@ -1333,6 +1339,7 @@ msgstr "Čeka plaćanje"
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
 #: app/link-receive.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
@@ -1480,6 +1487,10 @@ msgstr "Osnovna sigurnosna izvješća"
 msgid "Battery settings"
 msgstr "Postavke baterije"
 
+#: src/components/account/recovery-status.tsx
+msgid "Becomes the account device"
+msgstr "Postaje uređaj računa"
+
 #: src/components/vault-import/import-wizard.tsx
 msgid "Before you import"
 msgstr "Prije uvoza"
@@ -1621,7 +1632,6 @@ msgstr "Nije moguće pristupiti poslužitelju za dijeljenje. Provjeri vezu i pok
 
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/managed.tsx
@@ -1750,9 +1760,17 @@ msgstr "Provjeri kôd"
 msgid "Check the timeout"
 msgstr "Provjeri vremensko ograničenje"
 
+#: src/components/account/recovery-status.tsx
+msgid "Check the User ID and all 24 words, then try again. Nothing has changed."
+msgstr "Provjeri ID korisnika i sve 24 riječi pa pokušaj ponovno. Ništa se nije promijenilo."
+
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
 msgstr "Provjeri postavke poslužitelja za ovu vezu i pokušaj ponovno kad su oba uređaja na mreži i otključana."
+
+#: src/components/account/recovery-status.tsx
+msgid "Check your connection and try again."
+msgstr "Provjeri vezu i pokušaj ponovno."
 
 #: app/(app)/(tabs)/devices.tsx
 msgid "Checking account devices and connections."
@@ -1785,6 +1803,10 @@ msgstr "Provjera riječi za potvrdu i razmjena ključeva za sinkronizaciju."
 #: app/link-receive.tsx
 msgid "Checking verification words…"
 msgstr "Provjera riječi za potvrdu…"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Checking you're human"
+msgstr "Provjeravamo jesi li čovjek"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -2055,6 +2077,10 @@ msgstr "Riješi provjeru u nastavku."
 msgid "Complete the challenge to continue. The verification token is used once and never stored."
 msgstr "Za nastavak riješi provjeru. Token za provjeru koristi se samo jednom i nikad se ne sprema."
 
+#: src/components/account/turnstile-challenge.tsx
+msgid "Complete the check below. The token is used once and never stored."
+msgstr "Dovrši provjeru ispod. Token se koristi jednom i nikad se ne sprema."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Configuration incomplete"
 msgstr "Konfiguracija nije potpuna"
@@ -2072,7 +2098,9 @@ msgstr "Postavi vlastito povezivanje na kartici „Uređaji“ ili poveži uslug
 msgid "Configured"
 msgstr "Postavljeno"
 
+#. Step label
 #: app/(app)/(tabs)/devices.tsx
+#: app/(app)/account/auth/recover.tsx
 msgid "Confirm"
 msgstr "Potvrdi"
 
@@ -2294,6 +2322,7 @@ msgstr "Povezivanje sa signalizacijskim poslužiteljem..."
 #. Live connection status of a linked device
 #. Live connection status of a linked device
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-browser.tsx
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Connecting…"
@@ -2392,6 +2421,7 @@ msgstr "Sadržaj"
 #: app/(app)/devices/connect-agent.tsx
 #: app/credential-request.tsx
 #: app/link-receive.tsx
+#: src/components/account/account-auth.tsx
 #: src/components/account/membership-upgrade.tsx
 #: src/components/vault-import/import-wizard.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -2828,6 +2858,10 @@ msgstr "Nije moguće otvoriti izbornik za dijeljenje."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Pauziranje agenta nije uspjelo. Pokušaj ponovno."
 
+#: src/components/account/recovery-status.tsx
+msgid "Couldn't reach Online Services"
+msgstr "Online Services nije dostupan"
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "Couldn't reach the bucket. Check the endpoint and your connection."
 msgstr "Spremnik nije dostupan. Provjeri krajnju točku i internetsku vezu."
@@ -2888,10 +2922,6 @@ msgstr "Izraditi potpis za {namespace}?"
 #: app/link-receive.tsx
 msgid "Create a master password for this local copy. It can differ from the password on the sending device."
 msgstr "Postavi glavnu lozinku za ovu lokalnu kopiju. Može se razlikovati od lozinke na uređaju pošiljatelja."
-
-#: app/(app)/account/auth/recover.tsx
-msgid "Create a new Recovery Kit?"
-msgstr "Izraditi novi komplet za oporavak?"
 
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
@@ -2955,8 +2985,8 @@ msgstr "Izradi račun za Online Services"
 msgid "Create passkey"
 msgstr "Izradi pristupni ključ"
 
-#: app/(app)/account/auth/recover.tsx
 #: src/components/account/account-security.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Create Recovery Kit"
 msgstr "Izradi komplet za oporavak"
 
@@ -3521,6 +3551,7 @@ msgstr "Ne spremaj ga u oblak, e-poštu ni upravitelje lozinki povezane s ovim r
 #: app/(app)/share/index.tsx
 #: app/(app)/share/links.tsx
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Done"
 msgstr "Gotovo"
 
@@ -3635,6 +3666,10 @@ msgstr "Uredi stavku"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Edit keys"
 msgstr "Uredi ključeve"
+
+#: src/components/account/recovery-status.tsx
+msgid "Edit Kit"
+msgstr "Uredi komplet"
 
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Edit relay"
@@ -3859,6 +3894,11 @@ msgstr "Unesi je ponovno"
 msgid "Enter key"
 msgstr "Unesi ključ"
 
+#. Step label above the Recovery Kit form
+#: app/(app)/account/auth/recover.tsx
+msgid "Enter kit"
+msgstr "Unesi komplet"
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter master password"
 msgstr "Unesi glavnu lozinku"
@@ -3908,6 +3948,10 @@ msgstr "Unesi spremljenu zaštitnu frazu"
 #: src/app_lib/backup-destination-messages.ts
 msgid "Enter the secret access key."
 msgstr "Unesi tajni ključ za pristup."
+
+#: src/components/account/account-auth.tsx
+msgid "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
+msgstr "Unesi ID korisnika i frazu od 24 riječi iz kompleta za oporavak računa. Kod za oporavak trezora ovdje nije potreban."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4586,6 +4630,10 @@ msgstr "Git potpis"
 msgid "Gives them the TOTP secret, so they can keep generating codes."
 msgstr "Daje im TOTP tajnu, pa mogu nastaviti generirati kodove."
 
+#: src/components/account/recovery-status.tsx
+msgid "Go to Account"
+msgstr "Idi na Račun"
+
 #: src/app_lib/store-billing.ts
 msgid "Google Play billing could not complete. Please try again."
 msgstr "Naplatu putem trgovine Google Play nije moguće dovršiti. Pokušaj ponovno."
@@ -4733,6 +4781,18 @@ msgstr "Kako povezani agenti dolaze do ovog telefona"
 msgid "How your data is handled"
 msgstr "Kako postupamo s tvojim podacima"
 
+#: src/components/account/recovery-status.tsx
+msgid "Human check"
+msgstr "Provjera da si čovjek"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Human check failed"
+msgstr "Provjera da si čovjek nije uspjela"
+
+#: src/components/account/recovery-status.tsx
+msgid "Human check not completed"
+msgstr "Provjera da si čovjek nije dovršena"
+
 #: src/components/account/account-auth.tsx
 msgid "Human verification is not configured for this local service."
 msgstr "Provjera da si čovjek nije konfigurirana za ovu lokalnu uslugu."
@@ -4740,10 +4800,6 @@ msgstr "Provjera da si čovjek nije konfigurirana za ovu lokalnu uslugu."
 #: src/components/account/account-auth.tsx
 msgid "Human verification opens when you create the account."
 msgstr "Provjera da si čovjek otvara se kad izradiš račun."
-
-#: src/components/account/account-auth.tsx
-msgid "Human verification opens when you recover the account."
-msgstr "Provjera da si čovjek otvara se kad oporavljaš račun."
 
 #: app/link-receive.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -5068,6 +5124,10 @@ msgstr "Zadrži poslužitelj"
 msgid "Keep setting up"
 msgstr "Nastavi s postavljanjem"
 
+#: src/components/account/recovery-status.tsx
+msgid "Keep the app open. This takes a few seconds."
+msgstr "Drži aplikaciju otvorenom. Ovo traje nekoliko sekundi."
+
 #: app/link-receive.tsx
 msgid "Keep the linking screen open on your sending device until the transfer finishes."
 msgstr "Drži zaslon za povezivanje otvorenim na uređaju pošiljatelja dok prijenos ne završi."
@@ -5136,6 +5196,10 @@ msgstr "Ključevi su ažurirani"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Keys, {keyCount}"
 msgstr "Ključevi, {keyCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Kit not accepted"
+msgstr "Komplet nije prihvaćen"
 
 #: app/(app)/settings/diagnostics.tsx
 msgid "Known secret fields are redacted. Review the contents before sharing them with support."
@@ -5211,7 +5275,7 @@ msgid "LastPass CSV export (.csv)"
 msgstr "LastPass CSV izvoz (.csv)"
 
 #. Button: skip creating a Recovery Kit for now
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Later"
 msgstr "Kasnije"
 
@@ -6152,6 +6216,10 @@ msgstr "nema"
 msgid "None"
 msgstr "Nijedan"
 
+#: src/components/account/recovery-status.tsx
+msgid "None yet"
+msgstr "Još nema"
+
 #: src/components/devices/device-dates.ts
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/devices/device-overviews.tsx
@@ -6188,6 +6256,10 @@ msgstr "Ne sada"
 msgid "Not offered by this service"
 msgstr "Ova usluga to ne nudi"
 
+#: src/components/account/recovery-status.tsx
+msgid "Not saved to this vault"
+msgstr "Nije spremljeno u ovaj trezor"
+
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
 msgstr "Nije postavljeno"
@@ -6197,6 +6269,7 @@ msgid "Not signed in"
 msgstr "Nije prijavljeno"
 
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Not started"
 msgstr "Nije započeto"
 
@@ -6320,6 +6393,10 @@ msgstr "Jednokratne poveznice"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Online Services"
 msgstr "Online Services"
+
+#: src/components/account/recovery-status.tsx
+msgid "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
+msgstr "Online Services je prihvatio tvoj komplet za oporavak, ali ovaj trezor još nije mogao spremiti račun. Ostani na ovom zaslonu i dodirni Spremi ponovno. Ako sada zaključaš trezor ili zatvoriš aplikaciju, ovaj oporavak se gubi."
 
 #: src/components/devices/device-overviews.tsx
 msgid "Online Services and this vault"
@@ -6587,6 +6664,10 @@ msgstr "Ostali preglednici mogu izravno koristiti uslugu odabranu u Androidu, be
 msgid "Other device found. Creating private connection…"
 msgstr "Drugi uređaj je pronađen. Stvaranje privatne veze…"
 
+#: src/components/account/recovery-status.tsx
+msgid "Other devices"
+msgstr "Ostali uređaji"
+
 #: src/agent/agent-wording.ts
 msgid "Other request"
 msgstr "Drugi zahtjev"
@@ -6615,6 +6696,10 @@ msgstr "Kôd za uparivanje"
 #: app/(app)/devices/link-send.tsx
 msgid "Part {frameNumber} of {frameCount}"
 msgstr "Dio {frameNumber} od {frameCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Passed"
+msgstr "Uspješno"
 
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Passkey"
@@ -7156,13 +7241,18 @@ msgstr "Zapisano u"
 msgid "Recording the new device in this vault."
 msgstr "Bilježenje novog uređaja u ovaj trezor."
 
+#. Step label
+#: app/(app)/account/auth/recover.tsx
+msgid "Recover"
+msgstr "Oporavak"
+
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/auth/recover.tsx
-#: src/components/account/account-auth.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover account"
 msgstr "Oporavi račun"
 
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover this account?"
 msgstr "Oporaviti ovaj račun?"
 
@@ -7170,9 +7260,21 @@ msgstr "Oporaviti ovaj račun?"
 msgid "Recover this vault"
 msgstr "Oporavi ovaj trezor"
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
-msgstr "Oporavak uklanja sve ostale uređaje s ovog računa i odjavljuje ih. Time se troši i ovaj komplet za oporavak, a zatim možeš spremiti novi."
+#: src/components/account/recovery-status.tsx
+msgid "Recovered"
+msgstr "Oporavljen"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovered, not signed in yet"
+msgstr "Oporavljeno, još nije prijavljeno"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering your account"
+msgstr "Oporavljamo tvoj račun"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering…"
+msgstr "Oporavljanje…"
 
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/security.tsx
@@ -7189,9 +7291,17 @@ msgstr "Kôd za oporavak"
 msgid "Recovery code and vault encryption key replaced."
 msgstr "Kôd za oporavak i ključ za šifriranje trezora su zamijenjeni."
 
+#: src/components/account/recovery-status.tsx
+msgid "Recovery didn't finish"
+msgstr "Oporavak nije dovršen"
+
 #: src/components/account/account-controller.tsx
 msgid "Recovery failed."
 msgstr "Oporavak nije uspio."
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery Kit"
+msgstr "Komplet za oporavak"
 
 #: app/(app)/(tabs)/account.tsx
 msgid "Recovery Kit and account security"
@@ -7212,6 +7322,10 @@ msgstr "Fraza kompleta za oporavak"
 #: src/components/account/account-security.tsx
 msgid "Recovery Kit saved"
 msgstr "Komplet za oporavak spremljen"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery needs a quick human check. Nothing has changed."
+msgstr "Za oporavak je potrebna kratka provjera da si čovjek. Ništa se nije promijenilo."
 
 #: src/components/devices/device-details-sheet.tsx
 msgid "Recovery options"
@@ -7870,6 +7984,10 @@ msgstr "Uštedi {savings} € godišnje"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save a password-protected .cryx file"
 msgstr "Spremi .cryx datoteku zaštićenu lozinkom"
+
+#: src/components/account/recovery-status.tsx
+msgid "Save again"
+msgstr "Spremi ponovno"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save an encrypted copy"
@@ -8656,6 +8774,10 @@ msgstr "Prijavljeno"
 msgid "Signed in to Online Services"
 msgstr "Prijavljeno u uslugu Online Services"
 
+#: src/components/account/recovery-status.tsx
+msgid "Signed out and removed"
+msgstr "Odjavljeni i uklonjeni"
+
 #: src/utils/atoms.ts
 msgid "Signing in..."
 msgstr "Prijava..."
@@ -8817,6 +8939,10 @@ msgstr "Zaustavi red"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Stopping after current device…"
 msgstr "Zaustavljanje nakon trenutačnog uređaja…"
+
+#: src/components/account/recovery-status.tsx
+msgid "Stops working"
+msgstr "Prestaje vrijediti"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Storage is full"
@@ -9044,10 +9170,6 @@ msgstr "Datoteka export.attributes u 1PUX izvozu nije valjan JSON."
 msgid "The 1PUX export.data file is not valid JSON."
 msgstr "Datoteka export.data u 1PUX izvozu nije valjan JSON."
 
-#: src/components/account/account-auth.tsx
-msgid "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-msgstr "Komplet za oporavak računa vraća pristup usluzi Online Services. Za oporavak trezora zasebno se koristi kôd za oporavak trezora."
-
 #: src/components/devices/device-removal-content.tsx
 msgid "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
 msgstr "Odnos na računu nije moguće ukloniti. Oba uređaja ostaju registrirana. Pokušaj ponovno nakon provjere pristupa računu."
@@ -9176,10 +9298,6 @@ msgstr "Datoteku ključa nije moguće spremiti."
 msgid "The key itself can't be changed. To use a different key, add a new SSH key item."
 msgstr "Sam ključ nije moguće promijeniti. Za drugi ključ dodaj novu stavku SSH ključa."
 
-#: app/(app)/account/auth/recover.tsx
-msgid "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
-msgstr "Upotrijebljeni komplet više ne radi, pa ovaj račun sada nema nijedan. Izradi novi sada ili kasnije u odjeljku „Račun > Oporavak i pristup“."
-
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
 msgstr "Jezik aplikacije"
@@ -9280,6 +9398,10 @@ msgstr "Primljena kopija nije spremljena. Ponovnim pokretanjem ova će se kopija
 #: src/components/linking-progress.tsx
 msgid "The received vault has not been saved."
 msgstr "Primljeni trezor nije spremljen."
+
+#: src/components/account/recovery-status.tsx
+msgid "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
+msgstr "Upotrijebljeni komplet za oporavak više ne vrijedi. Izradi novi kako bi se ovaj račun mogao ponovno oporaviti."
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "The region doesn't match the bucket."
@@ -9781,6 +9903,10 @@ msgstr "Ova primljena kopija nije spremljena. Ako je odbaciš, morat ćeš ponov
 msgid "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
 msgstr "Ova primljena kopija nije spremljena. Ako izađeš, morat ćeš ponoviti izravni prijenos. Trezor na uređaju pošiljatelja ostaje nepromijenjen."
 
+#: src/components/account/recovery-status.tsx
+msgid "This Recovery Kit"
+msgstr "Ovaj komplet za oporavak"
+
 #: src/components/devices/device-removal-content.tsx
 msgid "This relationship is no longer registered. Use recovery options to forget its saved link."
 msgstr "Ovaj odnos više nije registriran. Upotrijebi mogućnosti oporavka da zaboraviš njegovu spremljenu vezu."
@@ -9863,9 +9989,18 @@ msgid "This TURN server no longer exists."
 msgstr "Ovaj TURN poslužitelj više ne postoji."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "This vault"
 msgstr "Ovaj trezor"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault becomes the only device on the account."
+msgstr "Ovaj trezor postaje jedini uređaj na računu."
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault is connected to your Online Services account. Other devices were signed out."
+msgstr "Ovaj trezor je povezan s tvojim računom za Online Services. Ostali uređaji su odjavljeni."
 
 #: app/(app)/account/security.tsx
 msgid "This vault is no longer connected to Online Services."
@@ -9874,6 +10009,10 @@ msgstr "Ovaj trezor više nije povezan s uslugom Online Services."
 #: src/components/backup-center/backup-status.tsx
 msgid "This vault is too large for managed backups"
 msgstr "Ovaj trezor je prevelik za upravljane sigurnosne kopije"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
+msgstr "Ovaj trezor sada sadrži račun, ali se nije mogao prijaviti. Otvori karticu „Račun“ za ponovno povezivanje."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
@@ -9935,6 +10074,10 @@ msgstr "Vremensko ograničenje u sekundama"
 msgid "today at {time}"
 msgstr "danas u {time}"
 
+#: src/components/account/recovery-status.tsx
+msgid "Too many attempts"
+msgstr "Previše pokušaja"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Previše zahtjeva. Pokušaj ponovno za minutu."
@@ -9968,6 +10111,7 @@ msgstr "Pokušaj s drugim nazivom, korisničkim imenom, oznakom ili bilješkom."
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/linking-progress.tsx
 #: src/components/vault/copyable-field.tsx
@@ -10349,10 +10493,6 @@ msgstr "Upotrijebi odabranu vezu"
 msgid "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 msgstr "Koristi poslužitelj Cryptex Vault uz Online Services ili vlastiti poslužitelj za dijeljenje. Ova postavka ostaje na ovom telefonu."
 
-#: src/components/account/account-auth.tsx
-msgid "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-msgstr "Upotrijebi ID korisnika i frazu od 24 riječi iz kompleta za oporavak računa. Oporavak uklanja sve ostale uređaje s računa."
-
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Koristi spremljene lozinke i pristupne ključeve u aplikacijama i preglednicima."
@@ -10653,6 +10793,10 @@ msgstr "Prikaži repozitorij projekta"
 #: src/components/devices/device-browser.tsx
 msgid "Wait"
 msgstr "Čekaj"
+
+#: src/components/account/recovery-status.tsx
+msgid "Wait a few minutes, then try again. Nothing has changed."
+msgstr "Pričekaj nekoliko minuta pa pokušaj ponovno. Ništa se nije promijenilo."
 
 #: app/(app)/account/auth/recover.tsx
 msgid "Wait for account recovery to finish before leaving this screen."

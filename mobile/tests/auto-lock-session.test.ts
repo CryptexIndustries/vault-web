@@ -62,7 +62,7 @@ jest.mock("@/utils/auto-lock-settings", () => ({
 // Require after the mock state is initialized; retain this module across mounts.
 const { useAutoLock, isAutoLockDue } =
     require("@/hooks/use-auto-lock") as typeof import("@/hooks/use-auto-lock");
-const { stopVaultTimeoutSession } =
+const { holdAutoLock, stopVaultTimeoutSession } =
     require("@/utils/session-timeout") as typeof import("@/utils/session-timeout");
 const { androidCredentials } =
     require("@/utils/android-credentials") as typeof import("@/utils/android-credentials");
@@ -158,6 +158,51 @@ describe("auto-lock session lifecycle", () => {
         expect(mockLock).toHaveBeenCalledTimes(1);
         jest.advanceTimersByTime(1);
         expect(mockLock).toHaveBeenCalledTimes(2);
+        session.unmount();
+    });
+
+    it("does not lock itself while held, then locks after a fresh idle window", async () => {
+        const session = await mountSession();
+        const release = holdAutoLock();
+        jest.advanceTimersByTime(120_000);
+        appState("background");
+        jest.advanceTimersByTime(120_000);
+        appState("active");
+        expect(isAutoLockDue()).toBe(false);
+        expect(mockLock).not.toHaveBeenCalled();
+        release();
+        jest.advanceTimersByTime(59_999);
+        expect(mockLock).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(1);
+        expect(mockLock).toHaveBeenCalledTimes(1);
+        session.unmount();
+    });
+
+    it("drops a hold when the vault locks, so the next unlock still locks itself", async () => {
+        const previous = await mountSession();
+        holdAutoLock();
+        previous.unmount();
+        stopVaultTimeoutSession(); // lockUnlockedVault ends the session
+        const fresh = await mountSession();
+        jest.advanceTimersByTime(60_000);
+        expect(mockLock).toHaveBeenCalledTimes(1);
+        fresh.unmount();
+    });
+
+    it("restarts the idle window when a hold is released before the old deadline", async () => {
+        const session = await mountSession();
+        jest.advanceTimersByTime(10_000);
+        const release = holdAutoLock();
+        jest.advanceTimersByTime(10_000);
+        release();
+        const timers = jest.spyOn(globalThis, "setTimeout");
+        jest.advanceTimersByTime(59_999);
+        expect(mockLock).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(1);
+        expect(mockLock).toHaveBeenCalledTimes(1);
+        // One idle timer for the new window, not a stream of zero-delay retries.
+        expect(timers.mock.calls.length).toBeLessThan(5);
+        timers.mockRestore();
         session.unmount();
     });
 

@@ -6,6 +6,7 @@ import { Provider } from "jotai";
 import { err, ok } from "neverthrow";
 import * as Sharing from "expo-sharing";
 import { router } from "expo-router";
+import { TRPCClientError } from "@trpc/client";
 import {
     OnlineServices,
     Vault,
@@ -19,6 +20,7 @@ import {
     useAccountController,
 } from "@/components/account/account-controller";
 import { copySecretToClipboard } from "@/utils/clipboard";
+import { onlineServicesLog } from "@/utils/logging";
 import {
     onlineServicesAuthConnectionStatusAtom,
     onlineServicesDataAtom,
@@ -140,6 +142,10 @@ jest.mock(
         signChallenge: async () => "test-signature",
     }),
 );
+jest.mock("@/utils/session-timeout", () => ({
+    ...jest.requireActual<object>("@/utils/session-timeout"),
+    holdAutoLock: () => mockHoldAutoLock(),
+}));
 jest.mock("@/utils/vault-mutations", () => ({
     persistVaultMutation: (...args: unknown[]) => mockPersist(...args),
 }));
@@ -156,7 +162,7 @@ jest.mock("@/utils/vault-session", () => ({
     missingVaultSecretError: () => "Unlock the vault again.",
 }));
 jest.mock("@/utils/logging", () => ({
-    onlineServicesLog: { error: jest.fn() },
+    onlineServicesLog: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
 }));
 jest.mock("@/app_lib/auth-session", () => ({
     establishOnlineServicesSession: (...args: unknown[]) =>
@@ -237,6 +243,8 @@ const mockRotateRecovery = jest.fn<() => Promise<unknown>>();
 const mockCheckout = jest.fn();
 const mockPersist = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockClosed = jest.fn();
+const mockReleaseLockHold = jest.fn();
+const mockHoldAutoLock = jest.fn(() => mockReleaseLockHold);
 const mockStorePlans = jest.fn<() => Promise<unknown>>();
 let mockPlayBuild = false;
 let mockNavigationGuard = false;
@@ -792,9 +800,9 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
             account().setRecoverUserId("recovered-user");
             account().setRecoverPhrase(mockRecoveryPhrase);
         });
-        let result: Promise<"recovered" | "kit-missing" | false> | undefined;
+        let result: Promise<unknown> | undefined;
         await act(async () => {
-            result = account().handleRecover();
+            result = account().handleRecover(jest.fn());
         });
         let next: ReturnType<typeof replaceVaultSession> | undefined;
         await act(async () => {
@@ -805,11 +813,22 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
                     ? { deviceId: "recovered-device" }
                     : ok(undefined),
             );
-            expect(await result).toBe(false);
+            // The Kit is spent once the server accepts it.
+            expect(await result).toMatchObject({
+                state:
+                    phase === "captcha"
+                        ? "failed"
+                        : phase === "authentication"
+                          ? "notConnected"
+                          : "saveFailed",
+            });
         });
         if (!next) throw new Error("Next vault session was not installed.");
         expectCurrentSession(next);
         expect(mockSync).not.toHaveBeenCalled();
+        // A response that lands after the session ended must not hold off auto-lock.
+        if (phase === "captcha" || phase === "recovery")
+            expect(mockHoldAutoLock).not.toHaveBeenCalled();
         if (phase === "captcha") expect(mockRecover).not.toHaveBeenCalled();
         if (phase === "captcha" || phase === "recovery")
             expect(mockPersist).not.toHaveBeenCalled();
@@ -884,6 +903,153 @@ it.each(["logout", "persistence"])(
     },
 );
 
+async function recoverWith(prepare: () => void) {
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase(mockRecoveryPhrase);
+    });
+    prepare();
+    let outcome: unknown;
+    await act(async () => {
+        outcome = await account().handleRecover(jest.fn());
+    });
+    return outcome;
+}
+
+it("ends recovery in a retryable state when the human check does not finish", async () => {
+    const outcome = await recoverWith(() =>
+        mockRequestToken.mockResolvedValueOnce(null),
+    );
+    expect(outcome).toEqual({ state: "checkIncomplete" });
+    expect(mockRecover).not.toHaveBeenCalled();
+    expect(account().mutationBusy).toBe(false);
+    // The phrase stays so the user can try again without retyping it.
+    expect(account().recoverPhrase).toBe(mockRecoveryPhrase);
+});
+
+it.each([
+    ["TOO_MANY_REQUESTS", "rateLimited"],
+    ["UNAUTHORIZED", "rejected"],
+    [undefined, "unreachable"],
+])("reads a recovery request refused with %s as %s", async (code, state) => {
+    const error = code
+        ? new TRPCClientError("Refused", {
+              result: {
+                  error: { message: "Refused", code: -32000, data: { code } },
+              },
+          })
+        : new TRPCClientError("Network request failed");
+    const outcome = await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(error),
+    );
+    expect(outcome).toEqual({ state });
+    expect(mockPersist).not.toHaveBeenCalled();
+    expect(account().recoverPhrase).toBe(mockRecoveryPhrase);
+});
+
+it("runs one recovery at a time", async () => {
+    mockRequestToken.mockResolvedValue("");
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase(mockRecoveryPhrase);
+    });
+    let outcomes: unknown[] = [];
+    await act(async () => {
+        outcomes = await Promise.all([
+            account().handleRecover(jest.fn()),
+            account().handleRecover(jest.fn()),
+        ]);
+    });
+    expect(outcomes[1]).toBeNull();
+    expect(mockRequestToken).toHaveBeenCalledTimes(1);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+});
+
+it("checks the Kit as entered before any server call", async () => {
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase("only three words");
+    });
+    let outcome: unknown;
+    await act(async () => {
+        outcome = await account().handleRecover(jest.fn());
+    });
+    expect(outcome).toEqual({ state: "invalid" });
+    expect(mockRequestToken).not.toHaveBeenCalled();
+    expect(mockRecover).not.toHaveBeenCalled();
+});
+
+it("retries a failed save of an accepted recovery once on its own", async () => {
+    const outcome = await recoverWith(() =>
+        mockPersist.mockResolvedValueOnce(err("VAULT_MUTATION_FAILED")),
+    );
+    expect(outcome).toEqual({ state: "kitMissing" });
+    expect(mockPersist).toHaveBeenCalledTimes(2);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the vault from auto-locking until an accepted recovery is saved", async () => {
+    const outcome = await recoverWith(() =>
+        mockPersist
+            .mockResolvedValueOnce(err("VAULT_MUTATION_FAILED"))
+            .mockResolvedValueOnce(err("VAULT_MUTATION_FAILED")),
+    );
+    expect(outcome).toEqual({ state: "saveFailed" });
+    expect(mockHoldAutoLock).toHaveBeenCalledTimes(1);
+    expect(mockReleaseLockHold).not.toHaveBeenCalled();
+    expect(account().recoverPhrase).toBe("");
+    let retried: unknown;
+    await act(async () => {
+        retried = await account().retryRecoverySave();
+    });
+    expect(retried).toEqual({ state: "kitMissing" });
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+    expect(mockRequestToken).toHaveBeenCalledTimes(1);
+    expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
+        "recovered-device",
+    );
+});
+
+it("logs where recovery failed by step and code, never the server's text", async () => {
+    await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(
+            new TRPCClientError("private server detail", {
+                result: {
+                    error: {
+                        message: "private server detail",
+                        code: -32000,
+                        data: { code: "UNAUTHORIZED" },
+                    },
+                },
+            }),
+        ),
+    );
+    const logged = jest.mocked(onlineServicesLog.error).mock.calls;
+    expect(logged).toContainEqual([
+        "Account recovery failed",
+        expect.objectContaining({
+            step: "recovery request",
+            reason: "rejected",
+            code: "UNAUTHORIZED",
+        }),
+    ]);
+    expect(JSON.stringify(logged)).not.toContain("private server detail");
+});
+
+it("reports a recovered account that could not sign in as not connected", async () => {
+    const outcome = await recoverWith(() =>
+        mockEstablish.mockRejectedValueOnce(new Error("Offline")),
+    );
+    expect(outcome).toEqual({ state: "notConnected" });
+    expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
+        "recovered-device",
+    );
+});
+
 it("recovers and deletes the account binding when the originating vault session stays active", async () => {
     mockRootDevice = true;
     await renderController();
@@ -891,9 +1057,18 @@ it("recovers and deletes the account binding when the originating vault session 
         account().setRecoverUserId("recovered-user");
         account().setRecoverPhrase(mockRecoveryPhrase);
     });
+    const stages = jest.fn();
     await act(async () => {
-        expect(await account().handleRecover()).toBe("kit-missing");
+        expect(await account().handleRecover(stages)).toEqual({
+            state: "kitMissing",
+        });
     });
+    expect(stages.mock.calls).toEqual([
+        ["check"],
+        ["recovering"],
+        ["connecting"],
+    ]);
+    expect(account().recoverPhrase).toBe("");
     expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
         "recovered-device",
     );

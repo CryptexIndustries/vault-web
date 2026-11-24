@@ -41,7 +41,7 @@ type SubscriptionSignupProps = {
 
 export function SubscriptionSignup(props: SubscriptionSignupProps) {
     return (
-        <AccountControllerProvider sheetShowsTurnstile>
+        <AccountControllerProvider humanCheckDialog>
             <SubscriptionSignupSheet {...props} />
         </AccountControllerProvider>
     );
@@ -175,7 +175,7 @@ function SubscriptionSignupSheet({
                     </DialogTitle>
                 </DialogHeader>
             )}
-            {account.turnstileDialog}
+            {account.humanCheck}
             {paymentPanel ? (
                 <>
                     {payment?.state !== "confirmed" ? (

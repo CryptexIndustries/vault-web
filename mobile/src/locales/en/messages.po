@@ -658,7 +658,9 @@ msgstr "Access unavailable"
 msgid "Accessibility fallback"
 msgstr "Accessibility fallback"
 
+#. Recovery step
 #: app/(app)/(tabs)/_layout.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Account"
 msgstr "Account"
@@ -715,6 +717,10 @@ msgstr "Account information does not match this device. Sign in again."
 #: src/components/account/account-security.tsx
 msgid "Account management"
 msgstr "Account management"
+
+#: src/components/account/recovery-status.tsx
+msgid "Account recovered"
+msgstr "Account recovered"
 
 #: src/components/account/account-security.tsx
 msgid "Account recovery"
@@ -1333,6 +1339,7 @@ msgstr "Awaiting payment"
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
 #: app/link-receive.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
@@ -1480,6 +1487,10 @@ msgstr "Basic security reports"
 msgid "Battery settings"
 msgstr "Battery settings"
 
+#: src/components/account/recovery-status.tsx
+msgid "Becomes the account device"
+msgstr "Becomes the account device"
+
 #: src/components/vault-import/import-wizard.tsx
 msgid "Before you import"
 msgstr "Before you import"
@@ -1621,7 +1632,6 @@ msgstr "Can't reach the share server. Check your connection and try again."
 
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/managed.tsx
@@ -1750,9 +1760,17 @@ msgstr "Check the code"
 msgid "Check the timeout"
 msgstr "Check the timeout"
 
+#: src/components/account/recovery-status.tsx
+msgid "Check the User ID and all 24 words, then try again. Nothing has changed."
+msgstr "Check the User ID and all 24 words, then try again. Nothing has changed."
+
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
 msgstr "Check this connection's server settings and try again when both devices are online and unlocked."
+
+#: src/components/account/recovery-status.tsx
+msgid "Check your connection and try again."
+msgstr "Check your connection and try again."
 
 #: app/(app)/(tabs)/devices.tsx
 msgid "Checking account devices and connections."
@@ -1785,6 +1803,10 @@ msgstr "Checking the verification words and exchanging sync keys."
 #: app/link-receive.tsx
 msgid "Checking verification words…"
 msgstr "Checking verification words…"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Checking you're human"
+msgstr "Checking you're human"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -2055,6 +2077,10 @@ msgstr "Complete the challenge below."
 msgid "Complete the challenge to continue. The verification token is used once and never stored."
 msgstr "Complete the challenge to continue. The verification token is used once and never stored."
 
+#: src/components/account/turnstile-challenge.tsx
+msgid "Complete the check below. The token is used once and never stored."
+msgstr "Complete the check below. The token is used once and never stored."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Configuration incomplete"
 msgstr "Configuration incomplete"
@@ -2072,7 +2098,9 @@ msgstr "Configure custom connectivity on Devices, or bind Online Services on Acc
 msgid "Configured"
 msgstr "Configured"
 
+#. Step label
 #: app/(app)/(tabs)/devices.tsx
+#: app/(app)/account/auth/recover.tsx
 msgid "Confirm"
 msgstr "Confirm"
 
@@ -2294,6 +2322,7 @@ msgstr "Connecting to the Signaling Server..."
 #. Live connection status of a linked device
 #. Live connection status of a linked device
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-browser.tsx
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Connecting…"
@@ -2392,6 +2421,7 @@ msgstr "Contents"
 #: app/(app)/devices/connect-agent.tsx
 #: app/credential-request.tsx
 #: app/link-receive.tsx
+#: src/components/account/account-auth.tsx
 #: src/components/account/membership-upgrade.tsx
 #: src/components/vault-import/import-wizard.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -2828,6 +2858,10 @@ msgstr "Couldn't open the share sheet."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Couldn't pause the agent. Try again."
 
+#: src/components/account/recovery-status.tsx
+msgid "Couldn't reach Online Services"
+msgstr "Couldn't reach Online Services"
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "Couldn't reach the bucket. Check the endpoint and your connection."
 msgstr "Couldn't reach the bucket. Check the endpoint and your connection."
@@ -2888,10 +2922,6 @@ msgstr "Create a {namespace} signature?"
 #: app/link-receive.tsx
 msgid "Create a master password for this local copy. It can differ from the password on the sending device."
 msgstr "Create a master password for this local copy. It can differ from the password on the sending device."
-
-#: app/(app)/account/auth/recover.tsx
-msgid "Create a new Recovery Kit?"
-msgstr "Create a new Recovery Kit?"
 
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
@@ -2955,8 +2985,8 @@ msgstr "Create Online Services account"
 msgid "Create passkey"
 msgstr "Create passkey"
 
-#: app/(app)/account/auth/recover.tsx
 #: src/components/account/account-security.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Create Recovery Kit"
 msgstr "Create Recovery Kit"
 
@@ -3521,6 +3551,7 @@ msgstr "Do not store in cloud drives, email, or password managers tied to this a
 #: app/(app)/share/index.tsx
 #: app/(app)/share/links.tsx
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Done"
 msgstr "Done"
 
@@ -3635,6 +3666,10 @@ msgstr "Edit item"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Edit keys"
 msgstr "Edit keys"
+
+#: src/components/account/recovery-status.tsx
+msgid "Edit Kit"
+msgstr "Edit Kit"
 
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Edit relay"
@@ -3859,6 +3894,11 @@ msgstr "Enter it again"
 msgid "Enter key"
 msgstr "Enter key"
 
+#. Step label above the Recovery Kit form
+#: app/(app)/account/auth/recover.tsx
+msgid "Enter kit"
+msgstr "Enter kit"
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter master password"
 msgstr "Enter master password"
@@ -3908,6 +3948,10 @@ msgstr "Enter the saved protection phrase"
 #: src/app_lib/backup-destination-messages.ts
 msgid "Enter the secret access key."
 msgstr "Enter the secret access key."
+
+#: src/components/account/account-auth.tsx
+msgid "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
+msgstr "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4586,6 +4630,10 @@ msgstr "Git signature"
 msgid "Gives them the TOTP secret, so they can keep generating codes."
 msgstr "Gives them the TOTP secret, so they can keep generating codes."
 
+#: src/components/account/recovery-status.tsx
+msgid "Go to Account"
+msgstr "Go to Account"
+
 #: src/app_lib/store-billing.ts
 msgid "Google Play billing could not complete. Please try again."
 msgstr "Google Play billing could not complete. Please try again."
@@ -4733,6 +4781,18 @@ msgstr "How connected agents reach this phone"
 msgid "How your data is handled"
 msgstr "How your data is handled"
 
+#: src/components/account/recovery-status.tsx
+msgid "Human check"
+msgstr "Human check"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Human check failed"
+msgstr "Human check failed"
+
+#: src/components/account/recovery-status.tsx
+msgid "Human check not completed"
+msgstr "Human check not completed"
+
 #: src/components/account/account-auth.tsx
 msgid "Human verification is not configured for this local service."
 msgstr "Human verification is not configured for this local service."
@@ -4740,10 +4800,6 @@ msgstr "Human verification is not configured for this local service."
 #: src/components/account/account-auth.tsx
 msgid "Human verification opens when you create the account."
 msgstr "Human verification opens when you create the account."
-
-#: src/components/account/account-auth.tsx
-msgid "Human verification opens when you recover the account."
-msgstr "Human verification opens when you recover the account."
 
 #: app/link-receive.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -5068,6 +5124,10 @@ msgstr "Keep server"
 msgid "Keep setting up"
 msgstr "Keep setting up"
 
+#: src/components/account/recovery-status.tsx
+msgid "Keep the app open. This takes a few seconds."
+msgstr "Keep the app open. This takes a few seconds."
+
 #: app/link-receive.tsx
 msgid "Keep the linking screen open on your sending device until the transfer finishes."
 msgstr "Keep the linking screen open on your sending device until the transfer finishes."
@@ -5136,6 +5196,10 @@ msgstr "Keys updated"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Keys, {keyCount}"
 msgstr "Keys, {keyCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Kit not accepted"
+msgstr "Kit not accepted"
 
 #: app/(app)/settings/diagnostics.tsx
 msgid "Known secret fields are redacted. Review the contents before sharing them with support."
@@ -5211,7 +5275,7 @@ msgid "LastPass CSV export (.csv)"
 msgstr "LastPass CSV export (.csv)"
 
 #. Button: skip creating a Recovery Kit for now
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Later"
 msgstr "Later"
 
@@ -6152,6 +6216,10 @@ msgstr "none"
 msgid "None"
 msgstr "None"
 
+#: src/components/account/recovery-status.tsx
+msgid "None yet"
+msgstr "None yet"
+
 #: src/components/devices/device-dates.ts
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/devices/device-overviews.tsx
@@ -6188,6 +6256,10 @@ msgstr "Not now"
 msgid "Not offered by this service"
 msgstr "Not offered by this service"
 
+#: src/components/account/recovery-status.tsx
+msgid "Not saved to this vault"
+msgstr "Not saved to this vault"
+
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
 msgstr "Not set"
@@ -6197,6 +6269,7 @@ msgid "Not signed in"
 msgstr "Not signed in"
 
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Not started"
 msgstr "Not started"
 
@@ -6320,6 +6393,10 @@ msgstr "One-time share links"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Online Services"
 msgstr "Online Services"
+
+#: src/components/account/recovery-status.tsx
+msgid "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
+msgstr "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
 
 #: src/components/devices/device-overviews.tsx
 msgid "Online Services and this vault"
@@ -6587,6 +6664,10 @@ msgstr "Other browsers may use Android’s selected service directly, without a 
 msgid "Other device found. Creating private connection…"
 msgstr "Other device found. Creating private connection…"
 
+#: src/components/account/recovery-status.tsx
+msgid "Other devices"
+msgstr "Other devices"
+
 #: src/agent/agent-wording.ts
 msgid "Other request"
 msgstr "Other request"
@@ -6615,6 +6696,10 @@ msgstr "Pairing code"
 #: app/(app)/devices/link-send.tsx
 msgid "Part {frameNumber} of {frameCount}"
 msgstr "Part {frameNumber} of {frameCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Passed"
+msgstr "Passed"
 
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Passkey"
@@ -7156,13 +7241,18 @@ msgstr "Recorded in"
 msgid "Recording the new device in this vault."
 msgstr "Recording the new device in this vault."
 
+#. Step label
+#: app/(app)/account/auth/recover.tsx
+msgid "Recover"
+msgstr "Recover"
+
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/auth/recover.tsx
-#: src/components/account/account-auth.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover account"
 msgstr "Recover account"
 
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover this account?"
 msgstr "Recover this account?"
 
@@ -7170,9 +7260,21 @@ msgstr "Recover this account?"
 msgid "Recover this vault"
 msgstr "Recover this vault"
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
-msgstr "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
+#: src/components/account/recovery-status.tsx
+msgid "Recovered"
+msgstr "Recovered"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovered, not signed in yet"
+msgstr "Recovered, not signed in yet"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering your account"
+msgstr "Recovering your account"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering…"
+msgstr "Recovering…"
 
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/security.tsx
@@ -7189,9 +7291,17 @@ msgstr "Recovery code"
 msgid "Recovery code and vault encryption key replaced."
 msgstr "Recovery code and vault encryption key replaced."
 
+#: src/components/account/recovery-status.tsx
+msgid "Recovery didn't finish"
+msgstr "Recovery didn't finish"
+
 #: src/components/account/account-controller.tsx
 msgid "Recovery failed."
 msgstr "Recovery failed."
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery Kit"
+msgstr "Recovery Kit"
 
 #: app/(app)/(tabs)/account.tsx
 msgid "Recovery Kit and account security"
@@ -7212,6 +7322,10 @@ msgstr "Recovery Kit phrase"
 #: src/components/account/account-security.tsx
 msgid "Recovery Kit saved"
 msgstr "Recovery Kit saved"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery needs a quick human check. Nothing has changed."
+msgstr "Recovery needs a quick human check. Nothing has changed."
 
 #: src/components/devices/device-details-sheet.tsx
 msgid "Recovery options"
@@ -7870,6 +7984,10 @@ msgstr "Save €{savings} a year"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save a password-protected .cryx file"
 msgstr "Save a password-protected .cryx file"
+
+#: src/components/account/recovery-status.tsx
+msgid "Save again"
+msgstr "Save again"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save an encrypted copy"
@@ -8656,6 +8774,10 @@ msgstr "Signed in"
 msgid "Signed in to Online Services"
 msgstr "Signed in to Online Services"
 
+#: src/components/account/recovery-status.tsx
+msgid "Signed out and removed"
+msgstr "Signed out and removed"
+
 #: src/utils/atoms.ts
 msgid "Signing in..."
 msgstr "Signing in..."
@@ -8817,6 +8939,10 @@ msgstr "Stop queue"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Stopping after current device…"
 msgstr "Stopping after current device…"
+
+#: src/components/account/recovery-status.tsx
+msgid "Stops working"
+msgstr "Stops working"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Storage is full"
@@ -9044,10 +9170,6 @@ msgstr "The 1PUX export.attributes file is not valid JSON."
 msgid "The 1PUX export.data file is not valid JSON."
 msgstr "The 1PUX export.data file is not valid JSON."
 
-#: src/components/account/account-auth.tsx
-msgid "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-msgstr "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-
 #: src/components/devices/device-removal-content.tsx
 msgid "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
 msgstr "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
@@ -9176,10 +9298,6 @@ msgstr "The key file could not be saved."
 msgid "The key itself can't be changed. To use a different key, add a new SSH key item."
 msgstr "The key itself can't be changed. To use a different key, add a new SSH key item."
 
-#: app/(app)/account/auth/recover.tsx
-msgid "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
-msgstr "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
-
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
 msgstr "The language the app uses"
@@ -9280,6 +9398,10 @@ msgstr "The received copy has not been saved. Restarting means this copy will be
 #: src/components/linking-progress.tsx
 msgid "The received vault has not been saved."
 msgstr "The received vault has not been saved."
+
+#: src/components/account/recovery-status.tsx
+msgid "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
+msgstr "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "The region doesn't match the bucket."
@@ -9781,6 +9903,10 @@ msgstr "This received copy has not been saved. Discarding means you will need to
 msgid "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
 msgstr "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
 
+#: src/components/account/recovery-status.tsx
+msgid "This Recovery Kit"
+msgstr "This Recovery Kit"
+
 #: src/components/devices/device-removal-content.tsx
 msgid "This relationship is no longer registered. Use recovery options to forget its saved link."
 msgstr "This relationship is no longer registered. Use recovery options to forget its saved link."
@@ -9863,9 +9989,18 @@ msgid "This TURN server no longer exists."
 msgstr "This TURN server no longer exists."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "This vault"
 msgstr "This vault"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault becomes the only device on the account."
+msgstr "This vault becomes the only device on the account."
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault is connected to your Online Services account. Other devices were signed out."
+msgstr "This vault is connected to your Online Services account. Other devices were signed out."
 
 #: app/(app)/account/security.tsx
 msgid "This vault is no longer connected to Online Services."
@@ -9874,6 +10009,10 @@ msgstr "This vault is no longer connected to Online Services."
 #: src/components/backup-center/backup-status.tsx
 msgid "This vault is too large for managed backups"
 msgstr "This vault is too large for managed backups"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
+msgstr "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
@@ -9935,6 +10074,10 @@ msgstr "Timeout seconds"
 msgid "today at {time}"
 msgstr "today at {time}"
 
+#: src/components/account/recovery-status.tsx
+msgid "Too many attempts"
+msgstr "Too many attempts"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Too many requests. Try again in a minute."
@@ -9968,6 +10111,7 @@ msgstr "Try a different name, username, tag, or note."
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
 #: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/linking-progress.tsx
 #: src/components/vault/copyable-field.tsx
@@ -10349,10 +10493,6 @@ msgstr "Use selected connection"
 msgid "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 msgstr "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 
-#: src/components/account/account-auth.tsx
-msgid "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-msgstr "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Use your saved passwords and passkeys in apps and browsers."
@@ -10653,6 +10793,10 @@ msgstr "View the project repository"
 #: src/components/devices/device-browser.tsx
 msgid "Wait"
 msgstr "Wait"
+
+#: src/components/account/recovery-status.tsx
+msgid "Wait a few minutes, then try again. Nothing has changed."
+msgstr "Wait a few minutes, then try again. Nothing has changed."
 
 #: app/(app)/account/auth/recover.tsx
 msgid "Wait for account recovery to finish before leaving this screen."

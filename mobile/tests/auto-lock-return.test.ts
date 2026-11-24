@@ -49,6 +49,7 @@ jest.mock("@/utils/session-timeout", () => ({
     noteVaultInteraction: jest.fn(),
     setVaultTimeoutMinutes: jest.fn(),
     startVaultTimeoutSession: jest.fn(),
+    subscribeVaultTimeoutChanges: () => () => undefined,
     vaultTimeoutRemainingMs: () => 0,
 }));
 

@@ -1,5 +1,5 @@
 diff --git a/dist/src/index.js b/dist/src/index.js
-index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..ea455c31f9fef980b6011d1faa884c075831f68f 100644
+index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..21dae460671374c91eb0b428d4987a8974ab87ed 100644
 --- a/dist/src/index.js
 +++ b/dist/src/index.js
 @@ -386,6 +386,12 @@ export default forwardRef(function ActionSheet(_a, ref) {
@@ -78,7 +78,19 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..ea455c31f9fef980b6011d1faa884c07
              <GestureHandlerRoot isModal={isModal} style={styles.parentContainer} pointerEvents={(props === null || props === void 0 ? void 0 : props.backgroundInteractionEnabled) ? 'box-none' : 'auto'}>
                <PanGestureRefContext.Provider value={context}>
                  <DraggableNodesContext.Provider value={draggableNodesContext}>
-@@ -1064,7 +1085,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -1056,15 +1077,17 @@ export default forwardRef(function ActionSheet(_a, ref) {
+                     animatedOpacityStyle,
+                 ]} {...(props.backdropProps ? props.backdropProps : {})}/>) : null}
+ 
+-                      {dimensions.height === -1 &&
+-                Platform.OS === 'web' ? null : (<Animated.View pointerEvents="box-none" style={[
++                      {// With reduced motion on Android, a sheet laid out before its
++                // window size is known keeps the height of its handle.
++                dimensions.height === -1 &&
++                Platform.OS !== 'ios' ? null : (<Animated.View pointerEvents="box-none" style={[
+                     __assign(__assign({ borderTopRightRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderTopRightRadius) || 10, borderTopLeftRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderTopLeftRadius) || 10, backgroundColor: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.backgroundColor) || 'white', borderBottomLeftRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderBottomLeftRadius) ||
+                             undefined, borderBottomRightRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderBottomRightRadius) ||
+                             undefined, borderRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderRadius) || undefined, width: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.width) || '100%' }, (!disableElevation
                          ? getElevation(typeof elevation === 'number'
                              ? elevation
                              : 5)

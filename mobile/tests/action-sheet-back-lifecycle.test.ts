@@ -262,6 +262,23 @@ it("balances listeners through StrictMode rerenders, viewport relayout, hide, an
     expect(runtime.listeners).toHaveLength(0);
 });
 
+it("lays out an Android sheet's content only once its window has a size", async () => {
+    props.isModal = true;
+    props.backgroundInteractionEnabled = false;
+    await render("Sheet body");
+    await act(async () => ref.current!.show());
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("Sheet body");
+    const sheetWindow = renderer!.root
+        .findAllByType("AnimatedView" as never)
+        .find((node) => node.props.style?.[1]?.justifyContent === "flex-end")!;
+    await act(async () =>
+        sheetWindow.props.onLayout({
+            nativeEvent: { layout: { width: 376, height: 790 } },
+        }),
+    );
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Sheet body");
+});
+
 it("keeps native modal sheets out of Android Back registration", async () => {
     props.isModal = true;
     props.backgroundInteractionEnabled = false;

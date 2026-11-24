@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 import { t as translate } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
@@ -9,16 +9,14 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import {
     type CheckoutTier,
-    purchaseMembership,
     storeBilling,
     type StorePlan,
     loadStorePlans,
-    checkStorePurchaseStatus,
 } from "@/app_lib/online-services-billing";
 import { colors } from "@/theme";
 import { currentPriceList } from "../../../../web/src/lib/price-lists";
-import { BillingPendingNotice } from "./billing-pending-notice";
 import { MembershipBenefits } from "./membership-benefits";
+import { PaymentStatus } from "./payment-status";
 import { BillingIntervalSelector } from "./billing-interval-selector";
 import type { FeedbackAction } from "@/components/snackbar";
 
@@ -26,25 +24,21 @@ export type MembershipUpgradeProps = {
     canUpgrade: boolean;
     refreshing: boolean;
     onMessage: (message: string, recovery?: FeedbackAction) => void;
-    onExternalBillingOpened: (
-        outcome?: "success" | "resume" | "external",
-    ) => void;
-    onContinue?: (tier: CheckoutTier, trial: boolean) => Promise<void>;
+    onContinue: (tier: CheckoutTier, trial: boolean) => void;
+    /** Signup: Continue sets up the account and kit before payment. */
+    setup?: boolean;
+    /** The store changed the free trial since the plan was last shown. */
+    offerTrial?: boolean;
     initialTier?: CheckoutTier;
-    onBillingBusyChange?: (busy: boolean) => void;
-    pendingConfirmation?: boolean;
-    onPendingChange?: (pending: boolean) => void;
     trialEligible?: boolean;
 };
 export function MembershipUpgrade({
     canUpgrade,
     refreshing,
     onMessage,
-    onExternalBillingOpened,
     onContinue,
-    onBillingBusyChange,
-    pendingConfirmation,
-    onPendingChange,
+    setup = false,
+    offerTrial,
     trialEligible = false,
     initialTier = "premiumMonthly",
 }: MembershipUpgradeProps) {
@@ -52,35 +46,11 @@ export function MembershipUpgrade({
     const store = storeBilling();
     const storeBuild = store !== null;
     const appStore = store === "app_store";
-    const mounted = useRef(true);
-    const feedbackLifetime = useRef(onMessage);
-    feedbackLifetime.current = onMessage;
-    const inFlight = useRef(false);
-    const retryBilling = useRef<(checking?: boolean) => Promise<void>>(
-        async () => {},
-    );
     const [plans, setPlans] = useState<StorePlan[]>();
     const [tier, setTier] = useState(initialTier);
     const selectedPlan = plans?.find((plan) => plan.tier === tier);
-    const [busy, setBusy] = useState(false);
-    const [localPending, setPending] = useState(false);
-    const pending = !!pendingConfirmation || localPending;
-    const pendingRef = useRef(pending);
-    pendingRef.current = pending;
-    useEffect(() => {
-        if (pendingConfirmation !== undefined) {
-            pendingRef.current = pendingConfirmation;
-            setPending(pendingConfirmation);
-        }
-    }, [pendingConfirmation]);
     const [pricesUnavailable, setPricesUnavailable] = useState(false);
     const [reload, setReload] = useState(0);
-    useEffect(() => {
-        mounted.current = true;
-        return () => {
-            mounted.current = false;
-        };
-    }, []);
     useEffect(() => {
         if (!storeBuild) return;
         let current = true;
@@ -100,8 +70,7 @@ export function MembershipUpgrade({
                     {
                         label: translate`Retry prices`,
                         onPress: () => {
-                            if (current && mounted.current)
-                                setReload((value) => value + 1);
+                            if (current) setReload((value) => value + 1);
                         },
                     },
                 );
@@ -141,88 +110,23 @@ export function MembershipUpgrade({
     const trial = storeBuild ? !!selectedPlan?.trial : trialEligible;
     const fullPrice = intervalPlans[tier]?.price;
     const planPrice = selectedPlan?.price;
-    const disabled = busy || refreshing;
-    const submit = async (checking = false) => {
-        if (
-            !mounted.current ||
-            disabled ||
-            inFlight.current ||
-            (!checking &&
-                (pendingRef.current ||
-                    !canUpgrade ||
-                    (storeBuild && !onContinue && !plans)))
-        )
-            return;
-        inFlight.current = true;
-        setBusy(true);
-        onBillingBusyChange?.(true);
-        const isCurrent = () =>
-            mounted.current && feedbackLifetime.current === onMessage;
-        const recovery = {
-            label: checking ? t`Check status` : t`Retry`,
-            onPress: () => {
-                if (isCurrent()) return retryBilling.current(checking);
-            },
-        };
-        try {
-            if (onContinue) {
-                await onContinue(tier, trial);
-                return;
-            }
-            const result = checking
-                ? await checkStorePurchaseStatus()
-                : await purchaseMembership(tier, { trialEligible, trial });
-            if (!isCurrent()) return;
-            if (!storeBuild) {
-                if (result.ok) onExternalBillingOpened();
-                else
-                    onMessage(
-                        result.message,
-                        result.retryable === false ? undefined : recovery,
-                    );
-            } else if (result.ok) {
-                // A completed store payment still waits for authoritative membership.
-                pendingRef.current = !checking;
-                setPending(!checking);
-                onPendingChange?.(!checking);
-                onExternalBillingOpened("success");
-            } else if (result.offerChanged) {
-                // Show the new terms before the user can buy again.
-                setReload((value) => value + 1);
-                onMessage(result.message);
-            } else if (result.pending) {
-                pendingRef.current = true;
-                setPending(true);
-                onPendingChange?.(true);
-            } else if (!result.canceled)
-                onMessage(
-                    result.message,
-                    result.retryable === false ? undefined : recovery,
-                );
-        } catch {
-            if (isCurrent())
-                onMessage(
-                    storeBuild
-                        ? t`Could not complete billing. Please try again.`
-                        : t`Could not open checkout. Please try again.`,
-                    recovery,
-                );
-        } finally {
-            inFlight.current = false;
-            if (mounted.current) setBusy(false);
-            if (isCurrent()) onBillingBusyChange?.(false);
-        }
-    };
-    retryBilling.current = submit;
     return (
         <View style={{ gap: 22 }}>
+            {offerTrial !== undefined && store ? (
+                <PaymentStatus
+                    compact
+                    state="offerChanged"
+                    store={store}
+                    trial={offerTrial}
+                />
+            ) : null}
             <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>
                 {t`Your vault stays yours. We run the supporting infrastructure and store your encrypted backups.`}
             </Text>
             <BillingIntervalSelector
                 value={tier}
                 onChange={setTier}
-                disabled={disabled || pending}
+                disabled={refreshing}
                 plans={intervalPlans}
                 pricePlaceholder={
                     pricesUnavailable
@@ -234,144 +138,133 @@ export function MembershipUpgrade({
                         : t`Loading…`
                 }
             />
-            {pending ? (
-                <BillingPendingNotice
-                    busy={busy || refreshing}
-                    onCheckStatus={() => void submit(true)}
-                />
-            ) : (
-                <View style={{ gap: 9 }}>
-                    <Button
-                        loading={busy}
-                        disabled={
-                            disabled ||
-                            !canUpgrade ||
-                            (storeBuild &&
-                                !onContinue &&
-                                !plans &&
-                                !pricesUnavailable)
-                        }
-                        onPress={() =>
-                            storeBuild && !onContinue && pricesUnavailable
-                                ? setReload((value) => value + 1)
-                                : void submit()
-                        }
-                    >
-                        {onContinue
-                            ? t`Continue`
-                            : trial
-                              ? t`Start 14-day free trial`
-                              : storeBuild && pricesUnavailable
-                                ? t`Retry prices`
-                                : storeBuild && !plans
-                                  ? t`Loading prices…`
-                                  : tier === "premiumYearly"
-                                    ? t`Continue with yearly`
-                                    : t`Continue with monthly`}
-                    </Button>
-                    {trial && fullPrice ? (
-                        <Text
-                            style={{
-                                color: colors.muted,
-                                fontSize: 11,
-                                lineHeight: 17,
-                                textAlign: "center",
-                            }}
-                        >
-                            {tier === "premiumMonthly"
-                                ? appStore
-                                    ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
-                                    : storeBuild
-                                      ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                      : t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                : appStore
-                                  ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
-                                  : storeBuild
-                                    ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
-                                    : t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`}
-                        </Text>
-                    ) : null}
-                    {onContinue || !storeBuild || selectedPlan ? (
-                        <Text
-                            style={{
-                                color: colors.muted,
-                                fontSize: 11,
-                                lineHeight: 17,
-                                textAlign: "center",
-                            }}
-                        >
-                            {onContinue
-                                ? t`No email required. Save your Recovery Kit before payment.`
-                                : appStore
-                                  ? t`Checkout opens in the App Store.`
-                                  : storeBuild
-                                    ? t`Checkout opens in Google Play.`
-                                    : t`VAT included. Checkout opens in your browser.`}
-                        </Text>
-                    ) : null}
-                    {selectedPlan && !trial ? (
-                        <Text
-                            style={{
-                                color: colors.muted,
-                                fontSize: 11,
-                                lineHeight: 17,
-                                textAlign: "center",
-                            }}
-                        >
-                            {tier === "premiumMonthly"
-                                ? appStore
-                                    ? t`${planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
-                                    : t`${planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`
-                                : appStore
-                                  ? t`${planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
-                                  : t`${planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
-                        </Text>
-                    ) : null}
-                    <View
+            <View style={{ gap: 9 }}>
+                <Button
+                    disabled={
+                        refreshing ||
+                        !canUpgrade ||
+                        (storeBuild && !setup && !plans && !pricesUnavailable)
+                    }
+                    onPress={() =>
+                        storeBuild && !setup && pricesUnavailable
+                            ? setReload((value) => value + 1)
+                            : onContinue(tier, trial)
+                    }
+                >
+                    {setup
+                        ? t`Continue`
+                        : trial
+                          ? t`Start 14-day free trial`
+                          : storeBuild && pricesUnavailable
+                            ? t`Retry prices`
+                            : storeBuild && !plans
+                              ? t`Loading prices…`
+                              : tier === "premiumYearly"
+                                ? t`Continue with yearly`
+                                : t`Continue with monthly`}
+                </Button>
+                {trial && fullPrice ? (
+                    <Text
                         style={{
-                            flexDirection: "row",
-                            justifyContent: "center",
-                            gap: 16,
+                            color: colors.muted,
+                            fontSize: 11,
+                            lineHeight: 17,
+                            textAlign: "center",
                         }}
                     >
-                        {(
-                            [
-                                [t`Terms of use`, "terms"],
-                                [t`Privacy policy`, "privacy"],
-                            ] as const
-                        ).map(([label, page]) => (
-                            <Text
-                                key={page}
-                                accessibilityRole="link"
-                                onPress={() =>
-                                    void Linking.openURL(
-                                        `https://www.cryptex-vault.com/${page}`,
-                                    )
-                                }
-                                style={{
-                                    color: colors.muted,
-                                    fontSize: 11,
-                                    lineHeight: 17,
-                                    textDecorationLine: "underline",
-                                }}
-                            >
-                                {label}
-                            </Text>
-                        ))}
-                    </View>
-                    {!canUpgrade && !refreshing ? (
+                        {tier === "premiumMonthly"
+                            ? appStore
+                                ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
+                                : storeBuild
+                                  ? t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                  : t`Free for 14 days, then ${fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                            : appStore
+                              ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing.`
+                              : storeBuild
+                                ? t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing.`
+                                : t`Free for 14 days, then ${fullPrice} every year. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing.`}
+                    </Text>
+                ) : null}
+                {setup || !storeBuild || selectedPlan ? (
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 11,
+                            lineHeight: 17,
+                            textAlign: "center",
+                        }}
+                    >
+                        {setup
+                            ? t`No email required. Save your Recovery Kit before payment.`
+                            : appStore
+                              ? t`Checkout opens in the App Store.`
+                              : storeBuild
+                                ? t`Checkout opens in Google Play.`
+                                : t`VAT included. Checkout opens in your browser.`}
+                    </Text>
+                ) : null}
+                {selectedPlan && !trial ? (
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 11,
+                            lineHeight: 17,
+                            textAlign: "center",
+                        }}
+                    >
+                        {tier === "premiumMonthly"
+                            ? appStore
+                                ? t`${planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
+                                : t`${planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`
+                            : appStore
+                              ? t`${planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period.`
+                              : t`${planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period.`}
+                    </Text>
+                ) : null}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        justifyContent: "center",
+                        gap: 16,
+                    }}
+                >
+                    {(
+                        [
+                            [t`Terms of use`, "terms"],
+                            [t`Privacy policy`, "privacy"],
+                        ] as const
+                    ).map(([label, page]) => (
                         <Text
+                            key={page}
+                            accessibilityRole="link"
+                            onPress={() =>
+                                void Linking.openURL(
+                                    `https://www.cryptex-vault.com/${page}`,
+                                )
+                            }
                             style={{
                                 color: colors.muted,
-                                fontSize: 12,
-                                lineHeight: 18,
+                                fontSize: 11,
+                                lineHeight: 17,
+                                textDecorationLine: "underline",
                             }}
                         >
-                            {t`An upgrade is available for connected free accounts.`}
+                            {label}
                         </Text>
-                    ) : null}
+                    ))}
                 </View>
-            )}
+                {!canUpgrade && !refreshing ? (
+                    <Text
+                        style={{
+                            color: colors.muted,
+                            fontSize: 12,
+                            lineHeight: 18,
+                        }}
+                    >
+                        {t`An upgrade is available for connected free accounts.`}
+                    </Text>
+                ) : null}
+            </View>
             <MembershipBenefits upgrading />
             <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>
                 {t`New to Online Services? Start with monthly billing before committing to a year.`}

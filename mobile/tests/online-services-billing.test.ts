@@ -13,8 +13,9 @@ import {
     checkoutReturnTarget,
     purchaseMembership,
     openBillingManagement,
-    refreshSubscriptionAfterExternalBilling,
-    type BillingConfirmation,
+    confirmMembership,
+    confirmationSchedules,
+    startConfirmation,
 } from "@/app_lib/online-services-billing";
 
 jest.mock("react-native", () => ({
@@ -32,6 +33,7 @@ jest.mock("@/utils/trpc", () => ({
                 checkoutSession: { query: jest.fn() },
                 customerPortal: { query: jest.fn() },
                 subscription: { query: jest.fn() },
+                syncRevenueCat: { mutate: jest.fn() },
             },
         },
     },
@@ -55,19 +57,11 @@ const mockPlayPurchase = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const checkout = jest.mocked(trpc.v1.payment.checkoutSession.query);
 const portal = jest.mocked(trpc.v1.payment.customerPortal.query);
 const subscription = jest.mocked(trpc.v1.payment.subscription.query);
+const sync = jest.mocked(trpc.v1.payment.syncRevenueCat.mutate);
 const free = { nonFree: false } as Awaited<ReturnType<typeof subscription>>;
 const paid = { nonFree: true } as Awaited<ReturnType<typeof subscription>>;
 const checkoutURL = "https://checkout.stripe.com/c/pay/cs_test_public";
 
-function confirmation(): BillingConfirmation {
-    return {
-        generation: 1,
-        deadline: Date.now() + 60000,
-        nextPollAt: 0,
-        attempts: 0,
-        subscription: null,
-    };
-}
 function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((r) => {
@@ -91,6 +85,7 @@ beforeEach(() => {
         .mockReset()
         .mockResolvedValue("https://billing.stripe.com/p/session/test");
     subscription.mockReset().mockResolvedValue(free);
+    sync.mockReset().mockResolvedValue(undefined);
     jest.mocked(syncOnlineServicesRemoteConfiguration)
         .mockReset()
         .mockResolvedValue(undefined);
@@ -181,186 +176,87 @@ it("does not request checkout or portal after the vault deadline has passed", as
     expect(portal).not.toHaveBeenCalled();
 });
 
-it("polls authoritative membership at ten-second intervals then synchronizes entitlements once", async () => {
-    subscription
-        .mockResolvedValueOnce(free)
-        .mockResolvedValueOnce(free)
-        .mockResolvedValueOnce(paid);
-    const result = refreshSubscriptionAfterExternalBilling(
-        "success",
+it("reads a just-synced store purchase first, then syncs before each read until it gives up at 80 s", async () => {
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.store, "afterFirst"),
         new AbortController().signal,
     );
-    await jest.advanceTimersByTimeAsync(19999);
-    expect(subscription).toHaveBeenCalledTimes(2);
-    expect(syncOnlineServicesRemoteConfiguration).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(4999);
+    expect(subscription).toHaveBeenCalledTimes(1);
+    expect(sync).not.toHaveBeenCalled();
     await jest.advanceTimersByTimeAsync(1);
-    await expect(result).resolves.toEqual(paid);
-    expect(subscription).toHaveBeenCalledTimes(3);
-    expect(syncOnlineServicesRemoteConfiguration).toHaveBeenCalledTimes(1);
-});
-
-it("finishes pending after seven checks over sixty seconds without trusting the success callback", async () => {
-    const result = refreshSubscriptionAfterExternalBilling(
-        "success",
-        new AbortController().signal,
-    );
-    await jest.advanceTimersByTimeAsync(60000);
-    await expect(result).resolves.toEqual(free);
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(subscription).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(75000);
+    await expect(result).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
     expect(subscription).toHaveBeenCalledTimes(7);
+    // With the purchase's own sync, never more than five a minute.
+    expect(sync).toHaveBeenCalledTimes(6);
     expect(jest.getTimerCount()).toBe(0);
 });
 
-it.each(["cancel", "resume"] as const)(
-    "refreshes %s once without polling",
-    async (outcome) => {
-        await expect(
-            refreshSubscriptionAfterExternalBilling(
-                outcome,
-                new AbortController().signal,
-            ),
-        ).resolves.toEqual(free);
-        expect(subscription).toHaveBeenCalledTimes(1);
-        expect(syncOnlineServicesRemoteConfiguration).toHaveBeenCalledTimes(1);
-        expect(jest.getTimerCount()).toBe(0);
-    },
-);
-
-it.each(["cancel", "resume"] as const)(
-    "retries an interrupted %s refresh within the shared request budget",
-    async (outcome) => {
-        const state = confirmation();
-        const request = deferred<typeof free>();
-        subscription.mockReturnValueOnce(request.promise);
-        const controller = new AbortController();
-        const interrupted = refreshSubscriptionAfterExternalBilling(
-            outcome,
-            controller.signal,
-            state,
-        );
-        controller.abort();
-        request.resolve(free);
-        await expect(interrupted).resolves.toBeNull();
-        expect(state.subscription).toBeNull();
-        expect(syncOnlineServicesRemoteConfiguration).not.toHaveBeenCalled();
-
-        const resumed = refreshSubscriptionAfterExternalBilling(
-            outcome,
-            new AbortController().signal,
-            state,
-        );
-        await jest.advanceTimersByTimeAsync(9999);
-        expect(subscription).toHaveBeenCalledTimes(1);
-        await jest.advanceTimersByTimeAsync(1);
-        await expect(resumed).resolves.toEqual(free);
-        expect(subscription).toHaveBeenCalledTimes(2);
-        expect(state.attempts).toBe(2);
-        expect(syncOnlineServicesRemoteConfiguration).toHaveBeenCalledTimes(1);
-        expect(jest.getTimerCount()).toBe(0);
-    },
-);
-
-it.each(["cancel", "resume"] as const)(
-    "reuses a completed %s result when configuration refresh was interrupted",
-    async (outcome) => {
-        const state = { ...confirmation(), attempts: 1, subscription: free };
-        await expect(
-            refreshSubscriptionAfterExternalBilling(
-                outcome,
-                new AbortController().signal,
-                state,
-            ),
-        ).resolves.toEqual(free);
-        expect(subscription).not.toHaveBeenCalled();
-        expect(syncOnlineServicesRemoteConfiguration).toHaveBeenCalledTimes(1);
-    },
-);
-
-it("keeps its deadline, next poll time and request budget across three rapid background returns", async () => {
-    const state = confirmation();
-    for (let cycle = 0; cycle < 3; cycle++) {
-        const controller = new AbortController();
-        const result = refreshSubscriptionAfterExternalBilling(
-            "success",
-            controller.signal,
-            state,
-        );
-        await jest.advanceTimersByTimeAsync(1000);
-        controller.abort();
-        await expect(result).resolves.toBeNull();
-        expect(jest.getTimerCount()).toBe(0);
-    }
-    expect(subscription).toHaveBeenCalledTimes(1);
-    const finalResult = refreshSubscriptionAfterExternalBilling(
-        "success",
+it("reads Stripe membership without syncing, at most seven times a minute", async () => {
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.stripe, "never"),
         new AbortController().signal,
-        state,
     );
-    await jest.advanceTimersByTimeAsync(57000);
-    await expect(finalResult).resolves.toEqual(free);
+    await jest.advanceTimersByTimeAsync(59999);
     expect(subscription).toHaveBeenCalledTimes(7);
-    expect(state.deadline).toBe(61000);
+    await jest.advanceTimersByTimeAsync(20001);
+    await expect(result).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
+    expect(subscription).toHaveBeenCalledTimes(9);
+    expect(sync).not.toHaveBeenCalled();
 });
 
-it("never installs a cached result or polls when confirmation belongs to an earlier vault", async () => {
-    const state = { ...confirmation(), attempts: 7, subscription: paid };
-    jest.mocked(getVaultSessionGeneration).mockReturnValue(2);
-    await expect(
-        refreshSubscriptionAfterExternalBilling(
-            "success",
-            new AbortController().signal,
-            state,
-        ),
-    ).resolves.toBeNull();
-    expect(subscription).not.toHaveBeenCalled();
-    expect(syncOnlineServicesRemoteConfiguration).not.toHaveBeenCalled();
-});
-
-it("does not synchronize a query that completes after actual vault expiry", async () => {
-    const request = deferred<typeof paid>();
-    subscription.mockReturnValue(request.promise);
-    const result = refreshSubscriptionAfterExternalBilling(
-        "success",
-        new AbortController().signal,
-    );
-    jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
-    request.resolve(paid);
-    await expect(result).resolves.toBeNull();
-    expect(syncOnlineServicesRemoteConfiguration).not.toHaveBeenCalled();
-});
-
-it("does not emit a result when the vault changes during configuration synchronization", async () => {
+it("stops at the first paid read, syncs entitlements, and keeps confirming visible for 800 ms", async () => {
     subscription.mockResolvedValue(paid);
-    const request = deferred<void>();
-    jest.mocked(syncOnlineServicesRemoteConfiguration).mockReturnValue(
-        request.promise,
-    );
-    const result = refreshSubscriptionAfterExternalBilling(
-        "success",
+    let settled = false;
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.returned, "never"),
         new AbortController().signal,
-    );
+    ).then((value) => {
+        settled = true;
+        return value;
+    });
+    await jest.advanceTimersByTimeAsync(799);
+    expect(settled).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toEqual({
+        subscription: paid,
+        offline: false,
+    });
+    expect(subscription).toHaveBeenCalledTimes(1);
+    expect(syncOnlineServicesRemoteConfiguration).toHaveBeenCalledTimes(1);
+});
+
+it("resumes a paused loop on its original schedule, collapsing missed checks into one", async () => {
+    const run = startConfirmation(confirmationSchedules.stripe, "never");
+    const controller = new AbortController();
+    const paused = confirmMembership(run, controller.signal);
+    await jest.advanceTimersByTimeAsync(4000);
+    controller.abort();
+    await expect(paused).resolves.toBeNull();
+    expect(subscription).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(20000);
+    const resumed = confirmMembership(run, new AbortController().signal);
     await jest.advanceTimersByTimeAsync(0);
-    jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
-    request.resolve();
-    await expect(result).resolves.toBeNull();
+    expect(subscription).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(subscription).toHaveBeenCalledTimes(4);
+    await jest.advanceTimersByTimeAsync(60000);
+    await expect(resumed).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
 });
 
-it("does not issue a subscription request after the confirmation deadline", async () => {
-    const state = {
-        ...confirmation(),
-        deadline: Date.now() - 1,
-        subscription: free,
-    };
-    await expect(
-        refreshSubscriptionAfterExternalBilling(
-            "success",
-            new AbortController().signal,
-            state,
-        ),
-    ).resolves.toEqual(free);
-    expect(subscription).not.toHaveBeenCalled();
-});
-
-it("backs off a rate-limited response instead of retrying immediately", async () => {
+it("treats a rate-limited check as not yet and pushes the rest back 15 s", async () => {
     const rateLimit = new TRPCClientError("Please wait.", {
         result: {
             error: {
@@ -370,15 +266,115 @@ it("backs off a rate-limited response instead of retrying immediately", async ()
             },
         },
     });
-    subscription.mockRejectedValueOnce(rateLimit).mockResolvedValueOnce(paid);
-    const result = refreshSubscriptionAfterExternalBilling(
-        "success",
+    subscription.mockRejectedValueOnce(rateLimit);
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.returned, "never"),
         new AbortController().signal,
     );
-    await jest.advanceTimersByTimeAsync(9999);
+    await jest.advanceTimersByTimeAsync(19999);
     expect(subscription).toHaveBeenCalledTimes(1);
     await jest.advanceTimersByTimeAsync(1);
-    await expect(result).resolves.toEqual(paid);
+    expect(subscription).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(10000);
+    await expect(result).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
+});
+
+it("reports offline when the last check never reached the server", async () => {
+    jest.setSystemTime(10_000_000);
+    sync.mockRejectedValue(new TypeError("Network request failed"));
+    subscription.mockRejectedValue(new TypeError("Network request failed"));
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.once, "always"),
+        new AbortController().signal,
+    );
+    await jest.advanceTimersByTimeAsync(15000);
+    await expect(result).resolves.toEqual({
+        subscription: null,
+        offline: true,
+    });
+    expect(sync).toHaveBeenCalledTimes(1);
+});
+
+it("keeps manual checks 15 s apart", async () => {
+    jest.setSystemTime(20_000_000);
+    await confirmMembership(
+        startConfirmation(confirmationSchedules.once, "never"),
+        new AbortController().signal,
+    );
+    const second = confirmMembership(
+        startConfirmation(confirmationSchedules.once, "never"),
+        new AbortController().signal,
+    );
+    await jest.advanceTimersByTimeAsync(14999);
+    expect(subscription).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1);
+    await expect(second).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
+    expect(subscription).toHaveBeenCalledTimes(2);
+});
+
+it("runs an interrupted final check again on resume", async () => {
+    const request = deferred<typeof free>();
+    subscription
+        .mockResolvedValueOnce(free)
+        .mockResolvedValueOnce(free)
+        .mockReturnValueOnce(request.promise);
+    const run = startConfirmation(confirmationSchedules.returned, "never");
+    const controller = new AbortController();
+    const interrupted = confirmMembership(run, controller.signal);
+    await jest.advanceTimersByTimeAsync(15000);
+    expect(subscription).toHaveBeenCalledTimes(3);
+    controller.abort();
+    request.resolve(free);
+    await expect(interrupted).resolves.toBeNull();
+    const resumed = confirmMembership(run, new AbortController().signal);
+    await jest.advanceTimersByTimeAsync(0);
+    await expect(resumed).resolves.toEqual({
+        subscription: null,
+        offline: false,
+    });
+    expect(subscription).toHaveBeenCalledTimes(4);
+});
+
+it("keeps RevenueCat syncs within five a minute across runs", async () => {
+    jest.setSystemTime(30_000_000);
+    const first = new AbortController();
+    void confirmMembership(
+        startConfirmation(confirmationSchedules.store, "always"),
+        first.signal,
+    );
+    await jest.advanceTimersByTimeAsync(51000);
+    expect(sync).toHaveBeenCalledTimes(5);
+    first.abort();
+    const second = new AbortController();
+    void confirmMembership(
+        startConfirmation(confirmationSchedules.store, "always"),
+        second.signal,
+    );
+    await jest.advanceTimersByTimeAsync(8999);
+    expect(sync).toHaveBeenCalledTimes(5);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(sync).toHaveBeenCalledTimes(6);
+    second.abort();
+});
+
+it("returns nothing when the vault session changes during a check", async () => {
+    const request = deferred<typeof paid>();
+    subscription.mockReturnValue(request.promise);
+    const result = confirmMembership(
+        startConfirmation(confirmationSchedules.stripe, "never"),
+        new AbortController().signal,
+    );
+    await jest.advanceTimersByTimeAsync(0);
+    jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
+    request.resolve(paid);
+    await expect(result).resolves.toBeNull();
+    expect(syncOnlineServicesRemoteConfiguration).not.toHaveBeenCalled();
 });
 
 it("keeps Play purchases and management out of Stripe, including unavailable billing", async () => {
@@ -393,10 +389,11 @@ it("keeps Play purchases and management out of Stripe, including unavailable bil
         ok: false,
         message: "Not configured",
     });
-    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumYearly", {
-        trialEligible: false,
-        trial: false,
-    });
+    expect(mockPlayPurchase).toHaveBeenCalledWith(
+        "premiumYearly",
+        { trialEligible: false, trial: false },
+        undefined,
+    );
     await openBillingManagement();
     expect(Linking.openURL).toHaveBeenCalledWith(
         "https://play.google.com/store/account/subscriptions?sku=online_services&package=com.cryptexindustries.vault",
@@ -454,7 +451,11 @@ it("sells and manages iOS memberships through the App Store, never Stripe", asyn
     expect(await purchaseMembership("premiumMonthly", terms)).toEqual({
         ok: true,
     });
-    expect(mockPlayPurchase).toHaveBeenCalledWith("premiumMonthly", terms);
+    expect(mockPlayPurchase).toHaveBeenCalledWith(
+        "premiumMonthly",
+        terms,
+        undefined,
+    );
     await openBillingManagement();
     expect(Linking.openURL).toHaveBeenCalledWith(
         "https://apps.apple.com/account/subscriptions",

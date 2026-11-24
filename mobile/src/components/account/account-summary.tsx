@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import { plural } from "@lingui/core/macro";
@@ -62,15 +62,18 @@ type AccountSummaryProps = {
     refreshing: boolean;
     onRefresh: () => void;
     onMessage: (message: string, action?: FeedbackAction) => void;
-    onExternalBillingOpened: (
-        outcome?: "success" | "resume" | "external",
-    ) => void;
+    onExternalBillingOpened: () => void;
+    /** Store purchases were restored; membership still needs confirming. */
+    onRestored: () => void;
     onBillingBusyChange?: (busy: boolean) => void;
-    pendingConfirmation: boolean;
-    onPendingChange: (pending: boolean) => void;
+    /** The checkout status card, shown while a payment awaits confirmation. */
+    paymentStatus?: ReactNode;
 };
 
-function formatAccountDate(locale: string, value?: Date | string | null) {
+export function formatAccountDate(
+    locale: string,
+    value?: Date | string | null,
+) {
     if (!value) return null;
     const date = new Date(value);
     // Numeric dates read differently across regions.
@@ -147,9 +150,9 @@ export function AccountSummary({
     onRefresh,
     onMessage,
     onExternalBillingOpened,
+    onRestored,
     onBillingBusyChange,
-    pendingConfirmation,
-    onPendingChange,
+    paymentStatus,
 }: AccountSummaryProps) {
     const { t, i18n } = useLingui();
     const billingInFlight = useRef(false);
@@ -164,11 +167,7 @@ export function AccountSummary({
         };
     }, []);
     const [billingBusy, setBillingBusy] = useState(false);
-    const pending = pendingConfirmation;
-    const pendingRef = useRef(pending);
-    useEffect(() => {
-        pendingRef.current = pendingConfirmation;
-    }, [accountScope, pendingConfirmation]);
+    const pending = !!paymentStatus;
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices;
     const linkedDeviceLimit = remoteConfig?.maxLinks;
     const usage =
@@ -255,7 +254,7 @@ export function AccountSummary({
             accountScopeRef.current !== accountScope
         )
             return;
-        if (operation === "restore" && pendingRef.current) return;
+        if (operation === "restore" && pending) return;
         billingInFlight.current = true;
         const generation = getVaultSessionGeneration();
         const scope = accountScope;
@@ -274,36 +273,25 @@ export function AccountSummary({
                           : undefined,
                   ));
             if (!isCurrent()) return;
-            if (!result.ok) {
-                if ("canceled" in result && result.canceled) return;
-                if ("pending" in result && result.pending) {
-                    pendingRef.current = true;
-                    onPendingChange(true);
-                } else {
-                    // A restore that found nothing may still have changed membership on the server.
-                    if (operation === "restore") onRefresh();
-                    onMessage(
-                        result.message,
-                        "retryable" in result && result.retryable === false
-                            ? undefined
-                            : {
-                                  label: t`Retry`,
-                                  onPress: () => {
-                                      if (isCurrent())
-                                          return handleBillingRef.current(
-                                              operation,
-                                          );
-                                  },
+            if (result.ok || "pending" in result) {
+                if (operation === "restore") onRestored();
+                else onExternalBillingOpened();
+            } else if ("message" in result) {
+                // A restore that found nothing may still have changed membership on the server.
+                if (operation === "restore") onRefresh();
+                onMessage(
+                    result.message,
+                    "retryable" in result && result.retryable === false
+                        ? undefined
+                        : {
+                              label: t`Retry`,
+                              onPress: () => {
+                                  if (isCurrent())
+                                      return handleBillingRef.current(
+                                          operation,
+                                      );
                               },
-                    );
-                }
-            } else {
-                if (operation === "restore") {
-                    pendingRef.current = true;
-                    onPendingChange(true);
-                }
-                onExternalBillingOpened(
-                    operation === "manage" ? "external" : "resume",
+                          },
                 );
             }
         } catch {
@@ -454,6 +442,7 @@ export function AccountSummary({
                         </View>
                     ) : null}
                 </Pressable>
+                {paymentStatus}
                 {restoreButton}
                 {canManageBilling || canUpgrade ? (
                     <View style={{ marginTop: 8, gap: 8 }}>
@@ -616,6 +605,9 @@ export function AccountSummary({
 
     return (
         <View>
+            {paymentStatus ? (
+                <View style={{ marginBottom: 20 }}>{paymentStatus}</View>
+            ) : null}
             <View
                 style={{
                     paddingBottom: 22,

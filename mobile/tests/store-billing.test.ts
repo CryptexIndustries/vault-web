@@ -34,10 +34,8 @@ const customer = () => ({
 });
 const mockCustomer = jest.fn<() => Promise<ReturnType<typeof customer>>>();
 const mockSync = jest.fn<() => Promise<void>>();
-const mockSubscription = jest.fn<() => Promise<{ nonFree: boolean }>>();
-const mockConfiguration = jest.fn<() => Promise<void>>();
 jest.mock("@/app_lib/auth-session", () => ({
-    syncOnlineServicesRemoteConfiguration: () => mockConfiguration(),
+    syncOnlineServicesRemoteConfiguration: jest.fn(),
 }));
 jest.mock("@/utils/trpc", () => ({
     trpc: {
@@ -45,7 +43,6 @@ jest.mock("@/utils/trpc", () => ({
             payment: {
                 revenueCatCustomer: { query: () => mockCustomer() },
                 syncRevenueCat: { mutate: () => mockSync() },
-                subscription: { query: () => mockSubscription() },
             },
         },
     },
@@ -127,7 +124,6 @@ beforeEach(async () => {
     });
     mockCustomer.mockImplementation(async () => customer());
     mockSync.mockResolvedValue(undefined);
-    mockSubscription.mockResolvedValue({ nonFree: false });
     mockSdk.isConfigured.mockResolvedValue(true);
     mockSdk.isAnonymous.mockResolvedValue(false);
     mockSdk.getAppUserID.mockResolvedValue("rc-account-a");
@@ -229,9 +225,9 @@ it("blocks duplicate charges while backend confirmation is delayed", async () =>
     mockSdk.getCustomerInfo.mockResolvedValue({
         activeSubscriptions: ["premium:monthly"],
     });
-    expect(await billing.purchasePlan("premiumYearly")).toMatchObject({
+    expect(await billing.purchasePlan("premiumYearly")).toEqual({
         ok: false,
-        pending: true,
+        pending: "owned",
     });
     expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
 });
@@ -315,48 +311,29 @@ it("does not configure an identity response from a previous vault account", asyn
     expect(mockSdk.logIn).not.toHaveBeenCalled();
 });
 
-it("does not sync canceled or pending native purchases", async () => {
-    for (const code of ["1", "20"]) {
-        mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce({ code });
-        expect((await billing.purchasePlan("premiumMonthly")).ok).toBe(false);
+it("does not sync canceled or store-pending native purchases", async () => {
+    const onPaid = jest.fn();
+    for (const [error, result] of [
+        [{ code: "1" }, { ok: false, canceled: true }],
+        [{ userCancelled: true }, { ok: false, canceled: true }],
+        [{ code: "20" }, { ok: false, pending: "store" }],
+    ] as const) {
+        mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce(error);
+        expect(
+            await billing.purchasePlan("premiumMonthly", undefined, onPaid),
+        ).toEqual(result);
     }
-    mockSdk.purchaseSubscriptionOption.mockRejectedValueOnce({
-        userCancelled: true,
-    });
-    expect(await billing.purchasePlan("premiumMonthly")).toMatchObject({
-        ok: false,
-        canceled: true,
-    });
+    expect(onPaid).not.toHaveBeenCalled();
     expect(mockSync).not.toHaveBeenCalled();
 });
 
-it("checks backend confirmation without another native purchase or restore", async () => {
-    expect(await billing.checkPurchaseStatus()).toMatchObject({
-        ok: false,
-        pending: true,
-    });
-    mockSubscription.mockResolvedValue({ nonFree: true });
-    expect(await billing.checkPurchaseStatus()).toEqual({ ok: true });
-    expect(mockSdk.purchaseSubscriptionOption).not.toHaveBeenCalled();
-    expect(mockSdk.restorePurchases).not.toHaveBeenCalled();
-    expect(mockConfiguration).toHaveBeenCalledTimes(2);
-    expect(mockSync.mock.invocationCallOrder[0]).toBeLessThan(
-        mockSubscription.mock.invocationCallOrder[0]!,
-    );
-});
-
-it("does not check another account after a switch during backend synchronization", async () => {
-    const pending = deferred();
-    mockSync.mockReturnValueOnce(
-        pending.promise as ReturnType<typeof mockSync>,
-    );
-    const check = billing.checkPurchaseStatus();
-    await tick();
-    userId = "account-b";
-    pending.resolve(undefined);
-    expect((await check).ok).toBe(false);
-    expect(mockSubscription).not.toHaveBeenCalled();
-    expect(mockConfiguration).not.toHaveBeenCalled();
+it("reports the store payment before membership syncs", async () => {
+    const onPaid = jest.fn(() => expect(mockSync).not.toHaveBeenCalled());
+    expect(
+        await billing.purchasePlan("premiumMonthly", undefined, onPaid),
+    ).toEqual({ ok: true });
+    expect(onPaid).toHaveBeenCalledTimes(1);
+    expect(mockSync).toHaveBeenCalledTimes(1);
 });
 
 it("does not expose native diagnostic messages as payment feedback", async () => {
@@ -416,13 +393,7 @@ it.each(["purchase", "restore"])(
             operation === "purchase"
                 ? await billing.purchasePlan("premiumMonthly")
                 : await billing.restorePurchases();
-        expect(result).toMatchObject({
-            ok: false,
-            pending: true,
-            message: expect.stringContaining(
-                "Membership confirmation is pending",
-            ),
-        });
+        expect(result).toEqual({ ok: false, pending: "sync" });
         expect(mockSync).toHaveBeenCalledTimes(1);
     },
 );

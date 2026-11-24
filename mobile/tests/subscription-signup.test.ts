@@ -13,6 +13,7 @@ import {
 
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { RecoveryKitDialog } from "@/components/account/recovery-kit-dialog";
+import type { PaymentStatusState } from "@/components/account/payment-status";
 import {
     AccountControllerProvider,
     useAccountController,
@@ -39,8 +40,9 @@ jest.mock("expo-router", () => ({
     router: { push: jest.fn(), dismissTo: jest.fn() },
 }));
 jest.mock("expo-router/react-navigation", () => ({
-    usePreventRemove: (enabled: boolean) => {
+    usePreventRemove: (enabled: boolean, leave: () => void) => {
         mockNavigationGuard = enabled;
+        mockLeave = leave;
     },
 }));
 jest.mock("@/components/unlocked/unlocked-ui", () => ({
@@ -66,6 +68,9 @@ jest.mock("@/components/ui/dialog", () => ({
     DialogHeader: "DialogHeader",
 }));
 jest.mock("@/components/inline-notice", () => ({ InlineNotice: "Notice" }));
+jest.mock("@/components/account/payment-status", () => ({
+    PaymentStatus: "PaymentStatus",
+}));
 jest.mock("@/components/account/membership-benefits", () => ({
     MembershipBenefits: "MembershipBenefits",
 }));
@@ -162,9 +167,6 @@ jest.mock("@/app_lib/auth-session", () => ({
 jest.mock("@/app_lib/online-services-billing", () => ({
     storeBilling: () => (mockPlayBuild ? "google_play" : null),
     loadStorePlans: () => mockStorePlans(),
-
-    purchaseMembership: (...args: unknown[]) => mockCheckout(...args),
-    checkStorePurchaseStatus: () => mockStatus(),
 }));
 jest.mock("@/utils/trpc", () => {
     const mutation = (mutateAsync: (...args: unknown[]) => unknown) => ({
@@ -231,15 +233,14 @@ const mockSync = jest.fn<() => Promise<void>>();
 const mockRefetch = jest.fn<() => Promise<unknown>>();
 const mockGenerateRecovery = jest.fn<() => Promise<unknown>>();
 const mockRotateRecovery = jest.fn<() => Promise<unknown>>();
-const mockCheckout = jest.fn<(...args: unknown[]) => Promise<unknown>>();
-const mockStatus = jest.fn<() => Promise<unknown>>();
-const mockPendingChange = jest.fn();
+/** onPay: the Account screen starts the purchase. */
+const mockCheckout = jest.fn();
 const mockPersist = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockClosed = jest.fn();
-const mockBillingOpened = jest.fn();
 const mockStorePlans = jest.fn<() => Promise<unknown>>();
 let mockPlayBuild = false;
 let mockNavigationGuard = false;
+let mockLeave: () => void = () => {};
 let mockVaultGeneration = 1;
 let mockRootDevice = false;
 let mockNonFree = false;
@@ -318,7 +319,10 @@ function deferred<T>() {
     return { promise, resolve };
 }
 
-async function renderSignup(open = true, pendingConfirmation?: boolean) {
+async function renderSignup(
+    open = true,
+    payment: { state: PaymentStatusState; trial?: boolean } | null = null,
+) {
     await act(async () => {
         const tree = createElement(
             Provider,
@@ -326,9 +330,12 @@ async function renderSignup(open = true, pendingConfirmation?: boolean) {
             createElement(SubscriptionSignup, {
                 open,
                 onOpenChange: mockClosed,
-                onExternalBillingOpened: mockBillingOpened,
-                pendingConfirmation,
-                onPendingChange: mockPendingChange,
+                payment,
+                paymentPanel:
+                    payment && payment.state !== "offerChanged"
+                        ? createElement("PaymentPanel")
+                        : null,
+                onPay: mockCheckout,
             }),
         );
         if (renderer) renderer.update(tree);
@@ -410,13 +417,7 @@ beforeEach(() => {
     mockRotateRecovery
         .mockReset()
         .mockResolvedValue({ userId: "user-test", token: mockRecoveryPhrase });
-    mockCheckout.mockReset().mockResolvedValue({ ok: true });
-    mockStatus.mockReset().mockResolvedValue({
-        ok: false,
-        pending: true,
-        message: "Still confirming",
-    });
-    mockPendingChange.mockReset();
+    mockCheckout.mockReset();
     mockPersist.mockReset().mockImplementation(async (_kind, mutate) => {
         const result = await (
             mutate as (vault: unknown) => Promise<{ vault: never }>
@@ -427,7 +428,6 @@ beforeEach(() => {
     jest.mocked(copySecretToClipboard).mockReset().mockResolvedValue(true);
     jest.mocked(Sharing.shareAsync).mockReset().mockResolvedValue(undefined);
     mockClosed.mockReset();
-    mockBillingOpened.mockReset();
     mockNavigationGuard = false;
     mockVaultGeneration = 1;
     mockRootDevice = false;
@@ -482,8 +482,9 @@ it("starts with the interval picker and opens the chosen checkout only after sav
     ).toBeDefined();
     await press("I've saved my kit. Continue to payment");
     expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
-    expect(mockBillingOpened).toHaveBeenCalledTimes(1);
-    expect(mockClosed).toHaveBeenCalledWith(false);
+    // The kit is saved, so it leaves the screen as payment starts.
+    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(0);
+    expect(mockClosed).not.toHaveBeenCalled();
 });
 
 it("keeps the selected interval after captcha cancellation", async () => {
@@ -725,28 +726,7 @@ it("clears a previous controller refresh error on Retry without adding a success
     ).toBeNull();
 });
 
-it("retries failed payment with the same account, interval, and kit", async () => {
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Payment unavailable. Retry.",
-    });
-    await renderSignup();
-    await chooseYearly();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    await press("I've saved my kit. Continue to payment");
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockNavigationGuard).toBe(false);
-    await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly", paidTerms],
-        ["premiumYearly", paidTerms],
-    ]);
-    expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
-    expect(mockRegister).toHaveBeenCalledTimes(1);
-});
-
-it("blocks rapid double taps during account creation and payment", async () => {
+it("blocks rapid double taps during account creation", async () => {
     const captcha = deferred<string | null>();
     mockRequestToken.mockReturnValueOnce(captcha.promise);
     await renderSignup();
@@ -761,21 +741,6 @@ it("blocks rapid double taps during account creation and payment", async () => {
     );
     await act(async () => captcha.resolve(randomUUID()));
     expect(mockRegister).toHaveBeenCalledTimes(1);
-    await press("Copy Recovery Kit");
-    const checkout = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(checkout.promise);
-    await act(async () => {
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        onPress();
-        onPress();
-    });
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(
-        renderer!.root.findByType("Dialog" as never).props.loadingLabel,
-    ).toBe("Opening secure payment…");
-    await act(async () => checkout.resolve({ ok: true }));
-    expect(mockBillingOpened).toHaveBeenCalledTimes(1);
 });
 
 it("keeps the checkbox and Finish acknowledgement for standalone recovery kits", async () => {
@@ -998,331 +963,14 @@ it("shows localized Play prices once, then opens the selected payment directly a
             ),
     ).toBe(true);
     await press("Continue");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
     expect(mockCheckout).not.toHaveBeenCalled();
     expect(
         button("I've saved my kit. Continue to payment").props.disabled,
     ).toBe(true);
     await press("Copy Recovery Kit");
+    expect(mockStorePlans).toHaveBeenCalledTimes(1);
     await press("I've saved my kit. Continue to payment");
     expect(mockCheckout.mock.calls).toEqual([["premiumYearly", paidTerms]]);
-    expect(mockStorePlans).toHaveBeenCalledTimes(1);
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockPendingChange).toHaveBeenCalledWith(true);
-    expect(mockPendingChange.mock.invocationCallOrder[0]).toBeLessThan(
-        mockBillingOpened.mock.invocationCallOrder[0]!,
-    );
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it("blocks signup dismissal during Play billing and prevents duplicate taps", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const pending = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(pending.promise);
-    await act(async () => {
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        onPress();
-        onPress();
-    });
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
-        false,
-    );
-    expect(mockNavigationGuard).toBe(true);
-    await act(async () =>
-        pending.resolve({ ok: false, message: "Payment unavailable" }),
-    );
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
-    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
-        true,
-    );
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it.each([
-    "unmount",
-    "reopen",
-    "account replacement",
-    "disconnect and reconnect",
-])("ignores an old Play completion after %s", async (change) => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await press("I've saved my kit. Continue to payment");
-    if (change === "unmount") {
-        await act(async () => renderer!.unmount());
-        renderer = undefined;
-    } else if (change === "reopen") {
-        await renderSignup(false);
-        await renderSignup(true);
-    } else if (change === "account replacement") {
-        await act(async () => {
-            const vault = vaultStore.get(unlockedVaultAtom);
-            vaultStore.set(unlockedVaultAtom, {
-                ...vault,
-                OnlineServices: new OnlineServices(
-                    "other-device",
-                    "other-user",
-                    "public",
-                    "private",
-                ),
-            } as never);
-        });
-    } else {
-        const session = onlineServicesStore.get(onlineServicesDataAtom);
-        await act(async () =>
-            onlineServicesStore.set(onlineServicesDataAtom, null),
-        );
-        await act(async () =>
-            onlineServicesStore.set(onlineServicesDataAtom, session),
-        );
-    }
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
-    expect(mockPendingChange).not.toHaveBeenCalled();
-    if (renderer)
-        expect(renderer.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it("allows a normal same-account session token refresh while Play checkout is open", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await press("I've saved my kit. Continue to payment");
-    await act(async () =>
-        onlineServicesStore.set(onlineServicesDataAtom, {
-            ...onlineServicesStore.get(onlineServicesDataAtom),
-            sessionToken: "refreshed-token",
-        } as never),
-    );
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it.each(["pending", "canceled"])(
-    "retains the saved kit and interval after Play %s without reporting an error",
-    async (state) => {
-        mockPlayBuild = true;
-        await renderSignup(true, false);
-        await chooseYearly();
-        await press("Continue");
-        await press("Copy Recovery Kit");
-        mockCheckout.mockResolvedValueOnce({
-            ok: false,
-            message: "Private billing details",
-            [state]: true,
-        });
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        await press("I've saved my kit. Continue to payment");
-        expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-        expect(
-            button("I've saved my kit. Continue to payment").props.disabled,
-        ).toBe(state === "pending");
-        expect(!!button("Check status")).toBe(state === "pending");
-        expect(
-            renderer!.root.findAllByProps({ testID: "snackbar" }),
-        ).toHaveLength(0);
-        expect(mockBillingOpened).not.toHaveBeenCalled();
-        expect(mockClosed).not.toHaveBeenCalled();
-        if (state === "pending") {
-            // A parent can lag behind the native pending result; even an old handler cannot charge again.
-            await act(async () => onPress());
-            await press("Check status");
-            expect(mockStatus).toHaveBeenCalledTimes(1);
-            expect(mockCheckout).toHaveBeenCalledTimes(1);
-            expect(
-                button("I've saved my kit. Continue to payment").props.disabled,
-            ).toBe(true);
-        } else {
-            await press("I've saved my kit. Continue to payment");
-            expect(mockCheckout.mock.calls).toEqual([
-                ["premiumYearly", paidTerms],
-                ["premiumYearly", paidTerms],
-            ]);
-        }
-    },
-);
-
-it("retains a pending kit after a failed status check and completes only on backend confirmation", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Pending",
-    });
-    await press("I've saved my kit. Continue to payment");
-    mockStatus.mockResolvedValueOnce({
-        ok: false,
-        message: "Could not connect.",
-    });
-    await press("Check status");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    const retry = renderer!.root.findByProps({
-        accessibilityLabel: "Check status",
-    });
-    mockStatus.mockResolvedValueOnce({ ok: true });
-    await act(async () => retry.props.onPress());
-    expect(mockStatus).toHaveBeenCalledTimes(2);
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(mockPendingChange).toHaveBeenLastCalledWith(false);
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it("clears the local pending latch when parent backend confirmation resolves", async () => {
-    mockPlayBuild = true;
-    await renderSignup(true, false);
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Pending",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(
-        button("I've saved my kit. Continue to payment").props.disabled,
-    ).toBe(true);
-    await renderSignup(true, true);
-    await renderSignup(true, false);
-    expect(button("Check status")).toBeUndefined();
-    expect(
-        button("I've saved my kit. Continue to payment").props.disabled,
-    ).toBe(false);
-});
-
-it.each(["Stripe", "Google Play"])(
-    "finishes the saved-kit journey without another charge or browser return when %s membership becomes active",
-    async (provider) => {
-        mockPlayBuild = provider === "Google Play";
-        await renderSignup(true, false);
-        await chooseYearly();
-        await press("Continue");
-        await press("Copy Recovery Kit");
-        mockCheckout.mockResolvedValueOnce({
-            ok: false,
-            pending: mockPlayBuild,
-            message: "Could not confirm payment",
-        });
-        await press("I've saved my kit. Continue to payment");
-        if (mockPlayBuild) await renderSignup(true, true);
-        mockNonFree = true;
-        await renderSignup(true, false);
-        await press("I've saved my kit. Continue to payment");
-        expect(mockCheckout).toHaveBeenCalledTimes(1);
-        expect(mockStatus).not.toHaveBeenCalled();
-        if (mockPlayBuild)
-            expect(mockPendingChange).toHaveBeenLastCalledWith(false);
-        expect(mockBillingOpened).toHaveBeenCalledWith("success");
-        expect(mockClosed).toHaveBeenCalledWith(false);
-    },
-);
-
-it("retries Play preflight failures with the same account, selected interval, and saved kit", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await chooseYearly();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Google Play billing is unavailable.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
-    await act(async () => retry.props.onPress());
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly", paidTerms],
-        ["premiumYearly", paidTerms],
-    ]);
-    expect(mockRegister).toHaveBeenCalledTimes(1);
-    expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
-});
-
-it("offers no Retry when the Play subscription belongs to another account", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        retryable: false,
-        message:
-            "This Google Play subscription belongs to another Cryptex Vault account.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(
-        renderer!.root.findAll(
-            (node) =>
-                node.props.children ===
-                "This Google Play subscription belongs to another Cryptex Vault account.",
-        ).length,
-    ).toBeGreaterThan(0);
-    expect(
-        renderer!.root.findAllByProps({ accessibilityLabel: "Retry" }),
-    ).toHaveLength(0);
-});
-
-it("ignores a payment Retry from a previous signup sheet lifetime", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Google Play billing is unavailable.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" })
-        .props.onPress;
-    await renderSignup(false);
-    await renderSignup(true);
-    await act(async () => retry());
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it("keeps the Recovery Kit and shows an actionable snackbar if Stripe checkout rejects", async () => {
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockRejectedValueOnce(new Error("private transport error"));
-    await press("I've saved my kit. Continue to payment");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
-        1,
-    );
-    expect(
-        renderer!.root
-            .findAllByType("Text" as never)
-            .some(
-                (node) =>
-                    node.props.children ===
-                    "Could not open secure payment. Please try again.",
-            ),
-    ).toBe(true);
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
 });
 
 it("uses the snackbar for registration failures without exposing server diagnostics", async () => {
@@ -1345,47 +993,61 @@ it("uses the snackbar for registration failures without exposing server diagnost
     expect(mockCheckout).not.toHaveBeenCalled();
 });
 
-it("does not close a newer screen when an old Stripe payment completes after unmount", async () => {
+it("holds the sheet while the store payment opens, then lets it close", async () => {
+    mockPlayBuild = true;
     await renderSignup();
     await press("Continue");
     await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await act(async () => {
-        button("I've saved my kit. Continue to payment").props.onPress();
-    });
-    await act(async () => renderer!.unmount());
-    renderer = undefined;
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
+    await press("I've saved my kit. Continue to payment");
+    await renderSignup(true, { state: "opening" });
+    expect(renderer!.root.findAllByType("PaymentPanel" as never)).toHaveLength(
+        1,
+    );
+    expect(renderer!.root.findAllByType("DialogTitle" as never)).toHaveLength(
+        0,
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        false,
+    );
+    expect(mockNavigationGuard).toBe(true);
+    const { Alert } =
+        jest.requireMock<typeof import("react-native")>("react-native");
+    mockLeave();
+    expect(Alert.alert).toHaveBeenCalledWith(
+        "Payment in progress",
+        "Finish or cancel the payment in Google Play first.",
+    );
+    await renderSignup(true, { state: "confirming" });
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        true,
+    );
+    expect(mockNavigationGuard).toBe(false);
 });
 
-it("retries a changed Play offer only with the terms the snackbar describes", async () => {
+it("returns to the plan when the offer changed and pays the new terms on the same account", async () => {
     mockPlayBuild = true;
     mockTrialEligible = true;
     await renderSignup();
     await press("Continue");
     await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        offerChanged: { trial: true },
-        message: "changed",
-    });
     await press("I've saved my kit. Continue to payment");
-    expect(
-        renderer!.root
-            .findAllByType("Text" as never)
-            .some(
-                (node) =>
-                    node.props.children ===
-                    "This plan now starts with a 14-day free trial. Retry to start it.",
-            ),
-    ).toBe(true);
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
-    await act(async () => retry.props.onPress());
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumMonthly", { trialEligible: true, trial: false }],
-        ["premiumMonthly", { trialEligible: true, trial: true }],
+    expect(mockCheckout).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: false,
+    });
+    await renderSignup(true, { state: "opening" });
+    mockStorePlans.mockResolvedValue([
+        { tier: "premiumMonthly", price: "$4.99", trial: true },
+        { tier: "premiumYearly", price: "$49.99", trial: true },
     ]);
+    await renderSignup(true, { state: "offerChanged", trial: true });
+    expect(
+        renderer!.root.findByType("PaymentStatus" as never).props,
+    ).toMatchObject({ state: "offerChanged", trial: true });
+    await press("Start 14-day free trial");
+    expect(mockCheckout).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: true,
+    });
+    expect(mockRegister).toHaveBeenCalledTimes(1);
 });

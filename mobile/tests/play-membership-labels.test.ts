@@ -5,8 +5,6 @@ import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import {
     storeBilling,
     loadStorePlans,
-    purchaseMembership,
-    checkStorePurchaseStatus,
 } from "@/app_lib/online-services-billing";
 
 jest.mock("react-native", () => ({
@@ -27,11 +25,12 @@ jest.mock("@/components/unlocked/unlocked-ui", () => ({
 jest.mock("@/components/account/membership-benefits", () => ({
     MembershipBenefits: () => null,
 }));
+jest.mock("@/components/account/payment-status", () => ({
+    PaymentStatus: "PaymentStatus",
+}));
 jest.mock("@/app_lib/online-services-billing", () => ({
     storeBilling: jest.fn(() => "google_play"),
     loadStorePlans: jest.fn(),
-    purchaseMembership: jest.fn(),
-    checkStorePurchaseStatus: jest.fn(),
 }));
 
 let mockDimensions = { fontScale: 1, width: 390 };
@@ -40,8 +39,7 @@ const props = {
     canUpgrade: true,
     refreshing: false,
     onMessage: jest.fn(),
-    onExternalBillingOpened: jest.fn(),
-    onPendingChange: jest.fn(),
+    onContinue: jest.fn(),
 };
 const plans = [
     { tier: "premiumMonthly" as const, price: "4,99 €", trial: false },
@@ -108,12 +106,8 @@ afterEach(async () => {
 it("loads localized prices before account setup without blocking registration or starting a purchase", async () => {
     const prices = deferred<Awaited<ReturnType<typeof loadStorePlans>>>();
     jest.mocked(loadStorePlans).mockReturnValueOnce(prices.promise);
-    const onContinue = jest
-        .fn<(tier: string) => Promise<void>>()
-        .mockResolvedValue(undefined);
-    await renderUpgrade({
-        onContinue,
-    });
+    const onContinue = jest.fn();
+    await renderUpgrade({ setup: true, onContinue });
     expect(texts()).toContain("Monthly");
     expect(texts()).toContain("Yearly");
     expect(radio("Monthly").props.accessibilityLabel).toBe("Monthly, Loading…");
@@ -126,7 +120,6 @@ it("loads localized prices before account setup without blocking registration or
     await act(async () => radio("Yearly").props.onPress());
     await press("Continue");
     expect(onContinue).toHaveBeenCalledWith("premiumYearly", false);
-    expect(purchaseMembership).not.toHaveBeenCalled();
     await act(async () => prices.resolve(plans));
     expect(radio("Monthly").props.accessibilityLabel).toBe(
         "Monthly, 4,99 € per month",
@@ -154,10 +147,8 @@ it("keeps Continue available on price failure and retries through snackbar feedb
     jest.mocked(loadStorePlans).mockRejectedValueOnce(
         new Error("Internal store diagnostics"),
     );
-    const onContinue = jest
-        .fn<(tier: string) => Promise<void>>()
-        .mockResolvedValue(undefined);
-    await renderUpgrade({ onContinue });
+    const onContinue = jest.fn();
+    await renderUpgrade({ setup: true, onContinue });
     expect(radio("Monthly").props.accessibilityLabel).toBe(
         "Monthly, Unavailable",
     );
@@ -183,13 +174,12 @@ it("keeps Continue available on price failure and retries through snackbar feedb
     );
     await press("Continue");
     expect(onContinue).toHaveBeenCalledWith("premiumMonthly", false);
-    expect(purchaseMembership).not.toHaveBeenCalled();
 });
 
 it("ignores price failures and retry actions from a replaced signup view", async () => {
     const prices = deferred<Awaited<ReturnType<typeof loadStorePlans>>>();
     jest.mocked(loadStorePlans).mockReturnValueOnce(prices.promise);
-    const signupProps = { ...props, onContinue: async () => {} };
+    const signupProps = { ...props, setup: true };
     await act(async () => {
         renderer = create(createElement(MembershipUpgrade, signupProps));
     });
@@ -219,7 +209,7 @@ it("ignores price failures and retry actions from a replaced signup view", async
     );
 });
 
-it("keeps the selected interval through loading, unavailable prices, retry, and a canceled native payment", async () => {
+it("keeps the selected interval through loading, unavailable prices and retry", async () => {
     const prices = deferred<Awaited<ReturnType<typeof loadStorePlans>>>();
     jest.mocked(loadStorePlans).mockReturnValueOnce(prices.promise);
     await renderUpgrade();
@@ -257,172 +247,14 @@ it("keeps the selected interval through loading, unavailable prices, retry, and 
         "Monthly, 4,99 € per month",
     );
     expect(radio("Yearly").props.accessibilityState.checked).toBe(true);
-    const payment = deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
-    jest.mocked(purchaseMembership).mockReturnValueOnce(payment.promise);
     await press("Continue with yearly");
-    expect(purchaseMembership).toHaveBeenCalledWith("premiumYearly", {
-        trialEligible: false,
-        trial: false,
-    });
-    expect(radio("Yearly").props.disabled).toBe(true);
-    expect(texts()).toContain("Yearly");
-    await act(async () =>
-        payment.resolve({ ok: false, canceled: true, message: "Canceled" }),
-    );
-    expect(radio("Yearly").props.disabled).toBe(false);
-    expect(texts()).not.toContain("Canceled");
+    expect(props.onContinue).toHaveBeenCalledWith("premiumYearly", false);
     expect(props.onMessage).toHaveBeenCalledTimes(1);
-    expect(props.onExternalBillingOpened).not.toHaveBeenCalled();
-});
-
-it("keeps pending confirmation across failed and unpaid status checks and never starts another purchase", async () => {
-    jest.mocked(purchaseMembership).mockResolvedValue({
-        ok: false,
-        pending: true,
-        message: "Payment pending",
-    });
-    await renderUpgrade();
-    await press("Continue with monthly");
-    expect(props.onPendingChange).toHaveBeenCalledWith(true);
-    expect(button("Continue with monthly")).toBeUndefined();
-    expect(radio("Monthly").props.disabled).toBe(true);
-    jest.mocked(checkStorePurchaseStatus).mockResolvedValueOnce({
-        ok: false,
-        message: "Could not connect.",
-    });
-    await press("Check status");
-    expect(props.onMessage).toHaveBeenCalledWith(
-        "Could not connect.",
-        expect.objectContaining({ label: "Check status" }),
-    );
-    expect(button("Continue with monthly")).toBeUndefined();
-    jest.mocked(checkStorePurchaseStatus).mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Still confirming",
-    });
-    await press("Check status");
-    expect(button("Continue with monthly")).toBeUndefined();
-    jest.mocked(checkStorePurchaseStatus).mockResolvedValueOnce({ ok: true });
-    await press("Check status");
-    expect(props.onPendingChange).toHaveBeenLastCalledWith(false);
-    expect(props.onExternalBillingOpened).toHaveBeenCalledWith("success");
-    expect(purchaseMembership).toHaveBeenCalledTimes(1);
-});
-
-it("retries Play preflight failures through the same selected tier and expires actions with the sheet", async () => {
-    jest.mocked(purchaseMembership)
-        .mockResolvedValueOnce({ ok: false, message: "Billing unavailable" })
-        .mockResolvedValueOnce({
-            ok: false,
-            canceled: true,
-            message: "Canceled",
-        });
-    await renderUpgrade();
-    await act(async () => radio("Yearly").props.onPress());
-    await press("Continue with yearly");
-    const recovery = props.onMessage.mock.calls[0]![1] as {
-        label: string;
-        onPress: () => void;
-    };
-    expect(recovery.label).toBe("Retry");
-    await act(async () => recovery.onPress());
-    expect(jest.mocked(purchaseMembership).mock.calls).toEqual([
-        ["premiumYearly", { trialEligible: false, trial: false }],
-        ["premiumYearly", { trialEligible: false, trial: false }],
-    ]);
-    expect(radio("Yearly").props.accessibilityState.checked).toBe(true);
-    expect(props.onMessage).toHaveBeenCalledTimes(1);
-    await act(async () =>
-        renderer.update(
-            createElement(MembershipUpgrade, {
-                ...props,
-                onMessage: jest.fn(),
-            }),
-        ),
-    );
-    await act(async () => recovery.onPress());
-    expect(purchaseMembership).toHaveBeenCalledTimes(2);
-});
-
-it.each([true, false])(
-    "ignores stale %p provider completion and recovers local busy state without clearing a new owner's busy flag",
-    async (play) => {
-        jest.mocked(storeBilling).mockReturnValue(play ? "google_play" : null);
-        const payment =
-            deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
-        jest.mocked(purchaseMembership).mockReturnValueOnce(payment.promise);
-        const oldBusy = jest.fn(),
-            newBusy = jest.fn(),
-            newMessage = jest.fn();
-        await renderUpgrade({ onBillingBusyChange: oldBusy });
-        await press("Continue with monthly");
-        await act(async () =>
-            renderer.update(
-                createElement(MembershipUpgrade, {
-                    ...props,
-                    onMessage: newMessage,
-                    onBillingBusyChange: newBusy,
-                }),
-            ),
-        );
-        await act(async () => payment.resolve({ ok: true }));
-        expect(oldBusy.mock.calls).toEqual([[true]]);
-        expect(newBusy).not.toHaveBeenCalled();
-        expect(props.onExternalBillingOpened).not.toHaveBeenCalled();
-        expect(radio("Monthly").props.disabled).toBe(false);
-        jest.mocked(purchaseMembership).mockResolvedValueOnce({
-            ok: false,
-            message: "Offline",
-        });
-        await press("Continue with monthly");
-        expect(newBusy.mock.calls).toEqual([[true], [false]]);
-        expect(newMessage).toHaveBeenCalledWith(
-            "Offline",
-            expect.objectContaining({ label: "Retry" }),
-        );
-    },
-);
-
-it("latches pending immediately when controlled parent props lag and clears on authoritative change", async () => {
-    jest.mocked(purchaseMembership).mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Pending",
-    });
-    await renderUpgrade({
-        pendingConfirmation: false,
-    });
-    const oldPress = button("Continue with monthly").props.onPress;
-    await press("Continue with monthly");
-    await act(async () => oldPress());
-    expect(purchaseMembership).toHaveBeenCalledTimes(1);
-    expect(button("Check status")).toBeDefined();
-    await act(async () =>
-        renderer.update(
-            createElement(MembershipUpgrade, {
-                ...props,
-                pendingConfirmation: true,
-            }),
-        ),
-    );
-    await act(async () =>
-        renderer.update(
-            createElement(MembershipUpgrade, {
-                ...props,
-                pendingConfirmation: false,
-            }),
-        ),
-    );
-    expect(button("Check status")).toBeUndefined();
-    expect(button("Continue with monthly")).toBeDefined();
 });
 
 it("never renders an invented renewal price when the selected store plan is absent", async () => {
     jest.mocked(loadStorePlans).mockResolvedValueOnce([plans[0]!]);
-    await renderUpgrade({
-        onContinue: async () => {},
-    });
+    await renderUpgrade({ setup: true });
     await act(async () => radio("Yearly").props.onPress());
     expect(
         texts().some(
@@ -435,15 +267,6 @@ it("never renders an invented renewal price when the selected store plan is abse
                 typeof value === "string" && value.includes("charged every"),
         ),
     ).toBe(false);
-});
-
-it("reopens an account's pending paywall with Check status instead of purchase", async () => {
-    await renderUpgrade({
-        pendingConfirmation: true,
-    });
-    expect(button("Check status")).toBeDefined();
-    expect(button("Continue with monthly")).toBeUndefined();
-    expect(purchaseMembership).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -478,61 +301,15 @@ it.each([
     },
 );
 
-it("reports one Stripe busy lifecycle for duplicate taps and clears it on success or failure", async () => {
-    jest.mocked(storeBilling).mockReturnValue(null);
-    const onBillingBusyChange = jest.fn();
-    const checkout = deferred<Awaited<ReturnType<typeof purchaseMembership>>>();
-    jest.mocked(purchaseMembership).mockReturnValueOnce(checkout.promise);
-    await renderUpgrade({ onBillingBusyChange });
-    await act(async () => {
-        const onPress = button("Continue with monthly").props.onPress;
-        onPress();
-        onPress();
-    });
-    expect(purchaseMembership).toHaveBeenCalledTimes(1);
-    expect(onBillingBusyChange.mock.calls).toEqual([[true]]);
-    await act(async () => checkout.resolve({ ok: true }));
-    expect(onBillingBusyChange.mock.calls).toEqual([[true], [false]]);
-    expect(props.onExternalBillingOpened).toHaveBeenCalledTimes(1);
-
-    jest.mocked(purchaseMembership).mockRejectedValueOnce(
-        new Error("Checkout unavailable"),
-    );
-    await press("Continue with monthly");
-    expect(onBillingBusyChange.mock.calls).toEqual([
-        [true],
-        [false],
-        [true],
-        [false],
-    ]);
-    expect(props.onMessage).toHaveBeenCalledWith(
-        "Could not open checkout. Please try again.",
-        expect.objectContaining({ label: "Retry" }),
-    );
-    expect(props.onExternalBillingOpened).toHaveBeenCalledTimes(1);
-});
-
-it("reloads Play plans without a Retry when the offer changed before purchase", async () => {
-    await renderUpgrade({ trialEligible: true });
-    expect(loadStorePlans).toHaveBeenLastCalledWith(true);
+it("shows a changed offer above the reloaded plans and continues with the new terms", async () => {
     jest.mocked(loadStorePlans).mockResolvedValueOnce(
         plans.map((plan) => ({ ...plan, trial: true })),
     );
-    jest.mocked(purchaseMembership).mockResolvedValueOnce({
-        ok: false,
-        offerChanged: { trial: true },
-        message: "Offer changed",
-    });
-    await press("Continue with monthly");
-    expect(purchaseMembership).toHaveBeenCalledWith("premiumMonthly", {
-        trialEligible: true,
-        trial: false,
-    });
-    expect(props.onMessage).toHaveBeenCalledWith("Offer changed");
-    expect(loadStorePlans).toHaveBeenCalledTimes(2);
+    await renderUpgrade({ trialEligible: true, offerTrial: true });
+    expect(loadStorePlans).toHaveBeenCalledWith(true);
+    expect(
+        renderer.root.findByType("PaymentStatus" as never).props,
+    ).toMatchObject({ state: "offerChanged", trial: true, compact: true });
     await press("Start 14-day free trial");
-    expect(purchaseMembership).toHaveBeenLastCalledWith("premiumMonthly", {
-        trialEligible: true,
-        trial: true,
-    });
+    expect(props.onContinue).toHaveBeenCalledWith("premiumMonthly", true);
 });

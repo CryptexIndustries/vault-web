@@ -14,9 +14,12 @@ import {
     establishOnlineServicesSession,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
+import NetInfo from "@react-native-community/netinfo";
 import {
     storeBilling,
-    refreshSubscriptionAfterExternalBilling,
+    confirmMembership,
+    purchaseMembership,
+    restoreStorePurchases,
 } from "@/app_lib/online-services-billing";
 import {
     getVaultSessionGeneration,
@@ -78,6 +81,15 @@ jest.mock("@/components/unlocked/unlocked-ui", () => ({
 }));
 jest.mock("@/components/account/account-summary", () => ({
     AccountSummary: "AccountSummary",
+    formatAccountDate: (_locale: string, value?: Date | null) =>
+        value ? "June 1, 2027" : null,
+}));
+jest.mock("@/components/account/payment-status", () => ({
+    PaymentStatus: "PaymentStatus",
+}));
+jest.mock("@react-native-community/netinfo", () => ({
+    __esModule: true,
+    default: { addEventListener: jest.fn(() => () => undefined) },
 }));
 jest.mock("@/components/account/membership-upgrade", () => ({
     MembershipUpgrade: "MembershipUpgrade",
@@ -128,8 +140,16 @@ jest.mock("@/app_lib/auth-session", () => ({
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
     storeBilling: jest.fn(() => null),
-    refreshSubscriptionAfterExternalBilling: jest.fn(),
-    checkStorePurchaseStatus: jest.fn(),
+    confirmMembership: jest.fn(),
+    purchaseMembership: jest.fn(),
+    restoreStorePurchases: jest.fn(),
+    confirmationSchedules: {
+        store: "store",
+        stripe: "stripe",
+        returned: "returned",
+        once: "once",
+    },
+    startConfirmation: (schedule: string, sync: string) => ({ schedule, sync }),
 }));
 jest.mock("@/utils/vault-session", () => ({
     getVaultSessionGeneration: jest.fn(),
@@ -192,12 +212,16 @@ let mockParams: {
 const mockListeners = new Set<(state: string) => void>();
 const mockRefetchConfig = jest.fn<() => Promise<unknown>>();
 const mockRefetchSubscription = jest.fn<() => Promise<unknown>>();
-const refresh = jest.mocked(refreshSubscriptionAfterExternalBilling);
+const confirm = jest.mocked(confirmMembership);
+const purchase = jest.mocked(purchaseMembership);
 const utils = trpcReact.useUtils();
-const paid = { nonFree: true } as NonNullable<
-    Awaited<ReturnType<typeof refresh>>
->;
-const free = { nonFree: false } as typeof paid;
+const paid = {
+    nonFree: true,
+    status: "trialing",
+    trialEndsAt: new Date(0),
+} as never;
+const free = { nonFree: false } as never;
+const notYet = { subscription: null, offline: false };
 function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((r) => {
@@ -209,6 +233,37 @@ async function render() {
     await act(async () => {
         if (renderer) renderer.update(createElement(AccountScreen));
         else renderer = create(createElement(AccountScreen));
+    });
+}
+function panel() {
+    return renderer!.root
+        .findAllByType("PaymentStatus" as never)
+        .find((node) => !node.props.compact)?.props;
+}
+function summary(mode: "overview" | "membership") {
+    return renderer!.root
+        .findAllByType("AccountSummary" as never)
+        .find((node) => node.props.mode === mode)!.props;
+}
+function texts() {
+    return renderer!.root
+        .findAllByType("Text" as never)
+        .map((node) => node.props.children);
+}
+async function openUpgrade() {
+    await act(async () => summary("overview").onOpenUpgrade());
+}
+async function payFromUpgrade(tier = "premiumMonthly") {
+    await act(async () =>
+        renderer!.root
+            .findByType("MembershipUpgrade" as never)
+            .props.onContinue(tier, false),
+    );
+}
+async function activate() {
+    await act(async () => {
+        AppState.currentState = "active";
+        for (const listener of Array.from(mockListeners)) listener("active");
     });
 }
 async function state(next: string) {
@@ -244,7 +299,11 @@ beforeEach(() => {
     AppState.currentState = "active";
     jest.mocked(getVaultSessionGeneration).mockReset().mockReturnValue(1);
     jest.mocked(isSameActiveVaultSession).mockReset().mockReturnValue(true);
-    refresh.mockReset().mockResolvedValue(free);
+    confirm.mockReset().mockResolvedValue(notYet);
+    purchase.mockReset().mockResolvedValue({ ok: true });
+    jest.mocked(restoreStorePurchases).mockReset().mockResolvedValue({
+        ok: true,
+    });
     mockRefetchConfig.mockReset().mockResolvedValue({ data: {} });
     mockRefetchSubscription.mockReset().mockResolvedValue({ data: free });
     jest.mocked(trpcReact.v1.payment.subscription.useQuery).mockReturnValue({
@@ -265,101 +324,93 @@ afterEach(async () => {
         .IS_REACT_NATIVE_TEST_ENVIRONMENT;
 });
 
-it("keeps confirmation pending with Check status until the backend confirms membership", async () => {
-    const pending = deferred<typeof free>();
-    refresh.mockReturnValue(pending.promise);
+it("opens the payment panel for a Stripe success link and falls back to Still confirming", async () => {
+    const result = deferred<Awaited<ReturnType<typeof confirm>>>();
+    confirm.mockReturnValue(result.promise);
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    expect(
-        renderer!.root
-            .findAllByType("Button" as never)
-            .find((node) => node.props.children === "Check status")!.props
-            .children,
-    ).toBe("Check status");
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
-    await act(async () => pending.resolve(free));
-    expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
-        undefined,
-        free,
-    );
-    expect(
-        renderer!.root
-            .findAllByType("Button" as never)
-            .find((node) => node.props.children === "Check status")!.props
-            .children,
-    ).toBe("Check status");
-    expect(
-        renderer!.root
-            .findAllByType("Button" as never)
-            .find((node) => node.props.children === "Check status")!.props
-            .disabled,
-    ).toBe(false);
-    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
+    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
+    expect(renderer!.root.findAllByType("DialogHeader" as never)).toHaveLength(
         0,
     );
+    expect(panel()).toMatchObject({ state: "confirming", store: "stripe" });
+    expect(confirm.mock.calls[0]![0]).toEqual({
+        schedule: "stripe",
+        sync: "never",
+    });
+    expect(mockParams.billingOutcome).toBeUndefined();
+    await act(async () =>
+        result.resolve({ subscription: null, offline: true }),
+    );
+    expect(panel()).toMatchObject({
+        state: "unconfirmed",
+        offline: true,
+        checking: false,
+    });
+    expect(utils.v1.payment.subscription.setData).not.toHaveBeenCalled();
 });
 
-it.each<["resume" | "cancel", typeof free]>([
-    ["resume", free],
-    ["resume", paid],
-    ["cancel", free],
-    ["cancel", paid],
-])(
-    "silently refreshes membership after %s for the returned subscription",
-    async (outcome, subscription) => {
-        const pending = deferred<typeof free>();
-        refresh.mockReturnValue(pending.promise);
-        mockParams = {
-            billingOutcome: outcome,
-            billingReturn: "billing-return",
-        };
-        await render();
-        expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
-        await act(async () => pending.resolve(subscription));
-        expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
-            undefined,
-            subscription,
-        );
-        expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
-    },
-);
-
-it("clears confirmation progress once the authoritative subscription is active", async () => {
-    const pending = deferred<typeof paid>();
-    refresh.mockReturnValue(pending.promise);
-    mockParams = {
-        billingOutcome: "success",
-        billingReturn: "checkout-return",
-    };
+it("installs a confirmed subscription and closes the panel on Done", async () => {
+    confirm.mockResolvedValue({ subscription: paid, offline: false });
+    mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    expect(
-        renderer!.root
-            .findAllByType("Button" as never)
-            .some((node) => node.props.children === "Check status"),
-    ).toBe(true);
-    await act(async () => pending.resolve(paid));
     expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
         undefined,
         paid,
     );
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
+    expect(utils.v1.user.configuration.invalidate).toHaveBeenCalled();
+    expect(panel()).toMatchObject({
+        state: "confirmed",
+        trial: true,
+        date: "June 1, 2027",
+    });
+    await act(async () => panel()!.onPrimary());
+    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(false);
+    expect(panel()).toBeUndefined();
 });
 
-it("offers one actionable snackbar after a membership refresh failure", async () => {
-    refresh.mockRejectedValueOnce(new Error("Offline"));
-    mockParams = { billingOutcome: "resume", billingReturn: "billing-return" };
+it("ignores a late cancel link while a Stripe payment is confirming", async () => {
+    confirm.mockReturnValue(new Promise(() => {}));
+    mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
-        1,
+    const signal = confirm.mock.calls[0]![1];
+    mockParams = { billingOutcome: "cancel", billingReturn: "checkout-b" };
+    await render();
+    expect(panel()).toMatchObject({ state: "confirming" });
+    expect(signal.aborted).toBe(false);
+    expect(texts()).not.toContain("Payment canceled. Nothing was charged.");
+});
+
+it("stops confirming and ignores a late result when Online Services signs out", async () => {
+    const result = deferred<Awaited<ReturnType<typeof confirm>>>();
+    confirm.mockReturnValue(result.promise);
+    mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
+    await render();
+    const signal = confirm.mock.calls[0]![1];
+    await act(async () =>
+        onlineServicesStore.set(onlineServicesDataAtom, null),
     );
-    expect(
-        renderer!.root
-            .findAllByType("Text" as never)
-            .some((node) =>
-                node.props.children.includes("Could not refresh membership"),
-            ),
-    ).toBe(true);
-    expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+        result.resolve({ subscription: paid, offline: false }),
+    );
+    expect(utils.v1.payment.subscription.setData).not.toHaveBeenCalled();
+});
+
+it("reports a Stripe cancel link without opening a sheet", async () => {
+    mockParams = { billingOutcome: "cancel", billingReturn: "checkout-a" };
+    await render();
+    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(false);
+    expect(texts()).toContain("Payment canceled. Nothing was charged.");
+    expect(confirm).not.toHaveBeenCalled();
+});
+
+it("refreshes membership for a return with no checkout in progress", async () => {
+    mockParams = { billingOutcome: "resume", billingReturn: "portal-return" };
+    await render();
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(panel()).toBeUndefined();
 });
 
 it("clears a previous screen error when the account sheet changes view", async () => {
@@ -400,126 +451,159 @@ it.each(["background", "inactive"] as const)(
             billingReturn: "portal-return",
         };
         await render();
-        expect(refresh).not.toHaveBeenCalled();
+        expect(mockRefetchSubscription).not.toHaveBeenCalled();
 
         // Native AppState events must drive React themselves. An explicit
         // renderer.update here would hide the real warm browser-return race.
-        await act(async () => {
-            AppState.currentState = "active";
-            for (const listener of Array.from(mockListeners)) {
-                listener("active");
-            }
-        });
-        expect(refresh).toHaveBeenCalledTimes(1);
-        expect(refresh.mock.calls[0]![0]).toBe("resume");
-        expect(utils.v1.payment.subscription.setData).toHaveBeenCalledWith(
-            undefined,
-            free,
+        await activate();
+        expect(mockRefetchSubscription).toHaveBeenCalledTimes(1);
+    },
+);
+
+it.each<["success" | "cancel" | undefined, string, object | undefined]>([
+    ["success", "confirming", { schedule: "stripe", sync: "never" }],
+    ["cancel", "canceled", undefined],
+    [undefined, "returned", { schedule: "returned", sync: "never" }],
+])(
+    "settles a Stripe checkout from the upgrade sheet by how the browser returns (%s)",
+    async (outcome, expected, run) => {
+        confirm.mockReturnValue(new Promise(() => {}));
+        await render();
+        await openUpgrade();
+        await payFromUpgrade("premiumYearly");
+        expect(purchase).toHaveBeenCalledWith(
+            "premiumYearly",
+            { trialEligible: false, trial: false },
+            expect.any(Function),
         );
-    },
-);
-
-it.each(["success", "cancel"] as const)(
-    "preserves an incoming %s callback when the prior billing browser resumes",
-    async (outcome) => {
-        await render();
-        renderer!.root
-            .findAllByType("AccountSummary" as never)[0]!
-            .props.onExternalBillingOpened();
-        await state("background");
-        mockParams = { billingOutcome: outcome, billingReturn: "checkout-a" };
-        await render();
-        await act(async () => {
-            AppState.currentState = "active";
-            for (const listener of Array.from(mockListeners)) {
-                listener("active");
-            }
+        expect(panel()).toMatchObject({
+            state: "opening",
+            tier: "premiumYearly",
         });
-        expect(refresh).toHaveBeenCalledTimes(1);
-        expect(refresh.mock.calls[0]![0]).toBe(outcome);
+        await state("background");
+        if (outcome)
+            mockParams = {
+                billingOutcome: outcome,
+                billingReturn: "checkout-a",
+            };
+        await render();
+        await activate();
+        expect(panel()).toMatchObject({
+            state: expected,
+            tier: "premiumYearly",
+        });
+        if (run) expect(confirm.mock.calls.at(-1)![0]).toEqual(run);
+        else expect(confirm).not.toHaveBeenCalled();
     },
 );
 
-it("aborts on background and preserves the same confirmation budget across three returns", async () => {
-    refresh.mockImplementation(() => new Promise(() => {}));
-    mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
+it("lets a Stripe return without a link check again or reopen checkout", async () => {
     await render();
-    const confirmation = refresh.mock.calls[0]![2];
-    for (let cycle = 0; cycle < 3; cycle++) {
-        const previousSignal = refresh.mock.calls[cycle]![1];
-        await state("background");
-        expect(previousSignal.aborted).toBe(true);
-        expect(
-            renderer!.root
-                .findAllByType("AccountSummary" as never)
-                .every((node) => node.props.refreshing === false),
-        ).toBe(true);
-        await state("active");
-        expect(refresh.mock.calls[cycle + 1]![2]).toBe(confirmation);
-    }
-    expect(refresh).toHaveBeenCalledTimes(4);
+    await openUpgrade();
+    await payFromUpgrade();
+    await state("background");
+    await state("active");
+    expect(panel()).toMatchObject({ state: "returned", checking: false });
+    await act(async () => panel()!.onPrimary());
+    expect(confirm.mock.calls.at(-1)![0]).toEqual({
+        schedule: "once",
+        sync: "never",
+    });
+    await act(async () => panel()!.onSecondary());
+    expect(purchase).toHaveBeenCalledTimes(2);
+    expect(panel()).toMatchObject({ state: "opening" });
 });
 
-it("does not poll or react to AppState while the account route is retained off screen", async () => {
+it("keeps a Stripe return without a link on the Account card when the sheet closes", async () => {
+    confirm.mockReturnValue(new Promise(() => {}));
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    await state("background");
+    await state("active");
+    const signal = confirm.mock.calls[0]![1];
+    await act(async () =>
+        renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
+    );
+    expect(summary("overview").paymentStatus.props).toMatchObject({
+        state: "returned",
+        compact: true,
+    });
+    expect(signal.aborted).toBe(false);
+});
+
+it("pauses confirmation in the background and resumes the same run", async () => {
+    confirm.mockImplementation(() => new Promise(() => {}));
+    mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
+    await render();
+    const run = confirm.mock.calls[0]![0];
+    for (let cycle = 0; cycle < 3; cycle++) {
+        const previousSignal = confirm.mock.calls[cycle]![1];
+        await state("background");
+        expect(previousSignal.aborted).toBe(true);
+        await state("active");
+        expect(confirm.mock.calls[cycle + 1]![0]).toBe(run);
+    }
+    expect(confirm).toHaveBeenCalledTimes(4);
+});
+
+it("does not confirm or react to AppState while the account route is retained off screen", async () => {
     mockFocused = false;
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
     await state("background");
     await state("active");
-    expect(refresh).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
     mockFocused = true;
     await render();
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledTimes(1);
 });
 
-it("refreshes once when the user returns manually from the billing browser", async () => {
+it("refreshes once when the user returns manually from billing management", async () => {
     await render();
-    renderer!.root
-        .findAllByType("AccountSummary" as never)[0]!
-        .props.onExternalBillingOpened();
+    summary("overview").onExternalBillingOpened();
     await state("background");
     await state("active");
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(refresh.mock.calls[0]![0]).toBe("resume");
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
 });
 
-it("discards stale results before cache writes if the vault expires during the refresh", async () => {
-    const pending = deferred<typeof paid>();
-    refresh.mockReturnValue(pending.promise);
+it("drops a running confirmation when the bound account changes", async () => {
+    confirm.mockImplementation(() => new Promise(() => {}));
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    jest.mocked(isSameActiveVaultSession).mockReturnValue(false);
-    await act(async () => pending.resolve(paid));
-    expect(utils.v1.payment.subscription.setData).not.toHaveBeenCalled();
-    expect(utils.v1.user.configuration.invalidate).not.toHaveBeenCalled();
+    const signal = confirm.mock.calls[0]![1];
+    await act(async () =>
+        getDefaultStore().set(unlockedVaultAtom, {
+            OnlineServices: { DeviceId: "device-b", UserID: "user-b" },
+        } as never),
+    );
+    expect(signal.aborted).toBe(true);
+    expect(panel()).toBeUndefined();
+    expect(confirm).toHaveBeenCalledTimes(1);
 });
 
-it("replaces the previous confirmation state for a distinct browser return", async () => {
-    refresh.mockImplementation(() => new Promise(() => {}));
+it("replaces the running confirmation for a distinct browser return", async () => {
+    confirm.mockImplementation(() => new Promise(() => {}));
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    const first = refresh.mock.calls[0]![2];
+    const first = confirm.mock.calls[0]!;
     mockParams = { billingOutcome: "success", billingReturn: "checkout-b" };
     await render();
-    expect(refresh.mock.calls[1]![2]).not.toBe(first);
-    expect(refresh.mock.calls[0]![1].aborted).toBe(true);
+    expect(confirm.mock.calls[1]![0]).not.toBe(first[0]);
+    expect(first[1].aborted).toBe(true);
 });
 
 it("drops a prior confirmation when a different vault session becomes active", async () => {
-    refresh.mockImplementation(() => new Promise(() => {}));
+    confirm.mockImplementation(() => new Promise(() => {}));
     mockParams = { billingOutcome: "success", billingReturn: "checkout-a" };
     await render();
-    const signal = refresh.mock.calls[0]![1];
+    const signal = confirm.mock.calls[0]![1];
     await state("background");
     jest.mocked(getVaultSessionGeneration).mockReturnValue(2);
     await state("active");
     expect(signal.aborted).toBe(true);
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(router.setParams).toHaveBeenLastCalledWith({
-        billingOutcome: undefined,
-        billingReturn: undefined,
-        billingResume: undefined,
-    });
+    expect(confirm).toHaveBeenCalledTimes(1);
     expect(utils.v1.payment.subscription.setData).not.toHaveBeenCalled();
 });
 
@@ -574,27 +658,6 @@ it("offers Retry after a failed automatic refresh and recovers without a persist
     );
     expect(mockRefetchSubscription).toHaveBeenCalledTimes(2);
     expect(renderer!.root.findAllByType("Notice" as never)).toHaveLength(0);
-});
-
-it("opens the dedicated upgrade sheet and closes it when the checkout browser opens", async () => {
-    await render();
-    const overview = renderer!.root
-        .findAllByType("AccountSummary" as never)
-        .find((node) => node.props.mode === "overview")!;
-    await act(async () => overview.props.onOpenUpgrade());
-    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
-    const upgrade = renderer!.root.findByType("MembershipUpgrade" as never);
-    expect(upgrade.props.canUpgrade).toBe(true);
-    expect(
-        renderer!.root
-            .findAllByType("AccountSummary" as never)
-            .some((node) => node.props.mode === "membership"),
-    ).toBe(false);
-    await act(async () => upgrade.props.onExternalBillingOpened());
-    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(false);
-    expect(
-        renderer!.root.findAllByType("MembershipUpgrade" as never),
-    ).toHaveLength(0);
 });
 
 it("replaces retained upgrade controls on dismissal, account change, and logout", async () => {
@@ -818,37 +881,193 @@ it("discards retained signup state when the unlocked vault session changes", asy
     ).toHaveLength(0);
 });
 
-it.each(["success", "resume"] as const)(
-    "refreshes Play %s outcomes immediately without waiting for browser return",
-    async (outcome) => {
+it("shows a store purchase as confirming once the store takes payment, then confirms it", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    const result = deferred<Awaited<ReturnType<typeof purchase>>>();
+    let onPaid!: () => void;
+    purchase.mockImplementation((_tier, _terms, paidCallback) => {
+        onPaid = paidCallback!;
+        return result.promise;
+    });
+    confirm.mockResolvedValue({ subscription: paid, offline: false });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    expect(panel()).toMatchObject({ state: "opening", store: "google_play" });
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        false,
+    );
+    await act(async () => onPaid());
+    expect(panel()).toMatchObject({ state: "confirming" });
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        true,
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    await act(async () => result.resolve({ ok: true }));
+    expect(confirm.mock.calls[0]![0]).toEqual({
+        schedule: "store",
+        sync: "afterFirst",
+    });
+    expect(panel()).toMatchObject({ state: "confirmed" });
+});
+
+it.each<
+    ["sync" | "owned" | "store", Record<string, unknown>, string | undefined]
+>([
+    ["sync", { state: "confirming", owned: false }, "afterFirst"],
+    ["owned", { state: "confirming", owned: true }, "always"],
+    ["store", { state: "storePending" }, undefined],
+])(
+    "routes a purchase pending for reason %s",
+    async (pending, expected, sync) => {
         jest.mocked(storeBilling).mockReturnValue("google_play");
+        purchase.mockResolvedValue({ ok: false, pending });
+        confirm.mockReturnValue(new Promise(() => {}));
         await render();
-        await act(async () =>
-            renderer!.root
-                .findAllByType("AccountSummary" as never)
-                .find((node) => node.props.mode === "overview")!
-                .props.onExternalBillingOpened(outcome),
-        );
-        expect(router.setParams).toHaveBeenCalledWith(
-            expect.objectContaining({ billingOutcome: outcome }),
-        );
+        await openUpgrade();
+        await payFromUpgrade();
+        expect(panel()).toMatchObject(expected);
+        if (sync)
+            expect(confirm.mock.calls[0]![0]).toEqual({
+                schedule: "store",
+                sync,
+            });
+        else expect(confirm).not.toHaveBeenCalled();
     },
 );
+
+it("restores an already-owned subscription from Still confirming", async () => {
+    jest.mocked(storeBilling).mockReturnValue("app_store");
+    purchase.mockResolvedValue({ ok: false, pending: "owned" });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    expect(panel()).toMatchObject({ state: "unconfirmed", owned: true });
+    confirm.mockReturnValue(new Promise(() => {}));
+    await act(async () => panel()!.onPrimary());
+    expect(restoreStorePurchases).toHaveBeenCalledTimes(1);
+    expect(panel()).toMatchObject({ state: "confirming", owned: true });
+    expect(confirm.mock.calls.at(-1)![0]).toEqual({
+        schedule: "store",
+        sync: "afterFirst",
+    });
+});
+
+it("keeps canceled and failed payments in the sheet and retries the same terms", async () => {
+    purchase
+        .mockResolvedValueOnce({ ok: false, canceled: true })
+        .mockResolvedValueOnce({
+            ok: false,
+            message: "Belongs to another account",
+            retryable: false,
+        });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade("premiumYearly");
+    expect(panel()).toMatchObject({ state: "canceled", tier: "premiumYearly" });
+    await act(async () => panel()!.onPrimary());
+    expect(purchase.mock.calls[1]!.slice(0, 2)).toEqual([
+        "premiumYearly",
+        { trialEligible: false, trial: false },
+    ]);
+    expect(panel()).toMatchObject({
+        state: "error",
+        message: "Belongs to another account",
+        retryable: false,
+    });
+    await act(async () => panel()!.onSecondary());
+    expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(false);
+    expect(panel()).toBeUndefined();
+});
+
+it("returns to the plan with the changed offer", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    purchase.mockResolvedValue({ ok: false, offerChanged: { trial: true } });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    expect(panel()).toBeUndefined();
+    expect(
+        renderer!.root.findByType("MembershipUpgrade" as never).props
+            .offerTrial,
+    ).toBe(true);
+});
+
+it("starts one purchase for a double tap", async () => {
+    purchase.mockReturnValue(new Promise(() => {}));
+    await render();
+    await openUpgrade();
+    await act(async () => {
+        const upgrade = renderer!.root.findByType("MembershipUpgrade" as never);
+        upgrade.props.onContinue("premiumMonthly", false);
+        upgrade.props.onContinue("premiumMonthly", false);
+    });
+    expect(purchase).toHaveBeenCalledTimes(1);
+});
+
+it("moves confirmation to the Account card when the sheet closes and announces a late success", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    const result = deferred<Awaited<ReturnType<typeof confirm>>>();
+    confirm.mockReturnValue(result.promise);
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    await act(async () =>
+        renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
+    );
+    expect(summary("overview").paymentStatus.props).toMatchObject({
+        state: "confirming",
+        compact: true,
+    });
+    await act(async () =>
+        result.resolve({ subscription: paid, offline: false }),
+    );
+    expect(texts()).toContain("Your membership is active.");
+    expect(summary("overview").paymentStatus).toBeNull();
+});
+
+it("checks an unconfirmed payment again on return, at most once a minute", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    purchase.mockResolvedValue({ ok: false, pending: "sync" });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    expect(panel()).toMatchObject({ state: "unconfirmed" });
+    await state("background");
+    await state("active");
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(confirm.mock.calls[1]![0]).toEqual({
+        schedule: "once",
+        sync: "always",
+    });
+    await state("background");
+    await state("active");
+    expect(confirm).toHaveBeenCalledTimes(2);
+});
+
+it("checks an offline payment again when the connection returns", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    purchase.mockResolvedValue({ ok: false, pending: "sync" });
+    confirm.mockResolvedValue({ subscription: null, offline: true });
+    await render();
+    await openUpgrade();
+    await payFromUpgrade();
+    const listener = jest.mocked(NetInfo.addEventListener).mock.calls[0]![0];
+    await act(async () => listener({ isConnected: false } as never));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    await act(async () => listener({ isConnected: true } as never));
+    expect(confirm).toHaveBeenCalledTimes(2);
+});
 
 it("refreshes Google subscription management only after returning from the browser", async () => {
     jest.mocked(storeBilling).mockReturnValue("google_play");
     await render();
-    await act(async () =>
-        renderer!.root
-            .findAllByType("AccountSummary" as never)
-            .find((node) => node.props.mode === "overview")!
-            .props.onExternalBillingOpened(),
-    );
-    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => summary("overview").onExternalBillingOpened());
+    expect(mockRefetchSubscription).not.toHaveBeenCalled();
     await state("background");
     await state("active");
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(refresh.mock.calls[0]![0]).toBe("resume");
+    expect(mockRefetchSubscription).toHaveBeenCalledTimes(1);
+    expect(confirm).not.toHaveBeenCalled();
 });
 
 it("shows a safe retry when reconnection succeeds but membership refresh fails", async () => {
@@ -913,33 +1132,24 @@ it("keeps one active snackbar host and clears it on logout", async () => {
     );
 });
 
-it("keeps pending purchases through sheet reopening and blocks another checkout", async () => {
+it("keeps a store-pending purchase through sheet reopening and blocks another checkout", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    purchase.mockResolvedValue({ ok: false, pending: "store" });
     await render();
-    const overview = renderer!.root
-        .findAllByType("AccountSummary" as never)
-        .find((node) => node.props.mode === "overview")!;
-    await act(async () => overview.props.onPendingChange(true));
-    await act(async () => overview.props.onOpenUpgrade());
-    expect(
-        renderer!.root.findAllByType("MembershipUpgrade" as never),
-    ).toHaveLength(0);
-    expect(
-        renderer!.root
-            .findAllByType("Button" as never)
-            .some((node) => node.props.children === "Check status"),
-    ).toBe(true);
+    await openUpgrade();
+    await payFromUpgrade();
     await act(async () =>
         renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
     );
-    await act(async () =>
-        renderer!.root
-            .findAllByType("AccountSummary" as never)
-            .find((node) => node.props.mode === "overview")!
-            .props.onOpenUpgrade(),
-    );
+    await openUpgrade();
     expect(
         renderer!.root.findAllByType("MembershipUpgrade" as never),
     ).toHaveLength(0);
+    expect(summary("membership").paymentStatus.props).toMatchObject({
+        state: "storePending",
+        compact: true,
+    });
+    expect(purchase).toHaveBeenCalledTimes(1);
 });
 
 it("does not let an old account completion release the new account refresh lock", async () => {
@@ -1008,22 +1218,6 @@ it("discards a retained signup kit when its bound account is replaced in the sam
     ).toHaveLength(0);
 });
 
-it("starts explicit billing success confirmation for Stripe without waiting for browser return", async () => {
-    await render();
-    await act(async () =>
-        renderer!.root
-            .findAllByType("AccountSummary" as never)
-            .find((node) => node.props.mode === "overview")!
-            .props.onExternalBillingOpened("success"),
-    );
-    expect(router.setParams).toHaveBeenCalledWith(
-        expect.objectContaining({ billingOutcome: "success" }),
-    );
-    await render();
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(refresh.mock.calls[0]![0]).toBe("success");
-});
-
 it("releases refresh loading on logout and keeps a newer reconnect request guarded", async () => {
     const old = deferred<unknown>();
     const next = deferred<unknown>();
@@ -1071,12 +1265,16 @@ it("releases refresh loading on logout and keeps a newer reconnect request guard
     );
 });
 
-it("keeps newer billing locks and pending state when old callbacks arrive after same-account reconnect", async () => {
+it("keeps newer billing locks and pending payments when old callbacks arrive after same-account reconnect", async () => {
+    jest.mocked(storeBilling).mockReturnValue("google_play");
+    purchase.mockResolvedValue({ ok: false, pending: "store" });
     await render();
-    const old = renderer!.root
-        .findAllByType("AccountSummary" as never)
-        .find((node) => node.props.mode === "overview")!.props;
-    await act(async () => old.onPendingChange(true));
+    await openUpgrade();
+    await payFromUpgrade();
+    await act(async () =>
+        renderer!.root.findByType("Dialog" as never).props.onOpenChange(false),
+    );
+    const old = summary("overview");
     await act(async () =>
         onlineServicesStore.set(onlineServicesDataAtom, null),
     );
@@ -1089,7 +1287,7 @@ it("keeps newer billing locks and pending state when old callbacks arrive after 
     const current = renderer!.root
         .findAllByType("AccountSummary" as never)
         .find((node) => node.props.mode === "overview")!.props;
-    expect(current.pendingConfirmation).toBe(true);
+    expect(current.paymentStatus).toBeTruthy();
     await act(async () => current.onOpenMembership());
     await act(async () =>
         renderer!.root
@@ -1103,17 +1301,12 @@ it("keeps newer billing locks and pending state when old callbacks arrive after 
     jest.mocked(router.setParams).mockClear();
     await act(async () => {
         old.onBillingBusyChange(false);
-        old.onExternalBillingOpened("success");
+        old.onExternalBillingOpened();
     });
     expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
         false,
     );
     expect(renderer!.root.findByType("Dialog" as never).props.open).toBe(true);
     expect(router.setParams).not.toHaveBeenCalled();
-    expect(
-        renderer!.root
-            .findAllByType("AccountSummary" as never)
-            .find((node) => node.props.mode === "membership")!.props
-            .pendingConfirmation,
-    ).toBe(true);
+    expect(summary("membership").paymentStatus).toBeTruthy();
 });

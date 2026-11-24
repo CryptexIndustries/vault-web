@@ -5,7 +5,12 @@ import type { trpc } from "@/utils/trpc";
 import * as stripe from "./stripe-billing";
 
 export { checkoutReturnTarget } from "./stripe-billing";
-export { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
+export {
+    confirmMembership,
+    confirmationSchedules,
+    startConfirmation,
+    type ConfirmationRun,
+} from "./billing-confirmation";
 
 export type CheckoutTier = "premiumMonthly" | "premiumYearly";
 export type StorePlan = { tier: CheckoutTier; price: string; trial: boolean };
@@ -13,25 +18,16 @@ export type StorePlan = { tier: CheckoutTier; price: string; trial: boolean };
 export type PlanTerms = { trialEligible: boolean; trial: boolean };
 export type BillingResult =
     | { ok: true }
-    | {
-          ok: false;
-          message: string;
-          canceled?: boolean;
-          pending?: boolean;
-          /** False when trying again cannot change the outcome. */
-          retryable?: false;
-          /** The store offer differs from the one shown; nothing was bought. */
-          offerChanged?: { trial: boolean };
-      };
-export type BillingConfirmation = {
-    generation: number;
-    deadline: number;
-    nextPollAt: number;
-    attempts: number;
-    subscription: Awaited<
-        ReturnType<typeof trpc.v1.payment.subscription.query>
-    > | null;
-};
+    /**
+     * Membership is not confirmed yet: the sync after payment failed, the
+     * store holds the payment, or the store account already subscribed.
+     */
+    | { ok: false; pending: "sync" | "store" | "owned" }
+    /** The store offer differs from the one shown; nothing was bought. */
+    | { ok: false; offerChanged: { trial: boolean } }
+    | { ok: false; canceled: true }
+    /** retryable is false when trying again cannot change the outcome. */
+    | { ok: false; message: string; retryable?: false };
 export function isGooglePlayBuild(): boolean {
     return (
         Platform?.OS === "android" &&
@@ -48,15 +44,20 @@ export function storeBilling(): "google_play" | "app_store" | null {
 export async function purchaseMembership(
     tier: CheckoutTier = "premiumMonthly",
     terms: PlanTerms = { trialEligible: false, trial: false },
+    onPaid?: () => void,
 ): Promise<BillingResult> {
     if (storeBilling()) {
-        return (await import("./store-billing")).purchasePlan(tier, terms);
+        return (await import("./store-billing")).purchasePlan(
+            tier,
+            terms,
+            onPaid,
+        );
     }
     // Stripe checkout decides the trial on the server.
     return stripe.openCheckoutExternal(tier);
 }
-type BillingProvider = NonNullable<
-    BillingConfirmation["subscription"]
+type BillingProvider = Awaited<
+    ReturnType<typeof trpc.v1.payment.subscription.query>
 >["provider"];
 export type BillingManagement = "google_play" | "app_store" | "stripe" | null;
 
@@ -115,7 +116,4 @@ export async function loadStorePlans(trialEligible: boolean) {
 }
 export async function restoreStorePurchases() {
     return (await import("./store-billing")).restorePurchases();
-}
-export async function checkStorePurchaseStatus() {
-    return (await import("./store-billing")).checkPurchaseStatus();
 }

@@ -1,5 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { trpc } from "@/utils/trpc";
+import { onlineServicesLog } from "@/utils/logging";
 import type {
     IntroEligibility,
     PurchasesStoreProduct,
@@ -23,7 +24,7 @@ import {
     type PlanTerms,
     type StorePlan,
 } from "./online-services-billing";
-import { refreshSubscriptionAfterExternalBilling } from "./billing-confirmation";
+import { syncRevenueCat } from "./billing-confirmation";
 
 class BillingError extends Error {}
 const appStore = storeBilling() === "app_store";
@@ -267,6 +268,7 @@ function failure(error: unknown): BillingResult {
         typeof error === "object" && error && "code" in error
             ? String(error.code)
             : "";
+    onlineServicesLog.warn("Store billing did not complete", { code, error });
     if (
         code === "1" ||
         (typeof error === "object" &&
@@ -274,19 +276,8 @@ function failure(error: unknown): BillingResult {
             "userCancelled" in error &&
             error.userCancelled === true)
     )
-        return {
-            ok: false,
-            canceled: true,
-            message: t`Purchase canceled. Your membership has not changed.`,
-        };
-    if (code === "20")
-        return {
-            ok: false,
-            pending: true,
-            message: appStore
-                ? t`Payment is pending in the App Store. Membership will update after payment is approved.`
-                : t`Payment is pending in Google Play. Membership will update after payment is approved.`,
-        };
+        return { ok: false, canceled: true };
+    if (code === "20") return { ok: false, pending: "store" };
     // Purchases stay with the account that bought them; RevenueCat refuses transfers.
     if (["6", "7", "13"].includes(code))
         return {
@@ -316,14 +307,16 @@ function failure(error: unknown): BillingResult {
 }
 async function syncMembership(
     session: ReturnType<typeof captureSession>,
-    pendingMessage: string,
 ): Promise<BillingResult> {
     assertSession(session);
     try {
-        await trpc.v1.payment.syncRevenueCat.mutate();
-    } catch {
+        await syncRevenueCat();
+    } catch (error) {
+        onlineServicesLog.warn("Membership sync failed after store payment", {
+            error,
+        });
         assertSession(session);
-        return { ok: false, pending: true, message: pendingMessage };
+        return { ok: false, pending: "sync" };
     }
     assertSession(session);
     // Only the backend subscription endpoint grants membership.
@@ -352,9 +345,11 @@ export async function loadPlans(trialEligible = false): Promise<StorePlan[]> {
         });
     });
 }
+/** onPaid runs once the store took payment, before membership syncs. */
 export async function purchasePlan(
     tier: CheckoutTier,
     terms: PlanTerms = { trialEligible: false, trial: false },
+    onPaid?: () => void,
 ): Promise<BillingResult> {
     try {
         const session = captureSession();
@@ -363,13 +358,11 @@ export async function purchasePlan(
             const purchases = await prepare(session, config.apiKey, true);
             const customer = await purchases.getCustomerInfo();
             if (hasSubscription(customer.activeSubscriptions, config)) {
-                return {
-                    ok: false,
-                    pending: true,
-                    message: appStore
-                        ? t`The App Store already has an active subscription. Membership confirmation is pending.`
-                        : t`Google Play already has an active subscription. Membership confirmation is pending.`,
-                };
+                onlineServicesLog.warn(
+                    "Store account already has an active subscription",
+                    { active: customer.activeSubscriptions },
+                );
+                return { ok: false, pending: "owned" };
             }
             const { products, introEligibility } = await loadPlanSelection(
                 purchases,
@@ -384,20 +377,11 @@ export async function purchasePlan(
                 introEligibility,
             );
             // Never buy different terms than the ones the user saw.
-            if (trial !== terms.trial) {
-                return {
-                    ok: false,
-                    offerChanged: { trial },
-                    message: trial
-                        ? t`This plan now starts with a 14-day free trial. Check the plan and try again.`
-                        : t`The free trial is no longer available for this plan. Check the plan and try again.`,
-                };
-            }
+            if (trial !== terms.trial)
+                return { ok: false, offerChanged: { trial } };
             await buy(purchases);
-            return syncMembership(
-                session,
-                t`Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly.`,
-            );
+            onPaid?.();
+            return syncMembership(session);
         });
     } catch (error) {
         return failure(error);
@@ -410,10 +394,7 @@ export async function restorePurchases(): Promise<BillingResult> {
         return await serialized(async () => {
             const purchases = await prepare(session, config.apiKey);
             const customer = await purchases.restorePurchases();
-            const synced = await syncMembership(
-                session,
-                t`Purchases restored. Membership confirmation is pending. Refresh Membership shortly.`,
-            );
+            const synced = await syncMembership(session);
             // With no subscription in any store, there is no membership to wait for.
             if (!customer.activeSubscriptions.length)
                 return {
@@ -424,31 +405,6 @@ export async function restorePurchases(): Promise<BillingResult> {
                         : t`No Google Play subscription to restore.`,
                 };
             return synced;
-        });
-    } catch (error) {
-        return failure(error);
-    }
-}
-/** Checking confirmation never starts a purchase or restores store ownership. */
-export async function checkPurchaseStatus(): Promise<BillingResult> {
-    try {
-        const session = captureSession();
-        return await serialized(async () => {
-            assertSession(session);
-            await trpc.v1.payment.syncRevenueCat.mutate();
-            assertSession(session);
-            const subscription = await refreshSubscriptionAfterExternalBilling(
-                "resume",
-                new AbortController().signal,
-            );
-            assertSession(session);
-            return subscription?.nonFree
-                ? { ok: true }
-                : {
-                      ok: false,
-                      pending: true,
-                      message: t`Membership confirmation is pending. Check status again shortly.`,
-                  };
         });
     } catch (error) {
         return failure(error);

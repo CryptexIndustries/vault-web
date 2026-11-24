@@ -1,5 +1,5 @@
 diff --git a/dist/src/index.js b/dist/src/index.js
-index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..185894c4df61f323bc815a3c912f66bfe7e88643 100644
+index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..ea455c31f9fef980b6011d1faa884c075831f68f 100644
 --- a/dist/src/index.js
 +++ b/dist/src/index.js
 @@ -386,6 +386,12 @@ export default forwardRef(function ActionSheet(_a, ref) {
@@ -42,7 +42,18 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..185894c4df61f323bc815a3c912f66bf
      /**
       * Snap towards the top
       */
-@@ -959,7 +978,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -943,7 +962,9 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         var _a, _b;
+         return isModal && !props.backgroundInteractionEnabled
+             ? {
+-                visible: true,
++                // Hidden rather than unmounted, so iOS reports the dismissal.
++                visible: visible,
++                onDismiss: props.onDismiss,
+                 animationType: 'none',
+                 testID: ((_a = props.testIDs) === null || _a === void 0 ? void 0 : _a.modal) || props.testID,
+                 supportedOrientations: SUPPORTED_ORIENTATIONS,
+@@ -959,7 +980,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
                  testID: ((_b = props.testIDs) === null || _b === void 0 ? void 0 : _b.root) || props.testID,
                  onLayout: function () {
                      var _a;
@@ -50,7 +61,24 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..185894c4df61f323bc815a3c912f66bf
                      (_a = props === null || props === void 0 ? void 0 : props.onOpen) === null || _a === void 0 ? void 0 : _a.call(props);
                  },
                  style: {
-@@ -1064,7 +1082,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -984,6 +1004,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         props,
+         zIndex,
+         sheetId,
++        visible,
+     ]);
+     var renderRoute = useCallback(function (route) {
+         var _a;
+@@ -1027,7 +1048,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+     }, [underlayTranslateY]);
+     var GestureMobileOnly = Platform.OS === 'web' ? Fragment : GestureDetector;
+     return (<>
+-        {visible ? (<Root {...rootProps}>
++        {visible || Root === Modal ? (<Root {...rootProps}>
+             <GestureHandlerRoot isModal={isModal} style={styles.parentContainer} pointerEvents={(props === null || props === void 0 ? void 0 : props.backgroundInteractionEnabled) ? 'box-none' : 'auto'}>
+               <PanGestureRefContext.Provider value={context}>
+                 <DraggableNodesContext.Provider value={draggableNodesContext}>
+@@ -1064,7 +1085,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
                          ? getElevation(typeof elevation === 'number'
                              ? elevation
                              : 5)
@@ -59,3 +87,18 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..185894c4df61f323bc815a3c912f66bf
                      animatedActionSheetStyle,
                  ]}>
                            <GestureMobileOnly {...(Platform.OS === 'web'
+diff --git a/dist/src/types.d.ts b/dist/src/types.d.ts
+index 713ff980b19140814e87a9d09b2f950113d898f3..48e4d4bcdbae363436ffe2502a2842db73581920 100644
+--- a/dist/src/types.d.ts
++++ b/dist/src/types.d.ts
+@@ -302,6 +302,10 @@ export type ActionSheetProps<SheetId extends keyof Sheets = never> = {
+      *
+      * */
+     onClose?: (data?: Sheets[SheetId]['returnValue']) => void;
++    /**
++     * iOS only: called once the modal's native window is gone after closing.
++     */
++    onDismiss?: () => void;
+     /**
+      * Event called before ActionSheet opens. This is called only when using `SheetManager`.
+      */

@@ -23,6 +23,7 @@ import { Portal } from "@rn-primitives/portal";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { cn } from "@/lib/utils";
+import { vaultLog } from "@/utils/logging";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { KeyboardScrollProvider } from "@/components/keyboard-scroll";
 import { colors, isTabletViewport, layout } from "@/theme";
@@ -44,15 +45,82 @@ export const DialogContext = React.createContext<DialogContextValue | null>(
     null,
 );
 
-// On iOS a modal sheet that opens while another is closing never appears.
-const closingSheets = new Set<object>();
-const sheetsWaitingToOpen = new Set<() => void>();
+// On iOS a native modal that opens while another is on screen or still
+// closing never appears, so top-level dialogs there show one at a time.
+// Each presentation gets its own token, so a late dismissal can only release
+// the presentation it belongs to.
+const shownModals = new Set<object>();
+const modalsWaitingToShow = new Set<() => void>();
 
-function sheetFinishedClosing(sheet: object) {
-    closingSheets.delete(sheet);
-    if (closingSheets.size > 0) return;
-    sheetsWaitingToOpen.forEach((show) => show());
-    sheetsWaitingToOpen.clear();
+/** A dialog's presentation on screen, and those still closing, oldest first. */
+type Presentations = { shown: object | null; closing: object[] };
+
+function showModal(own: React.RefObject<Presentations>, show: () => void) {
+    const attempt = () => {
+        const token = {};
+        shownModals.add(token);
+        own.current.shown = token;
+        show();
+    };
+    if (shownModals.size === 0) return attempt();
+    modalsWaitingToShow.add(attempt);
+    return () => {
+        modalsWaitingToShow.delete(attempt);
+    };
+}
+
+// A dismissal that is never reported must not block every later dialog.
+const dismissalTimers = new Map<object, ReturnType<typeof setTimeout>>();
+
+function awaitDismissal(own: React.RefObject<Presentations>) {
+    const token = own.current.shown;
+    if (!token) return;
+    own.current.shown = null;
+    own.current.closing.push(token);
+    const timer = setTimeout(() => {
+        vaultLog.warn("Dialog dismissal was not reported; showing the next");
+        modalHidden(token);
+    }, 2000);
+    dismissalTimers.set(token, timer);
+}
+
+// iOS reports one modal's dismissals in order.
+function modalDismissed(own: React.RefObject<Presentations>) {
+    modalHidden(own.current.closing.shift());
+}
+
+function modalHidden(token: object | null | undefined) {
+    if (!token) return;
+    clearTimeout(dismissalTimers.get(token));
+    dismissalTimers.delete(token);
+    if (!shownModals.delete(token) || shownModals.size > 0) return;
+    const [next] = modalsWaitingToShow;
+    if (!next) return;
+    modalsWaitingToShow.delete(next);
+    next();
+}
+
+// A dialog inside a native one presents above it, so it never waits.
+const InsideModalContext = React.createContext(false);
+
+// While the SSH agent approval is up, app dialogs hide but keep their open
+// state, so nothing covers the prompt or makes it drop touches.
+let dialogsHidden = 0;
+const hiddenListeners = new Set<() => void>();
+const subscribeHidden = (listener: () => void) => {
+    hiddenListeners.add(listener);
+    return () => {
+        hiddenListeners.delete(listener);
+    };
+};
+
+function hideDialogs() {
+    dialogsHidden++;
+    hiddenListeners.forEach((listener) => listener());
+    return () => {
+        dialogsHidden--;
+        hiddenListeners.forEach((listener) => listener());
+    };
 }
 
 function useDialog() {
@@ -106,12 +174,26 @@ function Dialog({
     const loadingLabel = loadingLabelProp ?? t`Loading…`;
     const scrollRef = React.useRef<RNScrollView>(null);
     const sheetRef = React.useRef<ActionSheetRef>(null);
+    const presentations = React.useRef<Presentations>({
+        shown: null,
+        closing: [],
+    });
     const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
     const reducedMotion = useReducedMotion();
     const portalName = React.useId();
     const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
-    const open = openProp ?? uncontrolledOpen;
+    const hidden = React.useSyncExternalStore(
+        subscribeHidden,
+        () => dialogsHidden > 0,
+    );
+    const open = (openProp ?? uncontrolledOpen) && !hidden;
+    const insideModal = React.useContext(InsideModalContext);
+    const nativeModal = placement === "center" || modal;
+    const waitsForModals = Platform.OS === "ios" && nativeModal && !insideModal;
+    const [centerShown, setCenterShown] = React.useState(false);
+    const centerVisible = open && (centerShown || !waitsForModals);
+    const centerOnScreen = React.useRef(false);
     const deviceSheet = bottomSheetVariant !== undefined;
     const devicePresentation = bottomSheetVariant
         ? deviceSheetPresentation.variants[bottomSheetVariant]
@@ -126,6 +208,12 @@ function Dialog({
     const deviceBackdrop = deviceBackdropRef.current;
     const [preparingDeviceSheet, prepareDeviceSheet] = React.useTransition();
     const closingDeviceModal = React.useRef(false);
+    // A close this Dialog started, to close or hide, is not a user dismissal.
+    const closingSheet = React.useRef(false);
+    const [sheetReopens, reopenSheet] = React.useReducer(
+        (count: number) => count + 1,
+        0,
+    );
     const dismissibleRef = React.useRef(dismissible);
     dismissibleRef.current = dismissible;
     const availableHeight = window.height - insets.top - insets.bottom;
@@ -188,7 +276,12 @@ function Dialog({
         if (deviceModal) {
             if (open) {
                 closingDeviceModal.current = false;
-                setDeviceModalVisible(true);
+                if (!deviceModalVisible) {
+                    const show = () => setDeviceModalVisible(true);
+                    return waitsForModals
+                        ? showModal(presentations, show)
+                        : show();
+                }
                 if (deviceModalReady.current && sheet && !sheet.isOpen()) {
                     prepareDeviceSheet(() => sheet.show());
                 }
@@ -199,28 +292,53 @@ function Dialog({
                 } else {
                     deviceModalReady.current = false;
                     setDeviceModalVisible(false);
+                    awaitDismissal(presentations);
                 }
             }
             return;
         }
         if (!sheet) return;
         if (open && !sheet.isOpen()) {
-            if (closingSheets.size === 0) {
-                sheet.show();
-                return;
-            }
             const show = () => sheet.show();
-            sheetsWaitingToOpen.add(show);
-            return () => {
-                sheetsWaitingToOpen.delete(show);
-            };
+            return waitsForModals ? showModal(presentations, show) : show();
         } else if (!open && sheet.isOpen()) {
-            if (Platform.OS === "ios") closingSheets.add(sheetRef);
+            closingSheet.current = true;
             sheet.hide();
         }
-    }, [open, placement, deviceModal, prepareDeviceSheet]);
+    }, [
+        open,
+        placement,
+        deviceModal,
+        deviceModalVisible,
+        waitsForModals,
+        prepareDeviceSheet,
+        sheetReopens,
+    ]);
 
-    React.useEffect(() => () => sheetFinishedClosing(sheetRef), []);
+    React.useEffect(() => {
+        if (placement !== "center" || !waitsForModals) return;
+        if (open) return showModal(presentations, () => setCenterShown(true));
+        setCenterShown(false);
+        // Only a modal that reached the screen reports its dismissal.
+        if (centerOnScreen.current) awaitDismissal(presentations);
+        else {
+            modalHidden(presentations.current.shown);
+            presentations.current.shown = null;
+        }
+        centerOnScreen.current = false;
+    }, [open, placement, waitsForModals]);
+
+    React.useLayoutEffect(() => {
+        if (centerVisible) centerOnScreen.current = true;
+    }, [centerVisible]);
+
+    React.useEffect(() => {
+        const own = presentations.current;
+        return () => {
+            modalHidden(own.shown);
+            own.closing.forEach(modalHidden);
+        };
+    }, []);
 
     React.useEffect(() => {
         if (!open || !scroll || scrollResetKey === undefined) return;
@@ -231,7 +349,6 @@ function Dialog({
     }, [open, scroll, scrollResetKey]);
 
     const handleSheetClose = React.useCallback(() => {
-        sheetFinishedClosing(sheetRef);
         if (deviceModal) {
             if (openRef.current && !closingDeviceModal.current) {
                 requestAnimationFrame(() => {
@@ -240,6 +357,7 @@ function Dialog({
             } else {
                 deviceModalReady.current = false;
                 setDeviceModalVisible(false);
+                awaitDismissal(presentations);
             }
             return;
         }
@@ -252,7 +370,14 @@ function Dialog({
             }
             return;
         }
-        if (openRef.current) handleOpenChange(false);
+        // Its native window is still closing; onDismiss frees the turn.
+        awaitDismissal(presentations);
+        const closedHere = closingSheet.current;
+        closingSheet.current = false;
+        if (!openRef.current) return;
+        // Opened again while that close was still animating.
+        if (closedHere) reopenSheet();
+        else handleOpenChange(false);
     }, [handleOpenChange, modal, deviceModal]);
 
     const fixedFooter = footer ? (
@@ -267,6 +392,12 @@ function Dialog({
         </View>
     ) : null;
 
+    const content = (
+        <InsideModalContext.Provider value={nativeModal}>
+            {children}
+        </InsideModalContext.Provider>
+    );
+
     const staticBody = (
         <View
             style={
@@ -280,7 +411,7 @@ function Dialog({
                 placement === "bottom" ? bottomContentClassName : "gap-3 p-4"
             }
         >
-            {children}
+            {content}
         </View>
     );
 
@@ -293,7 +424,7 @@ function Dialog({
             contentContainerClassName="gap-3 p-4"
         >
             <KeyboardScrollProvider scrollRef={scrollRef}>
-                {children}
+                {content}
             </KeyboardScrollProvider>
         </RNScrollView>
     ) : (
@@ -314,7 +445,7 @@ function Dialog({
             contentContainerClassName={bottomContentClassName}
         >
             <KeyboardScrollProvider scrollRef={scrollRef}>
-                {children}
+                {content}
             </KeyboardScrollProvider>
         </ActionSheetScrollView>
     ) : (
@@ -404,9 +535,13 @@ function Dialog({
                             ? beforeDeviceClose
                             : modal
                               ? undefined
-                              : () => handleOpenChange(false)
+                              : () => {
+                                    if (openRef.current)
+                                        handleOpenChange(false);
+                                }
                     }
                     onClose={handleSheetClose}
+                    onDismiss={() => modalDismissed(presentations)}
                 >
                     <View
                         role="dialog"
@@ -474,10 +609,11 @@ function Dialog({
                 </ActionSheet>
             ) : (
                 <Modal
-                    visible={open}
+                    visible={centerVisible}
                     transparent
                     animationType={reducedMotion ? "none" : "fade"}
                     onRequestClose={() => handleOpenChange(false)}
+                    onDismiss={() => modalDismissed(presentations)}
                     statusBarTranslucent
                 >
                     <KeyboardAvoidingView
@@ -538,6 +674,7 @@ function Dialog({
                     "landscape-right",
                 ]}
                 onRequestClose={() => handleOpenChange(false)}
+                onDismiss={() => modalDismissed(presentations)}
                 onShow={() => {
                     if (!openRef.current) return;
                     deviceModalReady.current = true;
@@ -660,5 +797,6 @@ export {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    hideDialogs,
 };
 export type { DialogContentProps, DialogProps };

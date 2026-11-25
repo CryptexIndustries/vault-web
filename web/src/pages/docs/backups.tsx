@@ -64,8 +64,11 @@ export default function Backups() {
                 <DocSteps
                     items={[
                         <p key="tab">
-                            Open <Link href="/app">Cryptex Vault</Link> and
-                            select the <strong>Restore</strong> tab.
+                            Open{" "}
+                            <Link href="/app" prefetch={false}>
+                                Cryptex Vault
+                            </Link>{" "}
+                            and select the <strong>Restore</strong> tab.
                         </p>,
                         <p key="file">
                             Drop the <code>.cryx</code> file in the file area,

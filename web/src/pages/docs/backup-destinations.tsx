@@ -211,8 +211,11 @@ export default function BackupDestinations() {
                 <DocSteps
                     items={[
                         <p key="tab">
-                            Open <Link href="/app">Cryptex Vault</Link> and
-                            select the <strong>Restore</strong> tab. Choose{" "}
+                            Open{" "}
+                            <Link href="/app" prefetch={false}>
+                                Cryptex Vault
+                            </Link>{" "}
+                            and select the <strong>Restore</strong> tab. Choose{" "}
                             <strong>Restore from your own S3 storage</strong>.
                             On Android, choose <strong>Your own storage</strong>{" "}
                             as the backup source.

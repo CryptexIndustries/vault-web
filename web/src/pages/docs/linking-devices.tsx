@@ -324,8 +324,10 @@ export default function LinkingDevices() {
                                 items={[
                                     <p key="open">
                                         Open{" "}
-                                        <Link href="/app">the web app</Link> in
-                                        the new browser and choose the{" "}
+                                        <Link href="/app" prefetch={false}>
+                                            the web app
+                                        </Link>{" "}
+                                        in the new browser and choose the{" "}
                                         <strong>Use invitation</strong> tab. You
                                         don&apos;t need to create a vault first.
                                     </p>,
@@ -389,7 +391,10 @@ export default function LinkingDevices() {
                                         items={[
                                             <p key="open">
                                                 Open{" "}
-                                                <Link href="/app">
+                                                <Link
+                                                    href="/app"
+                                                    prefetch={false}
+                                                >
                                                     the web app
                                                 </Link>{" "}
                                                 on the receiving device and

@@ -1,7 +1,11 @@
+import "@/app_lib/vault-core-runtime";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { useAtomValue, useSetAtom } from "jotai";
+import { Provider, useAtomValue, useSetAtom } from "jotai";
+import { withTRPC } from "@trpc/next";
+import superjson from "superjson";
+import type { VersionedRouter } from "@cryptex-industries/api-contract";
 
 import dayjs from "dayjs";
 import RelativeTime from "dayjs/plugin/relativeTime";
@@ -21,6 +25,7 @@ import {
     unlockedVaultWriteOnlyAtom,
     vaultStore,
 } from "../../utils/atoms";
+import { reactQueryClientConfig } from "../../utils/trpc";
 import VaultManager from "@/components/vault-manager/layout";
 import { err, ok } from "neverthrow";
 import { VaultDashboard } from "@/components/vault-dashboard/vault-dashboard";
@@ -58,7 +63,7 @@ import { resumeAgentSigning } from "@/utils/vault-lock-listeners";
 
 dayjs.extend(RelativeTime);
 
-const AppIndex: React.FC = () => {
+export const AppIndex: React.FC = () => {
     const isVaultUnlocked = useAtomValue(isVaultUnlockedAtom);
     const setUnlockedVault = useSetAtom(unlockedVaultAtom);
     const setUnlockedVaultMetadata = useSetAtom(unlockedVaultMetadataAtom);
@@ -439,4 +444,17 @@ const AppIndex: React.FC = () => {
     );
 };
 
-export default AppIndex;
+const AppPage = () => (
+    <Provider store={vaultStore}>
+        <AppIndex />
+    </Provider>
+);
+
+export default withTRPC<VersionedRouter>({
+    config: () => reactQueryClientConfig(""),
+    /**
+     * @link https://trpc.io/docs/ssr
+     */
+    ssr: false,
+    transformer: superjson,
+})(AppPage);

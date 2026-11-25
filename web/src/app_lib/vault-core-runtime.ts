@@ -1,6 +1,6 @@
 /**
  * Wire vault-core sync/link runtime to web platform adapters.
- * Import once from app entry (_app) and sync-controller entry points.
+ * Import once from the /app page and sync-controller.
  */
 import {
     configureVaultCoreRuntime,

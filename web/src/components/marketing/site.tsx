@@ -50,6 +50,7 @@ export function Action({
         <Link
             className={`${secondary ? s.secondary : s.button} inline-flex min-h-[50px] items-center justify-center px-[23px] py-[16px] text-[13px] font-medium leading-[1.4]`}
             href={href}
+            prefetch={!href.startsWith("/app")}
         >
             {children}
         </Link>
@@ -167,6 +168,7 @@ function SiteHeader() {
                     {pathname !== "/" && (
                         <Link
                             href="/app"
+                            prefetch={false}
                             className={s.navCta}
                             onClick={() => {
                                 if (open) closeMenu();
@@ -236,7 +238,9 @@ export function Site({
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>PRODUCT</span>
-                        <Link href="/app">Open Vault</Link>
+                        <Link href="/app" prefetch={false}>
+                            Open Vault
+                        </Link>
                         <Link href="/pricing">Pricing</Link>
                         <Link href="/roadmap">Roadmap</Link>
                         <Link href="/download" className="mt-3">

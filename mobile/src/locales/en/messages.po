@@ -2888,6 +2888,10 @@ msgstr "Created"
 msgid "Created {date}"
 msgstr "Created {date}"
 
+#: app/(app)/share/index.tsx
+msgid "Creating the link is taking longer than usual. Keep this screen open until it's done."
+msgstr "Creating the link is taking longer than usual. Keep this screen open until it's done."
+
 #: app/(app)/account/recovery-kit.tsx
 #: src/components/account/subscription-signup.tsx
 msgid "Creating your Recovery Kit…"

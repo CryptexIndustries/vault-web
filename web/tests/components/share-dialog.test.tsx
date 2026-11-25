@@ -50,7 +50,12 @@ jest.mock("@/utils/clipboard", () => ({
     copySecretToClipboard: jest.fn(async () => true),
 }));
 jest.mock("sonner", () => ({
-    toast: { error: jest.fn(), success: jest.fn() },
+    toast: {
+        error: jest.fn(),
+        success: jest.fn(),
+        loading: jest.fn(),
+        dismiss: jest.fn(),
+    },
 }));
 
 import {

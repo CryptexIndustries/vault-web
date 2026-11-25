@@ -4,7 +4,10 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAtomValue } from "jotai";
 import { plural, t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { ShareClient } from "@cryptex-industries/vault-core/vault-utils/share-client";
+import {
+    SHARE_SLOW_REQUEST_MS,
+    ShareClient,
+} from "@cryptex-industries/vault-core/vault-utils/share-client";
 import {
     SHARE_EXPIRY_OPTIONS,
     defaultShareExpiry,
@@ -262,6 +265,13 @@ export default function ShareScreen() {
         }
         setError("");
         setCreating(true);
+        const slowTimer = setTimeout(
+            () =>
+                show(
+                    t`Creating the link is taking longer than usual. Keep this screen open until it's done.`,
+                ),
+            SHARE_SLOW_REQUEST_MS,
+        );
         try {
             const created = await createShareLink(mobileShareDeps(), {
                 payload: await withExportedSSHKey(payload),
@@ -270,6 +280,7 @@ export default function ShareScreen() {
                 ttlSeconds: Number(expiry),
                 passphrase: usePassphrase ? passphrase : undefined,
             });
+            dismiss();
             setLinkPassphrase(created.record.Passphrase);
             setLink(created.link);
             setText("");
@@ -277,6 +288,7 @@ export default function ShareScreen() {
         } catch (err) {
             show(shareErrorText(err));
         } finally {
+            clearTimeout(slowTimer);
             setCreating(false);
         }
     };

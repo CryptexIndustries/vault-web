@@ -2888,6 +2888,10 @@ msgstr "Izrađeno"
 msgid "Created {date}"
 msgstr "Izrađena {date}"
 
+#: app/(app)/share/index.tsx
+msgid "Creating the link is taking longer than usual. Keep this screen open until it's done."
+msgstr "Izrada poveznice traje dulje nego obično. Drži ovaj zaslon otvorenim dok ne završi."
+
 #: app/(app)/account/recovery-kit.tsx
 #: src/components/account/subscription-signup.tsx
 msgid "Creating your Recovery Kit…"

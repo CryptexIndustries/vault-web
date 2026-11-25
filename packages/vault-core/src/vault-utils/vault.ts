@@ -469,19 +469,24 @@ export const calculateTOTP = (
 ): {
     code: string;
     timeRemaining: number;
+    period: number;
 } => {
+    const period = data.Period > 0 ? data.Period : TOTPConstants.PERIOD_DEFAULT;
+    const timestamp = Date.now();
     const code = OTPAuth.TOTP.generate({
         secret: OTPAuth.Secret.fromBase32(data.Secret),
         algorithm: VaultUtilTypes.TOTPAlgorithm[data.Algorithm],
         digits: data.Digits,
-        period: data.Period,
+        period,
+        timestamp,
     });
 
-    const timeRemaining = data.Period - (new Date().getSeconds() % data.Period);
+    const timeRemaining = period - (Math.floor(timestamp / 1000) % period);
 
     return {
         code,
         timeRemaining,
+        period,
     };
 };
 

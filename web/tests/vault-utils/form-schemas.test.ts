@@ -156,6 +156,16 @@ describe("vault-utils/form-schemas", () => {
                 Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
             }),
         ).toThrow("Period must be at least 1 second");
+
+        expect(() =>
+            TOTPFormSchema.parse({
+                Label: "A",
+                Secret: "B",
+                Period: 30.1,
+                Digits: 6,
+                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+            }),
+        ).toThrow("Period must be a whole number of seconds");
     });
 
     it("validates synchronization server upsert schemas", () => {

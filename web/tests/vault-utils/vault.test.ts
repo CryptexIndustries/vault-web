@@ -235,7 +235,7 @@ describe("vault-utils/vault", () => {
 
     it("calculates TOTP code and time remaining", () => {
         jest.spyOn(OTPAuth.TOTP, "generate").mockReturnValue("123456");
-        jest.spyOn(Date.prototype, "getSeconds").mockReturnValue(20);
+        jest.spyOn(Date, "now").mockReturnValue(20_000);
 
         const totp = new TOTP();
         totp.Secret = "JBSWY3DPEHPK3PXP";
@@ -247,6 +247,28 @@ describe("vault-utils/vault", () => {
 
         expect(result.code).toBe("123456");
         expect(result.timeRemaining).toBe(10);
+    });
+
+    it("counts TOTP time remaining from the Unix epoch for any period", () => {
+        const generateSpy = jest
+            .spyOn(OTPAuth.TOTP, "generate")
+            .mockReturnValue("123456");
+        jest.spyOn(Date, "now").mockReturnValue(100_000);
+
+        const totp = new TOTP();
+        totp.Secret = "JBSWY3DPEHPK3PXP";
+
+        totp.Period = 90;
+        expect(calculateTOTP(totp).timeRemaining).toBe(80);
+
+        totp.Period = 0;
+        expect(calculateTOTP(totp)).toMatchObject({
+            timeRemaining: 20,
+            period: 30,
+        });
+        expect(generateSpy).toHaveBeenLastCalledWith(
+            expect.objectContaining({ period: 30 }),
+        );
     });
 
     it("parses TOTP URIs into vault settings", () => {
@@ -287,7 +309,7 @@ describe("vault-utils/vault", () => {
         const generateSpy = jest
             .spyOn(OTPAuth.TOTP, "generate")
             .mockReturnValue("654321");
-        jest.spyOn(Date.prototype, "getSeconds").mockReturnValue(0);
+        jest.spyOn(Date, "now").mockReturnValue(120_000);
 
         const totp = new TOTP();
         totp.Secret = "JBSWY3DPEHPK3PXP";
@@ -300,6 +322,7 @@ describe("vault-utils/vault", () => {
         expect(result).toEqual({
             code: "654321",
             timeRemaining: 60,
+            period: 60,
         });
         expect(generateSpy).toHaveBeenCalledTimes(1);
         expect(generateSpy).toHaveBeenCalledWith(
@@ -307,6 +330,7 @@ describe("vault-utils/vault", () => {
                 algorithm: "SHA256",
                 digits: 8,
                 period: 60,
+                timestamp: 120_000,
             }),
         );
     });

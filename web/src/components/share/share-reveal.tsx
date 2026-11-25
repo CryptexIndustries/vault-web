@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { BrandBar } from "@/components/marketing/site";
 import * as OTPAuth from "otpauth";
 import QRCode from "react-qr-code";
@@ -29,6 +30,15 @@ import {
     type SharePayload,
 } from "@cryptex-industries/vault-core/vault-utils/share-link";
 import { sshKeyFileName } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -66,6 +76,45 @@ export function ShareReveal({ id }: { id: string | undefined }) {
     // Links with a passphrase get none: a wrong guess sent twice would use up
     // two tries.
     const [slow, setSlow] = useState<SlowReveal | null>(null);
+    const router = useRouter();
+    const left = useRef(false);
+    const [leaveTo, setLeaveTo] = useState<
+        { href: string } | { back: true } | null
+    >(null);
+    const revealing = state.step === "revealing";
+
+    // The server deletes the secret as it sends it, so leaving now loses it.
+    useEffect(() => {
+        if (!revealing) return;
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+        const shareState: unknown = window.history.state;
+        const shareUrl = window.location.href;
+        router.beforePopState(() => {
+            window.history.pushState(shareState, "", shareUrl);
+            setLeaveTo({ back: true });
+            return false;
+        });
+        return () => {
+            window.removeEventListener("beforeunload", onBeforeUnload);
+            router.beforePopState(() => true);
+            setLeaveTo(null);
+        };
+    }, [revealing, router]);
+
+    const leave = () => {
+        if (!leaveTo) return;
+        left.current = true;
+        if ("href" in leaveTo) {
+            void router.push(leaveTo.href);
+        } else {
+            router.beforePopState(() => true);
+            window.history.back();
+        }
+    };
 
     useEffect(() => {
         if (id === undefined) return;
@@ -164,6 +213,8 @@ export function ShareReveal({ id }: { id: string | undefined }) {
             }
             if (settled) return;
             settle();
+            // The recipient left, so the address bar belongs to the next page.
+            if (left.current) return;
             // The server has deleted it now. Drop the key from the address bar
             // and history; a reload can't bring the secret back anyway.
             window.history.replaceState(null, "", window.location.pathname);
@@ -208,7 +259,25 @@ export function ShareReveal({ id }: { id: string | undefined }) {
     }, [id, passphrase, secret, state]);
 
     return (
-        <div className="dark flex min-h-svh flex-col bg-background text-foreground">
+        <div
+            className="dark flex min-h-svh flex-col bg-background text-foreground"
+            // Runs before next/link, which then ignores the prevented click.
+            onClickCapture={(event) => {
+                const link = (event.target as Element).closest("a");
+                if (
+                    !revealing ||
+                    !link ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                ) {
+                    return;
+                }
+                event.preventDefault();
+                setLeaveTo({ href: link.href });
+            }}
+        >
             <BrandBar />
             <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
                 <ShareRevealBody
@@ -230,6 +299,31 @@ export function ShareReveal({ id }: { id: string | undefined }) {
                     encrypted this secret, and your browser decrypted it.
                 </div>
             </footer>
+            <AlertDialog
+                open={leaveTo !== null}
+                onOpenChange={(open) => {
+                    if (!open) setLeaveTo(null);
+                }}
+            >
+                <AlertDialogContent className="dark text-foreground">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Leave and lose this secret?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            It&apos;s opening now, and the server deletes it as
+                            it sends it. If you leave, you can&apos;t open it
+                            again.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Stay</AlertDialogCancel>
+                        <Button variant="destructive" onClick={leave}>
+                            Leave
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

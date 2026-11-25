@@ -947,7 +947,16 @@ const VaultView: React.FC<VaultViewProps> = ({
             setShowFormPassword(false);
             setRevealedCustomFieldIds({});
             setCredentialModalOpen(true);
-            reset(draft.form);
+            const { TOTP } = draft.form;
+            reset({
+                ...draft.form,
+                // The draft holds emptied number inputs as null; the form holds NaN.
+                TOTP: TOTP && {
+                    ...TOTP,
+                    Period: TOTP.Period ?? NaN,
+                    Digits: TOTP.Digits ?? NaN,
+                },
+            });
 
             setRestoredDraft(draft);
         },

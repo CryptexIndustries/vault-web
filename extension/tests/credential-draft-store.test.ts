@@ -348,9 +348,59 @@ describe("validateSaveCredentialDraftRequest", () => {
         }
     });
 
+    it("accepts values that break the full schema's value rules", () => {
+        const form = {
+            ...validForm(),
+            TOTP: {
+                Label: "a".repeat(256),
+                Secret: "",
+                Period: null,
+                Digits: 0,
+                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+            },
+            Passkey: {
+                CredentialID: "id",
+                RPID: "example.com",
+                RPName: "",
+                UserHandle: "",
+                UserName: "",
+                UserDisplayName: "",
+                PublicKey: "",
+                PrivateKey: "key",
+                Algorithm: 1.5,
+                SignCount: -1,
+                Discoverable: false,
+            },
+        };
+        const res = validateSaveCredentialDraftRequest({
+            mode: "create",
+            form,
+        });
+        expect(res.ok && res.request.form).toEqual(form);
+
+        // Drafts keep a fractional Period even if the full schema rejects it.
+        const fractional = { ...form, TOTP: { ...form.TOTP, Period: 1.5 } };
+        expect(
+            validateSaveCredentialDraftRequest({
+                mode: "create",
+                form: fractional,
+            }),
+        ).toMatchObject({ ok: true });
+    });
+
     it("still rejects shape violations with INVALID_DRAFT_FORM", () => {
         const shapeViolations: Record<string, unknown> = {
             "non-string Name": { ...validForm(), Name: 42 },
+            "non-number TOTP Period": {
+                ...validForm(),
+                TOTP: {
+                    Label: "",
+                    Secret: "",
+                    Period: "30",
+                    Digits: 6,
+                    Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+                },
+            },
             "non-array AdditionalURLs": { ...validForm(), AdditionalURLs: "x" },
             "CustomFields row missing Name/Type/Value": {
                 ...validForm(),

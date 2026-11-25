@@ -5,7 +5,7 @@ import type {
     PasskeyData,
     AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
-import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { type CredentialDraftFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type { LogEntry } from "@/utils/logging";
 
 export enum MessageType {
@@ -501,7 +501,7 @@ export interface CredentialDraft {
      * stale drafts when the credential changed (sync) while the popup was closed.
      */
     credentialVersion: number | null;
-    form: CredentialFormSchemaType;
+    form: CredentialDraftFormSchemaType;
     /** Epoch millis when the draft was stashed. */
     stashedAt: number;
     sshKeySource?: CredentialDraftSSHKeySource;
@@ -512,7 +512,7 @@ export interface SaveCredentialDraftRequest {
     mode: CredentialDraftMode;
     /** Required in edit mode. */
     credentialId?: string;
-    form: CredentialFormSchemaType;
+    form: CredentialDraftFormSchemaType;
     sshKeySource?: CredentialDraftSSHKeySource;
 }
 

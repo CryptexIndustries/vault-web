@@ -636,6 +636,19 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
 export const CredentialDraftFormSchema = z.object({
     ...CredentialFormBaseSchema.shape,
     Name: z.string(),
+    TOTP: TOTPFormSchema.extend({
+        Label: z.string(),
+        // JSON turns an emptied number input (NaN) into null.
+        Period: z.number().nullable(),
+        Digits: z.number().nullable(),
+    })
+        .optional()
+        .nullable(),
+    Passkey: CredentialFormBaseSchema.shape.Passkey.unwrap()
+        .unwrap()
+        .extend({ Algorithm: z.number(), SignCount: z.number() })
+        .optional()
+        .nullable(),
 });
 
 export type CredentialDraftFormSchemaType = z.infer<

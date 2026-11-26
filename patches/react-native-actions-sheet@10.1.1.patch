@@ -1,8 +1,21 @@
 diff --git a/dist/src/index.js b/dist/src/index.js
-index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c261b7ec8a 100644
+index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..21dae460671374c91eb0b428d4987a8974ab87ed 100644
 --- a/dist/src/index.js
 +++ b/dist/src/index.js
-@@ -420,6 +420,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -386,6 +386,12 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         underlayTranslateY,
+         moveSheetWithAnimation,
+     ]);
++    useEffect(function () {
++        // Window size changes (rotation, iPad window resizing) don't resize
++        // the sheet content, so its own onLayout never re-runs the position.
++        if (visibleRef.current.value && !hiding.current && sheetHeightRef.current > 0)
++            onSheetLayout(sheetHeightRef.current);
++    }, [dimensions.width, dimensions.height]);
+     var hideSheet = React.useCallback(function (vy, data, isSheetManagerOrRef, gestureEnd) {
+         if (hiding.current)
+             return;
+@@ -420,6 +426,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
                      hiding.current = false;
                  }
                  (_b = hardwareBackPressEvent.current) === null || _b === void 0 ? void 0 : _b.remove();
@@ -10,7 +23,7 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
                  if (sheetId) {
                      SheetManager.remove(sheetId, currentContext);
                      hiding.current = false;
-@@ -477,6 +478,18 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -477,6 +484,18 @@ export default forwardRef(function ActionSheet(_a, ref) {
          enableRouterBackNavigation,
          visible,
      ]);
@@ -29,7 +42,18 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
      /**
       * Snap towards the top
       */
-@@ -959,7 +972,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
+@@ -943,7 +962,9 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         var _a, _b;
+         return isModal && !props.backgroundInteractionEnabled
+             ? {
+-                visible: true,
++                // Hidden rather than unmounted, so iOS reports the dismissal.
++                visible: visible,
++                onDismiss: props.onDismiss,
+                 animationType: 'none',
+                 testID: ((_a = props.testIDs) === null || _a === void 0 ? void 0 : _a.modal) || props.testID,
+                 supportedOrientations: SUPPORTED_ORIENTATIONS,
+@@ -959,7 +980,6 @@ export default forwardRef(function ActionSheet(_a, ref) {
                  testID: ((_b = props.testIDs) === null || _b === void 0 ? void 0 : _b.root) || props.testID,
                  onLayout: function () {
                      var _a;
@@ -37,3 +61,56 @@ index 8da6172e18ff2e26bda2efdd0bf9d8c6747a453d..5f5d957ac9d3d193d1f87650cdbf83c2
                      (_a = props === null || props === void 0 ? void 0 : props.onOpen) === null || _a === void 0 ? void 0 : _a.call(props);
                  },
                  style: {
+@@ -984,6 +1004,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+         props,
+         zIndex,
+         sheetId,
++        visible,
+     ]);
+     var renderRoute = useCallback(function (route) {
+         var _a;
+@@ -1027,7 +1048,7 @@ export default forwardRef(function ActionSheet(_a, ref) {
+     }, [underlayTranslateY]);
+     var GestureMobileOnly = Platform.OS === 'web' ? Fragment : GestureDetector;
+     return (<>
+-        {visible ? (<Root {...rootProps}>
++        {visible || Root === Modal ? (<Root {...rootProps}>
+             <GestureHandlerRoot isModal={isModal} style={styles.parentContainer} pointerEvents={(props === null || props === void 0 ? void 0 : props.backgroundInteractionEnabled) ? 'box-none' : 'auto'}>
+               <PanGestureRefContext.Provider value={context}>
+                 <DraggableNodesContext.Provider value={draggableNodesContext}>
+@@ -1056,15 +1077,17 @@ export default forwardRef(function ActionSheet(_a, ref) {
+                     animatedOpacityStyle,
+                 ]} {...(props.backdropProps ? props.backdropProps : {})}/>) : null}
+ 
+-                      {dimensions.height === -1 &&
+-                Platform.OS === 'web' ? null : (<Animated.View pointerEvents="box-none" style={[
++                      {// With reduced motion on Android, a sheet laid out before its
++                // window size is known keeps the height of its handle.
++                dimensions.height === -1 &&
++                Platform.OS !== 'ios' ? null : (<Animated.View pointerEvents="box-none" style={[
+                     __assign(__assign({ borderTopRightRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderTopRightRadius) || 10, borderTopLeftRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderTopLeftRadius) || 10, backgroundColor: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.backgroundColor) || 'white', borderBottomLeftRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderBottomLeftRadius) ||
+                             undefined, borderBottomRightRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderBottomRightRadius) ||
+                             undefined, borderRadius: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.borderRadius) || undefined, width: (containerStyle === null || containerStyle === void 0 ? void 0 : containerStyle.width) || '100%' }, (!disableElevation
+                         ? getElevation(typeof elevation === 'number'
+                             ? elevation
+                             : 5)
+-                        : {})), { height: dimensions.height, maxHeight: dimensions.height }),
++                        : {})), { alignSelf: 'center', height: dimensions.height, maxHeight: dimensions.height }),
+                     animatedActionSheetStyle,
+                 ]}>
+                           <GestureMobileOnly {...(Platform.OS === 'web'
+diff --git a/dist/src/types.d.ts b/dist/src/types.d.ts
+index 713ff980b19140814e87a9d09b2f950113d898f3..48e4d4bcdbae363436ffe2502a2842db73581920 100644
+--- a/dist/src/types.d.ts
++++ b/dist/src/types.d.ts
+@@ -302,6 +302,10 @@ export type ActionSheetProps<SheetId extends keyof Sheets = never> = {
+      *
+      * */
+     onClose?: (data?: Sheets[SheetId]['returnValue']) => void;
++    /**
++     * iOS only: called once the modal's native window is gone after closing.
++     */
++    onDismiss?: () => void;
+     /**
+      * Event called before ActionSheet opens. This is called only when using `SheetManager`.
+      */

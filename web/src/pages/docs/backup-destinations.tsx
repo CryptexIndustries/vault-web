@@ -62,8 +62,8 @@ export default function BackupDestinations() {
                 A backup destination is a bucket on AWS S3, Backblaze B2,
                 Cloudflare R2, Wasabi, MinIO, Garage or any other service that
                 speaks the S3 API. After each change to your vault, the web app,
-                the Browser Extension and the Android app upload the same
-                encrypted <code>.cryx</code> file you get from{" "}
+                the Browser Extension and the Android and iOS apps upload the
+                same encrypted <code>.cryx</code> file you get from{" "}
                 <strong>Download backup</strong>. Your devices talk to the
                 bucket directly. Our servers never see the bucket or its keys,
                 and you don&apos;t need an Online Services account.
@@ -108,9 +108,9 @@ export default function BackupDestinations() {
                 <p>
                     Browsers block a page from talking to another site unless
                     that site allows it. The web app therefore needs a CORS rule
-                    on the bucket. The Browser Extension and the Android app
-                    don&apos;t. Put the address you open the web app from in{" "}
-                    <code>AllowedOrigins</code>, without a path. Self-hosters
+                    on the bucket. The Browser Extension and the Android and iOS
+                    apps don&apos;t. Put the address you open the web app from
+                    in <code>AllowedOrigins</code>, without a path. Self-hosters
                     use their own domain.
                 </p>
                 <DocCode>{cors}</DocCode>
@@ -132,8 +132,8 @@ export default function BackupDestinations() {
                     items={[
                         <p key="open">
                             Unlock your vault and open{" "}
-                            <strong>Backup Center</strong>. On Android it is in{" "}
-                            <strong>Settings</strong>.
+                            <strong>Backup Center</strong>. On Android and iOS
+                            it is in <strong>Settings</strong>.
                         </p>,
                         <p key="add">
                             Under <strong>Your own storage</strong>, choose{" "}
@@ -217,8 +217,9 @@ export default function BackupDestinations() {
                             </Link>{" "}
                             and select the <strong>Restore</strong> tab. Choose{" "}
                             <strong>Restore from your own S3 storage</strong>.
-                            On Android, choose <strong>Your own storage</strong>{" "}
-                            as the backup source.
+                            On Android and iOS, choose{" "}
+                            <strong>Your own storage</strong> as the backup
+                            source.
                         </p>,
                         <p key="details">
                             Enter the same endpoint, bucket, region, folder and

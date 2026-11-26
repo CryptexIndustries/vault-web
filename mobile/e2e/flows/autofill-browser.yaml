@@ -12,6 +12,21 @@ name: Chrome standard autofill
 - tapOn: Suggestion display
 - tapOn: Popup / dropdown
 - assertVisible: Popup / dropdown
+# The login flow needs Autofill to copy the verification code, which is off by default.
+- scrollUntilVisible:
+      element:
+          text: Copy verification codes after autofill
+      direction: DOWN
+- runFlow:
+      when:
+          visible:
+              text: Copy verification codes after autofill
+              checked: false
+      commands:
+          - tapOn: Copy verification codes after autofill
+- assertVisible:
+      text: Copy verification codes after autofill
+      checked: true
 - runFlow: autofill-browser-login.yaml
 - runFlow: autofill-browser-locked.yaml
 - runFlow: autofill-browser-frame-origin.yaml

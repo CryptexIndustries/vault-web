@@ -8,6 +8,8 @@ let backgroundedAt: number | null = null;
 let lastInteractionMonotonic = monotonicNow();
 let backgroundedMonotonic: number | null = null;
 const listeners = new Set<() => void>();
+// A hold belongs to one unlocked session; locking or unlocking drops it.
+const holds = new Set<symbol>();
 
 function changed(): void {
     for (const listener of listeners) listener();
@@ -27,6 +29,7 @@ function monotonicNow(): number {
 
 export function startVaultTimeoutSession(now = Date.now()): void {
     active = true;
+    holds.clear();
     minutes = getCachedAutoLockMinutes();
     lastInteractionAt = now;
     backgroundedAt = null;
@@ -37,6 +40,7 @@ export function startVaultTimeoutSession(now = Date.now()): void {
 
 export function stopVaultTimeoutSession(): void {
     active = false;
+    holds.clear();
     backgroundedAt = null;
     backgroundedMonotonic = null;
     changed();
@@ -79,8 +83,25 @@ export function noteVaultForegrounded(now = Date.now()): void {
     changed();
 }
 
+/**
+ * Keeps the vault from locking itself until the returned release runs, for
+ * work that would be lost on lock. Releasing starts a fresh idle window.
+ * An explicit lock still locks.
+ */
+export function holdAutoLock(): () => void {
+    const hold = Symbol("auto-lock hold");
+    holds.add(hold);
+    changed();
+    return () => {
+        if (!holds.delete(hold)) return;
+        lastInteractionAt = Date.now();
+        lastInteractionMonotonic = monotonicNow();
+        changed();
+    };
+}
+
 export function isAutoLockDue(now = Date.now()): boolean {
-    if (!active) return false;
+    if (!active || holds.size > 0) return false;
     const thresholdMs = autoLockThresholdMs(minutes);
     if (thresholdMs == null) return false;
     const since = backgroundedAt ?? lastInteractionAt;
@@ -92,7 +113,7 @@ export function isAutoLockDue(now = Date.now()): boolean {
 }
 
 export function vaultTimeoutRemainingMs(now = Date.now()): number | null {
-    if (!active) return null;
+    if (!active || holds.size > 0) return null;
     const thresholdMs = autoLockThresholdMs(minutes);
     if (thresholdMs == null) return null;
     const since = backgroundedAt ?? lastInteractionAt;

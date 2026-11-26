@@ -1,8 +1,93 @@
-# Android E2E
+# Mobile E2E
 
 The flows use Maestro against a dedicated debug-signed E2E APK. Native projects are
 derived from `app.json` and local Expo modules; `mobile/android` is generated
 and ignored. Check vendor-specific system screens on physical devices before release.
+
+## iOS Simulator
+
+`smoke`, `credentials`, `security`, `cloud`, `devices`, `account-recovery`,
+`ssh-keys`, `backup-destinations`, `import-export`, `sync` and `ios-autofill`
+run on an iOS Simulator. The other suites cover Android-only features. Maestro
+needs Java and version 2.9.0, the release CI pins. `backup-destinations` and
+`sync` also need Docker Compose. `cloud`, `devices` and `account-recovery` need
+a build against the [cloud fixture](#cloud-fixture).
+
+```sh
+brew install openjdk
+export MAESTRO_DEVICE=<Simulator UDID>
+pnpm mobile:build -- --e2e --platform ios --device "$MAESTRO_DEVICE"
+pnpm mobile:e2e -- smoke
+pnpm mobile:e2e -- credentials
+pnpm mobile:e2e -- security
+pnpm mobile:e2e -- ssh-keys
+pnpm mobile:e2e -- backup-destinations
+pnpm mobile:e2e -- import-export
+pnpm mobile:e2e -- sync
+pnpm mobile:e2e -- ios-autofill
+```
+
+The iOS E2E build never shows the software keyboard, which would cover the
+controls under test. `security` enrolls Face ID on the Simulator.
+
+`import-export`, `ssh-keys` and the Files steps of `sync` are native XCUITests in
+`e2e/fixtures/ios-transfer`. The share sheet's Save dialog and the file picker
+are separate system apps that Maestro can't read. Maestro prepares each vault
+and the script checks the saved files. Starting the native test backgrounds and
+locks the vault, so the two can't take turns inside one screen. The test
+relaunches the app with a keyboard, which is the only way XCUITest can type.
+Each run leaves its uniquely named test files under On My iPhone, because
+deleting them behind the Files service stalls its screens. The names count down,
+so the newest run's files sort first and the picker never has to scroll.
+
+`ios-autofill` tests the AutoFill extension. It has its own name because
+Android's `autofill` suite runs the Android flows. Maestro creates a vault with
+a login and a verification code, then turns on biometric unlock and copying
+codes after a fill. The `AutofillTests` XCUITest then:
+
+- turns Cryptex Vault on in Settings and waits for its setup screen to end,
+- cancels the fill sheet and checks the page stayed empty,
+- checks the fill sheet lists nothing before Face ID, then fills a login from
+  the Passwords key after the destination review an HTTP page gets, and the
+  script reads the copied code with `simctl pbpaste` as soon as the test
+  reports the fill,
+- on Android's passkey page over HTTPS, which verifies each registration and
+  signature, creates two passkeys and checks that a duplicate is refused,
+- signs in with the one passkey the page allows, from a list that also offers
+  the website's login, and picks one of two passkeys when the page allows any,
+- on the HTTPS copy of the login page, fills the login after adding the
+  website to it, then adds a login with a generated password from the fill
+  sheet,
+- saves a new login and an update to an existing one from the save prompt,
+- unlocks the app and checks the notice, the new logins and passkeys, and the
+  updated password.
+
+The script enrolls Face ID and serves the login pages on port 43120
+(`CRYPTEX_E2E_IOS_AUTOFILL_PORT`). It serves them over HTTPS on the next port,
+with a certificate it makes for each run and adds to the Simulator's trusted
+roots. The test asks it to match Face ID or read the clipboard by creating
+files in a temporary folder. Face ID matches only while the test asks for it,
+so the test can check what shows before the match. After the Maestro setup the
+script turns the Simulator's software keyboard back on, since only the full
+keyboard has the Passwords key.
+
+The suite doesn't check suggestions above the keyboard or filling a
+verification code. Both need the system's AutoFill identity store, which
+never starts on the Simulator. iOS's sign-in sheet can't list the passkeys
+for the same reason, so the test picks "More from Cryptex Vault" there. A code
+field's number pad has no Passwords key, and its AutoFill menu opens only
+Apple's Passwords. Check those on a device. The save steps need a Simulator on
+iOS 26.2 or later.
+
+It also doesn't check AutoFill from a text field's menu (iOS 18 and later) or
+the passwords the extension suggests for a new account (iOS 26.2 and later).
+Both work on the Simulator, so check them there by hand. For the menu,
+long-press a text field and choose AutoFill, then Passwords, then Cryptex
+Vault. For suggested passwords, focus a field with
+`autocomplete="new-password"` to get iOS's strong password sheet.
+
+`backup-destinations` uses Garage's plain loopback http port on a Simulator,
+because iOS rejects the 100-year validity of the test certificate.
 
 Use `--profile preprod` consistently for preproduction builds and E2E commands.
 If the existing native project belongs to another profile, back it up with
@@ -61,6 +146,7 @@ pnpm mobile:e2e -- passkeys
 pnpm mobile:e2e -- security
 pnpm mobile:e2e -- cloud
 pnpm mobile:e2e -- devices
+pnpm mobile:e2e -- account-recovery
 pnpm mobile:e2e -- import-export
 pnpm mobile:e2e -- ssh-keys
 pnpm mobile:e2e -- ssh-agent
@@ -169,7 +255,8 @@ emulator's system input channel to trigger accessibility actions and complete
 pending credential-review actions; Maestro drives and verifies every
 surrounding interaction. The runner scales those coordinates from the pinned
 1080×2400 AVD profile and confirms the real accessibility-overlay window exists
-before each press. Picker steps affected by keyboard layout locate controls by
+before each press. It taps the Cryptex Vault button at the bounds Android
+reports for that window. Picker steps affected by keyboard layout locate controls by
 their Android UI text and bounds before tapping. A confirmed fallback fill can
 reach visible embedded forms and may reach an off-screen form; the frame flow
 requires all fields empty after cancellation. After explicit cross-site
@@ -220,7 +307,7 @@ screen before starting the suite, and use the recorded PIN if Android requests i
 Android BiometricPrompt, Keystore and SecureStore behavior remain unchanged.
 
 The standard E2E vault master password is `CorrectHorseBatteryStaple42`.
-The two-device receiver uses `ReceiverHorseBatteryStaple42`; web-transfer checks
+The sync receiver uses `ReceiverHorseBatteryStaple42`; web-transfer checks
 use `WebHorseBatteryStaple42`. These fixture passwords belong to their respective
 vaults and are never Android screen-lock PINs.
 
@@ -277,53 +364,41 @@ stopped and its temporary files are removed when it ends.
 pnpm mobile:e2e -- ssh-agent --device emulator-5556
 ```
 
-## Two-device sync
+## Sync
 
-The `sync` command requires two distinct disposable Android devices, the E2E APK
-and native target fixture on both, and local Pusher-compatible signaling with
-authenticated TURN. It captures the actual invitation export, copies identical
-bytes to the receiver, starts the sender and completes linking and recovery-code
-setup with a different receiver master password. It checks the transferred
-credential, bidirectional edits including password changes, and restart
-persistence on both devices.
-
-Server setup uses **Link a device → Create invitation → Advanced connection →
-Manage custom servers**, then returns to Devices before creating the transfer
-invitation.
-
-After each edit, the journey invokes the linked device's existing **Sync now**
-control. Automatic sync on connection opening does not imply continuous push
-for later edits. The setup selects **Auto-lock → Off** through the normal
-Security screen on both disposable vaults so coordinated waits and restarts do
-not interrupt linking. Security and auto-lock suites retain their own settings.
-The sender also opens its saved connection, checks the separate signaling, STUN
-and TURN roles, edits and discards the display name, and verifies that reopening
-settings retains the original name before synchronizing.
-
-Generate short-lived private configuration from local Online Services settings
-and keep the file outside the repository:
+`sync` links the phone with the web app in both directions. First the browser
+invites and the phone joins, then the phone invites and the browser joins.
+After each link, an edit syncs each way, including a password change.
+`e2e/web-sync.spec.mts` drives the browser with Playwright and runs the Maestro
+flows for the phone. The runner starts the production web app and the
+signaling and TURN servers from `compose.e2e.yaml` on loopback. The command
+needs Docker Compose and one device:
 
 ```sh
-export E2E_SYNC_CONFIG=/path/outside-checkout/sync-e2e.json
-node mobile/e2e/fixtures/sync-config.mjs "$CLOUD_ENV_FILE" "$E2E_SYNC_CONFIG"
-E2E_SYNC_SENDER=emulator-5554 E2E_SYNC_RECEIVER=emulator-5558 \
-  pnpm mobile:e2e -- sync
+pnpm mobile:e2e -- sync --device emulator-5554
 ```
 
-The environment file must provide `NEXT_PUBLIC_PUSHER_APP_ID`,
-`NEXT_PUBLIC_PUSHER_APP_KEY`, `PUSHER_APP_SECRET` and `TURN_AUTH_SECRET`.
-Signaling defaults to localhost:6011; the runner reverses that port on both
-devices. TURN defaults to `10.0.2.2:3478`; `E2E_TURN_HOST` overrides it. TURN
-credentials expire after one hour. Regenerate configuration for later runs.
+On Android, the runner reverses the signaling and TURN ports onto the device,
+and the test pushes the web app's invitation to Downloads with `adb`. The phone
+shares its own invitation to the native target fixture, which saves it in
+Downloads. Install the fixture as for the
+[conventional autofill suite](#conventional-autofill-suite). On iOS, the native
+tests handle the Files steps. Both sides relay through TURN over TCP, because
+Docker Desktop drops UDP replies on loopback and a firewall can refuse direct
+connections.
 
-If no local TURN server exists, run `node mobile/e2e/fixtures/start-turn.mjs
-"$CLOUD_ENV_FILE" HOST_LAN_IPV4` to start a dedicated coturn container. Its output
-includes cleanup instructions. The local backend on port 3001 and web app on port
-3000 can also be used for manual web/mobile linking with disposable vaults.
+Server setup uses **Link a device**, **Create invitation**, **Advanced
+connection** and **Manage custom servers**, then returns to Devices before
+creating the transfer invitation.
 
-`sync-sender` and `sync-receiver` are constituent phases; use `sync` for the
-coordinated journey. The phases need the private environment supplied by the
-sync runner. An explicit `--device` overrides its sender selection.
+After each edit, the test uses the linked device's **Sync now**. Sync runs on
+its own when the connection opens, but later edits don't push by themselves.
+The setup turns **Auto-lock** to **Off** in the Security screen so waits and
+restarts don't interrupt linking. The security and auto-lock suites keep their
+own settings. Before it syncs, the inviting phone also opens its saved
+connection and checks the separate signaling, STUN and TURN roles. It edits the
+display name, discards the edit, and checks that reopening the settings still
+shows the original name.
 
 ## Cloud fixture
 
@@ -346,9 +421,45 @@ The fixture verifies real signed authentication challenges and upload checksums,
 rotates refresh tokens and stores actual encrypted backup bytes in memory.
 Disposable accounts receive backup entitlement. The cloud journey creates an
 account, saves its Recovery Kit, enables backups, uploads an encrypted vault,
-inspects backup history and deletes its snapshots. Production accounts and
-storage are not used. Host contract tests live in
+inspects backup history and deletes its snapshots. Through the fixture's
+`/fail-next`, it also refuses one upload as a full account would and fails one
+download. It checks that the Backup Center reports full storage until a deleted
+backup makes room, and that the download error shows inside the snapshot sheet.
+Production accounts and storage are not used. Host contract tests live in
 `fixtures/online-services.test.mjs`.
+
+Sign-up ends on the payment step. On Android, requesting the fixture's
+synthetic Stripe Checkout marks the account paid. The flow returns from the
+browser without a return link, and the app finds the payment and welcomes the
+new member. iOS sells through the App Store, which can't take a payment against
+the fixture, so the payment step shows Payment not completed and the flow taps
+Not now. The account stays on the free plan, which the fixture still entitles to
+backups and devices.
+
+`pnpm mobile:e2e -- account-recovery` registers an account, notes its User ID,
+disconnects the vault and recovers the account with the fixture's Recovery Kit
+phrase. A Kit with an unknown User ID is refused first.
+
+To cover the human check, serve its page from the production web app with
+Cloudflare's always-pass test key, and build against both:
+
+```sh
+E2E_TURNSTILE_SITE_KEY=1x00000000000000000000AA docker compose \
+  --file compose.e2e.yaml --file web/e2e/compose.host-servers.yaml \
+  up --detach --wait web
+EXPO_PUBLIC_CLOUD_ENABLED=true \
+  EXPO_PUBLIC_ONLINE_SERVICES_API_URL=http://localhost:43111 \
+  EXPO_PUBLIC_APP_URL=http://localhost:4174 \
+  EXPO_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+  pnpm mobile:build -- --e2e
+pnpm mobile:e2e -- cloud --device emulator-5554
+```
+
+On Android, also run `adb reverse tcp:4174 tcp:4174`. The check loads from
+Cloudflare, so the run needs internet access. Sign-up continues only with the
+check's token, so a passing run shows the check opened over the sign-up sheet.
+With the web key `3x00000000000000000000FF`, the check stays on screen until
+you tap it.
 
 ## Account devices fixture
 
@@ -367,7 +478,7 @@ relationships have no invented local sync controls and that exactly one unlink
 scope is selected. It also creates and cancels a root invitation, checks temporary
 registration cleanup, searches by device ID, promotes and demotes a peer, unlinks
 a relationship while preserving its account device, removes that device, checks
-the last-root guard, and demotes the current device. The two-device sync suite
+the last-root guard, and demotes the current device. The sync suite
 separately covers live transport and local link controls. Both suites dismiss the
 phone's details sheet explicitly.
 

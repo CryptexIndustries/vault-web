@@ -326,8 +326,8 @@ export default function Home() {
                         </Action>
                     </div>
                     <p className={s.heroAndroid}>
-                        Also on Android.{" "}
-                        <Link href="/download/android">Get the app</Link>
+                        Also on Android and iOS.{" "}
+                        <Link href="/download">Get the app</Link>
                     </p>
                     <a
                         className="mt-3.5 inline-flex items-center gap-2 text-sm text-[var(--ink)] hover:text-[var(--coral)] [&>svg]:text-[var(--coral)]"
@@ -537,9 +537,9 @@ export default function Home() {
                         <Label>AVAILABLE NOW</Label>
                         <h3>Your daily vault.</h3>
                         <p>
-                            Web, Android, Browser Extension and an SSH agent,
-                            with autofill, P2P sync, backups and one-time share
-                            links. Start from the{" "}
+                            Web, Android, iOS, Browser Extension and an SSH
+                            agent, with autofill, P2P sync, backups and one-time
+                            share links. Start from the{" "}
                             <Link href="/download">downloads</Link> or the{" "}
                             <Link href="/docs">docs</Link>.
                         </p>
@@ -555,8 +555,8 @@ export default function Home() {
                         <Label>PLANNED</Label>
                         <h3>What comes next.</h3>
                         <p>
-                            Advanced Security Report and iOS support. Priorities
-                            and target dates may change.
+                            Advanced Security Report. Priorities and target
+                            dates may change.
                         </p>
                     </article>
                 </div>

@@ -7,10 +7,10 @@ name: Edit the credential on the receiving device
 - eraseText: 100
 - inputText: returned@example.test
 - tapOn:
-      text: Password, Hidden.*
+      id: credential-password
 - eraseText: 100
 - inputText: receiver-updated-password-43
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit

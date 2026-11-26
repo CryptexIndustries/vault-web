@@ -227,12 +227,18 @@ function SavePrivateKeyDialog({
             data,
             passphrase: passphrase || undefined,
         });
-        close();
+        setPassphrase("");
+        setConfirmation("");
         if (!result.ok || result.kind !== "export") {
+            close();
             showSnackbar(t(SAVE_FAILED));
             return;
         }
-        if (!isCurrent()) return;
+        if (!isCurrent()) {
+            close();
+            return;
+        }
+        // iOS discards a share sheet presented while this sheet is closing.
         try {
             const shared = await shareSSHKeyFile(fileName, result.text, {
                 mimeType: "application/octet-stream",
@@ -242,6 +248,8 @@ function SavePrivateKeyDialog({
             if (shared === "unavailable") showSnackbar(t(SHARE_UNAVAILABLE));
         } catch {
             if (isCurrent()) showSnackbar(t(SAVE_FAILED));
+        } finally {
+            close();
         }
     };
 
@@ -275,6 +283,7 @@ function SavePrivateKeyDialog({
                     editable={!busy}
                     accessibilityLabel={t`File passphrase`}
                     testID="ssh-key-file-passphrase"
+                    textContentType="oneTimeCode"
                 />
             </View>
             <View>
@@ -294,6 +303,7 @@ function SavePrivateKeyDialog({
                     editable={!busy}
                     accessibilityLabel={t`Confirm file passphrase`}
                     testID="ssh-key-file-passphrase-confirm"
+                    textContentType="oneTimeCode"
                 />
             </View>
             {mismatch ? (

@@ -582,6 +582,7 @@ export function ConnectivityPanel({
                                         <Input
                                             value={server.Name}
                                             accessibilityLabel={serverNameLabel}
+                                            testID="server-Name"
                                             onChangeText={(value) => {
                                                 markDirty();
                                                 setDraftStun((list) =>
@@ -610,6 +611,7 @@ export function ConnectivityPanel({
                                         <Input
                                             value={server.Host}
                                             accessibilityLabel={t`Host / URL`}
+                                            testID="server-Host"
                                             onChangeText={(value) => {
                                                 markDirty();
                                                 setDraftStun((list) =>
@@ -657,6 +659,7 @@ export function ConnectivityPanel({
                                                 accessibilityLabel={
                                                     serverNameLabel
                                                 }
+                                                testID="server-Name"
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -686,6 +689,7 @@ export function ConnectivityPanel({
                                             <Input
                                                 value={server.Host}
                                                 accessibilityLabel={t`Host / URL`}
+                                                testID="server-Host"
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -714,6 +718,9 @@ export function ConnectivityPanel({
                                             <Input
                                                 value={server.Username}
                                                 accessibilityLabel={t`Username`}
+                                                testID="server-Username"
+                                                // iOS treats this as the username for the credential below.
+                                                textContentType="oneTimeCode"
                                                 onChangeText={(value) => {
                                                     markDirty();
                                                     setDraftTurn((list) =>
@@ -769,6 +776,9 @@ export function ConnectivityPanel({
                                                 autoCapitalize="none"
                                                 autoCorrect={false}
                                                 accessibilityLabel={t`TURN credential`}
+                                                testID="server-Credential"
+                                                // Keeps iOS from offering to store it in Apple Passwords.
+                                                textContentType="oneTimeCode"
                                             />
                                         </View>
                                     </View>
@@ -873,6 +883,13 @@ export function ConnectivityPanel({
                                                     autoCorrect={false}
                                                     placeholder={placeholder}
                                                     accessibilityLabel={label}
+                                                    testID={`server-${field}`}
+                                                    // Keeps iOS from offering to store the secret in Apple Passwords.
+                                                    textContentType={
+                                                        field === "Secret"
+                                                            ? "oneTimeCode"
+                                                            : undefined
+                                                    }
                                                     secureTextEntry={
                                                         field === "Secret"
                                                     }

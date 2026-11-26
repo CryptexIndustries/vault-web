@@ -16,14 +16,20 @@ name: Restore the actual encrypted export into a clean installation
       env:
           EXPORTED_FILE: e2e-export.cryx
 - assertVisible: After restore, unlock with the existing master password.*
-- scrollUntilVisible:
-      element:
-          text: Restored vault name
-      direction: DOWN
+# The backup source options push the name field below the fold on Android.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - scrollUntilVisible:
+                element:
+                    text: Restored vault name
+                direction: DOWN
+                centerElement: true
 - tapOn: Restored vault name
 - eraseText: 100
 - inputText: E2E Restored Vault
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-vault
@@ -34,17 +40,19 @@ name: Restore the actual encrypted export into a clean installation
 - extendedWaitUntil:
       visible: Master password
       timeout: 10000
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: WrongPassword42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: That password could not unlock this vault. Check it and try again.
 - assertNotVisible: E2E Transfer Login.*
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - eraseText: 100
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: E2E Transfer Login.*
@@ -56,9 +64,10 @@ name: Restore the actual encrypted export into a clean installation
 - tapOn: Back
 - stopApp
 - launchApp
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: E2E Transfer Login.*

@@ -1,10 +1,9 @@
-import Link from "next/link";
-
 import {
     Site,
     Label,
     Section,
     Action,
+    APP_STORE,
     CHROME_WEB_STORE,
     FIREFOX_ADD_ONS,
     s,
@@ -15,14 +14,14 @@ export default function Downloads() {
     return (
         <Site
             title="Download"
-            description="Use Cryptex Vault in your browser, with the Browser Extension or on Android."
+            description="Use Cryptex Vault in your browser, with the Browser Extension or on Android and iOS."
         >
             <section className={s.pageHero}>
                 <Label>PLATFORMS</Label>
                 <h1>Download</h1>
                 <p>
                     Use Cryptex Vault in your browser, with the Browser
-                    Extension or on Android.
+                    Extension or on Android and iOS.
                 </p>
             </section>
             <Section>
@@ -51,15 +50,19 @@ export default function Downloads() {
                         </div>
                     </article>
                     <article>
-                        <h3>Android</h3>
+                        <h3>Android and iOS</h3>
                         <p>
-                            Install from Google Play, our F-Droid repository or
-                            as an APK from GitHub. The main F-Droid repository
-                            is reviewing it.
+                            On Android, install from Google Play, our F-Droid
+                            repository or as an APK from GitHub. The main
+                            F-Droid repository is reviewing it. On iPhone and
+                            iPad, install from the App Store.
                         </p>
-                        <Action href="/download/android">
-                            Get the Android app
-                        </Action>
+                        <div className="mt-auto flex flex-col gap-3">
+                            <Action href="/download/android">
+                                Get the Android app
+                            </Action>
+                            <Action href={APP_STORE}>Open App Store</Action>
+                        </div>
                     </article>
                     <article>
                         <h3>SSH agent for Linux and macOS</h3>
@@ -72,9 +75,6 @@ export default function Downloads() {
                         </Action>
                     </article>
                 </div>
-                <p className={d.planned}>
-                    iOS is planned. <Link href="/roadmap">See the roadmap</Link>
-                </p>
             </Section>
         </Site>
     );

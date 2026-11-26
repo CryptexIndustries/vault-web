@@ -7,9 +7,10 @@ name: Verify a later encrypted synchronization reaches the receiving device
 - assertNotVisible: E2E Transfer Login.*
 - stopApp
 - launchApp
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: ReceiverHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: E2E Updated After Link.*

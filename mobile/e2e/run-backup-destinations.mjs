@@ -6,10 +6,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import {
     createGarageBucket,
+    garageS3Url,
     garageTlsUrl,
     startGarage,
 } from "../../e2e/garage/garage.ts";
-import { maestroProfileArgs } from "./profile.mjs";
+import { isIosSimulator, maestroProfileArgs } from "./profile.mjs";
 
 const serial = process.env.MAESTRO_DEVICE || process.env.ANDROID_SERIAL;
 if (
@@ -30,7 +31,8 @@ const resultsDirectory = fileURLToPath(new URL("./results/", import.meta.url));
 const fixturesDirectory = fileURLToPath(
     new URL("../../e2e/fixtures/backups/", import.meta.url),
 );
-// The https proxy, whose certificate the E2E build trusts.
+// The https proxy, whose certificate the Android E2E build trusts. iOS rejects
+// its 100-year validity, so Simulators use Garage's plain loopback http port.
 const port = new URL(garageTlsUrl).port;
 
 async function command(program, args) {
@@ -64,7 +66,9 @@ const flow = (name) =>
         "test",
         ...maestroProfileArgs(),
         ...Object.entries({
-            S3_ENDPOINT: `https://127.0.0.1:${port}`,
+            S3_ENDPOINT: isIosSimulator(serial)
+                ? garageS3Url
+                : `https://127.0.0.1:${port}`,
             S3_BUCKET: bucket.name,
             S3_PREFIX: PREFIX,
             S3_KEY_ID: bucket.key.accessKeyId,
@@ -80,7 +84,7 @@ const flow = (name) =>
     ]);
 
 const ANDROID_BACKUP =
-    /^e2e\/x1\/[0-9A-HJKMNP-TV-Z]{26}\/android-[0-9A-HJKMNP-TV-Z]{26}\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.cryx$/;
+    /^e2e\/x1\/[0-9A-HJKMNP-TV-Z]{26}\/(?:android|ios)-[0-9A-HJKMNP-TV-Z]{26}\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.cryx$/;
 
 /** This device's backups; fails on anything else the app left behind. */
 async function phoneBackups() {
@@ -122,13 +126,15 @@ const started = Date.now();
 try {
     mkdirSync(resultsDirectory, { recursive: true });
     bucket = await createGarageBucket();
-    await command("adb", [
-        "-s",
-        serial,
-        "reverse",
-        `tcp:${port}`,
-        `tcp:${port}`,
-    ]);
+    // Simulators share the Mac's network.
+    if (!isIosSimulator(serial))
+        await command("adb", [
+            "-s",
+            serial,
+            "reverse",
+            `tcp:${port}`,
+            `tcp:${port}`,
+        ]);
 
     await flow("01-add");
     const [first] = await expectBackups(1, "Added destination");
@@ -196,12 +202,13 @@ try {
         `Backup destinations passed in ${Math.round((Date.now() - started) / 1000)} s.`,
     );
 } finally {
-    await command("adb", [
-        "-s",
-        serial,
-        "reverse",
-        "--remove",
-        `tcp:${port}`,
-    ]).catch(() => undefined);
+    if (!isIosSimulator(serial))
+        await command("adb", [
+            "-s",
+            serial,
+            "reverse",
+            "--remove",
+            `tcp:${port}`,
+        ]).catch(() => undefined);
     stopGarage();
 }

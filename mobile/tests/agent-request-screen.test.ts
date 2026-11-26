@@ -15,6 +15,8 @@ const mockParams: { id?: string; token?: string } = {};
 const mockPending = new Map<string, unknown>();
 const mockApprove = jest.fn(async (_id: string, _choice: string) => undefined);
 const mockProtect = jest.fn();
+const mockShowDialogs = jest.fn();
+const mockHideDialogs = jest.fn(() => mockShowDialogs);
 const mockChangeAgent = jest.fn(async (_id: string, _changes: unknown) => true);
 const mockSetPaused = jest.fn(async (_id: string, _paused: boolean) => {
     mockPending.clear();
@@ -53,6 +55,9 @@ jest.mock("@/components/unlocked/unlocked-ui", () => {
         }) => h("Screen", null, children, footer),
     };
 });
+jest.mock("@/components/ui/dialog", () => ({
+    hideDialogs: mockHideDialogs,
+}));
 jest.mock("@/components/unlocked/unlocked-snackbar", () => ({
     useUnlockedSnackbar: () => jest.fn(),
     useClearUnlockedSnackbar: () => jest.fn(),
@@ -164,6 +169,14 @@ describe("SSH approval screen", () => {
         expect(mockProtect).toHaveBeenLastCalledWith(true);
         act(() => renderer.unmount());
         expect(mockProtect).toHaveBeenLastCalledWith(false);
+    });
+
+    it("hides app sheets until it closes", () => {
+        render();
+        expect(mockHideDialogs).toHaveBeenCalledTimes(1);
+        expect(mockShowDialogs).not.toHaveBeenCalled();
+        act(() => renderer.unmount());
+        expect(mockShowDialogs).toHaveBeenCalledTimes(1);
     });
 
     it("refuses to open without a token from the app", () => {

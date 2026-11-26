@@ -30,6 +30,7 @@ import { liveAgent } from "@cryptex-industries/vault-core/agent/vault-agents";
 import { ItemType } from "@cryptex-industries/vault-core/proto";
 
 import { InlineNotice } from "@/components/inline-notice";
+import { hideDialogs } from "@/components/ui/dialog";
 import {
     UnlockedButton as Button,
     UnlockedTaskScreen,
@@ -138,6 +139,9 @@ function AgentRequestView() {
         agentService.setApprovalScreenProtected(true);
         return () => agentService.setApprovalScreenProtected(false);
     }, []);
+
+    // Open app sheets would cover this screen, so hide them until it closes.
+    useEffect(() => hideDialogs(), []);
 
     // A notice from the screen underneath, like "Connected", would cover the
     // Remember choices.

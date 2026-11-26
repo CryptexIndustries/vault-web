@@ -45,9 +45,9 @@ export default function SSHKeys() {
                 </p>
                 <p>
                     You can create and use SSH key items in the web app, the
-                    Browser Extension and the Android app. New keys are always
-                    Ed25519. Imported keys can be Ed25519, ECDSA (P-256, P-384
-                    or P-521) or RSA.
+                    Browser Extension and the Android and iOS apps. New keys are
+                    always Ed25519. Imported keys can be Ed25519, ECDSA (P-256,
+                    P-384 or P-521) or RSA.
                 </p>
             </DocSection>
 
@@ -58,8 +58,8 @@ export default function SSHKeys() {
                             In the web app, choose the arrow next to{" "}
                             <strong>Add New</strong>; in the extension, the
                             arrow next to the add button. Then choose{" "}
-                            <strong>SSH key</strong>. On Android, tap the add
-                            button and choose <strong>SSH key</strong>.
+                            <strong>SSH key</strong>. On Android and iOS, tap
+                            the add button and choose <strong>SSH key</strong>.
                         </p>,
                         <p key="mode">
                             Keep <strong>Generate a new key</strong> selected.

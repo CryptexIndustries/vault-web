@@ -1,0 +1,5 @@
+appId: ${CRYPTEX_APP_ID}
+name: Share the invitation file to Downloads
+---
+- tapOn: Share file
+- runFlow: export-capture.yaml

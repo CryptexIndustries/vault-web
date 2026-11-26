@@ -11,6 +11,11 @@ msgstr ""
 msgid "“No directory” is reserved for unfiled credentials."
 msgstr "Naziv „Bez mape“ rezerviran je za stavke koje nisu ni u jednoj mapi."
 
+#. placeholder {0}: result.failed
+#: app/_layout.tsx
+msgid "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+msgstr "{0, plural, one {# pristupni podatak iz automatskog popunjavanja nije moguće dodati u trezor.} few {# pristupna podatka iz automatskog popunjavanja nije moguće dodati u trezor.} other {# pristupnih podataka iz automatskog popunjavanja nije moguće dodati u trezor.}}"
+
 #. placeholder {0}: initialImport.credentials.length
 #: src/components/vault-manager/create-tab.tsx
 msgid "{0, plural, one {# credential is staged. It will be added when this vault is created.} other {# credentials are staged. They will be added when this vault is created.}}"
@@ -41,6 +46,11 @@ msgstr "{0, plural, one {# stavka provjerena na ovom uređaju} few {# stavke pro
 msgid "{0, plural, one {# minute} other {# minutes}}"
 msgstr "{0, plural, one {# minuta} few {# minute} other {# minuta}}"
 
+#. placeholder {0}: result.savedAsNew
+#: app/_layout.tsx
+msgid "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+msgstr "{0, plural, one {# spremljena lozinka bila je za pristupne podatke koje ste izbrisali, pa je dodana kao novi unos.} few {# spremljene lozinke bile su za pristupne podatke koje ste izbrisali, pa su dodane kao novi unosi.} other {# spremljenih lozinki bilo je za pristupne podatke koje ste izbrisali, pa su dodane kao novi unosi.}}"
+
 #. placeholder {0}: analysis?.reuseGroups.length ?? 0
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Across # shared password group} other {Across # shared password groups}}"
@@ -50,6 +60,11 @@ msgstr "{0, plural, one {# grupa s istom lozinkom} few {# grupe s istom lozinkom
 #: src/components/linking-progress.tsx
 msgid "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
 msgstr "{0, plural, one {Zapisnik aktivnosti (# događaj)} few {Zapisnik aktivnosti (# događaja)} other {Zapisnik aktivnosti (# događaja)}}"
+
+#. placeholder {0}: result.associated
+#: app/_layout.tsx
+msgid "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
+msgstr "{0, plural, one {Pristupnim podacima dodano je # web-mjesto iz automatskog popunjavanja.} few {Pristupnim podacima dodana su # web-mjesta iz automatskog popunjavanja.} other {Pristupnim podacima dodano je # web-mjesta iz automatskog popunjavanja.}}"
 
 #. placeholder {0}: rows.length
 #: app/(app)/settings/security-report/index.tsx
@@ -70,6 +85,11 @@ msgstr "{0, plural, one {Ista lozinka koristi se za # račun (prikazani rezultat
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
 msgstr "{0, plural, one {Ista lozinka koristi se za # račun} few {Ista lozinka koristi se za # računa} other {Ista lozinka koristi se za # računa}}"
+
+#. placeholder {0}: result.passkeys
+#: app/_layout.tsx
+msgid "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
+msgstr "{0, plural, one {U trezor je spremljen # pristupni ključ iz automatskog popunjavanja.} few {U trezor su spremljena # pristupna ključa iz automatskog popunjavanja.} other {U trezor je spremljeno # pristupnih ključeva iz automatskog popunjavanja.}}"
 
 #: app/(app)/devices/agents/[id].tsx
 msgid "{approverName} (this device)"
@@ -390,8 +410,16 @@ msgid "{namespace} signature"
 msgstr "Potpis za {namespace}"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "Svaki mjesec naplaćuje se {planPrice}. Pretplata se automatski obnavlja ako je ne otkažeš najmanje 24 sata prije kraja razdoblja. Otkaži bilo kada u postavkama Apple računa. Pristup traje do kraja plaćenog razdoblja."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
 msgstr "Svaki mjesec naplaćuje se {planPrice}. Pretplata se automatski obnavlja dok je ne otkažeš. Otkaži bilo kada u pretplatama trgovine Google Play. Pristup traje do kraja plaćenog razdoblja."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "Svake godine naplaćuje se {planPrice}. Pretplata se automatski obnavlja ako je ne otkažeš najmanje 24 sata prije kraja razdoblja. Otkaži bilo kada u postavkama Apple računa. Pristup traje do kraja plaćenog razdoblja."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
@@ -421,6 +449,10 @@ msgstr "{reason} Udaljena registracija poništena je gdje je to bilo moguće."
 #: app/(app)/(tabs)/vault/search.tsx
 msgid "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
 msgstr "{resultCount, plural, one {# rezultat u tvom trezoru} few {# rezultata u tvom trezoru} other {# rezultata u tvom trezoru}}"
+
+#: app/_layout.tsx
+msgid "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
+msgstr "{saved, plural, one {U trezor je spremljen # pristupni podatak iz automatskog popunjavanja.} few {U trezor su spremljena # pristupna podatka iz automatskog popunjavanja.} other {U trezor je spremljeno # pristupnih podataka iz automatskog popunjavanja.}}"
 
 #. Number of SSH keys selected out of all keys
 #: src/components/agents/agent-rows.tsx
@@ -626,7 +658,9 @@ msgstr "Pristup nije dostupan"
 msgid "Accessibility fallback"
 msgstr "Rezervna opcija putem pristupačnosti"
 
+#. Recovery step
 #: app/(app)/(tabs)/_layout.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Account"
 msgstr "Račun"
@@ -683,6 +717,10 @@ msgstr "Podaci računa ne odgovaraju ovom uređaju. Ponovno se prijavi."
 #: src/components/account/account-security.tsx
 msgid "Account management"
 msgstr "Upravljanje računom"
+
+#: src/components/account/recovery-status.tsx
+msgid "Account recovered"
+msgstr "Račun je oporavljen"
 
 #: src/components/account/account-security.tsx
 msgid "Account recovery"
@@ -1012,6 +1050,10 @@ msgstr "Već u ovom trezoru"
 msgid "Already set up on another device?"
 msgstr "Već postavljeno na drugom uređaju?"
 
+#: src/components/account/payment-status.tsx
+msgid "Already subscribed"
+msgstr "Već pretplaćeno"
+
 #: src/components/vault/directory-manager.tsx
 msgid "Also delete directory credentials"
 msgstr "Izbriši i stavke iz mape"
@@ -1124,6 +1166,18 @@ msgstr "ID aplikacije"
 #: src/components/autofill/request-ui.tsx
 msgid "App reported by Android"
 msgstr "Aplikacija koju navodi Android"
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing could not complete. Please try again."
+msgstr "Naplatu putem trgovine App Store nije moguće dovršiti. Pokušaj ponovno."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is not configured. Please update the app."
+msgstr "Naplata putem trgovine App Store nije konfigurirana. Ažuriraj aplikaciju."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is unavailable for this account."
+msgstr "Naplata putem trgovine App Store nije dostupna za ovaj račun."
 
 #: src/components/vault/password-generator.tsx
 msgid "Append digits"
@@ -1248,6 +1302,11 @@ msgstr "Automatsko zaključavanje, biometrija i šifriranje"
 msgid "Autofill"
 msgstr "Automatsko popunjavanje"
 
+#: app/(app)/(tabs)/settings.tsx
+#: app/(app)/settings/autofill.tsx
+msgid "AutoFill"
+msgstr "Automatsko popunjavanje"
+
 #: src/components/vault/credential-form.tsx
 msgid "Autofill target {targetNumber}"
 msgstr "Cilj automatskog popunjavanja {targetNumber}"
@@ -1269,9 +1328,18 @@ msgstr "Automatske sigurnosne kopije su pauzirane. Postojeća povijest ostaje."
 msgid "Automatic backups to {0}"
 msgstr "Automatske sigurnosne kopije: {0}"
 
+#: src/components/account/payment-status.tsx
+msgid "Awaiting approval"
+msgstr "Čeka odobrenje"
+
+#: src/components/account/payment-status.tsx
+msgid "Awaiting payment"
+msgstr "Čeka plaćanje"
+
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
 #: app/link-receive.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
@@ -1419,6 +1487,10 @@ msgstr "Osnovna sigurnosna izvješća"
 msgid "Battery settings"
 msgstr "Postavke baterije"
 
+#: src/components/account/recovery-status.tsx
+msgid "Becomes the account device"
+msgstr "Postaje uređaj računa"
+
 #: src/components/vault-import/import-wizard.tsx
 msgid "Before you import"
 msgstr "Prije uvoza"
@@ -1428,8 +1500,16 @@ msgid "Billed monthly"
 msgstr "Naplaćuje se mjesečno"
 
 #: src/components/account/account-summary.tsx
+msgid "Billed on the web"
+msgstr "Naplaćuje se na webu"
+
+#: src/components/account/account-summary.tsx
 msgid "Billed outside Google Play"
 msgstr "Naplaćuje se izvan trgovine Google Play"
+
+#: src/components/account/account-summary.tsx
+msgid "Billed outside the App Store"
+msgstr "Naplaćuje se izvan trgovine App Store"
 
 #: src/components/account/account-summary.tsx
 msgid "Billed through the App Store"
@@ -1438,6 +1518,11 @@ msgstr "Naplaćuje se putem trgovine App Store"
 #: src/components/account/membership-upgrade.tsx
 msgid "Billed yearly"
 msgstr "Naplaćuje se godišnje"
+
+#. Row label: the service that bills the plan
+#: src/components/account/payment-status.tsx
+msgid "Billing"
+msgstr "Naplata"
 
 #: src/components/account/billing-interval-selector.tsx
 msgid "Billing interval"
@@ -1547,7 +1632,6 @@ msgstr "Nije moguće pristupiti poslužitelju za dijeljenje. Provjeri vezu i pok
 
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/managed.tsx
@@ -1656,16 +1740,17 @@ msgstr "Zadnja sigurnosna kopija: {managedWhen}. Novije promjene nisu spremljene
 msgid "Changes since {when} are not backed up. Delete older backups below to make room."
 msgstr "Zadnja sigurnosna kopija: {when}. Novije promjene nisu spremljene. Izbriši starije sigurnosne kopije ispod da oslobodiš prostor."
 
+#: src/components/account/payment-status.tsx
+msgid "Check again"
+msgstr "Provjeri ponovno"
+
 #: app/(app)/settings/diagnostics.tsx
 msgid "Check before sharing"
 msgstr "Provjeri prije dijeljenja"
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/billing-pending-notice.tsx
-#: src/components/account/membership-upgrade.tsx
-#: src/components/account/subscription-signup.tsx
-msgid "Check status"
-msgstr "Provjeri status"
+#: src/components/account/payment-status.tsx
+msgid "Check now"
+msgstr "Provjeri sada"
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Check the code"
@@ -1674,6 +1759,10 @@ msgstr "Provjeri kôd"
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check the timeout"
 msgstr "Provjeri vremensko ograničenje"
+
+#: src/components/account/recovery-status.tsx
+msgid "Check the User ID and all 24 words, then try again. Nothing has changed."
+msgstr "Provjeri ID korisnika i sve 24 riječi pa pokušaj ponovno. Ništa se nije promijenilo."
 
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
@@ -1686,6 +1775,10 @@ msgstr "Provjera uređaja i veza na računu."
 #: app/(app)/settings/security/index.tsx
 msgid "Checking device support…"
 msgstr "Provjera podrške uređaja…"
+
+#: src/components/account/payment-status.tsx
+msgid "Checking for your payment"
+msgstr "Provjeravamo tvoje plaćanje"
 
 #: src/components/vault/ssh-key-form.tsx
 msgid "Checking key…"
@@ -1707,12 +1800,13 @@ msgstr "Provjera riječi za potvrdu i razmjena ključeva za sinkronizaciju."
 msgid "Checking verification words…"
 msgstr "Provjera riječi za potvrdu…"
 
-#: src/components/account/subscription-signup.tsx
-msgid "Checking your subscription…"
-msgstr "Provjera pretplate…"
+#: src/components/account/turnstile-challenge.tsx
+msgid "Checking you're human"
+msgstr "Provjeravamo jesi li čovjek"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/account/payment-status.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Checking…"
@@ -1721,6 +1815,10 @@ msgstr "Provjera…"
 #: src/components/account/membership-upgrade.tsx
 msgid "Checkout opens in Google Play."
 msgstr "Plaćanje se otvara u trgovini Google Play."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Checkout opens in the App Store."
+msgstr "Plaćanje se otvara u trgovini App Store."
 
 #: app/(app)/settings/security-report/index.tsx
 msgid "Checks password strength, reuse, and age, and SSH key sizes. Data breaches are not checked. Age alone does not mean a password is compromised."
@@ -1830,6 +1928,11 @@ msgstr "Odaberi datoteku za povezivanje"
 msgid "Choose login to update"
 msgstr "Odaberi pristupne podatke za ažuriranje"
 
+#. Step label above the plan picker
+#: src/components/account/subscription-signup.tsx
+msgid "Choose plan"
+msgstr "Odaberi plan"
+
 #: src/components/vault/credential-form.tsx
 msgid "Choose specific hostnames or paths using * and **."
 msgstr "Odaberi određene hostove ili putanje pomoću * i **."
@@ -1902,8 +2005,8 @@ msgstr "Nešifrirani izvoz je spreman. Izbriši ga nakon upotrebe."
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/agent-request.tsx
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/payment-status.tsx
 #: src/components/devices/device-details-sheet.tsx
-#: src/components/vault/password-generator.tsx
 msgid "Close"
 msgstr "Zatvori"
 
@@ -1970,6 +2073,10 @@ msgstr "Riješi provjeru u nastavku."
 msgid "Complete the challenge to continue. The verification token is used once and never stored."
 msgstr "Za nastavak riješi provjeru. Token za provjeru koristi se samo jednom i nikad se ne sprema."
 
+#: src/components/account/turnstile-challenge.tsx
+msgid "Complete the check below. The token is used once and never stored."
+msgstr "Dovrši provjeru ispod. Token se koristi jednom i nikad se ne sprema."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Configuration incomplete"
 msgstr "Konfiguracija nije potpuna"
@@ -1987,7 +2094,9 @@ msgstr "Postavi vlastito povezivanje na kartici „Uređaji“ ili poveži uslug
 msgid "Configured"
 msgstr "Postavljeno"
 
+#. Step label
 #: app/(app)/(tabs)/devices.tsx
+#: app/(app)/account/auth/recover.tsx
 msgid "Confirm"
 msgstr "Potvrdi"
 
@@ -2048,18 +2157,29 @@ msgstr "Potvrdi glavnu lozinku."
 msgid "Confirm your new master password."
 msgstr "Potvrdi novu glavnu lozinku."
 
+#: src/components/account/payment-status.tsx
+msgid "Confirm your subscription in Google Play. Nothing is charged until you do."
+msgstr "Potvrdi pretplatu u trgovini Google Play. Ništa se ne naplaćuje dok to ne učiniš."
+
+#: src/components/account/payment-status.tsx
+msgid "Confirm your subscription in the App Store window. Nothing is charged until you do."
+msgstr "Potvrdi pretplatu u prozoru trgovine App Store. Ništa se ne naplaćuje dok to ne učiniš."
+
 #: app/(app)/settings/security/index.tsx
-msgid "Confirm your vault password, then authenticate with your fingerprint."
-msgstr "Potvrdi lozinku trezora, a zatim potvrdi identitet otiskom prsta."
+msgid "Confirm your vault password, then authenticate with biometrics."
+msgstr "Potvrdi lozinku trezora, a zatim potvrdi identitet biometrijom."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Confirmation code {spelledCode}"
 msgstr "Kôd za potvrdu {spelledCode}"
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/billing-pending-notice.tsx
-msgid "Confirming your subscription…"
-msgstr "Potvrđivanje pretplate…"
+#: src/components/account/payment-status.tsx
+msgid "Confirming your membership"
+msgstr "Potvrđujemo tvoje članstvo"
+
+#: src/components/account/payment-status.tsx
+msgid "Confirming…"
+msgstr "Potvrđivanje…"
 
 #. Button: connect to a linked device
 #. Short button: connect to a device
@@ -2115,7 +2235,11 @@ msgstr "Poveži se s uređajem {invitationLabel}"
 msgid "Connect to sending device"
 msgstr "Poveži se s uređajem pošiljatelja"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Connect your account and unlock your vault before using App Store billing."
+msgstr "Prije naplate putem trgovine App Store poveži račun i otključaj trezor."
+
+#: src/app_lib/store-billing.ts
 msgid "Connect your account and unlock your vault before using Google Play billing."
 msgstr "Prije naplate putem trgovine Google Play poveži račun i otključaj trezor."
 
@@ -2194,6 +2318,7 @@ msgstr "Povezivanje sa signalizacijskim poslužiteljem..."
 #. Live connection status of a linked device
 #. Live connection status of a linked device
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-browser.tsx
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Connecting…"
@@ -2292,6 +2417,7 @@ msgstr "Sadržaj"
 #: app/(app)/devices/connect-agent.tsx
 #: app/credential-request.tsx
 #: app/link-receive.tsx
+#: src/components/account/account-auth.tsx
 #: src/components/account/membership-upgrade.tsx
 #: src/components/vault-import/import-wizard.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -2443,13 +2569,7 @@ msgstr "Nije moguće pristupiti biometriji ovog uređaja."
 msgid "Could not analyze this vault. Try again."
 msgstr "Analiza ovog trezora nije uspjela. Pokušaj ponovno."
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/subscription-signup.tsx
-msgid "Could not check your subscription. Please try again."
-msgstr "Provjera pretplate nije uspjela. Pokušaj ponovno."
-
 #: src/components/account/account-summary.tsx
-#: src/components/account/membership-upgrade.tsx
 msgid "Could not complete billing. Please try again."
 msgstr "Naplatu nije moguće dovršiti. Pokušaj ponovno."
 
@@ -2465,9 +2585,13 @@ msgstr "Povezivanje nije uspjelo"
 msgid "Could not connect or authorize presence channel. Check host, ports, key, and secret."
 msgstr "Nije moguće povezati se ni autorizirati kanal prisutnosti. Provjeri host, portove, ključ i tajnu."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Could not connect to Google Play. Check your connection and try again."
 msgstr "Povezivanje s trgovinom Google Play nije uspjelo. Provjeri vezu i pokušaj ponovno."
+
+#: src/app_lib/store-billing.ts
+msgid "Could not connect to the App Store. Check your connection and try again."
+msgstr "Povezivanje s trgovinom App Store nije uspjelo. Provjeri vezu i pokušaj ponovno."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Could not connect to the signaling server. Check your connection settings."
@@ -2562,6 +2686,10 @@ msgid "Could not load account permissions. Refresh to try again."
 msgstr "Nije moguće učitati dopuštenja računa. Osvježi za ponovni pokušaj."
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Could not load App Store prices. Please try again."
+msgstr "Učitavanje cijena iz trgovine App Store nije uspjelo. Pokušaj ponovno."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Could not load Google Play prices. Please try again."
 msgstr "Učitavanje cijena iz trgovine Google Play nije uspjelo. Pokušaj ponovno."
 
@@ -2569,13 +2697,13 @@ msgstr "Učitavanje cijena iz trgovine Google Play nije uspjelo. Pokušaj ponovn
 msgid "Could not load verification page."
 msgstr "Učitavanje stranice za provjeru nije uspjelo."
 
+#: src/app_lib/online-services-billing.ts
+msgid "Could not open App Store subscriptions."
+msgstr "Otvaranje pretplata u trgovini App Store nije uspjelo."
+
 #: src/app_lib/stripe-billing.ts
 msgid "Could not open billing portal."
 msgstr "Otvaranje portala za naplatu nije uspjelo."
-
-#: src/components/account/membership-upgrade.tsx
-msgid "Could not open checkout. Please try again."
-msgstr "Otvaranje plaćanja nije uspjelo. Pokušaj ponovno."
 
 #: src/app_lib/online-services-billing.ts
 msgid "Could not open Google Play subscriptions."
@@ -2584,10 +2712,6 @@ msgstr "Otvaranje pretplata u trgovini Google Play nije uspjelo."
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Could not open managed recovery. Check the Recovery Kit."
 msgstr "Nije moguće otvoriti upravljani oporavak. Provjeri komplet za oporavak."
-
-#: src/components/account/subscription-signup.tsx
-msgid "Could not open secure payment. Please try again."
-msgstr "Otvaranje sigurnog plaćanja nije uspjelo. Pokušaj ponovno."
 
 #: src/app_lib/stripe-billing.ts
 msgid "Could not open Stripe Checkout. Please try again."
@@ -2616,10 +2740,6 @@ msgstr "Nije moguće pročitati ovu datoteku za povezivanje."
 #: src/components/devices/use-device-topology.ts
 msgid "Could not refresh devices."
 msgstr "Nije moguće osvježiti uređaje."
-
-#: app/(app)/(tabs)/account.tsx
-msgid "Could not refresh membership. Please try again."
-msgstr "Osvježavanje članstva nije uspjelo. Pokušaj ponovno."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Could not refresh your account. Check your connection and try again."
@@ -2734,6 +2854,10 @@ msgstr "Nije moguće otvoriti izbornik za dijeljenje."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Pauziranje agenta nije uspjelo. Pokušaj ponovno."
 
+#: src/components/account/recovery-status.tsx
+msgid "Couldn't reach Online Services"
+msgstr "Online Services nije dostupan"
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "Couldn't reach the bucket. Check the endpoint and your connection."
 msgstr "Spremnik nije dostupan. Provjeri krajnju točku i internetsku vezu."
@@ -2795,17 +2919,9 @@ msgstr "Izraditi potpis za {namespace}?"
 msgid "Create a master password for this local copy. It can differ from the password on the sending device."
 msgstr "Postavi glavnu lozinku za ovu lokalnu kopiju. Može se razlikovati od lozinke na uređaju pošiljatelja."
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Create a new Recovery Kit?"
-msgstr "Izraditi novi komplet za oporavak?"
-
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
 msgstr "Izradi komplet za oporavak da možeš vratiti pristup ako izgubiš uređaje."
-
-#: src/components/vault/password-generator.tsx
-msgid "Create a strong password or memorable passphrase."
-msgstr "Izradi snažnu ili lako pamtljivu lozinku."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Create a vault or restore a backup to get started."
@@ -2865,8 +2981,8 @@ msgstr "Izradi račun za Online Services"
 msgid "Create passkey"
 msgstr "Izradi pristupni ključ"
 
-#: app/(app)/account/auth/recover.tsx
 #: src/components/account/account-security.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Create Recovery Kit"
 msgstr "Izradi komplet za oporavak"
 
@@ -3248,6 +3364,10 @@ msgstr "Uništena"
 msgid "Destroyed after five wrong passphrases"
 msgstr "Uništena nakon pet pogrešnih pristupnih fraza"
 
+#: src/components/account/recovery-status.tsx
+msgid "Details"
+msgstr "Pojedinosti"
+
 #: src/components/devices/device-removal-content.tsx
 msgid "Device"
 msgstr "Uređaj"
@@ -3434,6 +3554,8 @@ msgstr "Ne spremaj ga u oblak, e-poštu ni upravitelje lozinki povezane s ovim r
 
 #: app/(app)/share/index.tsx
 #: app/(app)/share/links.tsx
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Done"
 msgstr "Gotovo"
 
@@ -3548,6 +3670,10 @@ msgstr "Uredi stavku"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Edit keys"
 msgstr "Uredi ključeve"
+
+#: src/components/account/recovery-status.tsx
+msgid "Edit Kit"
+msgstr "Uredi komplet"
 
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Edit relay"
@@ -3772,6 +3898,11 @@ msgstr "Unesi je ponovno"
 msgid "Enter key"
 msgstr "Unesi ključ"
 
+#. Step label above the Recovery Kit form
+#: app/(app)/account/auth/recover.tsx
+msgid "Enter kit"
+msgstr "Unesi komplet"
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter master password"
 msgstr "Unesi glavnu lozinku"
@@ -3821,6 +3952,10 @@ msgstr "Unesi spremljenu zaštitnu frazu"
 #: src/app_lib/backup-destination-messages.ts
 msgid "Enter the secret access key."
 msgstr "Unesi tajni ključ za pristup."
+
+#: src/components/account/account-auth.tsx
+msgid "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
+msgstr "Unesi ID korisnika i frazu od 24 riječi iz kompleta za oporavak računa. Kod za oporavak trezora ovdje nije potreban."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4287,6 +4422,18 @@ msgstr "Provjera otiska prsta je otkazana. Pokušaj ponovno kad želiš."
 msgid "Finish"
 msgstr "Završi"
 
+#: src/components/account/subscription-signup.tsx
+msgid "Finish or cancel the payment in Google Play first."
+msgstr "Najprije dovrši ili otkaži plaćanje u trgovini Google Play."
+
+#: src/components/account/subscription-signup.tsx
+msgid "Finish or cancel the payment in the App Store first."
+msgstr "Najprije dovrši ili otkaži plaćanje u trgovini App Store."
+
+#: src/components/account/payment-status.tsx
+msgid "Finish paying in your browser. Nothing is charged until you do."
+msgstr "Dovrši plaćanje u pregledniku. Ništa se ne naplaćuje dok to ne učiniš."
+
 #: app/link-receive.tsx
 msgid "Finish saving your vault"
 msgstr "Dovrši spremanje trezora"
@@ -4369,12 +4516,20 @@ msgid "Free"
 msgstr "Besplatno"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Besplatno 14 dana, zatim {fullPrice} svaki mjesec. Iznos se naplaćuje kad probno razdoblje završi, osim ako najmanje 24 sata prije toga otkažeš pretplatu u postavkama Apple računa. Ako otkažeš na vrijeme, pristup zadržavaš do kraja probnog razdoblja i ne plaćaš ništa."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Besplatno 14 dana, zatim {fullPrice} svaki mjesec. Iznos se naplaćuje kad probno razdoblje završi, osim ako prije toga otkažeš pretplatu u pretplatama trgovine Google Play. Ako otkažeš tijekom probnog razdoblja, pristup zadržavaš do njegova kraja i ne plaćaš ništa."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Besplatno 14 dana, zatim {fullPrice} svaki mjesec. Iznos se naplaćuje kad probno razdoblje završi, osim ako prije toga otkažeš pretplatu. Ako otkažeš tijekom probnog razdoblja, pristup zadržavaš do njegova kraja i ne plaćaš ništa."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Besplatno 14 dana, zatim {fullPrice} svake godine. Iznos se naplaćuje kad probno razdoblje završi, osim ako najmanje 24 sata prije toga otkažeš pretplatu u postavkama Apple računa. Ako otkažeš na vrijeme, pristup zadržavaš do kraja probnog razdoblja i ne plaćaš ništa."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
@@ -4387,6 +4542,10 @@ msgstr "Besplatno 14 dana, zatim {fullPrice} svake godine. Iznos se naplaćuje k
 #: src/components/account/account-summary.tsx
 msgid "Free trial canceled. You won't be charged."
 msgstr "Besplatno probno razdoblje je otkazano. Ništa ti se neće naplatiti."
+
+#: src/components/account/account-summary.tsx
+msgid "Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then."
+msgstr "Besplatno probno razdoblje. Kad završi, slijedi naplata, osim ako najmanje 24 sata prije toga otkažeš pretplatu."
 
 #: src/components/account/account-summary.tsx
 msgid "Free trial. You'll be charged when it ends unless you cancel before then."
@@ -4475,25 +4634,33 @@ msgstr "Git potpis"
 msgid "Gives them the TOTP secret, so they can keep generating codes."
 msgstr "Daje im TOTP tajnu, pa mogu nastaviti generirati kodove."
 
-#: src/app_lib/google-play-billing.ts
-msgid "Google Play already has an active subscription. Membership confirmation is pending."
-msgstr "U trgovini Google Play već postoji aktivna pretplata. Potvrda članstva je na čekanju."
+#: src/components/account/recovery-status.tsx
+msgid "Go to Account"
+msgstr "Idi na Račun"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing could not complete. Please try again."
 msgstr "Naplatu putem trgovine Google Play nije moguće dovršiti. Pokušaj ponovno."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is not configured. Please update the app."
 msgstr "Naplata putem trgovine Google Play nije konfigurirana. Ažuriraj aplikaciju."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is unavailable for this account."
 msgstr "Naplata putem trgovine Google Play nije dostupna za ovaj račun."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 msgstr "Kupnju u trgovini Google Play nije moguće dovršiti. Provjeri način plaćanja u trgovini Google Play."
+
+#: src/app_lib/store-billing.ts
+msgid "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+msgstr "Google Play je imao problem s ovom kupnjom. Pokušaj ponovno za trenutak. Ako tvoj Google račun već ima ovu pretplatu, umjesto toga upotrijebi „Vrati kupnje iz trgovine Google Play“ na kartici „Račun“."
+
+#: src/components/account/payment-status.tsx
+msgid "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
+msgstr "Trgovina Google Play čeka da se plaćanje dovrši. Članstvo počinje čim bude plaćeno."
 
 #. Root access status
 #: src/components/devices/device-overviews.tsx
@@ -4622,6 +4789,18 @@ msgstr "Kako povezani agenti dolaze do ovog telefona"
 msgid "How your data is handled"
 msgstr "Kako postupamo s tvojim podacima"
 
+#: src/components/account/recovery-status.tsx
+msgid "Human check"
+msgstr "Provjera da si čovjek"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Human check failed"
+msgstr "Provjera da si čovjek nije uspjela"
+
+#: src/components/account/recovery-status.tsx
+msgid "Human check not completed"
+msgstr "Provjera da si čovjek nije dovršena"
+
 #: src/components/account/account-auth.tsx
 msgid "Human verification is not configured for this local service."
 msgstr "Provjera da si čovjek nije konfigurirana za ovu lokalnu uslugu."
@@ -4629,10 +4808,6 @@ msgstr "Provjera da si čovjek nije konfigurirana za ovu lokalnu uslugu."
 #: src/components/account/account-auth.tsx
 msgid "Human verification opens when you create the account."
 msgstr "Provjera da si čovjek otvara se kad izradiš račun."
-
-#: src/components/account/account-auth.tsx
-msgid "Human verification opens when you recover the account."
-msgstr "Provjera da si čovjek otvara se kad oporavljaš račun."
 
 #: app/link-receive.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -4690,6 +4865,10 @@ msgstr "Ako Android sakrije polje za lozinku, ponovno unesi lozinku u aplikaciji
 msgid "If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds."
 msgstr "Ako su upravljane sigurnosne kopije uključene, starije točke vraćanja brišu se tek nakon uspješnog prijenosa zamjenske kopije."
 
+#: src/components/account/payment-status.tsx
+msgid "If you finished paying in your browser, it can take a moment to arrive. If you closed checkout, nothing was charged."
+msgstr "Ako je plaćanje u pregledniku dovršeno, može proći trenutak dok stigne. Ako je plaćanje zatvoreno, ništa nije naplaćeno."
+
 #: app/(app)/devices/link-send.tsx
 msgid "Ignored malformed link key message."
 msgstr "Zanemarena je neispravna poruka s ključem za povezivanje."
@@ -4744,6 +4923,14 @@ msgstr "Uvoz i izvoz"
 #: app/(app)/devices/link-send.tsx
 msgid "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
 msgstr "U aplikaciji Cryptex Vault na drugom uređaju odaberi „Upotrijebi pozivnicu“, skeniraj ovaj kôd i unesi riječi za potvrdu."
+
+#: app/(app)/settings/autofill.tsx
+msgid "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+msgstr "U postavkama iOS-a otvorite Lozinke, zatim Opcije lozinki, i uključite Cryptex Vault."
+
+#: src/components/account/payment-status.tsx
+msgid "In progress"
+msgstr "U tijeku"
 
 #. Heading above the fields to put in the share link
 #: app/(app)/share/index.tsx
@@ -4833,6 +5020,14 @@ msgstr "Pozivnica je otvorena. Priprema ključeva ovog uređaja."
 #: app/link-receive.tsx
 msgid "Invitation ready: {invitationLabel}"
 msgstr "Pozivnica je spremna: {invitationLabel}"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS integration"
+msgstr "Integracija s iOS-om"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
+msgstr "iOS za svoje prijedloge dobiva web-stranicu i korisničko ime svakih pristupnih podataka i pristupnog ključa, nikad lozinku ni privatni ključ."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -4937,6 +5132,10 @@ msgstr "Zadrži poslužitelj"
 msgid "Keep setting up"
 msgstr "Nastavi s postavljanjem"
 
+#: src/components/account/recovery-status.tsx
+msgid "Keep the app open. This takes a few seconds."
+msgstr "Drži aplikaciju otvorenom. Ovo traje nekoliko sekundi."
+
 #: app/link-receive.tsx
 msgid "Keep the linking screen open on your sending device until the transfer finishes."
 msgstr "Drži zaslon za povezivanje otvorenim na uređaju pošiljatelja dok prijenos ne završi."
@@ -5005,6 +5204,10 @@ msgstr "Ključevi su ažurirani"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Keys, {keyCount}"
 msgstr "Ključevi, {keyCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Kit not accepted"
+msgstr "Komplet nije prihvaćen"
 
 #: app/(app)/settings/diagnostics.tsx
 msgid "Known secret fields are redacted. Review the contents before sharing them with support."
@@ -5080,7 +5283,7 @@ msgid "LastPass CSV export (.csv)"
 msgstr "LastPass CSV izvoz (.csv)"
 
 #. Button: skip creating a Recovery Kit for now
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Later"
 msgstr "Kasnije"
 
@@ -5320,6 +5523,10 @@ msgstr "Zaključavanje trezora…"
 msgid "Login"
 msgstr "Pristupni podaci"
 
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
+msgstr "Pristupni podaci spremljeni automatskim popunjavanjem nisu mogli biti dodani u ovaj trezor, pa njegov ključ nije promijenjen. Pokušajte ponovno."
+
 #: app/(app)/devices/link-send.tsx
 msgid "Lost connection to the signaling server before pairing completed."
 msgstr "Veza sa signalizacijskim poslužiteljem prekinuta je prije završetka uparivanja."
@@ -5345,6 +5552,11 @@ msgid "Make the connection."
 msgstr "Poveži uređaje."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
+msgid "Manage App Store subscriptions"
+msgstr "Upravljaj pretplatama u trgovini App Store"
+
+#: src/components/account/account-summary.tsx
 msgid "Manage billing"
 msgstr "Upravljaj naplatom"
 
@@ -5357,6 +5569,7 @@ msgid "Manage directories"
 msgstr "Upravljaj mapama"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage Google Play subscriptions"
 msgstr "Upravljaj pretplatama u trgovini Google Play"
 
@@ -5367,6 +5580,14 @@ msgstr "Upravljaj ili otkaži u pretplatama trgovine Google Play"
 #: src/components/account/account-summary.tsx
 msgid "Manage or cancel in Google Play Subscriptions. Your membership updates when you return."
 msgstr "Upravljaj ili otkaži u pretplatama trgovine Google Play. Članstvo će se ažurirati kad se vratiš."
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings"
+msgstr "Upravljaj ili otkaži u postavkama Apple računa"
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings. Your membership updates when you return."
+msgstr "Upravljaj ili otkaži u postavkama Apple računa. Članstvo će se ažurirati kad se vratiš."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Manage registered devices and linking relationships, promote trusted devices, and revoke access."
@@ -5445,6 +5666,10 @@ msgstr "Upravljane sigurnosne kopije nisu dostupne."
 msgid "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 msgstr "Za upravljane sigurnosne kopije potrebna je odgovarajuća pretplata. Za nadogradnju otvori odjeljak „Članstvo“ na kartici „Račun“."
 
+#: src/components/account/payment-status.tsx
+msgid "Managed connections, encrypted backups and share links are ready on this vault."
+msgstr "Veze koje održavamo, šifrirane sigurnosne kopije i dijeljene poveznice spremne su za ovaj trezor."
+
 #: src/components/account/membership-benefits.tsx
 msgid "Managed encrypted backups"
 msgstr "Upravljane šifrirane sigurnosne kopije"
@@ -5511,12 +5736,9 @@ msgid "Member device"
 msgstr "Uređaj člana"
 
 #: app/(app)/(tabs)/account.tsx
+#: src/components/account/payment-status.tsx
 msgid "Membership"
 msgstr "Članstvo"
-
-#: src/app_lib/google-play-billing.ts
-msgid "Membership confirmation is pending. Check status again shortly."
-msgstr "Potvrda članstva je na čekanju. Uskoro ponovno provjeri status."
 
 #: app/(app)/(tabs)/account.tsx
 #: src/components/account/account-summary.tsx
@@ -5561,6 +5783,7 @@ msgid "Mobile recommended default is 128 MiB / ops 3."
 msgstr "Preporučena zadana vrijednost za mobitele je 128 MiB, 3 operacije."
 
 #: src/components/account/billing-interval-selector.tsx
+#: src/components/account/payment-status.tsx
 msgid "Monthly"
 msgstr "Mjesečno"
 
@@ -5761,6 +5984,10 @@ msgstr "Ne"
 msgid "No additional key protection"
 msgstr "Bez dodatne zaštite ključa"
 
+#: src/app_lib/store-billing.ts
+msgid "No App Store subscription to restore."
+msgstr "Nema pretplate u trgovini App Store za vraćanje."
+
 #: app/(app)/settings/backup-center/index.tsx
 msgid "No automatic backups"
 msgstr "Nema automatskih sigurnosnih kopija"
@@ -5842,6 +6069,10 @@ msgstr "U ovoj kategoriji nema nalaza."
 msgid "No findings match your search."
 msgstr "Nijedan nalaz ne odgovara pretrazi."
 
+#: src/app_lib/store-billing.ts
+msgid "No Google Play subscription to restore."
+msgstr "Nema pretplate u trgovini Google Play za vraćanje."
+
 #: app/(app)/settings/security-report/index.tsx
 msgid "No issues found"
 msgstr "Nisu pronađeni problemi"
@@ -5907,13 +6138,13 @@ msgstr "Nema odgovarajućih stavki."
 msgid "No passkeys match this request."
 msgstr "Nijedan pristupni ključ ne odgovara ovom zahtjevu."
 
-#: src/components/vault/password-generator.tsx
-msgid "No password generated"
-msgstr "Lozinka nije generirana"
-
 #: app/(app)/settings/security-report/index.tsx
 msgid "No passwords to check"
 msgstr "Nema lozinki za provjeru"
+
+#: src/components/account/payment-status.tsx
+msgid "No payment yet"
+msgstr "Još nema plaćanja"
 
 #: src/components/devices/device-overviews.tsx
 msgid "No recorded connections to other devices."
@@ -5927,6 +6158,7 @@ msgid "No recorded links"
 msgstr "Nema zabilježenih veza"
 
 #: src/components/devices/device-map-canvas.tsx
+#: src/components/devices/device-network.tsx
 msgid "No recorded links ({isolatedCount})"
 msgstr "Bez zabilježenih veza ({isolatedCount})"
 
@@ -5994,15 +6226,27 @@ msgstr "nema"
 msgid "None"
 msgstr "Nijedan"
 
+#: src/components/account/recovery-status.tsx
+msgid "None yet"
+msgstr "Još nema"
+
 #: src/components/devices/device-dates.ts
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "Not available"
 msgstr "Nije dostupno"
 
+#: src/components/account/payment-status.tsx
+msgid "Not confirmed yet"
+msgstr "Još nije potvrđeno"
+
 #: src/components/account/account-summary.tsx
 msgid "Not connected"
 msgstr "Nije povezano"
+
+#: src/components/account/payment-status.tsx
+msgid "Not found yet"
+msgstr "Još nije pronađeno"
 
 #. Root access status
 #: src/components/devices/device-overviews.tsx
@@ -6014,12 +6258,17 @@ msgid "Not granted to this agent"
 msgstr "Nije dodijeljen ovom agentu"
 
 #: app/(app)/settings/autofill.tsx
+#: src/components/account/payment-status.tsx
 msgid "Not now"
 msgstr "Ne sada"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Not offered by this service"
 msgstr "Ova usluga to ne nudi"
+
+#: src/components/account/recovery-status.tsx
+msgid "Not saved to this vault"
+msgstr "Nije spremljeno u ovaj trezor"
 
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
@@ -6028,6 +6277,11 @@ msgstr "Nije postavljeno"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Not signed in"
 msgstr "Nije prijavljeno"
+
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
+msgid "Not started"
+msgstr "Nije započeto"
 
 #. Search field: item notes
 #: app/(app)/(tabs)/vault/search.tsx
@@ -6041,9 +6295,21 @@ msgstr "Bilješka"
 msgid "Notes"
 msgstr "Bilješke"
 
+#: src/components/account/recovery-status.tsx
+msgid "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+msgstr "Ništa se nije promijenilo. Oporavak dopušta {attempts} pokušaja svaka {hours} sata s jedne mreže i svaki se pokušaj broji. Pokušaj ponovno nakon {time} ili s druge mreže."
+
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Ništa što ova usluga pročita ne napušta tvoj telefon. Pristupni podaci koje spremiš idu u tvoj šifrirani trezor."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
+msgstr "Ništa nije naplaćeno. Ako ju je kupio ovaj Cryptex Vault račun, vrati je ovdje. Ako ju je kupio drugi, upotrijebi trezor s tim računom."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. You can subscribe now or later from the Account tab."
+msgstr "Ništa nije naplaćeno. Možeš se pretplatiti sada ili kasnije na kartici „Račun“."
 
 #: src/components/agents/agent-notifications-notice.tsx
 msgid "Notifications are off for Cryptex Vault. SSH requests that come in while the app is closed or locked can't reach you."
@@ -6054,6 +6320,7 @@ msgid "Numbers"
 msgstr "Brojke"
 
 #. Auto-lock option: never lock on inactivity
+#. Setting status: disabled
 #. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -6087,6 +6354,7 @@ msgstr "Stare lozinke"
 msgid "Oldest first"
 msgstr "Najstarije prvo"
 
+#. Setting status: enabled
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -6143,6 +6411,10 @@ msgstr "Jednokratne poveznice"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Online Services"
 msgstr "Online Services"
+
+#: src/components/account/recovery-status.tsx
+msgid "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
+msgstr "Online Services je prihvatio tvoj komplet za oporavak, ali ovaj trezor još nije mogao spremiti račun. Ostani na ovom zaslonu i dodirni Spremi ponovno. Ako sada zaključaš trezor ili zatvoriš aplikaciju, ovaj oporavak se gubi."
 
 #: src/components/devices/device-overviews.tsx
 msgid "Online Services and this vault"
@@ -6261,6 +6533,10 @@ msgstr "Samo ovaj zahtjev"
 msgid "Only used to open the key. It isn't saved."
 msgstr "Koristi se samo za otvaranje ključa. Ne sprema se."
 
+#: app/(app)/settings/autofill.tsx
+msgid "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
+msgstr "Pristupne podatke mogu popunjavati samo trezori s uključenim biometrijskim otključavanjem. Svako popunjavanje traži Face ID."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Only you hold the keys"
 msgstr "Ključeve imaš samo ti"
@@ -6289,6 +6565,10 @@ msgstr "Otvori privatnu vezu"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Open Account"
 msgstr "Otvori karticu „Račun“"
+
+#: src/components/account/payment-status.tsx
+msgid "Open checkout again"
+msgstr "Ponovno otvori plaćanje"
 
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Open connection to {peerName}"
@@ -6371,10 +6651,6 @@ msgstr "Otvaranje kamere…"
 msgid "Opening private connection…"
 msgstr "Otvaranje privatne veze…"
 
-#: src/components/account/subscription-signup.tsx
-msgid "Opening secure payment…"
-msgstr "Otvaranje sigurnog plaćanja…"
-
 #: src/components/ui/dialog.tsx
 msgid "Opening…"
 msgstr "Otvaranje…"
@@ -6406,6 +6682,10 @@ msgstr "Ostali preglednici mogu izravno koristiti uslugu odabranu u Androidu, be
 msgid "Other device found. Creating private connection…"
 msgstr "Drugi uređaj je pronađen. Stvaranje privatne veze…"
 
+#: src/components/account/recovery-status.tsx
+msgid "Other devices"
+msgstr "Ostali uređaji"
+
 #: src/agent/agent-wording.ts
 msgid "Other request"
 msgstr "Drugi zahtjev"
@@ -6434,6 +6714,10 @@ msgstr "Kôd za uparivanje"
 #: app/(app)/devices/link-send.tsx
 msgid "Part {frameNumber} of {frameCount}"
 msgstr "Dio {frameNumber} od {frameCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Passed"
+msgstr "Uspješno"
 
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Passkey"
@@ -6491,6 +6775,10 @@ msgstr "Promjene lozinke i zaštite odnose se na ovaj trezor. Oporavkom računa 
 msgid "Password autofill"
 msgstr "Automatsko popunjavanje lozinki"
 
+#: app/(app)/settings/autofill.tsx
+msgid "Password AutoFill"
+msgstr "Automatsko popunjavanje lozinki"
+
 #: src/components/vault/password-generator.tsx
 msgid "Password generator"
 msgstr "Generator lozinki"
@@ -6502,10 +6790,6 @@ msgstr "Zdravlje lozinki"
 #: src/components/vault/credential-form.tsx
 msgid "Password is required."
 msgstr "Lozinka je obavezna."
-
-#: src/components/vault/password-generator.tsx
-msgid "Password length"
-msgstr "Duljina lozinke"
 
 #: src/components/autofill/request-ui.tsx
 msgid "Password only"
@@ -6620,13 +6904,40 @@ msgstr "Pauzirano. Zahtjevi ovog agenta odbijaju se bez pitanja."
 msgid "Pausing…"
 msgstr "Pauziranje…"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly."
-msgstr "Plaćanje je dovršeno. Potvrda članstva je na čekanju. Uskoro vrati kupnje ili osvježi odjeljak „Članstvo“."
+#. Checkout step
+#. Checkout step
+#: src/components/account/payment-status.tsx
+#: src/components/account/subscription-signup.tsx
+msgid "Payment"
+msgstr "Plaćanje"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Payment is pending in Google Play. Membership will update after payment is approved."
-msgstr "Plaćanje u trgovini Google Play je na čekanju. Članstvo će se ažurirati nakon što plaćanje bude odobreno."
+#: src/components/account/payment-status.tsx
+msgid "Payment canceled"
+msgstr "Plaćanje je otkazano"
+
+#: app/(app)/(tabs)/account.tsx
+msgid "Payment canceled. Nothing was charged."
+msgstr "Plaćanje je otkazano. Ništa nije naplaćeno."
+
+#: src/components/account/subscription-signup.tsx
+msgid "Payment in progress"
+msgstr "Plaćanje je u tijeku"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment not completed"
+msgstr "Plaćanje nije dovršeno"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment pending"
+msgstr "Plaćanje je na čekanju"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment received. Waiting for a connection."
+msgstr "Plaćanje je primljeno. Čeka se veza."
+
+#: src/components/account/payment-status.tsx
+msgid "Payment received. Waiting for confirmation."
+msgstr "Plaćanje je primljeno. Čeka se potvrda."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Peer-to-peer synchronization"
@@ -6660,6 +6971,15 @@ msgstr "Trajno ukloni račun s poslužitelja"
 #: src/components/vault-manager/create-tab.tsx
 msgid "Personalize"
 msgstr "Prilagodba"
+
+#. Row label: the chosen billing interval
+#: src/components/account/payment-status.tsx
+msgid "Plan"
+msgstr "Plan"
+
+#: src/components/account/payment-status.tsx
+msgid "Plan terms changed"
+msgstr "Uvjeti plana su se promijenili"
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Point the camera at the code in your terminal."
@@ -6708,6 +7028,7 @@ msgid "Primary website"
 msgstr "Glavno web-mjesto"
 
 #: src/components/about-sheet.tsx
+#: src/components/account/membership-upgrade.tsx
 msgid "Privacy policy"
 msgstr "Pravila o privatnosti"
 
@@ -6805,14 +7126,6 @@ msgstr "Javni ključ"
 msgid "Public key from {publicKeyFileName}"
 msgstr "Javni ključ iz datoteke {publicKeyFileName}"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Purchase canceled. Your membership has not changed."
-msgstr "Kupnja je otkazana. Članstvo se nije promijenilo."
-
-#: src/app_lib/google-play-billing.ts
-msgid "Purchases restored. Membership confirmation is pending. Refresh Membership shortly."
-msgstr "Kupnje su vraćene. Potvrda članstva je na čekanju. Uskoro osvježi članstvo."
-
 #: src/utils/ssh-key-messages.ts
 msgid "PuTTY key files aren't supported. In PuTTYgen, choose Conversions > Export OpenSSH key and import that file."
 msgstr "PuTTY datoteke ključeva nisu podržane. U PuTTYgenu odaberi Conversions > Export OpenSSH key i uvezi tu datoteku."
@@ -6866,6 +7179,10 @@ msgstr "Primanje i provjera trezora"
 #: app/link-receive.tsx
 msgid "Receive invitation"
 msgstr "Primi pozivnicu"
+
+#: src/components/account/payment-status.tsx
+msgid "Received"
+msgstr "Primljeno"
 
 #: app/link-receive.tsx
 msgid "Received copy discarded. No vault was saved on this device."
@@ -6942,13 +7259,18 @@ msgstr "Zapisano u"
 msgid "Recording the new device in this vault."
 msgstr "Bilježenje novog uređaja u ovaj trezor."
 
+#. Step label
+#: app/(app)/account/auth/recover.tsx
+msgid "Recover"
+msgstr "Oporavak"
+
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/auth/recover.tsx
-#: src/components/account/account-auth.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover account"
 msgstr "Oporavi račun"
 
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover this account?"
 msgstr "Oporaviti ovaj račun?"
 
@@ -6956,9 +7278,21 @@ msgstr "Oporaviti ovaj račun?"
 msgid "Recover this vault"
 msgstr "Oporavi ovaj trezor"
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
-msgstr "Oporavak uklanja sve ostale uređaje s ovog računa i odjavljuje ih. Time se troši i ovaj komplet za oporavak, a zatim možeš spremiti novi."
+#: src/components/account/recovery-status.tsx
+msgid "Recovered"
+msgstr "Oporavljen"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovered, not signed in yet"
+msgstr "Oporavljeno, još nije prijavljeno"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering your account"
+msgstr "Oporavljamo tvoj račun"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering…"
+msgstr "Oporavljanje…"
 
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/security.tsx
@@ -6975,9 +7309,13 @@ msgstr "Kôd za oporavak"
 msgid "Recovery code and vault encryption key replaced."
 msgstr "Kôd za oporavak i ključ za šifriranje trezora su zamijenjeni."
 
-#: src/components/account/account-controller.tsx
-msgid "Recovery failed."
-msgstr "Oporavak nije uspio."
+#: src/components/account/recovery-status.tsx
+msgid "Recovery didn't finish"
+msgstr "Oporavak nije dovršen"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery Kit"
+msgstr "Komplet za oporavak"
 
 #: app/(app)/(tabs)/account.tsx
 msgid "Recovery Kit and account security"
@@ -6999,6 +7337,10 @@ msgstr "Fraza kompleta za oporavak"
 msgid "Recovery Kit saved"
 msgstr "Komplet za oporavak spremljen"
 
+#: src/components/account/recovery-status.tsx
+msgid "Recovery needs a quick human check. Nothing has changed."
+msgstr "Za oporavak je potrebna kratka provjera da si čovjek. Ništa se nije promijenilo."
+
 #: src/components/devices/device-details-sheet.tsx
 msgid "Recovery options"
 msgstr "Mogućnosti oporavka"
@@ -7014,6 +7356,10 @@ msgstr "Fraza za oporavak mora imati točno {wordCount} riječi."
 #: src/components/account/recovery-kit-text.ts
 msgid "Recovery phrase: {phrase}"
 msgstr "Fraza za oporavak: {phrase}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
+msgstr "Oporavak se zaustavio na ovom uređaju prije slanja kompleta. Ništa se nije promijenilo i tvoj komplet i dalje vrijedi."
 
 #: src/components/devices/device-network.tsx
 msgid "Reduced motion is enabled on this device."
@@ -7274,6 +7620,7 @@ msgid "Rename this local vault or remove it from this device."
 msgstr "Preimenuj ovaj lokalni trezor ili ga ukloni s ovog uređaja."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Renews"
 msgstr "Obnavlja se"
 
@@ -7370,11 +7717,17 @@ msgstr "Vrati pristup računu"
 msgid "Restore an encrypted Cryptex Vault backup."
 msgstr "Vrati šifriranu sigurnosnu kopiju za Cryptex Vault."
 
+#: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
+msgid "Restore App Store purchases"
+msgstr "Vrati kupnje iz trgovine App Store"
+
 #: app/(locked)/_layout.tsx
 msgid "Restore backup"
 msgstr "Vrati sigurnosnu kopiju"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Restore Google Play purchases"
 msgstr "Vrati kupnje iz trgovine Google Play"
 
@@ -7414,8 +7767,6 @@ msgstr "Preuzmi sigurnosnu kopiju koju čuva Cryptex Vault."
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/(tabs)/devices.tsx
 #: src/components/account/account-summary.tsx
-#: src/components/account/membership-upgrade.tsx
-#: src/components/account/subscription-signup.tsx
 #: src/components/account/turnstile-challenge.tsx
 #: src/components/devices/device-details-sheet.tsx
 msgid "Retry"
@@ -7651,6 +8002,10 @@ msgstr "Uštedi {savings} € godišnje"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save a password-protected .cryx file"
 msgstr "Spremi .cryx datoteku zaštićenu lozinkom"
+
+#: src/components/account/recovery-status.tsx
+msgid "Save again"
+msgstr "Spremi ponovno"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save an encrypted copy"
@@ -8437,6 +8792,10 @@ msgstr "Prijavljeno"
 msgid "Signed in to Online Services"
 msgstr "Prijavljeno u uslugu Online Services"
 
+#: src/components/account/recovery-status.tsx
+msgid "Signed out and removed"
+msgstr "Odjavljeni i uklonjeni"
+
 #: src/utils/atoms.ts
 msgid "Signing in..."
 msgstr "Prijava..."
@@ -8454,6 +8813,10 @@ msgstr "Veličina"
 #: src/components/vault-import/import-wizard.tsx
 msgid "Skipped"
 msgstr "Preskočeno"
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Some logins saved by AutoFill could not be read and were not added to this vault."
+msgstr "Neki pristupni podaci spremljeni automatskim popunjavanjem nisu se mogli pročitati i nisu dodani u ovaj trezor."
 
 #: src/app_lib/share-messages.ts
 msgid "Something went wrong while creating the link."
@@ -8575,6 +8938,10 @@ msgstr "Korak {step} od 3. Potvrdi uvoz"
 msgid "Step {step} of 3. Select file"
 msgstr "Korak {step} od 3. Odaberi datoteku"
 
+#: src/components/account/payment-status.tsx
+msgid "Still confirming"
+msgstr "Potvrda je još u tijeku"
+
 #: app/(app)/devices/link-send.tsx
 msgid "Stop linking"
 msgstr "Prekini povezivanje"
@@ -8590,6 +8957,10 @@ msgstr "Zaustavi red"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Stopping after current device…"
 msgstr "Zaustavljanje nakon trenutačnog uređaja…"
+
+#: src/components/account/recovery-status.tsx
+msgid "Stops working"
+msgstr "Prestaje vrijediti"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Storage is full"
@@ -8636,6 +9007,14 @@ msgstr "Test STUN veze je uspio."
 #: src/components/devices/connectivity-panel.tsx
 msgid "STUN servers"
 msgstr "STUN poslužitelji"
+
+#: src/components/account/payment-status.tsx
+msgid "Subscription belongs to another account"
+msgstr "Pretplata pripada drugom računu"
+
+#: src/components/account/payment-status.tsx
+msgid "Subscription found. Waiting for confirmation."
+msgstr "Pretplata je pronađena. Čeka se potvrda."
 
 #: app/(app)/settings/autofill.tsx
 msgid "Suggestion display"
@@ -8739,6 +9118,10 @@ msgstr "Dodirni za povećanje"
 msgid "Tap to scan"
 msgstr "Dodirni za skeniranje"
 
+#: src/components/account/membership-upgrade.tsx
+msgid "Terms of use"
+msgstr "Uvjeti korištenja"
+
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Test and save"
 msgstr "Provjeri i spremi"
@@ -8805,10 +9188,6 @@ msgstr "Datoteka export.attributes u 1PUX izvozu nije valjan JSON."
 msgid "The 1PUX export.data file is not valid JSON."
 msgstr "Datoteka export.data u 1PUX izvozu nije valjan JSON."
 
-#: src/components/account/account-auth.tsx
-msgid "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-msgstr "Komplet za oporavak računa vraća pristup usluzi Online Services. Za oporavak trezora zasebno se koristi kôd za oporavak trezora."
-
 #: src/components/devices/device-removal-content.tsx
 msgid "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
 msgstr "Odnos na računu nije moguće ukloniti. Oba uređaja ostaju registrirana. Pokušaj ponovno nakon provjere pristupa računu."
@@ -8828,6 +9207,18 @@ msgstr "Agent nije potvrdio uparivanje."
 #: app/(app)/devices/connect-agent.tsx
 msgid "The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
 msgstr "Agent je spremljen u tvoj trezor, ali ovaj telefon mu nije mogao početi odgovarati. Pokušaj ponovno. Ako zatvoriš, pokrenut će se pri sljedećem otključavanju."
+
+#: src/app_lib/store-billing.ts
+msgid "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
+msgstr "Kupnju u trgovini App Store nije moguće dovršiti. Provjeri jesu li kupnje dopuštene na ovom uređaju te način plaćanja u postavkama Apple računa."
+
+#: src/app_lib/store-billing.ts
+msgid "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+msgstr "App Store je imao problem s ovom kupnjom. Pokušaj ponovno za trenutak. Ako tvoj Apple račun već ima ovu pretplatu, umjesto toga upotrijebi „Vrati kupnje iz trgovine App Store“ na kartici „Račun“."
+
+#: src/components/account/payment-status.tsx
+msgid "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
+msgstr "Trgovina App Store čeka odobrenje ove kupnje, na primjer od organizatora obitelji. Članstvo počinje čim bude odobreno."
 
 #: app/credential-request.tsx
 msgid "The association could not be saved. The login was not filled. Go back to fill once."
@@ -8893,13 +9284,9 @@ msgstr "Datoteku nije moguće otvoriti."
 msgid "The file is saved as <0>{fileName}</0>. Before using it with ssh, run <1>chmod 600 {fileName}</1>."
 msgstr "Datoteka je spremljena kao <0>{fileName}</0>. Prije upotrebe sa ssh pokreni <1>chmod 600 {fileName}</1>."
 
-#: src/app_lib/google-play-billing.ts
-msgid "The free trial is no longer available for this plan. Check the plan and try again."
-msgstr "Besplatno probno razdoblje više nije dostupno za ovaj plan. Provjeri plan i pokušaj ponovno."
-
-#: src/components/account/subscription-signup.tsx
-msgid "The free trial is no longer available for this plan. Retry to subscribe at the full price."
-msgstr "Besplatno probno razdoblje više nije dostupno za ovaj plan. Pokušaj ponovno da se pretplatiš po punoj cijeni."
+#: src/components/account/payment-status.tsx
+msgid "The free trial is no longer available for this plan. Check the price and continue."
+msgstr "Besplatno probno razdoblje više nije dostupno za ovaj plan. Provjeri cijenu i nastavi."
 
 #: app/link-receive.tsx
 msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
@@ -8908,6 +9295,14 @@ msgid "The invitation comes from a different Online Services account. Linking mo
 msgstr "Pozivnica dolazi s drugog računa za Online Services. Povezivanjem se ovaj trezor premješta na taj račun.\n"
 "\n"
 "Trenutačni račun ovog uređaja ostaje aktivan, uključujući eventualnu pretplatu na njemu. Izbriši ga sada ako želiš otkazati pretplatu kupljenu na webu. Pretplatu kupljenu u trgovini Google Play otkaži u trgovini Google Play. Brisanje se ne može poništiti."
+
+#: app/link-receive.tsx
+msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
+"\n"
+"This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone."
+msgstr "Pozivnica dolazi s drugog računa za Online Services. Povezivanjem se ovaj trezor premješta na taj račun.\n"
+"\n"
+"Trenutačni račun ovog uređaja ostaje aktivan, uključujući eventualnu pretplatu na njemu. Izbriši ga sada ako želiš otkazati pretplatu kupljenu na webu. Pretplatu kupljenu u trgovini App Store otkaži u postavkama Apple računa. Brisanje se ne može poništiti."
 
 #: app/link-receive.tsx
 msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
@@ -8924,10 +9319,6 @@ msgstr "Datoteku ključa nije moguće spremiti."
 #: src/components/vault/ssh-key-form.tsx
 msgid "The key itself can't be changed. To use a different key, add a new SSH key item."
 msgstr "Sam ključ nije moguće promijeniti. Za drugi ključ dodaj novu stavku SSH ključa."
-
-#: app/(app)/account/auth/recover.tsx
-msgid "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
-msgstr "Upotrijebljeni komplet više ne radi, pa ovaj račun sada nema nijedan. Izradi novi sada ili kasnije u odjeljku „Račun > Oporavak i pristup“."
 
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
@@ -9030,6 +9421,10 @@ msgstr "Primljena kopija nije spremljena. Ponovnim pokretanjem ova će se kopija
 msgid "The received vault has not been saved."
 msgstr "Primljeni trezor nije spremljen."
 
+#: src/components/account/recovery-status.tsx
+msgid "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
+msgstr "Upotrijebljeni komplet za oporavak više ne vrijedi. Izradi novi kako bi se ovaj račun mogao ponovno oporaviti."
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "The region doesn't match the bucket."
 msgstr "Regija ne odgovara spremniku."
@@ -9046,6 +9441,10 @@ msgstr "Relej više ne prepoznaje ovog agenta"
 msgid "The relay no longer knows this agent. Pair it again or remove it."
 msgstr "Relej više ne prepoznaje ovog agenta. Ponovno ga upari ili ga ukloni."
 
+#: src/components/account/recovery-status.tsx
+msgid "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+msgstr "Zahtjev je možda stigao do usluge Online Services. Provjeri vezu i pokušaj ponovno. Ako tada komplet bude odbijen, već je upotrijebljen. Provjeri karticu „Račun“ ili upotrijebi noviji komplet ako ga imaš."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The rest of each affected item will still be added."
 msgstr "Ostatak svake zahvaćene stavke ipak će biti dodan."
@@ -9058,6 +9457,10 @@ msgstr "Spremljena veza je zadržana. Pokušaj ponovno nakon što provjeriš mo�
 msgid "The secure connection has finished."
 msgstr "Sigurna veza je završena."
 
+#: src/app_lib/store-billing.ts
+msgid "The selected App Store subscription is unavailable. Please try again later."
+msgstr "Odabrana pretplata u trgovini App Store nije dostupna. Pokušaj ponovno kasnije."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The selected file is not a valid 1Password 1PUX archive."
 msgstr "Odabrana datoteka nije valjana 1Password 1PUX arhiva."
@@ -9066,7 +9469,7 @@ msgstr "Odabrana datoteka nije valjana 1Password 1PUX arhiva."
 msgid "The selected file is not valid XML."
 msgstr "Odabrana datoteka nije valjan XML."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "The selected Google Play subscription is unavailable. Please try again later."
 msgstr "Odabrana pretplata u trgovini Google Play nije dostupna. Pokušaj ponovno kasnije."
 
@@ -9127,6 +9530,10 @@ msgstr "Ključ trezora je zamijenjen, ali biometrijsko otključavanje nije mogu�
 msgid "The vault locked before the backup was ready."
 msgstr "Trezor se zaključao prije nego što je sigurnosna kopija bila spremna."
 
+#: src/components/account/recovery-status.tsx
+msgid "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
+msgstr "Trezor se zaključao ili promijenio prije slanja kompleta. Ništa se nije promijenilo i tvoj komplet i dalje vrijedi. Otključaj trezor i pokušaj ponovno."
+
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
 msgstr "Sesija trezora se promijenila. Za nastavak ponovno otvori karticu „Uređaji“."
@@ -9156,9 +9563,13 @@ msgstr "Ovo su konfigurirani poslužitelji. Ovaj prikaz ne potvrđuje koristi li
 msgid "This account cannot change root permissions."
 msgstr "Ovaj račun ne može mijenjati root dopuštenja."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership."
 msgstr "Ovaj račun ne može kupiti pretplatu u trgovini Google Play. Vrati kupnje ili osvježi odjeljak „Članstvo“."
+
+#: src/app_lib/store-billing.ts
+msgid "This account cannot purchase an App Store subscription. Restore purchases or refresh Membership."
+msgstr "Ovaj račun ne može kupiti pretplatu u trgovini App Store. Vrati kupnje ili osvježi odjeljak „Članstvo“."
 
 #: src/components/devices/use-device-topology.ts
 msgid "This account connection is no longer available. Refresh devices before unlinking."
@@ -9179,6 +9590,10 @@ msgstr "Ovaj agent još ne može koristiti nijedan ključ. Možeš ih dodati kas
 #: app/(app)/devices/agents/[id].tsx
 msgid "This agent was revoked or isn't in this vault anymore."
 msgstr "Ovaj agent je opozvan ili više nije u ovom trezoru."
+
+#: src/app_lib/store-billing.ts
+msgid "This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it."
+msgstr "Ova pretplata u trgovini App Store pripada drugom Cryptex Vault računu. Upotrijebi trezor kojim je kupljena."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "This backup uses security-key protection that Android cannot open with a password. Restore it only if you have the vault recovery code, or link from a device where it already opens."
@@ -9377,7 +9792,7 @@ msgstr "Ova datoteka nije čitljiva sigurnosna kopija za Cryptex Vault."
 msgid "This file is too large to be an SSH key."
 msgstr "Ova je datoteka prevelika da bi bila SSH ključ."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again."
 msgstr "Ova pretplata u trgovini Google Play pripada drugom Cryptex Vault računu. Upotrijebi trezor kojim je kupljena ili otkaži pretplatu u trgovini Google Play prije ponovne kupnje."
 
@@ -9412,6 +9827,10 @@ msgstr "Ovo nije XML izvoz iz KeePassa 1.x ili KeePassa 2.x."
 #: app/link-receive.tsx
 msgid "This is not a valid Cryptex Vault link invitation."
 msgstr "Ovo nije valjana pozivnica za povezivanje iz aplikacije Cryptex Vault."
+
+#: src/components/account/payment-status.tsx
+msgid "This is taking longer than usual. You can close this screen and we'll keep checking."
+msgstr "Ovo traje dulje nego inače. Možeš zatvoriti ovaj zaslon, a mi ćemo nastaviti provjeravati."
 
 #: src/components/devices/device-removal-content.tsx
 msgid "This is the current device."
@@ -9482,6 +9901,10 @@ msgstr "Ova veza koristi vlastiti signalizacijski poslužitelj. STUN i TURN i da
 msgid "This machine now calls this server {name}. Before, it was {previous}."
 msgstr "Ovo računalo sada ovaj poslužitelj naziva {name}. Prije je naziv bio {previous}."
 
+#: src/components/account/payment-status.tsx
+msgid "This only takes a moment."
+msgstr "Ovo traje samo trenutak."
+
 #: app/credential-request.tsx
 msgid "This passkey request is malformed."
 msgstr "Ovaj zahtjev za pristupni ključ nije ispravan."
@@ -9498,13 +9921,9 @@ msgstr "Time se trajno uklanja račun s poslužitelja. Samo za root uređaj. Ova
 msgid "This phrase authorizes the live transfer. It is separate from vault recovery details."
 msgstr "Ova fraza odobrava izravni prijenos. Odvojena je od podataka za oporavak trezora."
 
-#: src/app_lib/google-play-billing.ts
-msgid "This plan now starts with a 14-day free trial. Check the plan and try again."
-msgstr "Ovaj plan sada počinje besplatnim probnim razdobljem od 14 dana. Provjeri plan i pokušaj ponovno."
-
-#: src/components/account/subscription-signup.tsx
-msgid "This plan now starts with a 14-day free trial. Retry to start it."
-msgstr "Ovaj plan sada počinje besplatnim probnim razdobljem od 14 dana. Pokušaj ponovno da ga započneš."
+#: src/components/account/payment-status.tsx
+msgid "This plan now starts with a 14-day free trial. Check the terms and continue."
+msgstr "Ovaj plan sada počinje besplatnim probnim razdobljem od 14 dana. Provjeri uvjete i nastavi."
 
 #: app/link-receive.tsx
 msgid "This received copy has not been saved. Discarding means you will need to repeat the live transfer."
@@ -9513,6 +9932,10 @@ msgstr "Ova primljena kopija nije spremljena. Ako je odbaciš, morat ćeš ponov
 #: app/link-receive.tsx
 msgid "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
 msgstr "Ova primljena kopija nije spremljena. Ako izađeš, morat ćeš ponoviti izravni prijenos. Trezor na uređaju pošiljatelja ostaje nepromijenjen."
+
+#: src/components/account/recovery-status.tsx
+msgid "This Recovery Kit"
+msgstr "Ovaj komplet za oporavak"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "This relationship is no longer registered. Use recovery options to forget its saved link."
@@ -9596,9 +10019,18 @@ msgid "This TURN server no longer exists."
 msgstr "Ovaj TURN poslužitelj više ne postoji."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "This vault"
 msgstr "Ovaj trezor"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
+msgstr "Ovaj trezor postaje jedini uređaj na računu. Oporavak dopušta {attempts} pokušaja svaka {hours} sata, zato najprije provjeri komplet."
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault is connected to your Online Services account. Other devices were signed out."
+msgstr "Ovaj trezor je povezan s tvojim računom za Online Services. Ostali uređaji su odjavljeni."
 
 #: app/(app)/account/security.tsx
 msgid "This vault is no longer connected to Online Services."
@@ -9607,6 +10039,10 @@ msgstr "Ovaj trezor više nije povezan s uslugom Online Services."
 #: src/components/backup-center/backup-status.tsx
 msgid "This vault is too large for managed backups"
 msgstr "Ovaj trezor je prevelik za upravljane sigurnosne kopije"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
+msgstr "Ovaj trezor sada sadrži račun, ali se nije mogao prijaviti. Otvori karticu „Račun“ za ponovno povezivanje."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
@@ -9668,6 +10104,10 @@ msgstr "Vremensko ograničenje u sekundama"
 msgid "today at {time}"
 msgstr "danas u {time}"
 
+#: src/components/account/recovery-status.tsx
+msgid "Too many attempts"
+msgstr "Previše pokušaja"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Previše zahtjeva. Pokušaj ponovno za minutu."
@@ -9686,6 +10126,7 @@ msgid "Transfer sent. Device link saved."
 msgstr "Prijenos je poslan. Veza s uređajem je spremljena."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Trial ends"
 msgstr "Probno razdoblje završava"
 
@@ -9699,6 +10140,8 @@ msgstr "Pokušaj s drugim nazivom, korisničkim imenom, oznakom ili bilješkom."
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/linking-progress.tsx
 #: src/components/vault/copyable-field.tsx
@@ -9721,6 +10164,10 @@ msgstr "Ponovni pokušaj…"
 #: src/components/devices/connectivity-panel.tsx
 msgid "TURN credential"
 msgstr "TURN vjerodajnica"
+
+#: app/(app)/settings/autofill.tsx
+msgid "Turn on Cryptex Vault for AutoFill"
+msgstr "Uključite Cryptex Vault za automatsko popunjavanje"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Turn on managed backups or add your own storage, so losing this device does not mean losing your vault."
@@ -10029,13 +10476,13 @@ msgstr "Najprije koristi automatsko popunjavanje lozinki u Androidu. Neki pregle
 msgid "Use another autofill service"
 msgstr "Koristi drugu uslugu automatskog popunjavanja"
 
+#: src/components/vault-manager/unlock-tab.tsx
+msgid "Use biometrics"
+msgstr "Upotrijebi biometriju"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Use browser-protected autofill where available"
 msgstr "Koristi automatsko popunjavanje zaštićeno preglednikom gdje je dostupno"
-
-#: src/components/vault-manager/unlock-tab.tsx
-msgid "Use fingerprint"
-msgstr "Upotrijebi otisak prsta"
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "Use folder names separated by /, without . or .. parts."
@@ -10076,13 +10523,13 @@ msgstr "Upotrijebi odabranu vezu"
 msgid "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 msgstr "Koristi poslužitelj Cryptex Vault uz Online Services ili vlastiti poslužitelj za dijeljenje. Ova postavka ostaje na ovom telefonu."
 
-#: src/components/account/account-auth.tsx
-msgid "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-msgstr "Upotrijebi ID korisnika i frazu od 24 riječi iz kompleta za oporavak računa. Oporavak uklanja sve ostale uređaje s računa."
-
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Koristi spremljene lozinke i pristupne ključeve u aplikacijama i preglednicima."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Use your saved passwords and passkeys in apps and Safari."
+msgstr "Koristite spremljene lozinke i pristupne ključeve u aplikacijama i Safariju."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."
@@ -10389,9 +10836,21 @@ msgstr "Prije napuštanja ovog zaslona pričekaj da se ažuriranje računa dovr�
 msgid "Wait for the other device"
 msgstr "Pričekaj drugi uređaj"
 
+#: src/components/account/payment-status.tsx
+msgid "Waiting for a connection"
+msgstr "Čeka se veza"
+
 #: app/credential-request.tsx
 msgid "Waiting for Android verification…"
 msgstr "Čekanje provjere sustava Android…"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for approval"
+msgstr "Čeka se odobrenje"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for Google Play"
+msgstr "Čeka se Google Play"
 
 #: src/utils/linking-messages.ts
 msgid "Waiting for other device to notice us..."
@@ -10405,9 +10864,17 @@ msgstr "Čekanje drugog uređaja…"
 msgid "Waiting for receiver to prove it knows the mnemonic…"
 msgstr "Čekanje da primatelj dokaže da zna riječi za potvrdu…"
 
+#: src/components/account/payment-status.tsx
+msgid "Waiting for Stripe Checkout"
+msgstr "Čeka se Stripe Checkout"
+
 #: app/(app)/devices/connect-agent.tsx
 msgid "Waiting for the agent…"
 msgstr "Čekanje agenta…"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for the App Store"
+msgstr "Čeka se App Store"
 
 #: src/components/linking-progress.tsx
 msgid "Waiting for the first event…"
@@ -10421,6 +10888,10 @@ msgstr "Čekanje zahtjeva…"
 #: app/(app)/settings/diagnostics.tsx
 msgid "Warnings"
 msgstr "Upozorenja"
+
+#: src/components/account/payment-status.tsx
+msgid "We're starting your membership. This usually takes a few seconds."
+msgstr "Pokrećemo tvoje članstvo. To obično traje nekoliko sekundi."
 
 #. Short filter tab label
 #: app/(app)/settings/security-report/index.tsx
@@ -10449,8 +10920,8 @@ msgid "Web app"
 msgstr "Web aplikacija"
 
 #: src/components/account/membership-benefits.tsx
-msgid "Web app, Android app & browser extension"
-msgstr "Web-aplikacija, Android aplikacija i proširenje za preglednik"
+msgid "Web app, Android & iOS apps, browser extension"
+msgstr "Web-aplikacija, aplikacije za Android i iOS, proširenje za preglednik"
 
 #: src/components/vault-manager/unlock-tab.tsx
 #: src/components/vault-security/vault-security-dialog.tsx
@@ -10478,6 +10949,10 @@ msgstr "Web-mjesto koje navodi Android"
 #: src/components/vault/credential-form.tsx
 msgid "Websites"
 msgstr "Web-mjesta"
+
+#: src/components/account/payment-status.tsx
+msgid "Welcome to Online Services"
+msgstr "Dobro došli u Online Services"
 
 #: app/(app)/share/index.tsx
 msgid "Wi-Fi for Sam"
@@ -10521,6 +10996,7 @@ msgid "WSS port (0 = disable TLS)"
 msgstr "WSS port (0 = bez TLS-a)"
 
 #: src/components/account/billing-interval-selector.tsx
+#: src/components/account/payment-status.tsx
 msgid "Yearly"
 msgstr "Godišnje"
 
@@ -10580,13 +11056,33 @@ msgstr "Primit ćeš šifrirani trezor i spojiti ga s ovim."
 msgid "Your account"
 msgstr "Tvoj račun"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Your account changed. Reopen Membership before using App Store billing."
+msgstr "Tvoj se račun promijenio. Prije naplate putem trgovine App Store ponovno otvori odjeljak „Članstvo“."
+
+#: src/app_lib/store-billing.ts
 msgid "Your account changed. Reopen Membership before using Google Play billing."
 msgstr "Tvoj se račun promijenio. Prije naplate putem trgovine Google Play ponovno otvori odjeljak „Članstvo“."
 
 #: src/utils/invitation-access.ts
 msgid "Your account does not allow granting root access to another device."
 msgstr "Tvoj račun ne dopušta dodjelu root pristupa drugom uređaju."
+
+#: src/components/account/payment-status.tsx
+msgid "Your App Store account already has a subscription, but we couldn't link it yet."
+msgstr "Tvoj račun u trgovini App Store već ima pretplatu, ali je još nismo uspjeli povezati."
+
+#: src/app_lib/store-billing.ts
+msgid "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+msgstr "Tvoj Apple račun već ima ovu pretplatu. Vrati kupnje iz trgovine App Store da je koristiš ovdje ili upotrijebi trezor koji ju je kupio."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account is already subscribed"
+msgstr "Tvoj Apple račun već ima pretplatu"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
+msgstr "Pretplata tvog Apple računa pripada drugom Cryptex Vault računu. Upotrijebi trezor s tim računom ili otkaži pretplatu u postavkama Apple računa i pretplati se ovdje kad istekne."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your backup stays encrypted until you unlock it"
@@ -10608,6 +11104,22 @@ msgstr "Tvoje mape"
 msgid "Your directory name has not been saved."
 msgstr "Naziv mape nije spremljen."
 
+#: src/app_lib/store-billing.ts
+msgid "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+msgstr "Tvoj Google račun već ima ovu pretplatu. Vrati kupnje iz trgovine Google Play da je koristiš ovdje ili upotrijebi trezor koji ju je kupio."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account is already subscribed"
+msgstr "Tvoj Google račun već ima pretplatu"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
+msgstr "Pretplata tvog Google računa pripada drugom Cryptex Vault računu. Upotrijebi trezor s tim računom ili otkaži pretplatu u trgovini Google Play i pretplati se ovdje kad istekne."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google Play account already has a subscription, but we couldn't link it yet."
+msgstr "Tvoj račun u trgovini Google Play već ima pretplatu, ali je još nismo uspjeli povezati."
+
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Your local vault remains available independently of Online Services."
 msgstr "Tvoj lokalni trezor ostaje dostupan neovisno o usluzi Online Services."
@@ -10623,6 +11135,18 @@ msgstr "Glavna lozinka uvijek je potrebna. Generirana fraza dodaje još jednu ta
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
 msgstr "Glavna lozinka uvijek je potrebna. Generirana zaštitna fraza dodaje još jednu tajnu i prikazuje se samo jednom tijekom postavljanja. Spremi je zasebno jer će ti trebati pri vraćanju na novom uređaju."
+
+#: app/(app)/(tabs)/account.tsx
+msgid "Your membership is active."
+msgstr "Tvoje članstvo je aktivno."
+
+#: src/components/account/payment-status.tsx
+msgid "Your membership starts once it's approved."
+msgstr "Članstvo počinje čim bude odobreno."
+
+#: src/components/account/payment-status.tsx
+msgid "Your membership starts once it's paid."
+msgstr "Članstvo počinje čim bude plaćeno."
 
 #: app/(app)/settings/backup-center/managed.tsx
 msgid "Your next managed backup will appear here."
@@ -10641,6 +11165,14 @@ msgstr "Vlastita pohrana"
 #: src/components/account/account-summary.tsx
 msgid "Your payment needs attention. Open Manage billing to review it."
 msgstr "Plaćanje zahtijeva tvoju pažnju. Otvori „Upravljaj naplatom“ da ga pregledaš."
+
+#: src/components/account/payment-status.tsx
+msgid "Your payment went through, but we haven't confirmed it yet. You won't be charged again."
+msgstr "Plaćanje je prošlo, ali ga još nismo potvrdili. Nećemo ti ponovno naplatiti."
+
+#: src/components/account/payment-status.tsx
+msgid "Your payment went through. Connect to the internet so we can confirm it. You won't be charged again."
+msgstr "Plaćanje je prošlo. Spoji se na internet da ga možemo potvrditi. Nećemo ti ponovno naplatiti."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Your recovery code can restore access to the encrypted vault if you forget the password."

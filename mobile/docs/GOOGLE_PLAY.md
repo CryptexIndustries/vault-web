@@ -1,6 +1,6 @@
 # Google Play Android
 
-Play builds use RevenueCat and Google Play Billing for monthly and yearly subscriptions. Existing Android, F-Droid, iOS and web billing stays unchanged. Play has no Stripe fallback or Expo OTA updates. Builds and uploads to Play are separate; this workflow does not upload.
+Play builds use RevenueCat and Google Play Billing for monthly and yearly subscriptions. Play has no Stripe fallback or Expo OTA updates. Builds and uploads to Play are separate; this workflow does not upload.
 
 ## Configure billing
 
@@ -20,7 +20,7 @@ Keep RevenueCat secret keys and Google service-account credentials outside clien
 
 Play builds require all five fields. Both profile JSON files have them, each with the RevenueCat Android key for its own package. Standard and F-Droid builds drop these fields from their effective configuration. Product prices always come from Google Play; no prices belong in this file.
 
-RevenueCat native linking and its JavaScript dependency graph are enabled only for Play Android. The Play Gradle policy excludes RevenueCat's advertising ID, Block Store and Amazon Appstore modules. Google Play Billing still pulls in `play-services-location`, which declares no permission. Release verification fails if any APK declares location or advertising ID permissions. The shared native-build finalization step calls Play-owned source preparation to remove the excluded SDK, its RevenueCat dependencies and Play-only policy, checksum and billing source files before F-Droid scanning. Files in `mobile/fdroid` keep their existing content and dependency policy; Google dependencies are never allowed there.
+On Android, RevenueCat native linking and its JavaScript dependency graph are enabled only for Play builds. The Play Gradle policy excludes RevenueCat's advertising ID, Block Store and Amazon Appstore modules. Google Play Billing still pulls in `play-services-location`, which declares no permission. Release verification fails if any APK declares location or advertising ID permissions. The shared native-build finalization step calls Play-owned source preparation to remove the excluded SDK, its RevenueCat dependencies and Play-only policy, checksum and billing source files before F-Droid scanning. Files in `mobile/fdroid` keep their existing content and dependency policy; Google dependencies are never allowed there.
 
 The app obtains its RevenueCat App User ID from the protected `v1.payment.revenueCatCustomer` endpoint, checks that billing is enabled, and respects its purchase permission. Account restores remain available when new purchases are disabled. After a purchase or restore, it calls `v1.payment.syncRevenueCat`, then refreshes subscription and configuration. No access is granted locally; the authenticated subscription endpoint remains the authority. Delayed backend confirmation appears as pending membership. RevenueCat's [restore behavior](https://www.revenuecat.com/docs/projects/restore-behavior) is set to Keep with original App User ID, so a subscription stays with the account that bought it. Restoring or buying it again on another account is refused, and the app explains that the subscription belongs to another account.
 

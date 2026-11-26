@@ -192,6 +192,121 @@ for (const flag of ["--dev", "--e2e"]) {
     });
 }
 
+function captureIos(
+    args,
+    { host = "darwin", identity = () => {}, mode = "--dev" } = {},
+) {
+    const calls = [];
+    runMobile(["build", mode, "--platform", "ios", ...args], {
+        env: { EXPO_PUBLIC_CRYPTEX_E2E: "1" },
+        host,
+        checkNativeIdentity: () => {
+            throw new Error("Android identity checked for iOS");
+        },
+        checkIosIdentity: identity,
+        regenerateNative: (profile, project) =>
+            calls.push(["regenerate", project]),
+        run: (...parameters) => {
+            calls.push(parameters);
+            return { status: 0 };
+        },
+    });
+    return calls;
+}
+
+test("iOS dev builds prebuild in place, then build and launch on a Simulator", () => {
+    const calls = captureIos(["--profile", "preprod", "--device", "iPhone 17"]);
+    assert.deepEqual(
+        calls.map((call) => call[1]),
+        [
+            [
+                "exec",
+                "expo",
+                "prebuild",
+                "--platform",
+                "ios",
+                "--no-install",
+                "--no-clean",
+            ],
+            [
+                "exec",
+                "expo",
+                "run:ios",
+                "--no-bundler",
+                "--device",
+                "iPhone 17",
+            ],
+        ],
+    );
+    for (const [, , options] of calls) {
+        assert.equal(options.cwd, mobile);
+        assert.equal(options.env.NODE_ENV, "development");
+        assert.equal(options.env.EXPO_PUBLIC_CRYPTEX_E2E, "0");
+        assert.equal(options.env.CRYPTEX_APP_PROFILE, "preprod");
+        assert.equal(options.env.CRYPTEX_DISTRIBUTION, "standard");
+    }
+    assert.deepEqual(captureIos(["--regenerate-native"])[0], [
+        "regenerate",
+        join(mobile, "ios"),
+    ]);
+});
+
+test("iOS E2E builds bundle a Release app with the E2E flag", () => {
+    const calls = captureIos([], { mode: "--e2e" });
+    assert.deepEqual(calls[1][1], [
+        "exec",
+        "expo",
+        "run:ios",
+        "--no-bundler",
+        "--configuration",
+        "Release",
+    ]);
+    for (const [, , options] of calls) {
+        assert.equal(options.env.NODE_ENV, "production");
+        assert.equal(options.env.EXPO_PUBLIC_CRYPTEX_E2E, "1");
+    }
+});
+
+test("Simulators run the Files suites natively", () => {
+    const udid = "A3A2F130-2989-4782-83B8-2B17A9F9D803";
+    for (const suite of ["import-export", "ssh-keys"]) {
+        const [[binary, args, options]] = capture([
+            "e2e",
+            suite,
+            "--device",
+            udid,
+        ]);
+        assert.equal(binary, process.execPath);
+        assert.deepEqual(args, ["e2e/run-ios-transfer.mjs", suite]);
+        assert.equal(options.env.MAESTRO_DEVICE, udid);
+    }
+});
+
+test("iOS dev builds fail before any command off macOS or with Android-only options", () => {
+    for (const [args, host, message] of [
+        [[], "linux", /macOS with Xcode/],
+        [["--distribution", "play"], "darwin", /Android-only/],
+        [["--e2e"], "darwin", /only --dev/],
+        [["--device"], "darwin", /Simulator name or UDID/],
+        [["--platform", "ios"], "darwin", /--platform android or ios/],
+    ]) {
+        assert.throws(() => captureIos(args, { host }), message);
+    }
+    assert.throws(
+        () => capture(["build", "--dev", "--platform", "web"]),
+        /--platform android or ios/,
+    );
+    assert.throws(
+        () =>
+            captureIos([], {
+                identity: () => {
+                    throw new Error("wrong iOS profile");
+                },
+            }),
+        /wrong iOS profile/,
+    );
+});
+
 test("autolinking refresh removes only the cached React Native config", () => {
     const project = mkdtempSync(join(tmpdir(), "cryptex-autolinking-"));
     try {
@@ -371,8 +486,7 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
         "security",
         "cloud",
         "devices",
-        "sync-sender",
-        "sync-receiver",
+        "account-recovery",
         "import-export",
     ]);
     for (const [suite, flow] of Object.entries(flows)) {
@@ -386,7 +500,7 @@ test("all former Maestro flows retain their mapping and JUnit output", () => {
             "quick",
         ]);
         const biometric = ["security", "passkeys"].includes(suite);
-        const cloud = ["cloud", "devices"].includes(suite);
+        const cloud = ["cloud", "devices", "account-recovery"].includes(suite);
         assert.equal(
             binary,
             biometric ? "bash" : cloud ? process.execPath : "maestro",
@@ -487,7 +601,7 @@ test("fixture and target remain available without a device", () => {
     assert.equal(options.cwd, mobile);
 });
 
-test("protected devices fail before any device command, including either sync role", () => {
+test("protected devices fail before any device command", () => {
     const env = {
         ANDROID_SERIAL: "protected",
         CRYPTEX_E2E_PROTECTED_DEVICE: "protected",
@@ -501,53 +615,23 @@ test("protected devices fail before any device command, including either sync ro
         "ssh-keys",
         "ssh-agent",
         "backup-destinations",
+        "sync",
     ]) {
         assert.throws(() => capture(["e2e", suite], env), /protected device/);
     }
-    for (const protectedRole of ["E2E_SYNC_SENDER", "E2E_SYNC_RECEIVER"]) {
-        assert.throws(
-            () =>
-                capture(["e2e", "sync"], {
-                    E2E_SYNC_SENDER: "sender",
-                    E2E_SYNC_RECEIVER: "receiver",
-                    E2E_SYNC_CONFIG: "/private/config.json",
-                    CRYPTEX_E2E_PROTECTED_DEVICE: "protected",
-                    [protectedRole]: "protected",
-                }),
-            /protected device/,
-        );
-    }
 });
 
-test("sync requires distinct explicit devices and private fixture configuration", () => {
-    for (const env of [
-        {},
-        { E2E_SYNC_SENDER: "sender" },
-        {
-            E2E_SYNC_SENDER: "same",
-            E2E_SYNC_RECEIVER: "same",
-            E2E_SYNC_CONFIG: "/private/config.json",
-        },
-    ])
-        assert.throws(() => capture(["e2e", "sync"], env), /Set distinct/);
-    const env = {
-        E2E_SYNC_SENDER: "sender",
-        E2E_SYNC_RECEIVER: "receiver",
-        E2E_SYNC_CONFIG: "/private/config.json",
-    };
-    assert.deepEqual(capture(["e2e", "sync"], env)[0][1], [
-        "e2e/run-sync-link.mjs",
+test("sync links the selected device with the web app", () => {
+    const udid = "A3A2F130-2989-4782-83B8-2B17A9F9D803";
+    const [[binary, args, options]] = capture([
+        "e2e",
+        "sync",
+        "--device",
+        udid,
     ]);
-    assert.equal(
-        capture(["e2e", "sync"], { ...env, MAESTRO_DEVICE: "other" })[0][2].env
-            .E2E_SYNC_SENDER,
-        "sender",
-    );
-    assert.equal(
-        capture(["e2e", "sync", "--device", "override"], env)[0][2].env
-            .E2E_SYNC_SENDER,
-        "override",
-    );
+    assert.equal(binary, process.execPath);
+    assert.deepEqual(args, ["e2e/run-web-sync.mjs"]);
+    assert.equal(options.env.MAESTRO_DEVICE, udid);
 });
 
 test("missing generated Android project gives explicit setup guidance", () => {

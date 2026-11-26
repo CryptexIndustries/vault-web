@@ -1,12 +1,31 @@
 import * as Clipboard from "expo-clipboard";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { androidCredentials } from "@/utils/android-credentials";
 import { isAutoLockDue } from "@/utils/session-timeout";
 import { getVaultLockEpoch } from "@/utils/vault-lock-epoch";
 
 export const SECRET_CLEAR_MS = 30_000;
 
+type IosClipboardModule = {
+    /**
+     * Writes text that stays on this device and expires on its own. Resolves
+     * with a marker for this copy.
+     */
+    setSecretString(text: string, expiresInMs: number): Promise<string>;
+    /** Clears the clipboard if it still holds the marked copy. */
+    clearSecretIfOwned(marker: string): Promise<void>;
+    /** Plain copy, ordered with clearSecretIfOwned. */
+    setString(text: string): Promise<void>;
+};
+
+/** Only iOS builds include the module. */
+const iosClipboard = requireOptionalNativeModule<IosClipboardModule>(
+    "CryptexIosClipboard",
+);
+
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSecret: string | null = null;
+let pendingMarker: string | null = null;
 
 function clearScheduledClear() {
     if (clearTimer != null) {
@@ -17,11 +36,19 @@ function clearScheduledClear() {
 
 async function clearIfStillSecret() {
     const expected = pendingSecret;
+    const marker = pendingMarker;
     pendingSecret = null;
+    pendingMarker = null;
     clearTimer = null;
     if (expected == null) return;
 
     try {
+        // Reading the clipboard after another app copied shows iOS's paste prompt.
+        if (iosClipboard && marker != null) {
+            await iosClipboard.clearSecretIfOwned(marker);
+            return;
+        }
+
         const current = await Clipboard.getStringAsync();
         if (current === expected) {
             await Clipboard.setStringAsync("");
@@ -38,10 +65,13 @@ async function clearIfStillSecret() {
 export async function copySecretToClipboard(text: string): Promise<boolean> {
     if (!text || isAutoLockDue()) return false;
     const lockEpoch = getVaultLockEpoch();
+    let marker: string | null = null;
 
     try {
         if (androidCredentials.available) {
             await androidCredentials.setSensitiveClipboardString(text);
+        } else if (iosClipboard) {
+            marker = await iosClipboard.setSecretString(text, SECRET_CLEAR_MS);
         } else {
             await Clipboard.setStringAsync(text);
         }
@@ -56,12 +86,14 @@ export async function copySecretToClipboard(text: string): Promise<boolean> {
             androidCredentials.clearSensitiveClipboardIfOwned();
         clearScheduledClear();
         pendingSecret = text;
+        pendingMarker = marker;
         await clearIfStillSecret();
         return false;
     }
 
     clearScheduledClear();
     pendingSecret = text;
+    pendingMarker = marker;
     clearTimer = setTimeout(() => {
         void clearIfStillSecret();
     }, SECRET_CLEAR_MS);
@@ -73,7 +105,8 @@ export async function copySecretToClipboard(text: string): Promise<boolean> {
 export async function copyTextToClipboard(text: string): Promise<boolean> {
     if (!text) return false;
     try {
-        await Clipboard.setStringAsync(text);
+        if (iosClipboard) await iosClipboard.setString(text);
+        else await Clipboard.setStringAsync(text);
         return true;
     } catch {
         return false;
@@ -92,6 +125,7 @@ export async function clearPendingSecretFromClipboard(): Promise<void> {
 export function resetClipboardStateForTests(): void {
     clearScheduledClear();
     pendingSecret = null;
+    pendingMarker = null;
 }
 
 /** Inspects the pending secret for tests. */

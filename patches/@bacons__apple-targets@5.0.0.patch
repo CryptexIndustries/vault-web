@@ -1,0 +1,45 @@
+diff --git a/build/with-xcode-changes.js b/build/with-xcode-changes.js
+index 96ded68c694a0eaae6e4068f09a55c50b119bc0c..41c8e642118a0f960dc61220b658cdc4238ad742 100644
+--- a/build/with-xcode-changes.js
++++ b/build/with-xcode-changes.js
+@@ -218,23 +218,29 @@ async function applyXcodeChanges(config, project, props) {
+         }
+     }
+     if (targetToUpdate) {
+-        // Remove existing build phases
+-        targetToUpdate.props.buildConfigurationList.props.buildConfigurations.forEach((config) => {
+-            config.getReferrers().forEach((ref) => {
+-                ref.removeReference(config.uuid);
+-            });
++        // Remove existing build phases. removeFromProject() also drops the
++        // references, which clears the target's buildConfigurationList, so keep it
++        // first, and copy the configurations since removing them shortens the list.
++        const configurationList = targetToUpdate.props.buildConfigurationList;
++        // CocoaPods sets these, and `pod install` doesn't run again unless the
++        // dependencies change.
++        const baseConfigurations = new Map(configurationList.props.buildConfigurations.map((config) => [
++            config.props.name,
++            config.props.baseConfigurationReference,
++        ]));
++        [...configurationList.props.buildConfigurations].forEach((config) => {
+             config.removeFromProject();
+         });
+         // Remove existing build configuration list
+-        targetToUpdate.props.buildConfigurationList
+-            .getReferrers()
+-            .forEach((ref) => {
+-            ref.removeReference(targetToUpdate.props.buildConfigurationList.uuid);
+-        });
+-        targetToUpdate.props.buildConfigurationList.removeFromProject();
++        configurationList.removeFromProject();
+         // Create new build phases
+         targetToUpdate.props.buildConfigurationList =
+             (0, configuration_list_1.createConfigurationListForType)(project, props);
++        targetToUpdate.props.buildConfigurationList.props.buildConfigurations.forEach((config) => {
++            const base = baseConfigurations.get(config.props.name);
++            if (base)
++                config.props.baseConfigurationReference = base;
++        });
+     }
+     else {
+         const productType = (0, target_1.productTypeForType)(props.type);

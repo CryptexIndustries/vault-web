@@ -1,6 +1,6 @@
 appId: ${CRYPTEX_APP_ID}
 ---
-# Real local Pusher and coturn services. Credentials come from sync-config.mjs.
+# The signaling and TURN servers from compose.e2e.yaml.
 - tapOn: Devices
 - tapOn: Link a device
 - tapOn: Create invitation,.*
@@ -13,62 +13,62 @@ appId: ${CRYPTEX_APP_ID}
 - tapOn: Signaling servers.*
 - tapOn: Add Signaling server
 - tapOn:
-      text: Name
-      below: Name
-- assertVisible:
-      text: Name
-      focused: true
+      id: server-Name
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Name
 - inputText: E2E Local Signaling
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
-      text: Host
-      below: Host
-- assertVisible:
-      text: Host
-      focused: true
+      id: server-Host
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Host
 - inputText: ${SIGNALING_HOST}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
-      text: App ID
-      below: App ID
-- assertVisible:
-      text: App ID
-      focused: true
+      id: server-AppID
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-AppID
 - inputText: ${SIGNALING_APP_ID}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
-      text: Key
-      below: Key
-- assertVisible:
-      text: Key
-      focused: true
+      id: server-Key
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Key
 - inputText: ${SIGNALING_KEY}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: Secret
       direction: DOWN
 - tapOn:
-      text: Secret
-      below: Secret
-- assertVisible:
-      text: Secret
-      focused: true
+      id: server-Secret
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Secret
 - inputText: ${SIGNALING_SECRET}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: WS port
       direction: DOWN
 - tapOn:
-      text: WS port
-      below: WS port
-- assertVisible:
-      text: WS port
-      focused: true
+      id: server-ServicePort
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-ServicePort
 - eraseText: 10
 - inputText: ${SIGNALING_PORT}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: Save server
@@ -78,43 +78,45 @@ appId: ${CRYPTEX_APP_ID}
       visible: Add Signaling server
       timeout: 15000
 - assertVisible: E2E Local Signaling.*
-- pressKey: Back
+- runFlow: go-back.yaml
 - tapOn: TURN servers.*
 - tapOn: Add TURN server
 - tapOn:
-      text: Name
-      below: Name
-- assertVisible:
-      text: Name
-      focused: true
+      id: server-Name
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Name
 - inputText: E2E Local TURN
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
-      text: Host / URL
-      below: Host / URL
-- assertVisible:
-      text: Host / URL
-      focused: true
+      id: server-Host
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Host
 - inputText: ${TURN_HOST}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
-      text: Username
-      below: Username
-- assertVisible:
-      text: Username
-      focused: true
+      id: server-Username
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Username
 - inputText: ${TURN_USERNAME}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: TURN credential.*
       direction: DOWN
-- tapOn: TURN credential.*
-- assertVisible:
-      text: TURN credential.*
-      focused: true
+- tapOn:
+      id: server-Credential
+- runFlow:
+      file: assert-focused.yaml
+      env:
+          FIELD: server-Credential
 - inputText: ${TURN_PASSWORD}
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           text: Save server
@@ -124,13 +126,13 @@ appId: ${CRYPTEX_APP_ID}
       visible: Add TURN server
       timeout: 15000
 - assertVisible: E2E Local TURN.*
-- pressKey: Back
-- pressKey: Back
+- runFlow: go-back.yaml
+- runFlow: go-back.yaml
 - runFlow:
       when:
           visible: Invitation connection
       commands:
-          - pressKey: Back
+          - runFlow: close-sheet.yaml
 - assertVisible: Receiving device name
 - tapOn: Back
 - assertVisible:

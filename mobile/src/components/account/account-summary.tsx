@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import { plural } from "@lingui/core/macro";
@@ -10,7 +10,7 @@ import {
 } from "@/components/unlocked/unlocked-ui";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import {
-    isGooglePlayBuild,
+    storeBilling,
     restoreStorePurchases,
     openBillingManagement,
     billingManagement,
@@ -62,15 +62,18 @@ type AccountSummaryProps = {
     refreshing: boolean;
     onRefresh: () => void;
     onMessage: (message: string, action?: FeedbackAction) => void;
-    onExternalBillingOpened: (
-        outcome?: "success" | "resume" | "external",
-    ) => void;
+    onExternalBillingOpened: () => void;
+    /** Store purchases were restored; membership still needs confirming. */
+    onRestored: () => void;
     onBillingBusyChange?: (busy: boolean) => void;
-    pendingConfirmation: boolean;
-    onPendingChange: (pending: boolean) => void;
+    /** The checkout status card, shown while a payment awaits confirmation. */
+    paymentStatus?: ReactNode;
 };
 
-function formatAccountDate(locale: string, value?: Date | string | null) {
+export function formatAccountDate(
+    locale: string,
+    value?: Date | string | null,
+) {
     if (!value) return null;
     const date = new Date(value);
     // Numeric dates read differently across regions.
@@ -147,9 +150,9 @@ export function AccountSummary({
     onRefresh,
     onMessage,
     onExternalBillingOpened,
+    onRestored,
     onBillingBusyChange,
-    pendingConfirmation,
-    onPendingChange,
+    paymentStatus,
 }: AccountSummaryProps) {
     const { t, i18n } = useLingui();
     const billingInFlight = useRef(false);
@@ -164,11 +167,7 @@ export function AccountSummary({
         };
     }, []);
     const [billingBusy, setBillingBusy] = useState(false);
-    const pending = pendingConfirmation;
-    const pendingRef = useRef(pending);
-    useEffect(() => {
-        pendingRef.current = pendingConfirmation;
-    }, [accountScope, pendingConfirmation]);
+    const pending = !!paymentStatus;
     const linkedDeviceCount = subscription?.resourceStatus?.linkedDevices;
     const linkedDeviceLimit = remoteConfig?.maxLinks;
     const usage =
@@ -195,6 +194,7 @@ export function AccountSummary({
         : trialing
           ? t`Trial ends`
           : t`Renews`;
+    const appStore = storeBilling() === "app_store";
     const management = billingManagement(subscription?.provider);
     const canManageBilling =
         hasSession && !!subscription?.nonFree && management !== null;
@@ -202,16 +202,24 @@ export function AccountSummary({
         hasSession && !!subscription?.nonFree && management === null
             ? subscription.provider === "app_store"
                 ? t`Billed through the App Store`
-                : t`Billed outside Google Play`
+                : !appStore
+                  ? t`Billed outside Google Play`
+                  : subscription.provider === "stripe"
+                    ? t`Billed on the web`
+                    : t`Billed outside the App Store`
             : null;
     const managementCaption =
         management === "google_play"
             ? t`Manage or cancel in Google Play Subscriptions`
-            : t`Billing opens in your browser`;
+            : management === "app_store"
+              ? t`Manage or cancel in your Apple Account settings`
+              : t`Billing opens in your browser`;
     const managementNote =
         management === "google_play"
             ? t`Manage or cancel in Google Play Subscriptions. Your membership updates when you return.`
-            : t`Billing opens in your browser. Your membership updates when you return.`;
+            : management === "app_store"
+              ? t`Manage or cancel in your Apple Account settings. Your membership updates when you return.`
+              : t`Billing opens in your browser. Your membership updates when you return.`;
     const canUpgrade =
         hasSession && subscription?.nonFree === false && !pending;
     const displayTierName = subscription
@@ -230,7 +238,9 @@ export function AccountSummary({
                 : trialing
                   ? subscription?.cancelAtPeriodEnd
                       ? t`Free trial canceled. You won't be charged.`
-                      : t`Free trial. You'll be charged when it ends unless you cancel before then.`
+                      : subscription?.provider === "app_store"
+                        ? t`Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then.`
+                        : t`Free trial. You'll be charged when it ends unless you cancel before then.`
                   : null;
 
     const handleBilling = async (
@@ -244,7 +254,7 @@ export function AccountSummary({
             accountScopeRef.current !== accountScope
         )
             return;
-        if (operation === "restore" && pendingRef.current) return;
+        if (operation === "restore" && pending) return;
         billingInFlight.current = true;
         const generation = getVaultSessionGeneration();
         const scope = accountScope;
@@ -263,33 +273,25 @@ export function AccountSummary({
                           : undefined,
                   ));
             if (!isCurrent()) return;
-            if (!result.ok) {
-                if ("canceled" in result && result.canceled) return;
-                if ("pending" in result && result.pending) {
-                    pendingRef.current = true;
-                    onPendingChange(true);
-                } else
-                    onMessage(
-                        result.message,
-                        "retryable" in result && result.retryable === false
-                            ? undefined
-                            : {
-                                  label: t`Retry`,
-                                  onPress: () => {
-                                      if (isCurrent())
-                                          return handleBillingRef.current(
-                                              operation,
-                                          );
-                                  },
+            if (result.ok || "pending" in result) {
+                if (operation === "restore") onRestored();
+                else onExternalBillingOpened();
+            } else if ("message" in result) {
+                // A restore that found nothing may still have changed membership on the server.
+                if (operation === "restore") onRefresh();
+                onMessage(
+                    result.message,
+                    "retryable" in result && result.retryable === false
+                        ? undefined
+                        : {
+                              label: t`Retry`,
+                              onPress: () => {
+                                  if (isCurrent())
+                                      return handleBillingRef.current(
+                                          operation,
+                                      );
                               },
-                    );
-            } else {
-                if (operation === "restore") {
-                    pendingRef.current = true;
-                    onPendingChange(true);
-                }
-                onExternalBillingOpened(
-                    operation === "manage" ? "external" : "resume",
+                          },
                 );
             }
         } catch {
@@ -312,7 +314,7 @@ export function AccountSummary({
     const handleBillingRef = useRef(handleBilling);
     handleBillingRef.current = handleBilling;
     const restoreButton =
-        isGooglePlayBuild() && hasSession ? (
+        storeBilling() !== null && hasSession ? (
             <View style={{ gap: 8 }}>
                 {!pending ? (
                     <Button
@@ -321,7 +323,9 @@ export function AccountSummary({
                         disabled={refreshing}
                         onPress={() => void handleBilling("restore")}
                     >
-                        {t`Restore Google Play purchases`}
+                        {appStore
+                            ? t`Restore App Store purchases`
+                            : t`Restore Google Play purchases`}
                     </Button>
                 ) : null}
                 {!subscription?.nonFree ? (
@@ -330,7 +334,9 @@ export function AccountSummary({
                         disabled={billingBusy || refreshing}
                         onPress={() => void handleBilling()}
                     >
-                        {t`Manage Google Play subscriptions`}
+                        {appStore
+                            ? t`Manage App Store subscriptions`
+                            : t`Manage Google Play subscriptions`}
                     </Button>
                 ) : null}
             </View>
@@ -436,6 +442,7 @@ export function AccountSummary({
                         </View>
                     ) : null}
                 </Pressable>
+                {paymentStatus}
                 {restoreButton}
                 {canManageBilling || canUpgrade ? (
                     <View style={{ marginTop: 8, gap: 8 }}>
@@ -598,6 +605,9 @@ export function AccountSummary({
 
     return (
         <View>
+            {paymentStatus ? (
+                <View style={{ marginBottom: 20 }}>{paymentStatus}</View>
+            ) : null}
             <View
                 style={{
                     paddingBottom: 22,

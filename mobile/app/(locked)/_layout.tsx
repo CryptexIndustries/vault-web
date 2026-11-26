@@ -45,7 +45,7 @@ export default function LockedLayout() {
     const screenOptions = {
         ...adaptiveScreenOptions,
         tabBarActiveTintColor: colors.foreground,
-        tabBarActiveBackgroundColor: isRail ? undefined : colors.secondary,
+        tabBarActiveBackgroundColor: colors.secondary,
         tabBarInactiveBackgroundColor: "transparent",
         tabBarStyle: [
             adaptiveScreenOptions.tabBarStyle,
@@ -58,7 +58,7 @@ export default function LockedLayout() {
         ],
         tabBarLabelStyle: [
             adaptiveScreenOptions.tabBarLabelStyle,
-            { fontSize: 10, marginTop: 2, marginBottom: 0 },
+            isRail ? null : { fontSize: 10, marginTop: 2, marginBottom: 0 },
         ],
         tabBarItemStyle: isRail
             ? adaptiveScreenOptions.tabBarItemStyle

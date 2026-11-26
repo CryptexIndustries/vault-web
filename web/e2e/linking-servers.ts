@@ -15,7 +15,10 @@ export const signalingServer = {
 };
 
 export const turnServer = {
-    host: `${env.E2E_TURN_HOST ?? "turn"}:${env.E2E_TURN_PORT ?? "3478"}`,
+    // A full TURN URL replaces the host and port, for example to use TCP.
+    host:
+        env.E2E_TURN_URL ??
+        `${env.E2E_TURN_HOST ?? "turn"}:${env.E2E_TURN_PORT ?? "3478"}`,
     username: "e2e",
     password: "e2e-turn-password",
 };

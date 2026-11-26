@@ -1,0 +1,21 @@
+appId: ${CRYPTEX_APP_ID}
+name: Open the invitation screen on a fresh receiver
+---
+# Keychain entries outlive clearState on iOS.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - clearKeychain
+- clearState
+- launchApp
+- assertVisible: Create vault
+- assertVisible: Vault name
+- tapOn: Use invitation
+- runFlow:
+      when:
+          notVisible: Make the connection.
+      commands:
+          - tapOn: Use invitation
+- assertVisible: Make the connection.
+- assertVisible: Scan QR code

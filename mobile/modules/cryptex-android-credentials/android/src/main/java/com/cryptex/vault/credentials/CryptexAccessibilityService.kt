@@ -23,6 +23,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import java.lang.ref.WeakReference
 import java.util.UUID
 
@@ -153,7 +154,9 @@ class CryptexAccessibilityService : AccessibilityService() {
 
   override fun onDestroy() {
     hideOverlay()
-    cancelRequestInternal(null)
+    // Android unbinds the service while UI automation runs. Keep a fresh request
+    // for the next connection, which drops it once it is stale.
+    pendingFill?.let { cancelRequestInternal(it.session.request.id) }
     handler.removeCallbacksAndMessages(null)
     if (activeService.get() === this) activeService.clear()
     super.onDestroy()
@@ -580,6 +583,7 @@ private fun classifyCredentialField(node: AccessibilityNodeInfo): CredentialFiel
   return CredentialFieldPolicy.classify(
     identity = node.credentialIdentity(),
     password = node.isPassword || node.inputType.isPasswordInput(),
+    username = CredentialFieldPolicy.isUsernameLabel(node.credentialLabel()),
     email = node.inputType and InputType.TYPE_MASK_VARIATION == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
   )
 }
@@ -590,8 +594,14 @@ private fun AccessibilityNodeInfo.isEditableCredentialCandidate(): Boolean =
 
 private fun AccessibilityNodeInfo.credentialIdentity(): String = listOfNotNull(
   viewIdResourceName?.substringAfterLast('/'),
+  credentialLabel(),
+).joinToString(" ")
+
+private fun AccessibilityNodeInfo.credentialLabel(): String = listOfNotNull(
   safeHintText(),
   contentDescription?.toString(),
+  // Chrome 155 reports a web field's label here instead of in the hint.
+  AccessibilityNodeInfoCompat.wrap(this).supplementalDescription?.toString(),
 ).joinToString(" ")
 
 private fun AccessibilityNodeInfo.isNewPasswordField(): Boolean =

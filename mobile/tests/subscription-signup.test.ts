@@ -6,6 +6,7 @@ import { Provider } from "jotai";
 import { err, ok } from "neverthrow";
 import * as Sharing from "expo-sharing";
 import { router } from "expo-router";
+import { TRPCClientError } from "@trpc/client";
 import {
     OnlineServices,
     Vault,
@@ -13,11 +14,13 @@ import {
 
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { RecoveryKitDialog } from "@/components/account/recovery-kit-dialog";
+import type { PaymentStatusState } from "@/components/account/payment-status";
 import {
     AccountControllerProvider,
     useAccountController,
 } from "@/components/account/account-controller";
 import { copySecretToClipboard } from "@/utils/clipboard";
+import { onlineServicesLog } from "@/utils/logging";
 import {
     onlineServicesAuthConnectionStatusAtom,
     onlineServicesDataAtom,
@@ -39,8 +42,9 @@ jest.mock("expo-router", () => ({
     router: { push: jest.fn(), dismissTo: jest.fn() },
 }));
 jest.mock("expo-router/react-navigation", () => ({
-    usePreventRemove: (enabled: boolean) => {
+    usePreventRemove: (enabled: boolean, leave: () => void) => {
         mockNavigationGuard = enabled;
+        mockLeave = leave;
     },
 }));
 jest.mock("@/components/unlocked/unlocked-ui", () => ({
@@ -66,6 +70,9 @@ jest.mock("@/components/ui/dialog", () => ({
     DialogHeader: "DialogHeader",
 }));
 jest.mock("@/components/inline-notice", () => ({ InlineNotice: "Notice" }));
+jest.mock("@/components/account/payment-status", () => ({
+    PaymentStatus: "PaymentStatus",
+}));
 jest.mock("@/components/account/membership-benefits", () => ({
     MembershipBenefits: "MembershipBenefits",
 }));
@@ -135,6 +142,10 @@ jest.mock(
         signChallenge: async () => "test-signature",
     }),
 );
+jest.mock("@/utils/session-timeout", () => ({
+    ...jest.requireActual<object>("@/utils/session-timeout"),
+    holdAutoLock: () => mockHoldAutoLock(),
+}));
 jest.mock("@/utils/vault-mutations", () => ({
     persistVaultMutation: (...args: unknown[]) => mockPersist(...args),
 }));
@@ -151,7 +162,7 @@ jest.mock("@/utils/vault-session", () => ({
     missingVaultSecretError: () => "Unlock the vault again.",
 }));
 jest.mock("@/utils/logging", () => ({
-    onlineServicesLog: { error: jest.fn() },
+    onlineServicesLog: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
 }));
 jest.mock("@/app_lib/auth-session", () => ({
     establishOnlineServicesSession: (...args: unknown[]) =>
@@ -160,11 +171,8 @@ jest.mock("@/app_lib/auth-session", () => ({
     logoutOnlineServicesSession: () => mockLogout(),
 }));
 jest.mock("@/app_lib/online-services-billing", () => ({
-    isGooglePlayBuild: () => mockPlayBuild,
+    storeBilling: () => (mockPlayBuild ? "google_play" : null),
     loadStorePlans: () => mockStorePlans(),
-
-    purchaseMembership: (...args: unknown[]) => mockCheckout(...args),
-    checkStorePurchaseStatus: () => mockStatus(),
 }));
 jest.mock("@/utils/trpc", () => {
     const mutation = (mutateAsync: (...args: unknown[]) => unknown) => ({
@@ -231,15 +239,16 @@ const mockSync = jest.fn<() => Promise<void>>();
 const mockRefetch = jest.fn<() => Promise<unknown>>();
 const mockGenerateRecovery = jest.fn<() => Promise<unknown>>();
 const mockRotateRecovery = jest.fn<() => Promise<unknown>>();
-const mockCheckout = jest.fn<(...args: unknown[]) => Promise<unknown>>();
-const mockStatus = jest.fn<() => Promise<unknown>>();
-const mockPendingChange = jest.fn();
+/** onPay: the Account screen starts the purchase. */
+const mockCheckout = jest.fn();
 const mockPersist = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockClosed = jest.fn();
-const mockBillingOpened = jest.fn();
+const mockReleaseLockHold = jest.fn();
+const mockHoldAutoLock = jest.fn(() => mockReleaseLockHold);
 const mockStorePlans = jest.fn<() => Promise<unknown>>();
 let mockPlayBuild = false;
 let mockNavigationGuard = false;
+let mockLeave: () => void = () => {};
 let mockVaultGeneration = 1;
 let mockRootDevice = false;
 let mockNonFree = false;
@@ -318,7 +327,10 @@ function deferred<T>() {
     return { promise, resolve };
 }
 
-async function renderSignup(open = true, pendingConfirmation?: boolean) {
+async function renderSignup(
+    open = true,
+    payment: { state: PaymentStatusState; trial?: boolean } | null = null,
+) {
     await act(async () => {
         const tree = createElement(
             Provider,
@@ -326,9 +338,12 @@ async function renderSignup(open = true, pendingConfirmation?: boolean) {
             createElement(SubscriptionSignup, {
                 open,
                 onOpenChange: mockClosed,
-                onExternalBillingOpened: mockBillingOpened,
-                pendingConfirmation,
-                onPendingChange: mockPendingChange,
+                payment,
+                paymentPanel:
+                    payment && payment.state !== "offerChanged"
+                        ? createElement("PaymentPanel")
+                        : null,
+                onPay: mockCheckout,
             }),
         );
         if (renderer) renderer.update(tree);
@@ -410,13 +425,7 @@ beforeEach(() => {
     mockRotateRecovery
         .mockReset()
         .mockResolvedValue({ userId: "user-test", token: mockRecoveryPhrase });
-    mockCheckout.mockReset().mockResolvedValue({ ok: true });
-    mockStatus.mockReset().mockResolvedValue({
-        ok: false,
-        pending: true,
-        message: "Still confirming",
-    });
-    mockPendingChange.mockReset();
+    mockCheckout.mockReset();
     mockPersist.mockReset().mockImplementation(async (_kind, mutate) => {
         const result = await (
             mutate as (vault: unknown) => Promise<{ vault: never }>
@@ -427,7 +436,6 @@ beforeEach(() => {
     jest.mocked(copySecretToClipboard).mockReset().mockResolvedValue(true);
     jest.mocked(Sharing.shareAsync).mockReset().mockResolvedValue(undefined);
     mockClosed.mockReset();
-    mockBillingOpened.mockReset();
     mockNavigationGuard = false;
     mockVaultGeneration = 1;
     mockRootDevice = false;
@@ -482,8 +490,9 @@ it("starts with the interval picker and opens the chosen checkout only after sav
     ).toBeDefined();
     await press("I've saved my kit. Continue to payment");
     expect(mockCheckout).toHaveBeenCalledWith("premiumYearly", paidTerms);
-    expect(mockBillingOpened).toHaveBeenCalledTimes(1);
-    expect(mockClosed).toHaveBeenCalledWith(false);
+    // The kit is saved, so it leaves the screen as payment starts.
+    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(0);
+    expect(mockClosed).not.toHaveBeenCalled();
 });
 
 it("keeps the selected interval after captcha cancellation", async () => {
@@ -725,28 +734,7 @@ it("clears a previous controller refresh error on Retry without adding a success
     ).toBeNull();
 });
 
-it("retries failed payment with the same account, interval, and kit", async () => {
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Payment unavailable. Retry.",
-    });
-    await renderSignup();
-    await chooseYearly();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    await press("I've saved my kit. Continue to payment");
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockNavigationGuard).toBe(false);
-    await press("I've saved my kit. Continue to payment");
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly", paidTerms],
-        ["premiumYearly", paidTerms],
-    ]);
-    expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
-    expect(mockRegister).toHaveBeenCalledTimes(1);
-});
-
-it("blocks rapid double taps during account creation and payment", async () => {
+it("blocks rapid double taps during account creation", async () => {
     const captcha = deferred<string | null>();
     mockRequestToken.mockReturnValueOnce(captcha.promise);
     await renderSignup();
@@ -761,21 +749,6 @@ it("blocks rapid double taps during account creation and payment", async () => {
     );
     await act(async () => captcha.resolve(randomUUID()));
     expect(mockRegister).toHaveBeenCalledTimes(1);
-    await press("Copy Recovery Kit");
-    const checkout = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(checkout.promise);
-    await act(async () => {
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        onPress();
-        onPress();
-    });
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(
-        renderer!.root.findByType("Dialog" as never).props.loadingLabel,
-    ).toBe("Opening secure payment…");
-    await act(async () => checkout.resolve({ ok: true }));
-    expect(mockBillingOpened).toHaveBeenCalledTimes(1);
 });
 
 it("keeps the checkbox and Finish acknowledgement for standalone recovery kits", async () => {
@@ -827,9 +800,9 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
             account().setRecoverUserId("recovered-user");
             account().setRecoverPhrase(mockRecoveryPhrase);
         });
-        let result: Promise<"recovered" | "kit-missing" | false> | undefined;
+        let result: Promise<unknown> | undefined;
         await act(async () => {
-            result = account().handleRecover();
+            result = account().handleRecover(jest.fn());
         });
         let next: ReturnType<typeof replaceVaultSession> | undefined;
         await act(async () => {
@@ -840,11 +813,23 @@ it.each(["captcha", "recovery", "persistence", "authentication"])(
                     ? { deviceId: "recovered-device" }
                     : ok(undefined),
             );
-            expect(await result).toBe(false);
+            // The Kit is spent once the server accepts it.
+            expect(await result).toMatchObject({
+                ...(phase === "captcha" && { cause: "vault" }),
+                state:
+                    phase === "captcha"
+                        ? "failed"
+                        : phase === "authentication"
+                          ? "notConnected"
+                          : "saveFailed",
+            });
         });
         if (!next) throw new Error("Next vault session was not installed.");
         expectCurrentSession(next);
         expect(mockSync).not.toHaveBeenCalled();
+        // A session that ended before sending takes no auto-lock hold.
+        if (phase === "captcha")
+            expect(mockHoldAutoLock).not.toHaveBeenCalled();
         if (phase === "captcha") expect(mockRecover).not.toHaveBeenCalled();
         if (phase === "captcha" || phase === "recovery")
             expect(mockPersist).not.toHaveBeenCalled();
@@ -919,6 +904,233 @@ it.each(["logout", "persistence"])(
     },
 );
 
+async function recoverWith(prepare: () => void) {
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase(mockRecoveryPhrase);
+    });
+    prepare();
+    let outcome: unknown;
+    await act(async () => {
+        outcome = await account().handleRecover(jest.fn());
+    });
+    return outcome;
+}
+
+it("ends recovery in a retryable state when the human check does not finish", async () => {
+    const outcome = await recoverWith(() =>
+        mockRequestToken.mockResolvedValueOnce(null),
+    );
+    expect(outcome).toEqual({ state: "checkIncomplete" });
+    expect(mockRecover).not.toHaveBeenCalled();
+    expect(account().mutationBusy).toBe(false);
+    // The phrase stays so the user can try again without retyping it.
+    expect(account().recoverPhrase).toBe(mockRecoveryPhrase);
+});
+
+it.each([
+    ["UNAUTHORIZED", "rejected"],
+    [undefined, "unreachable"],
+])("reads a recovery request refused with %s as %s", async (code, state) => {
+    const error = code
+        ? new TRPCClientError("Refused", {
+              result: {
+                  error: { message: "Refused", code: -32000, data: { code } },
+              },
+          })
+        : new TRPCClientError("Network request failed");
+    const outcome = await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(error),
+    );
+    expect(outcome).toEqual({ state });
+    expect(mockPersist).not.toHaveBeenCalled();
+    expect(account().recoverPhrase).toBe(mockRecoveryPhrase);
+});
+
+it("runs one recovery at a time", async () => {
+    mockRequestToken.mockResolvedValue("");
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase(mockRecoveryPhrase);
+    });
+    let outcomes: unknown[] = [];
+    await act(async () => {
+        outcomes = await Promise.all([
+            account().handleRecover(jest.fn()),
+            account().handleRecover(jest.fn()),
+        ]);
+    });
+    expect(outcomes[1]).toBeNull();
+    expect(mockRequestToken).toHaveBeenCalledTimes(1);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+});
+
+it("checks the Kit as entered before any server call", async () => {
+    await renderController();
+    await act(async () => {
+        account().setRecoverUserId("recovered-user");
+        account().setRecoverPhrase("only three words");
+    });
+    let outcome: unknown;
+    await act(async () => {
+        outcome = await account().handleRecover(jest.fn());
+    });
+    expect(outcome).toEqual({ state: "invalid" });
+    expect(mockRequestToken).not.toHaveBeenCalled();
+    expect(mockRecover).not.toHaveBeenCalled();
+});
+
+it("retries a failed save of an accepted recovery once on its own", async () => {
+    const outcome = await recoverWith(() =>
+        mockPersist.mockResolvedValueOnce(err("VAULT_MUTATION_FAILED")),
+    );
+    expect(outcome).toEqual({ state: "kitMissing" });
+    expect(mockPersist).toHaveBeenCalledTimes(2);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the vault from auto-locking until an accepted recovery is saved", async () => {
+    const outcome = await recoverWith(() =>
+        mockPersist
+            .mockResolvedValueOnce(err("VAULT_MUTATION_FAILED"))
+            .mockResolvedValueOnce(err("VAULT_MUTATION_FAILED")),
+    );
+    expect(outcome).toEqual({ state: "saveFailed" });
+    expect(mockHoldAutoLock).toHaveBeenCalledTimes(1);
+    expect(mockReleaseLockHold).not.toHaveBeenCalled();
+    expect(account().recoverPhrase).toBe("");
+    let retried: unknown;
+    await act(async () => {
+        retried = await account().retryRecoverySave();
+    });
+    expect(retried).toEqual({ state: "kitMissing" });
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+    expect(mockRecover).toHaveBeenCalledTimes(1);
+    expect(mockRequestToken).toHaveBeenCalledTimes(1);
+    expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
+        "recovered-device",
+    );
+});
+
+it("logs where recovery failed by step and code, never the server's text", async () => {
+    await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(
+            new TRPCClientError("private server detail", {
+                result: {
+                    error: {
+                        message: "private server detail",
+                        code: -32000,
+                        data: { code: "UNAUTHORIZED" },
+                    },
+                },
+            }),
+        ),
+    );
+    const logged = jest.mocked(onlineServicesLog.error).mock.calls;
+    expect(logged).toContainEqual([
+        "Account recovery failed",
+        expect.objectContaining({
+            step: "recovery request",
+            reason: "rejected",
+            code: "UNAUTHORIZED",
+        }),
+    ]);
+    expect(JSON.stringify(logged)).not.toContain("private server detail");
+});
+
+it("shows a rate-limit refusal with its latest end and still lets the next attempt through", async () => {
+    const clock = jest.spyOn(Date, "now").mockReturnValue(1_000);
+    const outcome = await recoverWith(() =>
+        mockRecover.mockRejectedValueOnce(
+            new TRPCClientError("Too many requests", {
+                result: {
+                    error: {
+                        message: "Too many requests",
+                        code: -32029,
+                        data: { code: "TOO_MANY_REQUESTS" },
+                    },
+                },
+            }),
+        ),
+    );
+    clock.mockRestore();
+    expect(outcome).toEqual({
+        state: "rateLimited",
+        until: 1_000 + 2 * 60 * 60 * 1000,
+    });
+    let again: unknown;
+    await act(async () => {
+        again = await account().handleRecover(jest.fn());
+    });
+    // The server doesn't count refusals, so the app doesn't block retries.
+    expect(again).toEqual({ state: "kitMissing" });
+    expect(mockRecover).toHaveBeenCalledTimes(2);
+});
+
+it("holds off auto-lock from the moment the recovery request is sent", async () => {
+    let whileOut: number[] = [];
+    const outcome = await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            whileOut = [
+                mockHoldAutoLock.mock.calls.length,
+                mockReleaseLockHold.mock.calls.length,
+            ];
+            throw new TRPCClientError("Network request failed");
+        }),
+    );
+    expect(whileOut).toEqual([1, 0]);
+    expect(outcome).toEqual({ state: "unreachable" });
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+});
+
+it("releases the auto-lock hold when the screen goes away while the request is out", async () => {
+    mockPersist.mockResolvedValue(err("VAULT_MUTATION_FAILED"));
+    await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            renderer?.unmount();
+            renderer = undefined;
+            return { deviceId: "recovered-device" };
+        }),
+    );
+    expect(mockHoldAutoLock).toHaveBeenCalledTimes(1);
+    expect(mockReleaseLockHold).toHaveBeenCalledTimes(1);
+});
+
+it("never reports a sent request as stopped on this device after a vault switch", async () => {
+    const outcome = await recoverWith(() =>
+        mockRecover.mockImplementationOnce(async () => {
+            replaceVaultSession();
+            throw new TRPCClientError("Network request failed");
+        }),
+    );
+    // Not "nothing has changed": the server may have the Kit.
+    expect(outcome).toEqual({ state: "unreachable" });
+});
+
+it("explains a recovery stopped on this device before the Kit was sent", async () => {
+    const outcome = await recoverWith(() =>
+        mockRequestToken.mockRejectedValueOnce(new Error("Keychain busy")),
+    );
+    expect(outcome).toEqual({
+        state: "failed",
+        cause: "device",
+        detail: "Keychain busy",
+    });
+    expect(mockRecover).not.toHaveBeenCalled();
+});
+
+it("reports a recovered account that could not sign in as not connected", async () => {
+    const outcome = await recoverWith(() =>
+        mockEstablish.mockRejectedValueOnce(new Error("Offline")),
+    );
+    expect(outcome).toEqual({ state: "notConnected" });
+    expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
+        "recovered-device",
+    );
+});
+
 it("recovers and deletes the account binding when the originating vault session stays active", async () => {
     mockRootDevice = true;
     await renderController();
@@ -926,9 +1138,18 @@ it("recovers and deletes the account binding when the originating vault session 
         account().setRecoverUserId("recovered-user");
         account().setRecoverPhrase(mockRecoveryPhrase);
     });
+    const stages = jest.fn();
     await act(async () => {
-        expect(await account().handleRecover()).toBe("kit-missing");
+        expect(await account().handleRecover(stages)).toEqual({
+            state: "kitMissing",
+        });
     });
+    expect(stages.mock.calls).toEqual([
+        ["check"],
+        ["recovering"],
+        ["connecting"],
+    ]);
+    expect(account().recoverPhrase).toBe("");
     expect(vaultStore.get(unlockedVaultAtom).OnlineServices?.DeviceId).toBe(
         "recovered-device",
     );
@@ -998,331 +1219,14 @@ it("shows localized Play prices once, then opens the selected payment directly a
             ),
     ).toBe(true);
     await press("Continue");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
     expect(mockCheckout).not.toHaveBeenCalled();
     expect(
         button("I've saved my kit. Continue to payment").props.disabled,
     ).toBe(true);
     await press("Copy Recovery Kit");
+    expect(mockStorePlans).toHaveBeenCalledTimes(1);
     await press("I've saved my kit. Continue to payment");
     expect(mockCheckout.mock.calls).toEqual([["premiumYearly", paidTerms]]);
-    expect(mockStorePlans).toHaveBeenCalledTimes(1);
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockPendingChange).toHaveBeenCalledWith(true);
-    expect(mockPendingChange.mock.invocationCallOrder[0]).toBeLessThan(
-        mockBillingOpened.mock.invocationCallOrder[0]!,
-    );
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it("blocks signup dismissal during Play billing and prevents duplicate taps", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const pending = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(pending.promise);
-    await act(async () => {
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        onPress();
-        onPress();
-    });
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
-        false,
-    );
-    expect(mockNavigationGuard).toBe(true);
-    await act(async () =>
-        pending.resolve({ ok: false, message: "Payment unavailable" }),
-    );
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
-    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
-        true,
-    );
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it.each([
-    "unmount",
-    "reopen",
-    "account replacement",
-    "disconnect and reconnect",
-])("ignores an old Play completion after %s", async (change) => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await press("I've saved my kit. Continue to payment");
-    if (change === "unmount") {
-        await act(async () => renderer!.unmount());
-        renderer = undefined;
-    } else if (change === "reopen") {
-        await renderSignup(false);
-        await renderSignup(true);
-    } else if (change === "account replacement") {
-        await act(async () => {
-            const vault = vaultStore.get(unlockedVaultAtom);
-            vaultStore.set(unlockedVaultAtom, {
-                ...vault,
-                OnlineServices: new OnlineServices(
-                    "other-device",
-                    "other-user",
-                    "public",
-                    "private",
-                ),
-            } as never);
-        });
-    } else {
-        const session = onlineServicesStore.get(onlineServicesDataAtom);
-        await act(async () =>
-            onlineServicesStore.set(onlineServicesDataAtom, null),
-        );
-        await act(async () =>
-            onlineServicesStore.set(onlineServicesDataAtom, session),
-        );
-    }
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
-    expect(mockPendingChange).not.toHaveBeenCalled();
-    if (renderer)
-        expect(renderer.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it("allows a normal same-account session token refresh while Play checkout is open", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await press("I've saved my kit. Continue to payment");
-    await act(async () =>
-        onlineServicesStore.set(onlineServicesDataAtom, {
-            ...onlineServicesStore.get(onlineServicesDataAtom),
-            sessionToken: "refreshed-token",
-        } as never),
-    );
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it.each(["pending", "canceled"])(
-    "retains the saved kit and interval after Play %s without reporting an error",
-    async (state) => {
-        mockPlayBuild = true;
-        await renderSignup(true, false);
-        await chooseYearly();
-        await press("Continue");
-        await press("Copy Recovery Kit");
-        mockCheckout.mockResolvedValueOnce({
-            ok: false,
-            message: "Private billing details",
-            [state]: true,
-        });
-        const onPress = button("I've saved my kit. Continue to payment").props
-            .onPress;
-        await press("I've saved my kit. Continue to payment");
-        expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-        expect(
-            button("I've saved my kit. Continue to payment").props.disabled,
-        ).toBe(state === "pending");
-        expect(!!button("Check status")).toBe(state === "pending");
-        expect(
-            renderer!.root.findAllByProps({ testID: "snackbar" }),
-        ).toHaveLength(0);
-        expect(mockBillingOpened).not.toHaveBeenCalled();
-        expect(mockClosed).not.toHaveBeenCalled();
-        if (state === "pending") {
-            // A parent can lag behind the native pending result; even an old handler cannot charge again.
-            await act(async () => onPress());
-            await press("Check status");
-            expect(mockStatus).toHaveBeenCalledTimes(1);
-            expect(mockCheckout).toHaveBeenCalledTimes(1);
-            expect(
-                button("I've saved my kit. Continue to payment").props.disabled,
-            ).toBe(true);
-        } else {
-            await press("I've saved my kit. Continue to payment");
-            expect(mockCheckout.mock.calls).toEqual([
-                ["premiumYearly", paidTerms],
-                ["premiumYearly", paidTerms],
-            ]);
-        }
-    },
-);
-
-it("retains a pending kit after a failed status check and completes only on backend confirmation", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Pending",
-    });
-    await press("I've saved my kit. Continue to payment");
-    mockStatus.mockResolvedValueOnce({
-        ok: false,
-        message: "Could not connect.",
-    });
-    await press("Check status");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    const retry = renderer!.root.findByProps({
-        accessibilityLabel: "Check status",
-    });
-    mockStatus.mockResolvedValueOnce({ ok: true });
-    await act(async () => retry.props.onPress());
-    expect(mockStatus).toHaveBeenCalledTimes(2);
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(mockPendingChange).toHaveBeenLastCalledWith(false);
-    expect(mockBillingOpened).toHaveBeenCalledWith("success");
-    expect(mockClosed).toHaveBeenCalledWith(false);
-});
-
-it("clears the local pending latch when parent backend confirmation resolves", async () => {
-    mockPlayBuild = true;
-    await renderSignup(true, false);
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        pending: true,
-        message: "Pending",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(
-        button("I've saved my kit. Continue to payment").props.disabled,
-    ).toBe(true);
-    await renderSignup(true, true);
-    await renderSignup(true, false);
-    expect(button("Check status")).toBeUndefined();
-    expect(
-        button("I've saved my kit. Continue to payment").props.disabled,
-    ).toBe(false);
-});
-
-it.each(["Stripe", "Google Play"])(
-    "finishes the saved-kit journey without another charge or browser return when %s membership becomes active",
-    async (provider) => {
-        mockPlayBuild = provider === "Google Play";
-        await renderSignup(true, false);
-        await chooseYearly();
-        await press("Continue");
-        await press("Copy Recovery Kit");
-        mockCheckout.mockResolvedValueOnce({
-            ok: false,
-            pending: mockPlayBuild,
-            message: "Could not confirm payment",
-        });
-        await press("I've saved my kit. Continue to payment");
-        if (mockPlayBuild) await renderSignup(true, true);
-        mockNonFree = true;
-        await renderSignup(true, false);
-        await press("I've saved my kit. Continue to payment");
-        expect(mockCheckout).toHaveBeenCalledTimes(1);
-        expect(mockStatus).not.toHaveBeenCalled();
-        if (mockPlayBuild)
-            expect(mockPendingChange).toHaveBeenLastCalledWith(false);
-        expect(mockBillingOpened).toHaveBeenCalledWith("success");
-        expect(mockClosed).toHaveBeenCalledWith(false);
-    },
-);
-
-it("retries Play preflight failures with the same account, selected interval, and saved kit", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await chooseYearly();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Google Play billing is unavailable.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
-    await act(async () => retry.props.onPress());
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumYearly", paidTerms],
-        ["premiumYearly", paidTerms],
-    ]);
-    expect(mockRegister).toHaveBeenCalledTimes(1);
-    expect(mockGenerateRecovery).toHaveBeenCalledTimes(1);
-});
-
-it("offers no Retry when the Play subscription belongs to another account", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        retryable: false,
-        message:
-            "This Google Play subscription belongs to another Cryptex Vault account.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    expect(
-        renderer!.root.findAll(
-            (node) =>
-                node.props.children ===
-                "This Google Play subscription belongs to another Cryptex Vault account.",
-        ).length,
-    ).toBeGreaterThan(0);
-    expect(
-        renderer!.root.findAllByProps({ accessibilityLabel: "Retry" }),
-    ).toHaveLength(0);
-});
-
-it("ignores a payment Retry from a previous signup sheet lifetime", async () => {
-    mockPlayBuild = true;
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        message: "Google Play billing is unavailable.",
-    });
-    await press("I've saved my kit. Continue to payment");
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" })
-        .props.onPress;
-    await renderSignup(false);
-    await renderSignup(true);
-    await act(async () => retry());
-    expect(mockCheckout).toHaveBeenCalledTimes(1);
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-});
-
-it("keeps the Recovery Kit and shows an actionable snackbar if Stripe checkout rejects", async () => {
-    await renderSignup();
-    await press("Continue");
-    await press("Copy Recovery Kit");
-    mockCheckout.mockRejectedValueOnce(new Error("private transport error"));
-    await press("I've saved my kit. Continue to payment");
-    expect(renderer!.root.findAllByType(RecoveryKitDialog)).toHaveLength(1);
-    expect(renderer!.root.findAllByProps({ testID: "snackbar" })).toHaveLength(
-        1,
-    );
-    expect(
-        renderer!.root
-            .findAllByType("Text" as never)
-            .some(
-                (node) =>
-                    node.props.children ===
-                    "Could not open secure payment. Please try again.",
-            ),
-    ).toBe(true);
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
 });
 
 it("uses the snackbar for registration failures without exposing server diagnostics", async () => {
@@ -1345,47 +1249,61 @@ it("uses the snackbar for registration failures without exposing server diagnost
     expect(mockCheckout).not.toHaveBeenCalled();
 });
 
-it("does not close a newer screen when an old Stripe payment completes after unmount", async () => {
+it("holds the sheet while the store payment opens, then lets it close", async () => {
+    mockPlayBuild = true;
     await renderSignup();
     await press("Continue");
     await press("Copy Recovery Kit");
-    const payment = deferred<unknown>();
-    mockCheckout.mockReturnValueOnce(payment.promise);
-    await act(async () => {
-        button("I've saved my kit. Continue to payment").props.onPress();
-    });
-    await act(async () => renderer!.unmount());
-    renderer = undefined;
-    await act(async () => payment.resolve({ ok: true }));
-    expect(mockClosed).not.toHaveBeenCalled();
-    expect(mockBillingOpened).not.toHaveBeenCalled();
+    await press("I've saved my kit. Continue to payment");
+    await renderSignup(true, { state: "opening" });
+    expect(renderer!.root.findAllByType("PaymentPanel" as never)).toHaveLength(
+        1,
+    );
+    expect(renderer!.root.findAllByType("DialogTitle" as never)).toHaveLength(
+        0,
+    );
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        false,
+    );
+    expect(mockNavigationGuard).toBe(true);
+    const { Alert } =
+        jest.requireMock<typeof import("react-native")>("react-native");
+    mockLeave();
+    expect(Alert.alert).toHaveBeenCalledWith(
+        "Payment in progress",
+        "Finish or cancel the payment in Google Play first.",
+    );
+    await renderSignup(true, { state: "confirming" });
+    expect(renderer!.root.findByType("Dialog" as never).props.dismissible).toBe(
+        true,
+    );
+    expect(mockNavigationGuard).toBe(false);
 });
 
-it("retries a changed Play offer only with the terms the snackbar describes", async () => {
+it("returns to the plan when the offer changed and pays the new terms on the same account", async () => {
     mockPlayBuild = true;
     mockTrialEligible = true;
     await renderSignup();
     await press("Continue");
     await press("Copy Recovery Kit");
-    mockCheckout.mockResolvedValueOnce({
-        ok: false,
-        offerChanged: { trial: true },
-        message: "changed",
-    });
     await press("I've saved my kit. Continue to payment");
-    expect(
-        renderer!.root
-            .findAllByType("Text" as never)
-            .some(
-                (node) =>
-                    node.props.children ===
-                    "This plan now starts with a 14-day free trial. Retry to start it.",
-            ),
-    ).toBe(true);
-    const retry = renderer!.root.findByProps({ accessibilityLabel: "Retry" });
-    await act(async () => retry.props.onPress());
-    expect(mockCheckout.mock.calls).toEqual([
-        ["premiumMonthly", { trialEligible: true, trial: false }],
-        ["premiumMonthly", { trialEligible: true, trial: true }],
+    expect(mockCheckout).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: false,
+    });
+    await renderSignup(true, { state: "opening" });
+    mockStorePlans.mockResolvedValue([
+        { tier: "premiumMonthly", price: "$4.99", trial: true },
+        { tier: "premiumYearly", price: "$49.99", trial: true },
     ]);
+    await renderSignup(true, { state: "offerChanged", trial: true });
+    expect(
+        renderer!.root.findByType("PaymentStatus" as never).props,
+    ).toMatchObject({ state: "offerChanged", trial: true });
+    await press("Start 14-day free trial");
+    expect(mockCheckout).toHaveBeenLastCalledWith("premiumMonthly", {
+        trialEligible: true,
+        trial: true,
+    });
+    expect(mockRegister).toHaveBeenCalledTimes(1);
 });

@@ -32,6 +32,7 @@ import {
     noteVaultInteraction,
     setVaultTimeoutMinutes,
     startVaultTimeoutSession,
+    subscribeVaultTimeoutChanges,
     vaultTimeoutRemainingMs,
 } from "@/utils/session-timeout";
 
@@ -137,6 +138,8 @@ export function useAutoLock(
         );
         if (delayMs == null) return;
         const remainingMs = vaultTimeoutRemainingMs();
+        // A held lock has no deadline; its release schedules the next one.
+        if (remainingMs == null) return;
 
         idleTimerRef.current = setTimeout(
             () => {
@@ -144,7 +147,7 @@ export function useAutoLock(
                 if (isAutoLockDue()) void runLock();
                 else scheduleForegroundIdle();
             },
-            Math.min(delayMs, remainingMs ?? delayMs),
+            Math.min(delayMs, remainingMs),
         );
     }, [clearIdleTimer, enabled, metadata, runLock]);
 
@@ -268,10 +271,17 @@ export function useAutoLock(
         };
 
         const sub = AppState.addEventListener("change", onAppState);
+        // A released hold restarts the idle window, so replace the old timer.
+        const unsubscribeTimeout = subscribeVaultTimeoutChanges(() => {
+            if (appStateRef.current !== "active") return;
+            lastInteractionAtRef.current = getVaultLastInteractionAt();
+            scheduleForegroundIdle();
+        });
 
         return () => {
             cancelled = true;
             unsubscribe();
+            unsubscribeTimeout();
             sub.remove();
             clearIdleTimer();
         };

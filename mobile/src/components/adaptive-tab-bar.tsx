@@ -12,7 +12,7 @@ type TabScreenOptions = Exclude<
 >;
 
 /** Compact tablet landscape rail width (dp). */
-const TABLET_RAIL_WIDTH = 116;
+const TABLET_RAIL_WIDTH = 136;
 
 /**
  * Shared Tabs options: bottom tabs on phones in either orientation, compact
@@ -28,7 +28,9 @@ export function useAdaptiveTabScreenOptions(
     return {
         headerShown: false,
         tabBarPosition: isTablet ? "left" : "bottom",
-        tabBarLabelPosition: isTablet ? "beside-icon" : "below-icon",
+        // Labels beside icons turn the rail into a wide system-tinted sidebar.
+        tabBarVariant: isTablet ? "material" : "uikit",
+        tabBarLabelPosition: "below-icon",
         tabBarActiveTintColor: isTablet ? colors.foreground : colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: isTablet
@@ -61,9 +63,8 @@ export function useAdaptiveTabScreenOptions(
         tabBarLabelStyle: isTablet
             ? {
                   fontFamily: "Oxanium_500Medium",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: "500",
-                  marginLeft: 1,
               }
             : {
                   fontFamily: "Oxanium_500Medium",

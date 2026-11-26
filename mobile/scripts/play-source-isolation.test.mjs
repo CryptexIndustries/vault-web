@@ -64,9 +64,12 @@ async function metroConfig(
     return evaluate("metro.config.js", distribution, loader, projectRoot);
 }
 
-test("only Play Android resolves the billing service or RevenueCat into its Metro graph", async () => {
+test("only iOS and Play Android resolve the billing service or RevenueCat into their Metro graph", async () => {
     for (const distribution of [undefined, "standard", "fdroid", "play"]) {
         for (const platform of ["android", "ios", "web"]) {
+            const billing =
+                platform === "ios" ||
+                (distribution === "play" && platform === "android");
             const calls = [];
             const resolveRequest = (_context, name) => {
                 calls.push(name);
@@ -81,7 +84,7 @@ test("only Play Android resolves the billing service or RevenueCat into its Metr
                 resolveRequest,
             };
             for (const name of [
-                "./google-play-billing",
+                "./store-billing",
                 "react-native-purchases",
                 "react-native-purchases/dist/purchases",
                 "@revenuecat/purchases-typescript-internal",
@@ -91,16 +94,11 @@ test("only Play Android resolves the billing service or RevenueCat into its Metr
                     name,
                     platform,
                 );
-                assert.equal(
-                    resolution.type,
-                    distribution === "play" && platform === "android"
-                        ? "sourceFile"
-                        : "empty",
-                );
+                assert.equal(resolution.type, billing ? "sourceFile" : "empty");
             }
             assert.equal(
                 calls.length,
-                distribution === "play" && platform === "android" ? 4 : 0,
+                billing ? 4 : 0,
                 "Excluded modules must resolve even when removed from the prepared checkout",
             );
             assert.equal(
@@ -133,12 +131,9 @@ test("billing exclusion preserves Metro's fallback resolver and unrelated relati
         }),
     };
     assert.equal(
-        config.resolver.resolveRequest(
-            context,
-            "./google-play-billing",
-            "android",
-        ).filePath,
-        "./google-play-billing",
+        config.resolver.resolveRequest(context, "./store-billing", "android")
+            .filePath,
+        "./store-billing",
     );
     assert.equal(
         config.resolver.resolveRequest(context, "crypto", "android").filePath,
@@ -168,7 +163,7 @@ const sdkPackages = [
 const excludedSources = [
     "mobile/config/play-dependencies.gradle",
     "mobile/config/play-verification-metadata.xml",
-    "mobile/src/app_lib/google-play-billing.ts",
+    "mobile/src/app_lib/store-billing.ts",
 ];
 const preservedSources = [
     "mobile/fdroid/dependencies.gradle",
@@ -366,7 +361,7 @@ for (const kind of ["store", "package", "target", "parent"])
             "outside\n",
         );
         assert.ok(
-            existsSync(join(root, "mobile/src/app_lib/google-play-billing.ts")),
+            existsSync(join(root, "mobile/src/app_lib/store-billing.ts")),
             "A rejected plan must preserve earlier valid targets",
         );
         if (kind !== "store")
@@ -404,7 +399,7 @@ test("an internal linked parent cannot redirect the removal plan within the chec
     assert.ok(existsSync(join(root, excludedSources[2])));
 });
 
-test("the actual autolinker excludes the installed SDK outside Play Android", async () => {
+test("the actual autolinker excludes the installed SDK outside iOS and Play Android", async () => {
     const sdk = dirname(require.resolve("react-native-purchases/package.json"));
     for (const distribution of [undefined, "standard", "fdroid", "play"]) {
         const project = evaluate("react-native.config.js", distribution);
@@ -417,7 +412,7 @@ test("the actual autolinker excludes the installed SDK outside Play Android", as
             );
             assert.equal(
                 Boolean(result),
-                distribution === "play" && platform === "android",
+                platform === "ios" || distribution === "play",
             );
         }
     }
@@ -469,11 +464,8 @@ test("the existing native hook prepares an SDK-free checkout for the unchanged F
         resolveRequest,
     };
     assert.equal(
-        config.resolver.resolveRequest(
-            context,
-            "./google-play-billing",
-            "android",
-        ).type,
+        config.resolver.resolveRequest(context, "./store-billing", "android")
+            .type,
         "empty",
     );
     assert.equal(

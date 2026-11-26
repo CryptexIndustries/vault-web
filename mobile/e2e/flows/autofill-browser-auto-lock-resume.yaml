@@ -12,11 +12,11 @@ name: Chrome autofill after background auto-lock
 - openLink: http://localhost:43110/fresh-auto-lock-wait?case=background-auto-lock
 - assertVisible: Background auto-lock fixture
 - assertVisible: Waiting for the one-minute auto-lock interval
-- assertVisible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+
+- assertVisible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+.*
 # Chrome can paint the elapsed state while hiding the page from accessibility
 # after many prior Autofill callbacks. The timer also marks the browser URL.
 - extendedWaitUntil:
-      visible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+&elapsed=1
+      visible: localhost:43110/auto-lock-wait\?case=background-auto-lock&fresh=[0-9]+-[0-9]+&elapsed=1.*
       timeout: 90000
 - openLink: http://localhost:43110/fresh-login?case=background-auto-lock
 - runFlow: autofill-browser-dismiss-tips.yaml
@@ -35,9 +35,8 @@ name: Chrome autofill after background auto-lock
 - tapOn: Fixture Login, fixture@example.test.*
 - assertVisible: Review destination
 - tapOn: Fill once
-- tapOn:
-      point: 60%,28%
-- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0
+- pressKey: Enter
+- assertVisible: localhost:43110/login/otp\?accepted=1&empty=0.*
 
 # Restore the suite's starting auto-lock setting.
 - openLink: ${CRYPTEX_APP_SCHEME}://

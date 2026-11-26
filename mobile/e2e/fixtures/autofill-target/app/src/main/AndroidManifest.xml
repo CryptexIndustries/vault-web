@@ -13,6 +13,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".AccessibilityRegisterActivity" android:exported="false" />
+        <activity android:name=".ClipboardCodeActivity" android:exported="false" />
         <activity android:name=".CredentialManagerPasswordActivity" android:exported="false" />
         <activity android:name=".AccessibilityLoginActivity" android:exported="false" />
         <activity android:name=".WebLoginActivity" android:exported="false" />

@@ -15,7 +15,12 @@ export function BillingIntervalSelector({
     value: CheckoutTier;
     onChange: (tier: CheckoutTier) => void;
     disabled: boolean;
-    plans: Partial<Record<CheckoutTier, { price: string; caption?: string }>>;
+    plans: Partial<
+        Record<
+            CheckoutTier,
+            { price: string; caption?: string; highlight?: boolean }
+        >
+    >;
     pricePlaceholder: string;
 }) {
     const { t } = useLingui();
@@ -154,7 +159,7 @@ export function BillingIntervalSelector({
                             <Text
                                 style={{
                                     fontSize: 11,
-                                    color: annual
+                                    color: plans[tier]?.highlight
                                         ? colors.primary
                                         : colors.muted,
                                 }}

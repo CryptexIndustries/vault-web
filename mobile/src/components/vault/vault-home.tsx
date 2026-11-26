@@ -317,11 +317,18 @@ export function VaultHomeScreen({
             <VaultRow
                 item={item}
                 selected={selectedIDs.has(item.ID)}
+                open={isTablet && item.ID === selectedId}
                 onSelect={selectCredential}
                 onLongPress={longPressCredential}
             />
         ),
-        [selectedIDs, selectCredential, longPressCredential],
+        [
+            selectedIDs,
+            isTablet,
+            selectedId,
+            selectCredential,
+            longPressCredential,
+        ],
     );
 
     const toolbar = (
@@ -930,11 +937,14 @@ function SortSheet({
 const VaultRow = memo(function VaultRow({
     item,
     selected,
+    open,
     onSelect,
     onLongPress,
 }: {
     item: VaultCredential;
     selected: boolean;
+    /** Shown in the tablet detail pane. */
+    open: boolean;
     onSelect: (item: VaultCredential) => void;
     onLongPress: (id: string) => void;
 }) {
@@ -955,6 +965,14 @@ const VaultRow = memo(function VaultRow({
                 alignItems: "center",
                 borderBottomWidth: 1,
                 borderBottomColor: colors.border,
+                ...(open && {
+                    marginHorizontal: -12,
+                    paddingLeft: 10,
+                    paddingRight: 12,
+                    backgroundColor: "rgba(255,86,104,0.08)",
+                    borderLeftWidth: 2,
+                    borderLeftColor: colors.primary,
+                }),
             }}
         >
             <Pressable

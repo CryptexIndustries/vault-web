@@ -1,7 +1,6 @@
 import {
     UnlockedDialogTitle as DialogTitle,
     UnlockedScreen,
-    UnlockedPageTitle,
     UnlockedText,
     UnlockedButton as Button,
     UnlockedInput as Input,
@@ -247,8 +246,7 @@ export function DirectoryManagerScreen() {
     const deleteName = deleteTarget?.Name;
 
     return (
-        <UnlockedScreen scroll>
-            <UnlockedPageTitle title={t`Directories`} />
+        <UnlockedScreen scroll taskTitle={t`Directories`}>
             <View
                 style={{
                     paddingBottom: 22,

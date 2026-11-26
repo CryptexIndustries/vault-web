@@ -9,12 +9,14 @@ import {
     rmSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isIosSimulator } from "../e2e/profile.mjs";
 import { getProfile, parseReleaseOptions } from "./release-config.mjs";
 
 const mobile = fileURLToPath(new URL("../", import.meta.url));
 const android = join(mobile, "android");
+const ios = join(mobile, "ios");
 const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
@@ -30,8 +32,7 @@ export const flows = {
     security: "security.yaml",
     cloud: "cloud.yaml",
     devices: "devices.yaml",
-    "sync-sender": "sync-link-sender.yaml",
-    "sync-receiver": "sync-link-receiver.yaml",
+    "account-recovery": "account-recovery.yaml",
     "import-export": "import-export.yaml",
 };
 
@@ -42,8 +43,9 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --reproduce-from <signed-reference.apk> [--profile <name>] [--config <path>]
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
+  pnpm mobile:build -- --dev|--e2e --platform ios [--profile <name>] [--device <simulator>] [--regenerate-native]
   pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
-  pnpm mobile:e2e -- <suite> [--device <serial>] [Maestro options]
+  pnpm mobile:e2e -- <suite> [--device <serial or Simulator UDID>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
   pnpm mobile:install [-- --profile production|preprod] [--arch <abi>] --device <serial> [apk]
   pnpm mobile:logs [-- --profile production|preprod] --device <serial>
@@ -62,14 +64,15 @@ Local release builds reuse .mobile-build/ in the current checkout and use all av
 --dev builds a secure debug APK; --e2e builds the test-only Maestro APK.
 Dev and E2E builds use the standard distribution; --distribution play adds Google Play Billing.
 Pass the same --distribution to mobile:dev so Metro bundles the matching billing modules.
---regenerate-native backs up the existing Android tree before a fresh dev/E2E prebuild.
+--regenerate-native backs up the existing native tree before a fresh dev/E2E prebuild.
+--platform ios builds on macOS and installs on an iOS Simulator: --dev the dev client, --e2e a bundled Maestro app.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
-Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock,
+Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock, ios-autofill,
         ssh-keys, ssh-agent, backup-destinations, sync, fixture, cloud-fixture, target, qr, crypto,
         crypto-audit, native
 backup-destinations starts its own Garage in Docker (E2E_GARAGE_TLS_PORT, default 3943).
-Sync requires E2E_SYNC_SENDER, E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.
+sync starts the web app and its linking servers in Docker.
 CRYPTEX_E2E_PROTECTED_DEVICE forbids any device suite on that serial.
 `;
 
@@ -97,6 +100,30 @@ export function requireNativeIdentity(profile, project = android) {
         );
 }
 
+export function requireIosIdentity(profile, project = ios) {
+    const xcodeproj = existsSync(project)
+        ? readdirSync(project).find((name) => name.endsWith(".xcodeproj"))
+        : undefined;
+    if (!xcodeproj) return;
+    const source = readFileSync(
+        join(project, xcodeproj, "project.pbxproj"),
+        "utf8",
+    );
+    const values = [
+        ...source.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([^";]+)"?;/g),
+    ].map((match) => match[1]);
+    // The AutoFill extension from targets/autofill.
+    const extension = `${profile.applicationId}.autofill`;
+    if (
+        values.some(
+            (value) => value !== profile.applicationId && value !== extension,
+        )
+    )
+        throw new Error(
+            `Existing iOS project identity (${[...new Set(values)].join(", ")}) differs from ${profile.applicationId}. Rerun pnpm mobile:build -- --dev --platform ios --profile ${profile.name} --regenerate-native.`,
+        );
+}
+
 export function regenerateNativeProject(
     profile,
     project = android,
@@ -105,11 +132,10 @@ export function regenerateNativeProject(
     if (!existsSync(project)) return;
     mkdirSync(backupRoot, { recursive: true, mode: 0o700 });
     const backup = mkdtempSync(join(backupRoot, `${profile.name}-`));
-    renameSync(project, join(backup, "android"));
-    console.log(
-        `Existing native project preserved at ${join(backup, "android")}.`,
-    );
-    return join(backup, "android");
+    const preserved = join(backup, basename(project));
+    renameSync(project, preserved);
+    console.log(`Existing native project preserved at ${preserved}.`);
+    return preserved;
 }
 
 // React Native caches autolinking until package.json or react-native.config.js
@@ -128,6 +154,8 @@ export function runMobile(
         env = process.env,
         checkAndroid = requireAndroid,
         checkNativeIdentity = requireNativeIdentity,
+        checkIosIdentity = requireIosIdentity,
+        host = process.platform,
         regenerateNative = regenerateNativeProject,
         clearAutolinking = clearAutolinkingCache,
     } = {},
@@ -296,6 +324,66 @@ export function runMobile(
             const distribution = takeDistribution();
             const regenerate = args.includes("--regenerate-native");
             if (regenerate) args.splice(args.indexOf("--regenerate-native"), 1);
+            let platform = "android";
+            const platformIndex = args.indexOf("--platform");
+            if (platformIndex >= 0) {
+                platform = args[platformIndex + 1];
+                if (
+                    args.lastIndexOf("--platform") !== platformIndex ||
+                    !["android", "ios"].includes(platform)
+                )
+                    throw new Error("Specify --platform android or ios once.");
+                args.splice(platformIndex, 2);
+            }
+            if (platform === "ios") {
+                const deviceIndex = args.indexOf("--device");
+                const device = deviceIndex >= 0 ? args[deviceIndex + 1] : null;
+                if (deviceIndex >= 0) {
+                    if (
+                        !device ||
+                        device.startsWith("-") ||
+                        args.lastIndexOf("--device") !== deviceIndex
+                    )
+                        throw new Error(
+                            "--device requires one iOS Simulator name or UDID.",
+                        );
+                    args.splice(deviceIndex, 2);
+                }
+                if (args.length !== 1)
+                    throw new Error(
+                        "iOS supports only --dev or --e2e builds for the Simulator.",
+                    );
+                if (distribution !== "standard")
+                    throw new Error("Google Play Billing is Android-only.");
+                if (host !== "darwin")
+                    throw new Error("iOS builds need macOS with Xcode.");
+                if (regenerate) regenerateNative(profile, ios);
+                checkIosIdentity(profile);
+                const buildEnv = developmentEnvironment(profile, e2e);
+                exec(
+                    [
+                        "expo",
+                        "prebuild",
+                        "--platform",
+                        "ios",
+                        "--no-install",
+                        "--no-clean",
+                    ],
+                    buildEnv,
+                );
+                // Installs pods, builds for the Simulator, installs and launches.
+                exec(
+                    [
+                        "expo",
+                        "run:ios",
+                        "--no-bundler",
+                        ...(e2e ? ["--configuration", "Release"] : []),
+                        ...(device ? ["--device", device] : []),
+                    ],
+                    buildEnv,
+                );
+                return;
+            }
             if (args.length !== 1)
                 throw new Error("Choose only --dev or --e2e for a test build.");
             if (regenerate) regenerateNative(profile);
@@ -414,7 +502,9 @@ export function runMobile(
             value.startsWith("-") ||
             args.indexOf("--device", deviceIndex + 1) >= 0
         ) {
-            throw new Error("--device requires one Android device serial.");
+            throw new Error(
+                "--device requires one device serial or Simulator UDID.",
+            );
         }
         serial = value;
         args.splice(deviceIndex, 2);
@@ -434,26 +524,29 @@ export function runMobile(
             throw new Error(`Refusing to touch protected device ${serial}.`);
         }
     };
-    if (suite === "sync") {
+    if (
+        ["import-export", "ssh-keys"].includes(suite) &&
+        isIosSimulator(serial)
+    ) {
+        // A native test drives the Files screens.
         rejectArguments();
-        const sender =
-            deviceIndex >= 0 ? serial : env.E2E_SYNC_SENDER || serial;
-        const { E2E_SYNC_RECEIVER: receiver, E2E_SYNC_CONFIG: config } = env;
-        if (!sender || !receiver || !config || sender === receiver) {
-            throw new Error(
-                "Set distinct E2E_SYNC_SENDER and E2E_SYNC_RECEIVER and E2E_SYNC_CONFIG.",
-            );
-        }
-        if ([sender, receiver].includes(env.CRYPTEX_E2E_PROTECTED_DEVICE)) {
-            throw new Error(
-                "Refusing to touch the protected device in the sync pair.",
-            );
-        }
-        execute(process.execPath, ["e2e/run-sync-link.mjs"], {
-            ...developmentEnvironment(profile, true),
-            ...identityEnv,
-            E2E_SYNC_SENDER: sender,
-        });
+        requireDevice();
+        execute(
+            process.execPath,
+            ["e2e/run-ios-transfer.mjs", suite],
+            deviceEnv,
+        );
+    } else if (suite === "ios-autofill") {
+        // Native tests drive Settings, Safari and the AutoFill extension.
+        rejectArguments();
+        requireDevice();
+        if (!isIosSimulator(serial))
+            throw new Error("ios-autofill runs on an iOS Simulator.");
+        execute(process.execPath, ["e2e/run-ios-autofill.mjs"], deviceEnv);
+    } else if (suite === "sync") {
+        rejectArguments();
+        requireDevice();
+        execute(process.execPath, ["e2e/run-web-sync.mjs"], deviceEnv);
     } else if (["fixture", "cloud-fixture"].includes(suite)) {
         rejectArguments();
         execute(process.execPath, [
@@ -548,7 +641,7 @@ export function runMobile(
             ],
             deviceEnv,
         );
-    } else if (["cloud", "devices"].includes(suite)) {
+    } else if (["cloud", "devices", "account-recovery"].includes(suite)) {
         requireDevice();
         mkdirSync(join(mobile, "e2e/results"), { recursive: true });
         execute(

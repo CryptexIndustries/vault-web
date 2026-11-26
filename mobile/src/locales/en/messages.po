@@ -11,6 +11,11 @@ msgstr ""
 msgid "“No directory” is reserved for unfiled credentials."
 msgstr "“No directory” is reserved for unfiled credentials."
 
+#. placeholder {0}: result.failed
+#: app/_layout.tsx
+msgid "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+msgstr "{0, plural, one {# AutoFill login could not be added to your vault.} other {# AutoFill logins could not be added to your vault.}}"
+
 #. placeholder {0}: initialImport.credentials.length
 #: src/components/vault-manager/create-tab.tsx
 msgid "{0, plural, one {# credential is staged. It will be added when this vault is created.} other {# credentials are staged. They will be added when this vault is created.}}"
@@ -41,6 +46,11 @@ msgstr "{0, plural, one {# item checked on this device} other {# items checked o
 msgid "{0, plural, one {# minute} other {# minutes}}"
 msgstr "{0, plural, one {# minute} other {# minutes}}"
 
+#. placeholder {0}: result.savedAsNew
+#: app/_layout.tsx
+msgid "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+msgstr "{0, plural, one {# saved password was for a login you had deleted, so it was added as a new login.} other {# saved passwords were for logins you had deleted, so they were added as new logins.}}"
+
 #. placeholder {0}: analysis?.reuseGroups.length ?? 0
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Across # shared password group} other {Across # shared password groups}}"
@@ -50,6 +60,11 @@ msgstr "{0, plural, one {Across # shared password group} other {Across # shared 
 #: src/components/linking-progress.tsx
 msgid "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
 msgstr "{0, plural, one {Activity log (# event)} other {Activity log (# events)}}"
+
+#. placeholder {0}: result.associated
+#: app/_layout.tsx
+msgid "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
+msgstr "{0, plural, one {Added # website from AutoFill to your logins.} other {Added # websites from AutoFill to your logins.}}"
 
 #. placeholder {0}: rows.length
 #: app/(app)/settings/security-report/index.tsx
@@ -70,6 +85,11 @@ msgstr "{0, plural, one {Same password used by # account (showing search matches
 #: app/(app)/settings/security-report/index.tsx
 msgid "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
 msgstr "{0, plural, one {Same password used by # account} other {Same password used by # accounts}}"
+
+#. placeholder {0}: result.passkeys
+#: app/_layout.tsx
+msgid "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
+msgstr "{0, plural, one {Saved # AutoFill passkey to your vault.} other {Saved # AutoFill passkeys to your vault.}}"
 
 #: app/(app)/devices/agents/[id].tsx
 msgid "{approverName} (this device)"
@@ -390,8 +410,16 @@ msgid "{namespace} signature"
 msgstr "{namespace} signature"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "{planPrice} charged every month. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
 msgstr "{planPrice} charged every month. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "{planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
+msgstr "{planPrice} charged every year. Automatically renews unless canceled at least 24 hours before the period ends. Cancel anytime in your Apple Account settings. Access continues until the end of the paid period."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "{planPrice} charged every year. Automatically renews until canceled. Cancel anytime in Google Play Subscriptions. Access continues until the end of the paid period."
@@ -421,6 +449,10 @@ msgstr "{reason} Remote registration was rolled back when possible."
 #: app/(app)/(tabs)/vault/search.tsx
 msgid "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
 msgstr "{resultCount, plural, one {# result across your vault} other {# results across your vault}}"
+
+#: app/_layout.tsx
+msgid "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
+msgstr "{saved, plural, one {Saved # AutoFill login to your vault.} other {Saved # AutoFill logins to your vault.}}"
 
 #. Number of SSH keys selected out of all keys
 #: src/components/agents/agent-rows.tsx
@@ -626,7 +658,9 @@ msgstr "Access unavailable"
 msgid "Accessibility fallback"
 msgstr "Accessibility fallback"
 
+#. Recovery step
 #: app/(app)/(tabs)/_layout.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Account"
 msgstr "Account"
@@ -683,6 +717,10 @@ msgstr "Account information does not match this device. Sign in again."
 #: src/components/account/account-security.tsx
 msgid "Account management"
 msgstr "Account management"
+
+#: src/components/account/recovery-status.tsx
+msgid "Account recovered"
+msgstr "Account recovered"
 
 #: src/components/account/account-security.tsx
 msgid "Account recovery"
@@ -1012,6 +1050,10 @@ msgstr "Already in this vault"
 msgid "Already set up on another device?"
 msgstr "Already set up on another device?"
 
+#: src/components/account/payment-status.tsx
+msgid "Already subscribed"
+msgstr "Already subscribed"
+
 #: src/components/vault/directory-manager.tsx
 msgid "Also delete directory credentials"
 msgstr "Also delete directory credentials"
@@ -1124,6 +1166,18 @@ msgstr "App ID"
 #: src/components/autofill/request-ui.tsx
 msgid "App reported by Android"
 msgstr "App reported by Android"
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing could not complete. Please try again."
+msgstr "App Store billing could not complete. Please try again."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is not configured. Please update the app."
+msgstr "App Store billing is not configured. Please update the app."
+
+#: src/app_lib/store-billing.ts
+msgid "App Store billing is unavailable for this account."
+msgstr "App Store billing is unavailable for this account."
 
 #: src/components/vault/password-generator.tsx
 msgid "Append digits"
@@ -1248,6 +1302,11 @@ msgstr "Auto-lock, biometrics, and encryption"
 msgid "Autofill"
 msgstr "Autofill"
 
+#: app/(app)/(tabs)/settings.tsx
+#: app/(app)/settings/autofill.tsx
+msgid "AutoFill"
+msgstr "AutoFill"
+
 #: src/components/vault/credential-form.tsx
 msgid "Autofill target {targetNumber}"
 msgstr "Autofill target {targetNumber}"
@@ -1269,9 +1328,18 @@ msgstr "Automatic backups paused. Existing history remains."
 msgid "Automatic backups to {0}"
 msgstr "Automatic backups to {0}"
 
+#: src/components/account/payment-status.tsx
+msgid "Awaiting approval"
+msgstr "Awaiting approval"
+
+#: src/components/account/payment-status.tsx
+msgid "Awaiting payment"
+msgstr "Awaiting payment"
+
 #: app/_layout.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
 #: app/link-receive.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/unlocked/unlocked-ui.tsx
@@ -1419,6 +1487,10 @@ msgstr "Basic security reports"
 msgid "Battery settings"
 msgstr "Battery settings"
 
+#: src/components/account/recovery-status.tsx
+msgid "Becomes the account device"
+msgstr "Becomes the account device"
+
 #: src/components/vault-import/import-wizard.tsx
 msgid "Before you import"
 msgstr "Before you import"
@@ -1428,8 +1500,16 @@ msgid "Billed monthly"
 msgstr "Billed monthly"
 
 #: src/components/account/account-summary.tsx
+msgid "Billed on the web"
+msgstr "Billed on the web"
+
+#: src/components/account/account-summary.tsx
 msgid "Billed outside Google Play"
 msgstr "Billed outside Google Play"
+
+#: src/components/account/account-summary.tsx
+msgid "Billed outside the App Store"
+msgstr "Billed outside the App Store"
 
 #: src/components/account/account-summary.tsx
 msgid "Billed through the App Store"
@@ -1438,6 +1518,11 @@ msgstr "Billed through the App Store"
 #: src/components/account/membership-upgrade.tsx
 msgid "Billed yearly"
 msgstr "Billed yearly"
+
+#. Row label: the service that bills the plan
+#: src/components/account/payment-status.tsx
+msgid "Billing"
+msgstr "Billing"
 
 #: src/components/account/billing-interval-selector.tsx
 msgid "Billing interval"
@@ -1547,7 +1632,6 @@ msgstr "Can't reach the share server. Check your connection and try again."
 
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/(tabs)/vault/[id].tsx
-#: app/(app)/account/auth/recover.tsx
 #: app/(app)/devices/agents/[id].tsx
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/managed.tsx
@@ -1656,16 +1740,17 @@ msgstr "Changes since {managedWhen} are not backed up. Delete older backups to m
 msgid "Changes since {when} are not backed up. Delete older backups below to make room."
 msgstr "Changes since {when} are not backed up. Delete older backups below to make room."
 
+#: src/components/account/payment-status.tsx
+msgid "Check again"
+msgstr "Check again"
+
 #: app/(app)/settings/diagnostics.tsx
 msgid "Check before sharing"
 msgstr "Check before sharing"
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/billing-pending-notice.tsx
-#: src/components/account/membership-upgrade.tsx
-#: src/components/account/subscription-signup.tsx
-msgid "Check status"
-msgstr "Check status"
+#: src/components/account/payment-status.tsx
+msgid "Check now"
+msgstr "Check now"
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Check the code"
@@ -1674,6 +1759,10 @@ msgstr "Check the code"
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check the timeout"
 msgstr "Check the timeout"
+
+#: src/components/account/recovery-status.tsx
+msgid "Check the User ID and all 24 words, then try again. Nothing has changed."
+msgstr "Check the User ID and all 24 words, then try again. Nothing has changed."
 
 #: src/components/devices/device-details-sheet.tsx
 msgid "Check this connection's server settings and try again when both devices are online and unlocked."
@@ -1686,6 +1775,10 @@ msgstr "Checking account devices and connections."
 #: app/(app)/settings/security/index.tsx
 msgid "Checking device support…"
 msgstr "Checking device support…"
+
+#: src/components/account/payment-status.tsx
+msgid "Checking for your payment"
+msgstr "Checking for your payment"
 
 #: src/components/vault/ssh-key-form.tsx
 msgid "Checking key…"
@@ -1707,12 +1800,13 @@ msgstr "Checking the verification words and exchanging sync keys."
 msgid "Checking verification words…"
 msgstr "Checking verification words…"
 
-#: src/components/account/subscription-signup.tsx
-msgid "Checking your subscription…"
-msgstr "Checking your subscription…"
+#: src/components/account/turnstile-challenge.tsx
+msgid "Checking you're human"
+msgstr "Checking you're human"
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/backup-center/index.tsx
+#: src/components/account/payment-status.tsx
 #: src/components/backup-destinations/backup-destinations-section.tsx
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Checking…"
@@ -1721,6 +1815,10 @@ msgstr "Checking…"
 #: src/components/account/membership-upgrade.tsx
 msgid "Checkout opens in Google Play."
 msgstr "Checkout opens in Google Play."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Checkout opens in the App Store."
+msgstr "Checkout opens in the App Store."
 
 #: app/(app)/settings/security-report/index.tsx
 msgid "Checks password strength, reuse, and age, and SSH key sizes. Data breaches are not checked. Age alone does not mean a password is compromised."
@@ -1830,6 +1928,11 @@ msgstr "Choose link file"
 msgid "Choose login to update"
 msgstr "Choose login to update"
 
+#. Step label above the plan picker
+#: src/components/account/subscription-signup.tsx
+msgid "Choose plan"
+msgstr "Choose plan"
+
 #: src/components/vault/credential-form.tsx
 msgid "Choose specific hostnames or paths using * and **."
 msgstr "Choose specific hostnames or paths using * and **."
@@ -1902,8 +2005,8 @@ msgstr "Cleartext export ready. Delete it after use."
 #: app/(app)/(tabs)/devices.tsx
 #: app/(app)/agent-request.tsx
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/payment-status.tsx
 #: src/components/devices/device-details-sheet.tsx
-#: src/components/vault/password-generator.tsx
 msgid "Close"
 msgstr "Close"
 
@@ -1970,6 +2073,10 @@ msgstr "Complete the challenge below."
 msgid "Complete the challenge to continue. The verification token is used once and never stored."
 msgstr "Complete the challenge to continue. The verification token is used once and never stored."
 
+#: src/components/account/turnstile-challenge.tsx
+msgid "Complete the check below. The token is used once and never stored."
+msgstr "Complete the check below. The token is used once and never stored."
+
 #: src/components/devices/connectivity-panel.tsx
 msgid "Configuration incomplete"
 msgstr "Configuration incomplete"
@@ -1987,7 +2094,9 @@ msgstr "Configure custom connectivity on Devices, or bind Online Services on Acc
 msgid "Configured"
 msgstr "Configured"
 
+#. Step label
 #: app/(app)/(tabs)/devices.tsx
+#: app/(app)/account/auth/recover.tsx
 msgid "Confirm"
 msgstr "Confirm"
 
@@ -2048,18 +2157,29 @@ msgstr "Confirm your master password."
 msgid "Confirm your new master password."
 msgstr "Confirm your new master password."
 
+#: src/components/account/payment-status.tsx
+msgid "Confirm your subscription in Google Play. Nothing is charged until you do."
+msgstr "Confirm your subscription in Google Play. Nothing is charged until you do."
+
+#: src/components/account/payment-status.tsx
+msgid "Confirm your subscription in the App Store window. Nothing is charged until you do."
+msgstr "Confirm your subscription in the App Store window. Nothing is charged until you do."
+
 #: app/(app)/settings/security/index.tsx
-msgid "Confirm your vault password, then authenticate with your fingerprint."
-msgstr "Confirm your vault password, then authenticate with your fingerprint."
+msgid "Confirm your vault password, then authenticate with biometrics."
+msgstr "Confirm your vault password, then authenticate with biometrics."
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Confirmation code {spelledCode}"
 msgstr "Confirmation code {spelledCode}"
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/billing-pending-notice.tsx
-msgid "Confirming your subscription…"
-msgstr "Confirming your subscription…"
+#: src/components/account/payment-status.tsx
+msgid "Confirming your membership"
+msgstr "Confirming your membership"
+
+#: src/components/account/payment-status.tsx
+msgid "Confirming…"
+msgstr "Confirming…"
 
 #. Button: connect to a linked device
 #. Short button: connect to a device
@@ -2115,7 +2235,11 @@ msgstr "Connect to {invitationLabel}"
 msgid "Connect to sending device"
 msgstr "Connect to sending device"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Connect your account and unlock your vault before using App Store billing."
+msgstr "Connect your account and unlock your vault before using App Store billing."
+
+#: src/app_lib/store-billing.ts
 msgid "Connect your account and unlock your vault before using Google Play billing."
 msgstr "Connect your account and unlock your vault before using Google Play billing."
 
@@ -2194,6 +2318,7 @@ msgstr "Connecting to the Signaling Server..."
 #. Live connection status of a linked device
 #. Live connection status of a linked device
 #: app/(app)/devices/connect-agent.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-browser.tsx
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Connecting…"
@@ -2292,6 +2417,7 @@ msgstr "Contents"
 #: app/(app)/devices/connect-agent.tsx
 #: app/credential-request.tsx
 #: app/link-receive.tsx
+#: src/components/account/account-auth.tsx
 #: src/components/account/membership-upgrade.tsx
 #: src/components/vault-import/import-wizard.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -2443,13 +2569,7 @@ msgstr "Could not access this device's biometrics."
 msgid "Could not analyze this vault. Try again."
 msgstr "Could not analyze this vault. Try again."
 
-#: app/(app)/(tabs)/account.tsx
-#: src/components/account/subscription-signup.tsx
-msgid "Could not check your subscription. Please try again."
-msgstr "Could not check your subscription. Please try again."
-
 #: src/components/account/account-summary.tsx
-#: src/components/account/membership-upgrade.tsx
 msgid "Could not complete billing. Please try again."
 msgstr "Could not complete billing. Please try again."
 
@@ -2465,9 +2585,13 @@ msgstr "Could not connect"
 msgid "Could not connect or authorize presence channel. Check host, ports, key, and secret."
 msgstr "Could not connect or authorize presence channel. Check host, ports, key, and secret."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Could not connect to Google Play. Check your connection and try again."
 msgstr "Could not connect to Google Play. Check your connection and try again."
+
+#: src/app_lib/store-billing.ts
+msgid "Could not connect to the App Store. Check your connection and try again."
+msgstr "Could not connect to the App Store. Check your connection and try again."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Could not connect to the signaling server. Check your connection settings."
@@ -2562,6 +2686,10 @@ msgid "Could not load account permissions. Refresh to try again."
 msgstr "Could not load account permissions. Refresh to try again."
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Could not load App Store prices. Please try again."
+msgstr "Could not load App Store prices. Please try again."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Could not load Google Play prices. Please try again."
 msgstr "Could not load Google Play prices. Please try again."
 
@@ -2569,13 +2697,13 @@ msgstr "Could not load Google Play prices. Please try again."
 msgid "Could not load verification page."
 msgstr "Could not load verification page."
 
+#: src/app_lib/online-services-billing.ts
+msgid "Could not open App Store subscriptions."
+msgstr "Could not open App Store subscriptions."
+
 #: src/app_lib/stripe-billing.ts
 msgid "Could not open billing portal."
 msgstr "Could not open billing portal."
-
-#: src/components/account/membership-upgrade.tsx
-msgid "Could not open checkout. Please try again."
-msgstr "Could not open checkout. Please try again."
 
 #: src/app_lib/online-services-billing.ts
 msgid "Could not open Google Play subscriptions."
@@ -2584,10 +2712,6 @@ msgstr "Could not open Google Play subscriptions."
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Could not open managed recovery. Check the Recovery Kit."
 msgstr "Could not open managed recovery. Check the Recovery Kit."
-
-#: src/components/account/subscription-signup.tsx
-msgid "Could not open secure payment. Please try again."
-msgstr "Could not open secure payment. Please try again."
 
 #: src/app_lib/stripe-billing.ts
 msgid "Could not open Stripe Checkout. Please try again."
@@ -2616,10 +2740,6 @@ msgstr "Could not read this link file."
 #: src/components/devices/use-device-topology.ts
 msgid "Could not refresh devices."
 msgstr "Could not refresh devices."
-
-#: app/(app)/(tabs)/account.tsx
-msgid "Could not refresh membership. Please try again."
-msgstr "Could not refresh membership. Please try again."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Could not refresh your account. Check your connection and try again."
@@ -2734,6 +2854,10 @@ msgstr "Couldn't open the share sheet."
 msgid "Couldn't pause the agent. Try again."
 msgstr "Couldn't pause the agent. Try again."
 
+#: src/components/account/recovery-status.tsx
+msgid "Couldn't reach Online Services"
+msgstr "Couldn't reach Online Services"
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "Couldn't reach the bucket. Check the endpoint and your connection."
 msgstr "Couldn't reach the bucket. Check the endpoint and your connection."
@@ -2795,17 +2919,9 @@ msgstr "Create a {namespace} signature?"
 msgid "Create a master password for this local copy. It can differ from the password on the sending device."
 msgstr "Create a master password for this local copy. It can differ from the password on the sending device."
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Create a new Recovery Kit?"
-msgstr "Create a new Recovery Kit?"
-
 #: src/components/account/account-security.tsx
 msgid "Create a Recovery Kit to restore access if you lose your devices."
 msgstr "Create a Recovery Kit to restore access if you lose your devices."
-
-#: src/components/vault/password-generator.tsx
-msgid "Create a strong password or memorable passphrase."
-msgstr "Create a strong password or memorable passphrase."
 
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Create a vault or restore a backup to get started."
@@ -2865,8 +2981,8 @@ msgstr "Create Online Services account"
 msgid "Create passkey"
 msgstr "Create passkey"
 
-#: app/(app)/account/auth/recover.tsx
 #: src/components/account/account-security.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Create Recovery Kit"
 msgstr "Create Recovery Kit"
 
@@ -3248,6 +3364,10 @@ msgstr "Destroyed"
 msgid "Destroyed after five wrong passphrases"
 msgstr "Destroyed after five wrong passphrases"
 
+#: src/components/account/recovery-status.tsx
+msgid "Details"
+msgstr "Details"
+
 #: src/components/devices/device-removal-content.tsx
 msgid "Device"
 msgstr "Device"
@@ -3434,6 +3554,8 @@ msgstr "Do not store in cloud drives, email, or password managers tied to this a
 
 #: app/(app)/share/index.tsx
 #: app/(app)/share/links.tsx
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Done"
 msgstr "Done"
 
@@ -3548,6 +3670,10 @@ msgstr "Edit item"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Edit keys"
 msgstr "Edit keys"
+
+#: src/components/account/recovery-status.tsx
+msgid "Edit Kit"
+msgstr "Edit Kit"
 
 #: app/(app)/devices/connectivity/agent-relay.tsx
 msgid "Edit relay"
@@ -3772,6 +3898,11 @@ msgstr "Enter it again"
 msgid "Enter key"
 msgstr "Enter key"
 
+#. Step label above the Recovery Kit form
+#: app/(app)/account/auth/recover.tsx
+msgid "Enter kit"
+msgstr "Enter kit"
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Enter master password"
 msgstr "Enter master password"
@@ -3821,6 +3952,10 @@ msgstr "Enter the saved protection phrase"
 #: src/app_lib/backup-destination-messages.ts
 msgid "Enter the secret access key."
 msgstr "Enter the secret access key."
+
+#: src/components/account/account-auth.tsx
+msgid "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
+msgstr "Enter the User ID and 24-word phrase from your account Recovery Kit. Your vault recovery code is not needed here."
 
 #: app/link-receive.tsx
 msgid "Enter the words shown on the sending device"
@@ -4287,6 +4422,18 @@ msgstr "Fingerprint authentication was cancelled. Try again when ready."
 msgid "Finish"
 msgstr "Finish"
 
+#: src/components/account/subscription-signup.tsx
+msgid "Finish or cancel the payment in Google Play first."
+msgstr "Finish or cancel the payment in Google Play first."
+
+#: src/components/account/subscription-signup.tsx
+msgid "Finish or cancel the payment in the App Store first."
+msgstr "Finish or cancel the payment in the App Store first."
+
+#: src/components/account/payment-status.tsx
+msgid "Finish paying in your browser. Nothing is charged until you do."
+msgstr "Finish paying in your browser. Nothing is charged until you do."
+
 #: app/link-receive.tsx
 msgid "Finish saving your vault"
 msgstr "Finish saving your vault"
@@ -4369,12 +4516,20 @@ msgid "Free"
 msgstr "Free"
 
 #: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+
+#: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing."
 msgstr "Free for 14 days, then {fullPrice} every month. You're charged when the trial ends unless you cancel before then. If you cancel during the trial, you keep access until it ends and pay nothing."
+
+#: src/components/account/membership-upgrade.tsx
+msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
+msgstr "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel at least 24 hours before then in your Apple Account settings. If you cancel by then, you keep access until the trial ends and pay nothing."
 
 #: src/components/account/membership-upgrade.tsx
 msgid "Free for 14 days, then {fullPrice} every year. You're charged when the trial ends unless you cancel before then in Google Play Subscriptions. If you cancel during the trial, you keep access until it ends and pay nothing."
@@ -4387,6 +4542,10 @@ msgstr "Free for 14 days, then {fullPrice} every year. You're charged when the t
 #: src/components/account/account-summary.tsx
 msgid "Free trial canceled. You won't be charged."
 msgstr "Free trial canceled. You won't be charged."
+
+#: src/components/account/account-summary.tsx
+msgid "Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then."
+msgstr "Free trial. You'll be charged when it ends unless you cancel at least 24 hours before then."
 
 #: src/components/account/account-summary.tsx
 msgid "Free trial. You'll be charged when it ends unless you cancel before then."
@@ -4475,25 +4634,33 @@ msgstr "Git signature"
 msgid "Gives them the TOTP secret, so they can keep generating codes."
 msgstr "Gives them the TOTP secret, so they can keep generating codes."
 
-#: src/app_lib/google-play-billing.ts
-msgid "Google Play already has an active subscription. Membership confirmation is pending."
-msgstr "Google Play already has an active subscription. Membership confirmation is pending."
+#: src/components/account/recovery-status.tsx
+msgid "Go to Account"
+msgstr "Go to Account"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing could not complete. Please try again."
 msgstr "Google Play billing could not complete. Please try again."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is not configured. Please update the app."
 msgstr "Google Play billing is not configured. Please update the app."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play billing is unavailable for this account."
 msgstr "Google Play billing is unavailable for this account."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "Google Play couldn't complete the purchase. Check your payment method in Google Play."
 msgstr "Google Play couldn't complete the purchase. Check your payment method in Google Play."
+
+#: src/app_lib/store-billing.ts
+msgid "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+msgstr "Google Play had a problem with this purchase. Try again in a moment. If your Google account already has this subscription, use Restore Google Play purchases on the Account tab instead."
+
+#: src/components/account/payment-status.tsx
+msgid "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
+msgstr "Google Play is waiting for your payment to complete. Your membership starts once it's paid."
 
 #. Root access status
 #: src/components/devices/device-overviews.tsx
@@ -4622,6 +4789,18 @@ msgstr "How connected agents reach this phone"
 msgid "How your data is handled"
 msgstr "How your data is handled"
 
+#: src/components/account/recovery-status.tsx
+msgid "Human check"
+msgstr "Human check"
+
+#: src/components/account/turnstile-challenge.tsx
+msgid "Human check failed"
+msgstr "Human check failed"
+
+#: src/components/account/recovery-status.tsx
+msgid "Human check not completed"
+msgstr "Human check not completed"
+
 #: src/components/account/account-auth.tsx
 msgid "Human verification is not configured for this local service."
 msgstr "Human verification is not configured for this local service."
@@ -4629,10 +4808,6 @@ msgstr "Human verification is not configured for this local service."
 #: src/components/account/account-auth.tsx
 msgid "Human verification opens when you create the account."
 msgstr "Human verification opens when you create the account."
-
-#: src/components/account/account-auth.tsx
-msgid "Human verification opens when you recover the account."
-msgstr "Human verification opens when you recover the account."
 
 #: app/link-receive.tsx
 #: src/components/vault-manager/create-tab.tsx
@@ -4690,6 +4865,10 @@ msgstr "If Android hides a password field, enter the password again inside Crypt
 msgid "If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds."
 msgstr "If managed backups are enabled, older restore points are deleted only after the replacement upload succeeds."
 
+#: src/components/account/payment-status.tsx
+msgid "If you finished paying in your browser, it can take a moment to arrive. If you closed checkout, nothing was charged."
+msgstr "If you finished paying in your browser, it can take a moment to arrive. If you closed checkout, nothing was charged."
+
 #: app/(app)/devices/link-send.tsx
 msgid "Ignored malformed link key message."
 msgstr "Ignored malformed link key message."
@@ -4744,6 +4923,14 @@ msgstr "Imports & exports"
 #: app/(app)/devices/link-send.tsx
 msgid "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
 msgstr "In Cryptex Vault on the other device, choose Use invitation, scan this code, and enter the verification words."
+
+#: app/(app)/settings/autofill.tsx
+msgid "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+msgstr "In iOS Settings, open Passwords, then Password Options, and turn on Cryptex Vault."
+
+#: src/components/account/payment-status.tsx
+msgid "In progress"
+msgstr "In progress"
 
 #. Heading above the fields to put in the share link
 #: app/(app)/share/index.tsx
@@ -4833,6 +5020,14 @@ msgstr "Invitation opened. Preparing this device's keys."
 #: app/link-receive.tsx
 msgid "Invitation ready: {invitationLabel}"
 msgstr "Invitation ready: {invitationLabel}"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS integration"
+msgstr "iOS integration"
+
+#: app/(app)/settings/autofill.tsx
+msgid "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
+msgstr "iOS receives the website and username of each login and passkey for its suggestions, never a password or private key."
 
 #: app/(app)/share/links.tsx
 msgid "It stops working right away. The recipient sees that it no longer exists."
@@ -4937,6 +5132,10 @@ msgstr "Keep server"
 msgid "Keep setting up"
 msgstr "Keep setting up"
 
+#: src/components/account/recovery-status.tsx
+msgid "Keep the app open. This takes a few seconds."
+msgstr "Keep the app open. This takes a few seconds."
+
 #: app/link-receive.tsx
 msgid "Keep the linking screen open on your sending device until the transfer finishes."
 msgstr "Keep the linking screen open on your sending device until the transfer finishes."
@@ -5005,6 +5204,10 @@ msgstr "Keys updated"
 #: app/(app)/devices/agents/[id].tsx
 msgid "Keys, {keyCount}"
 msgstr "Keys, {keyCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Kit not accepted"
+msgstr "Kit not accepted"
 
 #: app/(app)/settings/diagnostics.tsx
 msgid "Known secret fields are redacted. Review the contents before sharing them with support."
@@ -5080,7 +5283,7 @@ msgid "LastPass CSV export (.csv)"
 msgstr "LastPass CSV export (.csv)"
 
 #. Button: skip creating a Recovery Kit for now
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Later"
 msgstr "Later"
 
@@ -5320,6 +5523,10 @@ msgstr "Locking vault…"
 msgid "Login"
 msgstr "Login"
 
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
+msgstr "Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again."
+
 #: app/(app)/devices/link-send.tsx
 msgid "Lost connection to the signaling server before pairing completed."
 msgstr "Lost connection to the signaling server before pairing completed."
@@ -5345,6 +5552,11 @@ msgid "Make the connection."
 msgstr "Make the connection."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
+msgid "Manage App Store subscriptions"
+msgstr "Manage App Store subscriptions"
+
+#: src/components/account/account-summary.tsx
 msgid "Manage billing"
 msgstr "Manage billing"
 
@@ -5357,6 +5569,7 @@ msgid "Manage directories"
 msgstr "Manage directories"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Manage Google Play subscriptions"
 msgstr "Manage Google Play subscriptions"
 
@@ -5367,6 +5580,14 @@ msgstr "Manage or cancel in Google Play Subscriptions"
 #: src/components/account/account-summary.tsx
 msgid "Manage or cancel in Google Play Subscriptions. Your membership updates when you return."
 msgstr "Manage or cancel in Google Play Subscriptions. Your membership updates when you return."
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings"
+msgstr "Manage or cancel in your Apple Account settings"
+
+#: src/components/account/account-summary.tsx
+msgid "Manage or cancel in your Apple Account settings. Your membership updates when you return."
+msgstr "Manage or cancel in your Apple Account settings. Your membership updates when you return."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Manage registered devices and linking relationships, promote trusted devices, and revoke access."
@@ -5445,6 +5666,10 @@ msgstr "Managed backups are unavailable."
 msgid "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 msgstr "Managed backups require an eligible subscription. Open Membership in Account to upgrade."
 
+#: src/components/account/payment-status.tsx
+msgid "Managed connections, encrypted backups and share links are ready on this vault."
+msgstr "Managed connections, encrypted backups and share links are ready on this vault."
+
 #: src/components/account/membership-benefits.tsx
 msgid "Managed encrypted backups"
 msgstr "Managed encrypted backups"
@@ -5511,12 +5736,9 @@ msgid "Member device"
 msgstr "Member device"
 
 #: app/(app)/(tabs)/account.tsx
+#: src/components/account/payment-status.tsx
 msgid "Membership"
 msgstr "Membership"
-
-#: src/app_lib/google-play-billing.ts
-msgid "Membership confirmation is pending. Check status again shortly."
-msgstr "Membership confirmation is pending. Check status again shortly."
 
 #: app/(app)/(tabs)/account.tsx
 #: src/components/account/account-summary.tsx
@@ -5561,6 +5783,7 @@ msgid "Mobile recommended default is 128 MiB / ops 3."
 msgstr "Mobile recommended default is 128 MiB / ops 3."
 
 #: src/components/account/billing-interval-selector.tsx
+#: src/components/account/payment-status.tsx
 msgid "Monthly"
 msgstr "Monthly"
 
@@ -5761,6 +5984,10 @@ msgstr "No"
 msgid "No additional key protection"
 msgstr "No additional key protection"
 
+#: src/app_lib/store-billing.ts
+msgid "No App Store subscription to restore."
+msgstr "No App Store subscription to restore."
+
 #: app/(app)/settings/backup-center/index.tsx
 msgid "No automatic backups"
 msgstr "No automatic backups"
@@ -5842,6 +6069,10 @@ msgstr "No findings in this category."
 msgid "No findings match your search."
 msgstr "No findings match your search."
 
+#: src/app_lib/store-billing.ts
+msgid "No Google Play subscription to restore."
+msgstr "No Google Play subscription to restore."
+
 #: app/(app)/settings/security-report/index.tsx
 msgid "No issues found"
 msgstr "No issues found"
@@ -5907,13 +6138,13 @@ msgstr "No matching items."
 msgid "No passkeys match this request."
 msgstr "No passkeys match this request."
 
-#: src/components/vault/password-generator.tsx
-msgid "No password generated"
-msgstr "No password generated"
-
 #: app/(app)/settings/security-report/index.tsx
 msgid "No passwords to check"
 msgstr "No passwords to check"
+
+#: src/components/account/payment-status.tsx
+msgid "No payment yet"
+msgstr "No payment yet"
 
 #: src/components/devices/device-overviews.tsx
 msgid "No recorded connections to other devices."
@@ -5927,6 +6158,7 @@ msgid "No recorded links"
 msgstr "No recorded links"
 
 #: src/components/devices/device-map-canvas.tsx
+#: src/components/devices/device-network.tsx
 msgid "No recorded links ({isolatedCount})"
 msgstr "No recorded links ({isolatedCount})"
 
@@ -5994,15 +6226,27 @@ msgstr "none"
 msgid "None"
 msgstr "None"
 
+#: src/components/account/recovery-status.tsx
+msgid "None yet"
+msgstr "None yet"
+
 #: src/components/devices/device-dates.ts
 #: src/components/devices/device-details-sheet.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "Not available"
 msgstr "Not available"
 
+#: src/components/account/payment-status.tsx
+msgid "Not confirmed yet"
+msgstr "Not confirmed yet"
+
 #: src/components/account/account-summary.tsx
 msgid "Not connected"
 msgstr "Not connected"
+
+#: src/components/account/payment-status.tsx
+msgid "Not found yet"
+msgstr "Not found yet"
 
 #. Root access status
 #: src/components/devices/device-overviews.tsx
@@ -6014,12 +6258,17 @@ msgid "Not granted to this agent"
 msgstr "Not granted to this agent"
 
 #: app/(app)/settings/autofill.tsx
+#: src/components/account/payment-status.tsx
 msgid "Not now"
 msgstr "Not now"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Not offered by this service"
 msgstr "Not offered by this service"
+
+#: src/components/account/recovery-status.tsx
+msgid "Not saved to this vault"
+msgstr "Not saved to this vault"
 
 #: src/components/devices/device-connection-settings.tsx
 msgid "Not set"
@@ -6028,6 +6277,11 @@ msgstr "Not set"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Not signed in"
 msgstr "Not signed in"
+
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
+msgid "Not started"
+msgstr "Not started"
 
 #. Search field: item notes
 #: app/(app)/(tabs)/vault/search.tsx
@@ -6041,9 +6295,21 @@ msgstr "Note"
 msgid "Notes"
 msgstr "Notes"
 
+#: src/components/account/recovery-status.tsx
+msgid "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+msgstr "Nothing has changed. Recovery allows {attempts} attempts every {hours} hours from one network, and every attempt counts. Try again after {time}, or from a different network."
+
 #: app/(app)/settings/autofill.tsx
 msgid "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
 msgstr "Nothing this service reads is sent off your phone. Logins you save go into your encrypted vault."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
+msgstr "Nothing was charged. If this Cryptex Vault account bought it, restore it here. If another one did, use the vault with that account."
+
+#: src/components/account/payment-status.tsx
+msgid "Nothing was charged. You can subscribe now or later from the Account tab."
+msgstr "Nothing was charged. You can subscribe now or later from the Account tab."
 
 #: src/components/agents/agent-notifications-notice.tsx
 msgid "Notifications are off for Cryptex Vault. SSH requests that come in while the app is closed or locked can't reach you."
@@ -6054,6 +6320,7 @@ msgid "Numbers"
 msgstr "Numbers"
 
 #. Auto-lock option: never lock on inactivity
+#. Setting status: disabled
 #. Setting status: disabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -6087,6 +6354,7 @@ msgstr "Old passwords"
 msgid "Oldest first"
 msgstr "Oldest first"
 
+#. Setting status: enabled
 #. Setting status: enabled
 #: app/(app)/settings/autofill.tsx
 #: app/(app)/settings/backup-center/index.tsx
@@ -6143,6 +6411,10 @@ msgstr "One-time share links"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Online Services"
 msgstr "Online Services"
+
+#: src/components/account/recovery-status.tsx
+msgid "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
+msgstr "Online Services accepted your Recovery Kit, but this vault couldn't save the account yet. Stay on this screen and tap Save again. Locking the vault or closing the app now loses this recovery."
 
 #: src/components/devices/device-overviews.tsx
 msgid "Online Services and this vault"
@@ -6261,6 +6533,10 @@ msgstr "Only this request"
 msgid "Only used to open the key. It isn't saved."
 msgstr "Only used to open the key. It isn't saved."
 
+#: app/(app)/settings/autofill.tsx
+msgid "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
+msgstr "Only vaults with biometric unlock turned on can fill logins. Every fill asks for Face ID."
+
 #: src/components/vault-manager/unlock-tab.tsx
 msgid "Only you hold the keys"
 msgstr "Only you hold the keys"
@@ -6289,6 +6565,10 @@ msgstr "Open a private connection"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Open Account"
 msgstr "Open Account"
+
+#: src/components/account/payment-status.tsx
+msgid "Open checkout again"
+msgstr "Open checkout again"
 
 #: src/components/devices/device-detail-presentation.tsx
 msgid "Open connection to {peerName}"
@@ -6371,10 +6651,6 @@ msgstr "Opening camera…"
 msgid "Opening private connection…"
 msgstr "Opening private connection…"
 
-#: src/components/account/subscription-signup.tsx
-msgid "Opening secure payment…"
-msgstr "Opening secure payment…"
-
 #: src/components/ui/dialog.tsx
 msgid "Opening…"
 msgstr "Opening…"
@@ -6406,6 +6682,10 @@ msgstr "Other browsers may use Android’s selected service directly, without a 
 msgid "Other device found. Creating private connection…"
 msgstr "Other device found. Creating private connection…"
 
+#: src/components/account/recovery-status.tsx
+msgid "Other devices"
+msgstr "Other devices"
+
 #: src/agent/agent-wording.ts
 msgid "Other request"
 msgstr "Other request"
@@ -6434,6 +6714,10 @@ msgstr "Pairing code"
 #: app/(app)/devices/link-send.tsx
 msgid "Part {frameNumber} of {frameCount}"
 msgstr "Part {frameNumber} of {frameCount}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Passed"
+msgstr "Passed"
 
 #: src/components/vault/credential-detail-panel.tsx
 msgid "Passkey"
@@ -6491,6 +6775,10 @@ msgstr "Password and protection changes apply to this vault. Account recovery is
 msgid "Password autofill"
 msgstr "Password autofill"
 
+#: app/(app)/settings/autofill.tsx
+msgid "Password AutoFill"
+msgstr "Password AutoFill"
+
 #: src/components/vault/password-generator.tsx
 msgid "Password generator"
 msgstr "Password generator"
@@ -6502,10 +6790,6 @@ msgstr "Password health"
 #: src/components/vault/credential-form.tsx
 msgid "Password is required."
 msgstr "Password is required."
-
-#: src/components/vault/password-generator.tsx
-msgid "Password length"
-msgstr "Password length"
 
 #: src/components/autofill/request-ui.tsx
 msgid "Password only"
@@ -6620,13 +6904,40 @@ msgstr "Paused. Requests from this agent are refused without asking."
 msgid "Pausing…"
 msgstr "Pausing…"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly."
-msgstr "Payment completed. Membership confirmation is pending. Restore purchases or refresh Membership shortly."
+#. Checkout step
+#. Checkout step
+#: src/components/account/payment-status.tsx
+#: src/components/account/subscription-signup.tsx
+msgid "Payment"
+msgstr "Payment"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Payment is pending in Google Play. Membership will update after payment is approved."
-msgstr "Payment is pending in Google Play. Membership will update after payment is approved."
+#: src/components/account/payment-status.tsx
+msgid "Payment canceled"
+msgstr "Payment canceled"
+
+#: app/(app)/(tabs)/account.tsx
+msgid "Payment canceled. Nothing was charged."
+msgstr "Payment canceled. Nothing was charged."
+
+#: src/components/account/subscription-signup.tsx
+msgid "Payment in progress"
+msgstr "Payment in progress"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment not completed"
+msgstr "Payment not completed"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment pending"
+msgstr "Payment pending"
+
+#: src/components/account/payment-status.tsx
+msgid "Payment received. Waiting for a connection."
+msgstr "Payment received. Waiting for a connection."
+
+#: src/components/account/payment-status.tsx
+msgid "Payment received. Waiting for confirmation."
+msgstr "Payment received. Waiting for confirmation."
 
 #: src/components/account/membership-benefits.tsx
 msgid "Peer-to-peer synchronization"
@@ -6660,6 +6971,15 @@ msgstr "Permanently remove the server account"
 #: src/components/vault-manager/create-tab.tsx
 msgid "Personalize"
 msgstr "Personalize"
+
+#. Row label: the chosen billing interval
+#: src/components/account/payment-status.tsx
+msgid "Plan"
+msgstr "Plan"
+
+#: src/components/account/payment-status.tsx
+msgid "Plan terms changed"
+msgstr "Plan terms changed"
 
 #: app/(app)/devices/connect-agent.tsx
 msgid "Point the camera at the code in your terminal."
@@ -6708,6 +7028,7 @@ msgid "Primary website"
 msgstr "Primary website"
 
 #: src/components/about-sheet.tsx
+#: src/components/account/membership-upgrade.tsx
 msgid "Privacy policy"
 msgstr "Privacy policy"
 
@@ -6805,14 +7126,6 @@ msgstr "Public key"
 msgid "Public key from {publicKeyFileName}"
 msgstr "Public key from {publicKeyFileName}"
 
-#: src/app_lib/google-play-billing.ts
-msgid "Purchase canceled. Your membership has not changed."
-msgstr "Purchase canceled. Your membership has not changed."
-
-#: src/app_lib/google-play-billing.ts
-msgid "Purchases restored. Membership confirmation is pending. Refresh Membership shortly."
-msgstr "Purchases restored. Membership confirmation is pending. Refresh Membership shortly."
-
 #: src/utils/ssh-key-messages.ts
 msgid "PuTTY key files aren't supported. In PuTTYgen, choose Conversions > Export OpenSSH key and import that file."
 msgstr "PuTTY key files aren't supported. In PuTTYgen, choose Conversions > Export OpenSSH key and import that file."
@@ -6866,6 +7179,10 @@ msgstr "Receive and verify your vault"
 #: app/link-receive.tsx
 msgid "Receive invitation"
 msgstr "Receive invitation"
+
+#: src/components/account/payment-status.tsx
+msgid "Received"
+msgstr "Received"
 
 #: app/link-receive.tsx
 msgid "Received copy discarded. No vault was saved on this device."
@@ -6942,13 +7259,18 @@ msgstr "Recorded in"
 msgid "Recording the new device in this vault."
 msgstr "Recording the new device in this vault."
 
+#. Step label
+#: app/(app)/account/auth/recover.tsx
+msgid "Recover"
+msgstr "Recover"
+
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/auth/recover.tsx
-#: src/components/account/account-auth.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover account"
 msgstr "Recover account"
 
-#: app/(app)/account/auth/recover.tsx
+#: src/components/account/recovery-status.tsx
 msgid "Recover this account?"
 msgstr "Recover this account?"
 
@@ -6956,9 +7278,21 @@ msgstr "Recover this account?"
 msgid "Recover this vault"
 msgstr "Recover this vault"
 
-#: app/(app)/account/auth/recover.tsx
-msgid "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
-msgstr "Recovering removes every other device from this account and signs them out. It also uses up this Recovery Kit; you can save a new one next."
+#: src/components/account/recovery-status.tsx
+msgid "Recovered"
+msgstr "Recovered"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovered, not signed in yet"
+msgstr "Recovered, not signed in yet"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering your account"
+msgstr "Recovering your account"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovering…"
+msgstr "Recovering…"
 
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/account/security.tsx
@@ -6975,9 +7309,13 @@ msgstr "Recovery code"
 msgid "Recovery code and vault encryption key replaced."
 msgstr "Recovery code and vault encryption key replaced."
 
-#: src/components/account/account-controller.tsx
-msgid "Recovery failed."
-msgstr "Recovery failed."
+#: src/components/account/recovery-status.tsx
+msgid "Recovery didn't finish"
+msgstr "Recovery didn't finish"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery Kit"
+msgstr "Recovery Kit"
 
 #: app/(app)/(tabs)/account.tsx
 msgid "Recovery Kit and account security"
@@ -6999,6 +7337,10 @@ msgstr "Recovery Kit phrase"
 msgid "Recovery Kit saved"
 msgstr "Recovery Kit saved"
 
+#: src/components/account/recovery-status.tsx
+msgid "Recovery needs a quick human check. Nothing has changed."
+msgstr "Recovery needs a quick human check. Nothing has changed."
+
 #: src/components/devices/device-details-sheet.tsx
 msgid "Recovery options"
 msgstr "Recovery options"
@@ -7014,6 +7356,10 @@ msgstr "Recovery phrase must be exactly {wordCount} words."
 #: src/components/account/recovery-kit-text.ts
 msgid "Recovery phrase: {phrase}"
 msgstr "Recovery phrase: {phrase}"
+
+#: src/components/account/recovery-status.tsx
+msgid "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
+msgstr "Recovery stopped on this device before the Kit was sent. Nothing has changed, and your Kit still works."
 
 #: src/components/devices/device-network.tsx
 msgid "Reduced motion is enabled on this device."
@@ -7274,6 +7620,7 @@ msgid "Rename this local vault or remove it from this device."
 msgstr "Rename this local vault or remove it from this device."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Renews"
 msgstr "Renews"
 
@@ -7370,11 +7717,17 @@ msgstr "Restore account access"
 msgid "Restore an encrypted Cryptex Vault backup."
 msgstr "Restore an encrypted Cryptex Vault backup."
 
+#: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
+msgid "Restore App Store purchases"
+msgstr "Restore App Store purchases"
+
 #: app/(locked)/_layout.tsx
 msgid "Restore backup"
 msgstr "Restore backup"
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Restore Google Play purchases"
 msgstr "Restore Google Play purchases"
 
@@ -7414,8 +7767,6 @@ msgstr "Retrieve a backup stored with Cryptex Vault."
 #: app/(app)/(tabs)/account.tsx
 #: app/(app)/(tabs)/devices.tsx
 #: src/components/account/account-summary.tsx
-#: src/components/account/membership-upgrade.tsx
-#: src/components/account/subscription-signup.tsx
 #: src/components/account/turnstile-challenge.tsx
 #: src/components/devices/device-details-sheet.tsx
 msgid "Retry"
@@ -7651,6 +8002,10 @@ msgstr "Save €{savings} a year"
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save a password-protected .cryx file"
 msgstr "Save a password-protected .cryx file"
+
+#: src/components/account/recovery-status.tsx
+msgid "Save again"
+msgstr "Save again"
 
 #: app/(app)/settings/import-export/index.tsx
 msgid "Save an encrypted copy"
@@ -8437,6 +8792,10 @@ msgstr "Signed in"
 msgid "Signed in to Online Services"
 msgstr "Signed in to Online Services"
 
+#: src/components/account/recovery-status.tsx
+msgid "Signed out and removed"
+msgstr "Signed out and removed"
+
 #: src/utils/atoms.ts
 msgid "Signing in..."
 msgstr "Signing in..."
@@ -8454,6 +8813,10 @@ msgstr "Size"
 #: src/components/vault-import/import-wizard.tsx
 msgid "Skipped"
 msgstr "Skipped"
+
+#: src/components/vault-security/vault-security-dialog.tsx
+msgid "Some logins saved by AutoFill could not be read and were not added to this vault."
+msgstr "Some logins saved by AutoFill could not be read and were not added to this vault."
 
 #: src/app_lib/share-messages.ts
 msgid "Something went wrong while creating the link."
@@ -8575,6 +8938,10 @@ msgstr "Step {step} of 3. Confirm import"
 msgid "Step {step} of 3. Select file"
 msgstr "Step {step} of 3. Select file"
 
+#: src/components/account/payment-status.tsx
+msgid "Still confirming"
+msgstr "Still confirming"
+
 #: app/(app)/devices/link-send.tsx
 msgid "Stop linking"
 msgstr "Stop linking"
@@ -8590,6 +8957,10 @@ msgstr "Stop queue"
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Stopping after current device…"
 msgstr "Stopping after current device…"
+
+#: src/components/account/recovery-status.tsx
+msgid "Stops working"
+msgstr "Stops working"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Storage is full"
@@ -8636,6 +9007,14 @@ msgstr "STUN connection test passed."
 #: src/components/devices/connectivity-panel.tsx
 msgid "STUN servers"
 msgstr "STUN servers"
+
+#: src/components/account/payment-status.tsx
+msgid "Subscription belongs to another account"
+msgstr "Subscription belongs to another account"
+
+#: src/components/account/payment-status.tsx
+msgid "Subscription found. Waiting for confirmation."
+msgstr "Subscription found. Waiting for confirmation."
 
 #: app/(app)/settings/autofill.tsx
 msgid "Suggestion display"
@@ -8739,6 +9118,10 @@ msgstr "Tap to enlarge"
 msgid "Tap to scan"
 msgstr "Tap to scan"
 
+#: src/components/account/membership-upgrade.tsx
+msgid "Terms of use"
+msgstr "Terms of use"
+
 #: src/components/backup-destinations/backup-destinations-section.tsx
 msgid "Test and save"
 msgstr "Test and save"
@@ -8805,10 +9188,6 @@ msgstr "The 1PUX export.attributes file is not valid JSON."
 msgid "The 1PUX export.data file is not valid JSON."
 msgstr "The 1PUX export.data file is not valid JSON."
 
-#: src/components/account/account-auth.tsx
-msgid "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-msgstr "The account Recovery Kit restores Online Services access. Your vault recovery code is used separately to recover the vault."
-
 #: src/components/devices/device-removal-content.tsx
 msgid "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
 msgstr "The account relationship could not be unlinked. Both devices remain registered. Try again after checking account access."
@@ -8828,6 +9207,18 @@ msgstr "The agent didn't confirm the pairing."
 #: app/(app)/devices/connect-agent.tsx
 msgid "The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
 msgstr "The agent is saved in your vault, but this phone couldn't start answering it. Try again. If you close, it starts the next time you unlock."
+
+#: src/app_lib/store-billing.ts
+msgid "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
+msgstr "The App Store couldn't complete the purchase. Check that purchases are allowed on this device and your payment method in your Apple Account settings."
+
+#: src/app_lib/store-billing.ts
+msgid "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+msgstr "The App Store had a problem with this purchase. Try again in a moment. If your Apple Account already has this subscription, use Restore App Store purchases on the Account tab instead."
+
+#: src/components/account/payment-status.tsx
+msgid "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
+msgstr "The App Store is waiting for this purchase to be approved, for example by a family organizer. Your membership starts once it's approved."
 
 #: app/credential-request.tsx
 msgid "The association could not be saved. The login was not filled. Go back to fill once."
@@ -8893,13 +9284,9 @@ msgstr "The file could not be opened."
 msgid "The file is saved as <0>{fileName}</0>. Before using it with ssh, run <1>chmod 600 {fileName}</1>."
 msgstr "The file is saved as <0>{fileName}</0>. Before using it with ssh, run <1>chmod 600 {fileName}</1>."
 
-#: src/app_lib/google-play-billing.ts
-msgid "The free trial is no longer available for this plan. Check the plan and try again."
-msgstr "The free trial is no longer available for this plan. Check the plan and try again."
-
-#: src/components/account/subscription-signup.tsx
-msgid "The free trial is no longer available for this plan. Retry to subscribe at the full price."
-msgstr "The free trial is no longer available for this plan. Retry to subscribe at the full price."
+#: src/components/account/payment-status.tsx
+msgid "The free trial is no longer available for this plan. Check the price and continue."
+msgstr "The free trial is no longer available for this plan. Check the price and continue."
 
 #: app/link-receive.tsx
 msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
@@ -8908,6 +9295,14 @@ msgid "The invitation comes from a different Online Services account. Linking mo
 msgstr "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
 "\n"
 "This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone."
+
+#: app/link-receive.tsx
+msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
+"\n"
+"This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone."
+msgstr "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
+"\n"
+"This device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone."
 
 #: app/link-receive.tsx
 msgid "The invitation comes from a different Online Services account. Linking moves this vault to that account.\n"
@@ -8924,10 +9319,6 @@ msgstr "The key file could not be saved."
 #: src/components/vault/ssh-key-form.tsx
 msgid "The key itself can't be changed. To use a different key, add a new SSH key item."
 msgstr "The key itself can't be changed. To use a different key, add a new SSH key item."
-
-#: app/(app)/account/auth/recover.tsx
-msgid "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
-msgstr "The Kit you used no longer works, so this account has none. Create one now, or later from Account > Recovery & access."
 
 #: app/(app)/(tabs)/settings.tsx
 msgid "The language the app uses"
@@ -9030,6 +9421,10 @@ msgstr "The received copy has not been saved. Restarting means this copy will be
 msgid "The received vault has not been saved."
 msgstr "The received vault has not been saved."
 
+#: src/components/account/recovery-status.tsx
+msgid "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
+msgstr "The Recovery Kit you used no longer works. Create a new one so you can recover this account again."
+
 #: src/app_lib/backup-destination-messages.ts
 msgid "The region doesn't match the bucket."
 msgstr "The region doesn't match the bucket."
@@ -9046,6 +9441,10 @@ msgstr "The relay no longer knows this agent"
 msgid "The relay no longer knows this agent. Pair it again or remove it."
 msgstr "The relay no longer knows this agent. Pair it again or remove it."
 
+#: src/components/account/recovery-status.tsx
+msgid "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+msgstr "The request might have reached Online Services. Check your connection and try again. If the Kit is refused then, it was already used. Check the Account tab, or use a newer Kit if you have one."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The rest of each affected item will still be added."
 msgstr "The rest of each affected item will still be added."
@@ -9058,6 +9457,10 @@ msgstr "The saved link was kept. Try again after checking that this vault can sa
 msgid "The secure connection has finished."
 msgstr "The secure connection has finished."
 
+#: src/app_lib/store-billing.ts
+msgid "The selected App Store subscription is unavailable. Please try again later."
+msgstr "The selected App Store subscription is unavailable. Please try again later."
+
 #: src/components/vault-import/import-messages.ts
 msgid "The selected file is not a valid 1Password 1PUX archive."
 msgstr "The selected file is not a valid 1Password 1PUX archive."
@@ -9066,7 +9469,7 @@ msgstr "The selected file is not a valid 1Password 1PUX archive."
 msgid "The selected file is not valid XML."
 msgstr "The selected file is not valid XML."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "The selected Google Play subscription is unavailable. Please try again later."
 msgstr "The selected Google Play subscription is unavailable. Please try again later."
 
@@ -9127,6 +9530,10 @@ msgstr "The vault key was rotated, but biometric unlock could not be refreshed a
 msgid "The vault locked before the backup was ready."
 msgstr "The vault locked before the backup was ready."
 
+#: src/components/account/recovery-status.tsx
+msgid "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
+msgstr "The vault locked or changed before the Kit was sent. Nothing has changed, and your Kit still works. Unlock the vault and try again."
+
 #: src/components/devices/use-device-actions.ts
 msgid "The vault session changed. Open Devices again to continue."
 msgstr "The vault session changed. Open Devices again to continue."
@@ -9156,9 +9563,13 @@ msgstr "These are configured servers. This view does not confirm whether the act
 msgid "This account cannot change root permissions."
 msgstr "This account cannot change root permissions."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership."
 msgstr "This account cannot purchase a Google Play subscription. Restore purchases or refresh Membership."
+
+#: src/app_lib/store-billing.ts
+msgid "This account cannot purchase an App Store subscription. Restore purchases or refresh Membership."
+msgstr "This account cannot purchase an App Store subscription. Restore purchases or refresh Membership."
 
 #: src/components/devices/use-device-topology.ts
 msgid "This account connection is no longer available. Refresh devices before unlinking."
@@ -9179,6 +9590,10 @@ msgstr "This agent can't use any keys yet. You can add them later with Edit keys
 #: app/(app)/devices/agents/[id].tsx
 msgid "This agent was revoked or isn't in this vault anymore."
 msgstr "This agent was revoked or isn't in this vault anymore."
+
+#: src/app_lib/store-billing.ts
+msgid "This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it."
+msgstr "This App Store subscription belongs to another Cryptex Vault account. Use the vault that bought it."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "This backup uses security-key protection that Android cannot open with a password. Restore it only if you have the vault recovery code, or link from a device where it already opens."
@@ -9377,7 +9792,7 @@ msgstr "This file is not a readable Cryptex Vault backup."
 msgid "This file is too large to be an SSH key."
 msgstr "This file is too large to be an SSH key."
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
 msgid "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again."
 msgstr "This Google Play subscription belongs to another Cryptex Vault account. Use the vault that bought it, or cancel the subscription in Google Play before buying again."
 
@@ -9412,6 +9827,10 @@ msgstr "This is not a KeePass 1.x or KeePass 2.x XML export."
 #: app/link-receive.tsx
 msgid "This is not a valid Cryptex Vault link invitation."
 msgstr "This is not a valid Cryptex Vault link invitation."
+
+#: src/components/account/payment-status.tsx
+msgid "This is taking longer than usual. You can close this screen and we'll keep checking."
+msgstr "This is taking longer than usual. You can close this screen and we'll keep checking."
 
 #: src/components/devices/device-removal-content.tsx
 msgid "This is the current device."
@@ -9482,6 +9901,10 @@ msgstr "This link uses a custom signaling server. STUN and TURN may still use On
 msgid "This machine now calls this server {name}. Before, it was {previous}."
 msgstr "This machine now calls this server {name}. Before, it was {previous}."
 
+#: src/components/account/payment-status.tsx
+msgid "This only takes a moment."
+msgstr "This only takes a moment."
+
 #: app/credential-request.tsx
 msgid "This passkey request is malformed."
 msgstr "This passkey request is malformed."
@@ -9498,13 +9921,9 @@ msgstr "This permanently removes the server account. Root device only. This acti
 msgid "This phrase authorizes the live transfer. It is separate from vault recovery details."
 msgstr "This phrase authorizes the live transfer. It is separate from vault recovery details."
 
-#: src/app_lib/google-play-billing.ts
-msgid "This plan now starts with a 14-day free trial. Check the plan and try again."
-msgstr "This plan now starts with a 14-day free trial. Check the plan and try again."
-
-#: src/components/account/subscription-signup.tsx
-msgid "This plan now starts with a 14-day free trial. Retry to start it."
-msgstr "This plan now starts with a 14-day free trial. Retry to start it."
+#: src/components/account/payment-status.tsx
+msgid "This plan now starts with a 14-day free trial. Check the terms and continue."
+msgstr "This plan now starts with a 14-day free trial. Check the terms and continue."
 
 #: app/link-receive.tsx
 msgid "This received copy has not been saved. Discarding means you will need to repeat the live transfer."
@@ -9513,6 +9932,10 @@ msgstr "This received copy has not been saved. Discarding means you will need to
 #: app/link-receive.tsx
 msgid "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
 msgstr "This received copy has not been saved. Leaving means you will need to repeat the live transfer. The sending vault is not changed."
+
+#: src/components/account/recovery-status.tsx
+msgid "This Recovery Kit"
+msgstr "This Recovery Kit"
 
 #: src/components/devices/device-removal-content.tsx
 msgid "This relationship is no longer registered. Use recovery options to forget its saved link."
@@ -9596,9 +10019,18 @@ msgid "This TURN server no longer exists."
 msgstr "This TURN server no longer exists."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/devices/device-overviews.tsx
 msgid "This vault"
 msgstr "This vault"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
+msgstr "This vault becomes the only device on the account. Recovery allows {attempts} attempts every {hours} hours, so check the Kit first."
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault is connected to your Online Services account. Other devices were signed out."
+msgstr "This vault is connected to your Online Services account. Other devices were signed out."
 
 #: app/(app)/account/security.tsx
 msgid "This vault is no longer connected to Online Services."
@@ -9607,6 +10039,10 @@ msgstr "This vault is no longer connected to Online Services."
 #: src/components/backup-center/backup-status.tsx
 msgid "This vault is too large for managed backups"
 msgstr "This vault is too large for managed backups"
+
+#: src/components/account/recovery-status.tsx
+msgid "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
+msgstr "This vault now holds the account but couldn't sign in. Open the Account tab to reconnect."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "This vault uses a legacy format. Unlock it once to upgrade before changing security settings."
@@ -9668,6 +10104,10 @@ msgstr "Timeout seconds"
 msgid "today at {time}"
 msgstr "today at {time}"
 
+#: src/components/account/recovery-status.tsx
+msgid "Too many attempts"
+msgstr "Too many attempts"
+
 #: src/app_lib/share-messages.ts
 msgid "Too many requests. Try again in a minute."
 msgstr "Too many requests. Try again in a minute."
@@ -9686,6 +10126,7 @@ msgid "Transfer sent. Device link saved."
 msgstr "Transfer sent. Device link saved."
 
 #: src/components/account/account-summary.tsx
+#: src/components/account/payment-status.tsx
 msgid "Trial ends"
 msgstr "Trial ends"
 
@@ -9699,6 +10140,8 @@ msgstr "Try a different name, username, tag, or note."
 
 #: app/(app)/devices/connect-agent.tsx
 #: app/(app)/settings/security-report/index.tsx
+#: src/components/account/payment-status.tsx
+#: src/components/account/recovery-status.tsx
 #: src/components/autofill/request-ui.tsx
 #: src/components/linking-progress.tsx
 #: src/components/vault/copyable-field.tsx
@@ -9721,6 +10164,10 @@ msgstr "Trying again…"
 #: src/components/devices/connectivity-panel.tsx
 msgid "TURN credential"
 msgstr "TURN credential"
+
+#: app/(app)/settings/autofill.tsx
+msgid "Turn on Cryptex Vault for AutoFill"
+msgstr "Turn on Cryptex Vault for AutoFill"
 
 #: app/(app)/settings/backup-center/index.tsx
 msgid "Turn on managed backups or add your own storage, so losing this device does not mean losing your vault."
@@ -10029,13 +10476,13 @@ msgstr "Use Android password autofill first. Some browsers also need their own s
 msgid "Use another autofill service"
 msgstr "Use another autofill service"
 
+#: src/components/vault-manager/unlock-tab.tsx
+msgid "Use biometrics"
+msgstr "Use biometrics"
+
 #: app/(app)/settings/autofill.tsx
 msgid "Use browser-protected autofill where available"
 msgstr "Use browser-protected autofill where available"
-
-#: src/components/vault-manager/unlock-tab.tsx
-msgid "Use fingerprint"
-msgstr "Use fingerprint"
 
 #: src/app_lib/backup-destination-messages.ts
 msgid "Use folder names separated by /, without . or .. parts."
@@ -10076,13 +10523,13 @@ msgstr "Use selected connection"
 msgid "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 msgstr "Use the Cryptex Vault server with Online Services, or your own share server. This setting stays on this phone."
 
-#: src/components/account/account-auth.tsx
-msgid "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-msgstr "Use the User ID and 24-word phrase from your account Recovery Kit. Recovering removes every other device from the account."
-
 #: app/(app)/settings/autofill.tsx
 msgid "Use your saved passwords and passkeys in apps and browsers."
 msgstr "Use your saved passwords and passkeys in apps and browsers."
+
+#: app/(app)/settings/autofill.tsx
+msgid "Use your saved passwords and passkeys in apps and Safari."
+msgstr "Use your saved passwords and passkeys in apps and Safari."
 
 #: app/(app)/devices/link-send.tsx
 msgid "Use your signed-in account connection."
@@ -10389,9 +10836,21 @@ msgstr "Wait for the account update to finish before leaving this screen."
 msgid "Wait for the other device"
 msgstr "Wait for the other device"
 
+#: src/components/account/payment-status.tsx
+msgid "Waiting for a connection"
+msgstr "Waiting for a connection"
+
 #: app/credential-request.tsx
 msgid "Waiting for Android verification…"
 msgstr "Waiting for Android verification…"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for Google Play"
+msgstr "Waiting for Google Play"
 
 #: src/utils/linking-messages.ts
 msgid "Waiting for other device to notice us..."
@@ -10405,9 +10864,17 @@ msgstr "Waiting for other device…"
 msgid "Waiting for receiver to prove it knows the mnemonic…"
 msgstr "Waiting for receiver to prove it knows the mnemonic…"
 
+#: src/components/account/payment-status.tsx
+msgid "Waiting for Stripe Checkout"
+msgstr "Waiting for Stripe Checkout"
+
 #: app/(app)/devices/connect-agent.tsx
 msgid "Waiting for the agent…"
 msgstr "Waiting for the agent…"
+
+#: src/components/account/payment-status.tsx
+msgid "Waiting for the App Store"
+msgstr "Waiting for the App Store"
 
 #: src/components/linking-progress.tsx
 msgid "Waiting for the first event…"
@@ -10421,6 +10888,10 @@ msgstr "Waiting for the request…"
 #: app/(app)/settings/diagnostics.tsx
 msgid "Warnings"
 msgstr "Warnings"
+
+#: src/components/account/payment-status.tsx
+msgid "We're starting your membership. This usually takes a few seconds."
+msgstr "We're starting your membership. This usually takes a few seconds."
 
 #. Short filter tab label
 #: app/(app)/settings/security-report/index.tsx
@@ -10449,8 +10920,8 @@ msgid "Web app"
 msgstr "Web app"
 
 #: src/components/account/membership-benefits.tsx
-msgid "Web app, Android app & browser extension"
-msgstr "Web app, Android app & browser extension"
+msgid "Web app, Android & iOS apps, browser extension"
+msgstr "Web app, Android & iOS apps, browser extension"
 
 #: src/components/vault-manager/unlock-tab.tsx
 #: src/components/vault-security/vault-security-dialog.tsx
@@ -10478,6 +10949,10 @@ msgstr "Website reported by Android"
 #: src/components/vault/credential-form.tsx
 msgid "Websites"
 msgstr "Websites"
+
+#: src/components/account/payment-status.tsx
+msgid "Welcome to Online Services"
+msgstr "Welcome to Online Services"
 
 #: app/(app)/share/index.tsx
 msgid "Wi-Fi for Sam"
@@ -10521,6 +10996,7 @@ msgid "WSS port (0 = disable TLS)"
 msgstr "WSS port (0 = disable TLS)"
 
 #: src/components/account/billing-interval-selector.tsx
+#: src/components/account/payment-status.tsx
 msgid "Yearly"
 msgstr "Yearly"
 
@@ -10580,13 +11056,33 @@ msgstr "You will receive an encrypted vault and merge it with this one."
 msgid "Your account"
 msgstr "Your account"
 
-#: src/app_lib/google-play-billing.ts
+#: src/app_lib/store-billing.ts
+msgid "Your account changed. Reopen Membership before using App Store billing."
+msgstr "Your account changed. Reopen Membership before using App Store billing."
+
+#: src/app_lib/store-billing.ts
 msgid "Your account changed. Reopen Membership before using Google Play billing."
 msgstr "Your account changed. Reopen Membership before using Google Play billing."
 
 #: src/utils/invitation-access.ts
 msgid "Your account does not allow granting root access to another device."
 msgstr "Your account does not allow granting root access to another device."
+
+#: src/components/account/payment-status.tsx
+msgid "Your App Store account already has a subscription, but we couldn't link it yet."
+msgstr "Your App Store account already has a subscription, but we couldn't link it yet."
+
+#: src/app_lib/store-billing.ts
+msgid "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+msgstr "Your Apple Account already has this subscription. Restore App Store purchases to use it here, or use the vault that bought it."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account is already subscribed"
+msgstr "Your Apple Account is already subscribed"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
+msgstr "Your Apple Account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in your Apple Account settings and subscribe here once it ends."
 
 #: src/components/vault-manager/restore-tab.tsx
 msgid "Your backup stays encrypted until you unlock it"
@@ -10608,6 +11104,22 @@ msgstr "Your directories"
 msgid "Your directory name has not been saved."
 msgstr "Your directory name has not been saved."
 
+#: src/app_lib/store-billing.ts
+msgid "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+msgstr "Your Google account already has this subscription. Restore Google Play purchases to use it here, or use the vault that bought it."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account is already subscribed"
+msgstr "Your Google account is already subscribed"
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
+msgstr "Your Google account's subscription belongs to another Cryptex Vault account. Use the vault with that account, or cancel the subscription in Google Play and subscribe here once it ends."
+
+#: src/components/account/payment-status.tsx
+msgid "Your Google Play account already has a subscription, but we couldn't link it yet."
+msgstr "Your Google Play account already has a subscription, but we couldn't link it yet."
+
 #: src/components/unlocked/unlocked-ui.tsx
 msgid "Your local vault remains available independently of Online Services."
 msgstr "Your local vault remains available independently of Online Services."
@@ -10623,6 +11135,18 @@ msgstr "Your master password is always required. A generated phrase adds another
 #: src/components/vault-security/additional-key-protection-options.tsx
 msgid "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
 msgstr "Your master password is always required. A generated protection phrase adds another secret and is shown once during setup. Store it separately; you will need it when restoring on a new device."
+
+#: app/(app)/(tabs)/account.tsx
+msgid "Your membership is active."
+msgstr "Your membership is active."
+
+#: src/components/account/payment-status.tsx
+msgid "Your membership starts once it's approved."
+msgstr "Your membership starts once it's approved."
+
+#: src/components/account/payment-status.tsx
+msgid "Your membership starts once it's paid."
+msgstr "Your membership starts once it's paid."
 
 #: app/(app)/settings/backup-center/managed.tsx
 msgid "Your next managed backup will appear here."
@@ -10641,6 +11165,14 @@ msgstr "Your own storage"
 #: src/components/account/account-summary.tsx
 msgid "Your payment needs attention. Open Manage billing to review it."
 msgstr "Your payment needs attention. Open Manage billing to review it."
+
+#: src/components/account/payment-status.tsx
+msgid "Your payment went through, but we haven't confirmed it yet. You won't be charged again."
+msgstr "Your payment went through, but we haven't confirmed it yet. You won't be charged again."
+
+#: src/components/account/payment-status.tsx
+msgid "Your payment went through. Connect to the internet so we can confirm it. You won't be charged again."
+msgstr "Your payment went through. Connect to the internet so we can confirm it. You won't be charged again."
 
 #: src/components/vault-security/vault-security-dialog.tsx
 msgid "Your recovery code can restore access to the encrypted vault if you forget the password."

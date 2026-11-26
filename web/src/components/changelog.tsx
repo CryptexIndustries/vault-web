@@ -111,7 +111,7 @@ export const CHANGELOGS = [
     },
     {
         key: "android",
-        label: "Android",
+        label: "Android & iOS",
         path: "mobile/CHANGELOG.md",
         releases: parseChangelog(androidChangelog),
     },

@@ -61,7 +61,7 @@ import {
     lockVaultWithoutSaving,
     vaultLockStateAtom,
 } from "@/utils/vault-lock";
-import { colors } from "@/theme";
+import { colors, layout } from "@/theme";
 import { VaultLockAnimation } from "./vault-lock-animation";
 import { cn } from "@/lib/utils";
 import { KeyboardScrollProvider } from "@/components/keyboard-scroll";
@@ -1296,6 +1296,9 @@ export function UnlockedTaskScreen({
                         style={{ flex: 1 }}
                         contentContainerStyle={{
                             flexGrow: 1,
+                            width: "100%",
+                            maxWidth: layout.panelMaxWidth,
+                            alignSelf: "center",
                             paddingHorizontal: 20,
                             paddingTop: 24,
                             paddingBottom: footer ? 18 : 30,
@@ -1313,7 +1316,16 @@ export function UnlockedTaskScreen({
                         </KeyboardScrollProvider>
                     </ScrollView>
                 ) : (
-                    children
+                    <View
+                        style={{
+                            flex: 1,
+                            width: "100%",
+                            maxWidth: layout.panelMaxWidth,
+                            alignSelf: "center",
+                        }}
+                    >
+                        {children}
+                    </View>
                 )}
                 {footer ? (
                     <View
@@ -1325,7 +1337,16 @@ export function UnlockedTaskScreen({
                             backgroundColor: colors.background,
                         }}
                     >
-                        {footer}
+                        <View
+                            style={{
+                                width: "100%",
+                                // Lines up with the padded scroll content above.
+                                maxWidth: layout.panelMaxWidth - 40,
+                                alignSelf: "center",
+                            }}
+                        >
+                            {footer}
+                        </View>
                     </View>
                 ) : null}
             </KeyboardAvoidingView>

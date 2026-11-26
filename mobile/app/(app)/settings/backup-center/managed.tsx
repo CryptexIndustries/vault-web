@@ -13,6 +13,7 @@ import {
 } from "@/app_lib/managed-backup-coordinator";
 import { downloadBackupBytes } from "@/app_lib/managed-backups";
 import { AgentSectionLabel } from "@/components/agents/agent-rows";
+import { InlineNotice } from "@/components/inline-notice";
 import {
     BackupStatusHeader,
     StorageMeter,
@@ -64,6 +65,8 @@ export default function ManagedBackupsRoute() {
     const failure = useAtomValue(managedBackupFailureAtom);
     const [busy, setBusy] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    // Shown in the snapshot sheet: a snackbar would sit behind it.
+    const [downloadMessage, setDownloadMessage] = useState("");
     // A downloaded backup on its way to the share sheet; a lock or leaving stops it.
     const startDownloadRelease = useSecretRelease();
 
@@ -83,13 +86,14 @@ export default function ManagedBackupsRoute() {
     const run = async (
         work: () => Promise<string | undefined>,
         fallback: string,
+        notify = showSnackbar,
     ) => {
         setBusy(true);
         try {
             const done = await work();
-            if (done) showSnackbar(done);
+            if (done) notify(done);
         } catch (error) {
-            showSnackbar(error instanceof Error ? error.message : fallback);
+            notify(error instanceof Error ? error.message : fallback);
         } finally {
             setBusy(false);
         }
@@ -117,42 +121,51 @@ export default function ManagedBackupsRoute() {
         );
 
     const backupNow = () =>
-        run(async () => {
-            try {
-                await managedBackupCoordinator.backupNow();
-            } catch (error) {
-                // The status header explains a failed upload.
-                if (vaultStore.get(managedBackupFailureAtom))
-                    return t`Backup failed.`;
-                throw error;
-            } finally {
-                await refresh();
-            }
-            return t`Encrypted backup uploaded.`;
-        }, t`Backup failed.`);
+        run(
+            async () => {
+                try {
+                    await managedBackupCoordinator.backupNow();
+                } catch (error) {
+                    // The status header explains a failed upload.
+                    if (vaultStore.get(managedBackupFailureAtom))
+                        return t`Backup failed.`;
+                    throw error;
+                } finally {
+                    await refresh();
+                }
+                return t`Encrypted backup uploaded.`;
+            },
+            t`Backup failed.`,
+        );
 
     const download = (snapshotId: string) => {
         const release = startDownloadRelease();
-        return run(async () => {
-            const result = await downloadBackupBytes(snapshotId);
-            const shared = await shareSecretFile(
-                () =>
-                    writeSecretTempFile(
-                        "cryx",
-                        uint8ToBase64(result.bytes),
-                        FileSystem.EncodingType.Base64,
-                    ),
-                {
-                    isCurrent: release.current,
-                    mimeType: "application/octet-stream",
-                },
-            );
-            if (shared === "unavailable")
-                return t`Sharing is unavailable on this device.`;
-            if (shared !== "shared") return undefined;
-            setSelectedId(null);
-            return t`Encrypted backup ready.`;
-        }, t`Download failed.`);
+        setDownloadMessage("");
+        return run(
+            async () => {
+                const result = await downloadBackupBytes(snapshotId);
+                const shared = await shareSecretFile(
+                    () =>
+                        writeSecretTempFile(
+                            "cryx",
+                            uint8ToBase64(result.bytes),
+                            FileSystem.EncodingType.Base64,
+                        ),
+                    {
+                        isCurrent: release.current,
+                        mimeType: "application/octet-stream",
+                    },
+                );
+                if (shared === "unavailable")
+                    return t`Sharing is unavailable on this device.`;
+                if (shared !== "shared") return undefined;
+                setSelectedId(null);
+                showSnackbar(t`Encrypted backup ready.`);
+                return undefined;
+            },
+            t`Download failed.`,
+            setDownloadMessage,
+        );
     };
 
     const items = history.data?.pages.flatMap((page) => page.items) ?? [];
@@ -165,11 +178,14 @@ export default function ManagedBackupsRoute() {
             cancelLabel: t`Cancel`,
             confirmLabel: t`Delete`,
             onConfirm: () =>
-                void run(async () => {
-                    await remove.mutateAsync({ snapshotId });
-                    await refreshAfterDelete();
-                    return t`Backup deleted.`;
-                }, t`Could not delete backup.`),
+                void run(
+                    async () => {
+                        await remove.mutateAsync({ snapshotId });
+                        await refreshAfterDelete();
+                        return t`Backup deleted.`;
+                    },
+                    t`Could not delete backup.`,
+                ),
         });
 
     const confirmDeleteAll = () =>
@@ -179,11 +195,14 @@ export default function ManagedBackupsRoute() {
             cancelLabel: t`Cancel`,
             confirmLabel: t`Delete all`,
             onConfirm: () =>
-                void run(async () => {
-                    await removeAll.mutateAsync();
-                    await refreshAfterDelete();
-                    return t`All backups deleted.`;
-                }, t`Could not delete backups.`),
+                void run(
+                    async () => {
+                        await removeAll.mutateAsync();
+                        await refreshAfterDelete();
+                        return t`All backups deleted.`;
+                    },
+                    t`Could not delete backups.`,
+                ),
         });
 
     if (!available || !status.data) {
@@ -271,9 +290,7 @@ export default function ManagedBackupsRoute() {
                             : t`Automatic backups are off`
                     }
                     body={
-                        when
-                            ? t`Last backup ${when}`
-                            : t`No managed backup yet`
+                        when ? t`Last backup ${when}` : t`No managed backup yet`
                     }
                 >
                     <StorageMeter
@@ -321,7 +338,10 @@ export default function ManagedBackupsRoute() {
                         },
                     )}
                     subtitle={`${snapshot.sourceLabel} (${formatBytes(snapshot.byteLength, i18n.locale)})`}
-                    onPress={() => setSelectedId(snapshot.id)}
+                    onPress={() => {
+                        setDownloadMessage("");
+                        setSelectedId(snapshot.id);
+                    }}
                 />
             ))}
             {!items.length ? (
@@ -381,9 +401,9 @@ export default function ManagedBackupsRoute() {
                                         comment:
                                             "Backup detail row: creation time",
                                     }),
-                                    new Date(
-                                        selected.createdAt,
-                                    ).toLocaleString(i18n.locale),
+                                    new Date(selected.createdAt).toLocaleString(
+                                        i18n.locale,
+                                    ),
                                 ],
                                 [
                                     t({
@@ -455,6 +475,12 @@ export default function ManagedBackupsRoute() {
                                 {t`Delete backup`}
                             </Button>
                         </View>
+                        {downloadMessage ? (
+                            <InlineNotice
+                                tone="info"
+                                message={downloadMessage}
+                            />
+                        ) : null}
                     </>
                 ) : null}
             </Dialog>

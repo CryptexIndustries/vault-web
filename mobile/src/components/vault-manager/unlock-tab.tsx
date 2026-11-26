@@ -85,6 +85,8 @@ import {
 import { cn } from "@/lib/utils";
 import { clearDeviceAdditionalKeyProtection } from "@/app_lib/vault-utils/vault-key-store";
 import { clearPendingSecretFromClipboard } from "@/utils/clipboard";
+import { clearIosCredentialIdentities } from "@/utils/ios-credential-identities";
+import { clearIosAutofillInbox } from "@/utils/ios-autofill-inbox";
 import {
     VaultEntryAction,
     VaultEntryAssurance,
@@ -303,6 +305,8 @@ export function UnlockTab({
                                 deleteVault(id),
                                 clearDeviceAdditionalKeyProtection(id),
                                 clearSecureDek(id),
+                                clearIosCredentialIdentities(id),
+                                clearIosAutofillInbox(id),
                                 clearPendingSecretFromClipboard(),
                             ]);
                             setSelectedId(null);
@@ -769,6 +773,7 @@ export function UnlockTab({
                                 placeholder={t`Enter master password`}
                                 onSubmitEditing={() => void handleUnlock()}
                                 accessibilityLabel={t`Master password`}
+                                testID="unlock-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -840,7 +845,7 @@ export function UnlockTab({
                         accessibilityLabel={t`Unlock with biometrics`}
                         onPress={() => void handleBiometric()}
                     >
-                        {t`Use fingerprint`}
+                        {t`Use biometrics`}
                     </VaultEntryAction>
                 ) : null}
 

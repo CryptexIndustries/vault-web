@@ -1,0 +1,56 @@
+appId: ${CRYPTEX_APP_ID}
+---
+# A login with a verification code for the suite's pages, Face ID unlock, and
+# copying codes after a fill. run-ios-autofill.mjs matches the Face ID prompt.
+- runFlow: setup-vault.yaml
+- tapOn: Add item
+- tapOn:
+      id: add-item-login
+- tapOn: Credential name
+- inputText: Autofill Login
+- tapOn: Credential username
+- inputText: autofill@example.test
+- tapOn:
+      id: credential-password
+- inputText: autofill-password-42
+- tapOn:
+      id: credential-website-url
+- eraseText
+- inputText: ${CRYPTEX_E2E_SITE}
+# Centered, so the sticky save button can't take the tap.
+- scrollUntilVisible:
+      element:
+          text: Enter key
+      direction: DOWN
+      centerElement: true
+- tapOn: Enter key
+- scrollUntilVisible:
+      element:
+          id: credential-totp-secret
+      direction: DOWN
+- tapOn:
+      id: credential-totp-secret
+- inputText: JBSWY3DPEHPK3PXP
+- tapOn: Apply setup
+- scrollUntilVisible:
+      element:
+          id: credential-submit
+      direction: DOWN
+- tapOn:
+      id: credential-submit
+- assertVisible: Autofill Login.*
+- tapOn: Back
+- tapOn: More
+- tapOn: Security,.*
+- tapOn: Biometric unlock
+- tapOn: Confirm vault password for biometric unlock
+- inputText: CorrectHorseBatteryStaple42
+- tapOn:
+      text: Enable biometric unlock
+      below: Confirm vault password for biometric unlock
+- extendedWaitUntil:
+      visible: DEK stored behind device biometrics
+      timeout: 60000
+- tapOn: Back
+- tapOn: AutoFill,.*
+- tapOn: Copy verification codes after autofill

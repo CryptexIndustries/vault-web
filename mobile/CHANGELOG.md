@@ -1,6 +1,12 @@
-# Android changelog
+# Mobile changelog
 
-Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
+Release notes for the Android and iOS apps. Each `mobile-vX.Y.Z` release and the Android & iOS tab of the changelog page show that version's section.
+
+## Unreleased
+
+### Added
+
+- iOS support.
 
 ## 0.6.0 - 2026-11-15
 

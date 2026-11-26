@@ -8,15 +8,16 @@ import Foundation
 enum OneTimeCode {
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
 
-    /// Nil for a secret that isn't base32, a period otpauth can't turn into a
-    /// code, or a digit count no authenticator uses.
+    /// Nil for a secret that isn't base32 or a digit count no authenticator
+    /// uses. A zero period counts in 30-second steps.
     static func code(for totp: VaultUtilTypes_TOTP, at date: Date = Date()) -> String? {
-        guard (1...64).contains(totp.digits), totp.period > 0,
+        guard (1...64).contains(totp.digits),
               var secret = base32Decode(totp.secret)
         else { return nil }
         let key = SymmetricKey(data: secret)
         VaultDecryption.wipe(&secret)
-        let counter = UInt64(max(0, (date.timeIntervalSince1970 / Double(totp.period)).rounded(.down)))
+        let period = totp.period > 0 ? totp.period : 30
+        let counter = UInt64(max(0, (date.timeIntervalSince1970 / Double(period)).rounded(.down)))
         let message = withUnsafeBytes(of: counter.bigEndian) { Data($0) }
         let digest: [UInt8]
         switch totp.algorithm {

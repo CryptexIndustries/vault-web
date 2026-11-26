@@ -254,6 +254,17 @@
             "expected": "5840177"
         },
         {
+            "name": "a zero period counts in 30-second steps",
+            "totp": {
+                "Secret": "JBSWY3DPEHPK3PXP",
+                "Algorithm": 0,
+                "Digits": 6,
+                "Period": 0
+            },
+            "timestamp": 1700000000,
+            "expected": "324550"
+        },
+        {
             "name": "an unknown algorithm falls back to SHA-1",
             "totp": {
                 "Secret": "jbsw y3dp ehpk 3pxp====",

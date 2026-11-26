@@ -87,7 +87,7 @@ The Simulator shares the Mac's network, so the `localhost` URLs in
 open the Simulator's Features menu and turn on Face ID enrollment, then use
 Matching Face when the app asks. The Simulator has no camera, so QR scanning
 needs a physical device. The passkey provider, the SSH agent service and Google
-Play Billing are Android-only. There are no iOS release builds yet.
+Play Billing are Android-only.
 [e2e/README.md](e2e/README.md) lists the suites that run on a Simulator.
 
 ### iOS AutoFill extension
@@ -147,6 +147,37 @@ extension, through the symbolic links in
 
 `pnpm mobile:e2e -- ios-autofill` tests the extension on a Simulator; see
 [the E2E README](e2e/README.md#ios-simulator).
+
+## App Store builds
+
+A `mobile-v*` tag runs the `app_store` job in the Mobile workflow on a macOS
+runner. It builds the production profile, signs it with Xcode automatic signing
+and uploads it to App Store Connect as an App Store eligible build. The job then
+waits until App Store Connect has processed the build and fails if it is
+rejected or only allowed for internal TestFlight testing. The build number is
+the workflow run number and attempt, such as `1234.1`.
+
+To check the iOS build without uploading it, run the Mobile workflow by hand on
+`development` with distribution `app-store`. The run keeps the signed IPA as an
+artifact.
+
+The job uses the `App Store` environment, which needs approval for every run
+and only allows the `development` branch and `mobile-v*` tags. Its secrets hold
+an App Store Connect team API key with the Admin role, which cloud signing
+needs.
+`CRYPTEX_ASC_API_KEY_ID` and `CRYPTEX_ASC_API_ISSUER_ID` hold the key ID and
+issuer ID, and `CRYPTEX_ASC_API_KEY` holds the contents of the `.p8` file. Xcode
+creates a development certificate on each fresh runner, and a cleanup step
+revokes it, even after a failed or cancelled build.
+
+On a Mac signed in to the team in Xcode, the same build runs locally:
+
+```sh
+pnpm mobile:build -- --platform ios
+```
+
+It writes the signed IPA to `mobile/dist/ios`. `--upload` sends it to App Store
+Connect instead, and needs the three key variables above and a clean checkout.
 
 ## Build and install an APK
 

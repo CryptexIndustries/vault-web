@@ -85,6 +85,9 @@ module.exports = ({ config }) => {
         ios: {
             ...config.ios,
             bundleIdentifier: profile.applicationId,
+            // App Store uploads from CI take the workflow run number.
+            buildNumber:
+                process.env.CRYPTEX_IOS_BUILD_NUMBER || config.ios?.buildNumber,
             // react-native-mmkv keeps its files in this App Group.
             infoPlist: { ...config.ios?.infoPlist, AppGroup: appGroup },
             entitlements: {

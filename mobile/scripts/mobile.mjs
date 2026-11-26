@@ -44,6 +44,7 @@ export const help = `Mobile commands, from the repository root:
   pnpm mobile:build -- --dev [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --e2e [--profile <name>] [--distribution standard|play] [--regenerate-native]
   pnpm mobile:build -- --dev|--e2e --platform ios [--profile <name>] [--device <simulator>] [--regenerate-native]
+  pnpm mobile:build -- --platform ios [--build-number <number>] [--upload]
   pnpm mobile:check [-- lint | i18n | types | unit | cli | export]
   pnpm mobile:e2e -- <suite> [--device <serial or Simulator UDID>] [Maestro options]
   pnpm mobile:doctor [-- --profile production|preprod] [--config <path>]
@@ -66,6 +67,8 @@ Dev and E2E builds use the standard distribution; --distribution play adds Googl
 Pass the same --distribution to mobile:dev so Metro bundles the matching billing modules.
 --regenerate-native backs up the existing native tree before a fresh dev/E2E prebuild.
 --platform ios builds on macOS and installs on an iOS Simulator: --dev the dev client, --e2e a bundled Maestro app.
+Without --dev or --e2e, --platform ios archives and signs the production App Store build into mobile/dist/ios.
+--upload sends it to App Store Connect instead and waits until it is processed. Both need macOS with Xcode.
 Check defaults to lint, types, unit tests, CLI tests, and a temporary JS export.
 Device suites require --device, MAESTRO_DEVICE, or ANDROID_SERIAL.
 Suites: ${Object.keys(flows).join(", ")}, autofill-accessibility, provider-auto-lock, ios-autofill,
@@ -408,6 +411,19 @@ export function runMobile(
                 buildEnv,
                 android,
             );
+        } else if (args.includes("--platform")) {
+            const index = args.indexOf("--platform");
+            if (
+                args[index + 1] !== "ios" ||
+                args.lastIndexOf("--platform") !== index
+            )
+                throw new Error(
+                    "Release builds take --platform ios once, or no --platform for Android.",
+                );
+            args.splice(index, 2);
+            if (host !== "darwin")
+                throw new Error("iOS builds need macOS with Xcode.");
+            execute(process.execPath, ["scripts/build-ios.mjs", ...args]);
         } else {
             const options = parseReleaseOptions(args, {
                 cwd: env.INIT_CWD || process.cwd(),

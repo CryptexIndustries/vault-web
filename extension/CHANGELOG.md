@@ -2,11 +2,13 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
-## Unreleased
+## 1.13.0 - 2026-11-26
 
 ### Fixed
 
 - Websites can no longer detect the extension by loading its files at the extension's fixed address. In Chromium, the autofill panels open from an address that changes every browser session.
+- The extension keeps unsaved edits to a login as a draft while an authenticator field, such as the period, is empty.
+- Screen readers name the icon-only buttons in the login form: copy, show or hide, generate password and remove field.
 
 ## 1.12.0 - 2026-11-15
 

@@ -15,7 +15,7 @@ export default function Changelog() {
     return (
         <Site
             title="Changelog"
-            description="Release notes for Cryptex Vault: features, fixes and changes to the web app, Browser Extension, Android app, SSH agent and servers."
+            description="Release notes for Cryptex Vault: features, fixes and changes to the web app, Browser Extension, Android and iOS apps, SSH agent and servers."
         >
             <section className={s.pageHero}>
                 <Label>RELEASE NOTES</Label>

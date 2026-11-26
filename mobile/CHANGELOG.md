@@ -1,24 +1,12 @@
-# Android changelog
+# Mobile changelog
 
-Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
+Release notes for the Android and iOS apps. Each `mobile-vX.Y.Z` release and the Android & iOS tab of the changelog page show that version's section.
 
 ## Unreleased
 
 ### Added
 
-- On iOS, Cryptex Vault can fill passwords in Safari and apps. Turn it on under AutoFill in the app's settings. It fills from vaults with biometric unlock turned on and asks for Face ID every time. On iOS 17.4 and later, those logins also show above the keyboard. As on Android, picking a login saved for another website asks you to check the destination first, and you can add the website to the login there. Add login in the fill sheet creates a new login and fills it.
-- On iOS 18 and later, Cryptex Vault also fills verification codes. With "Copy verification codes" on, a password fill copies the login's current code for 30 seconds on any iOS version, as on Android.
-- On iOS 18 and later, AutoFill in any text field's menu can insert a username, password or verification code from Cryptex Vault.
-- On iOS 26.2 and later, Cryptex Vault can save new and changed passwords. It encrypts them on the phone and adds them to the vault the next time the vault is unlocked.
-- On iOS 26.2 and later, Cryptex Vault suggests a strong password when you create an account, following the website's password rules.
-- On iOS, copied passwords and other secrets clear after 30 seconds even while Cryptex Vault is in the background, and don't reach your other Apple devices through Universal Clipboard.
-- On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
-- On iOS 17 and later, Cryptex Vault can create and use passkeys in Safari and apps, from vaults with biometric unlock turned on. It asks for Face ID every time. A new passkey works right away, and the app adds it to the vault the next time you unlock that vault.
-- On iOS, you can subscribe to Online Services through the App Store, with a 14-day free trial for new subscribers. Restore purchases and the link to your App Store subscriptions are on the Account tab.
-
-### Changed
-
-- The password generator matches the one in iOS AutoFill.
+- iOS support.
 
 ## 0.6.0 - 2026-11-15
 

@@ -93,8 +93,9 @@ export default function Sharing() {
                 <p>
                     Pick the fields with the switches, choose when the link
                     expires, and tap <strong>Create link</strong>.{" "}
-                    <strong>Send link</strong> opens the Android share sheet, so
-                    you can pass the link straight to a chat or mail app.
+                    <strong>Send link</strong> opens the share sheet on Android
+                    and iOS, so you can pass the link straight to a chat or mail
+                    app.
                 </p>
                 <DocScreenshot
                     src="/images/docs/sharing-android.png"
@@ -143,7 +144,7 @@ export default function Sharing() {
                     <strong>Shared Links</strong> lists the links you created.
                     It sits in the web app&apos;s sidebar, in the
                     extension&apos;s vault actions menu, and under{" "}
-                    <strong>More</strong> on Android. A link stays{" "}
+                    <strong>More</strong> on Android and iOS. A link stays{" "}
                     <strong>Active</strong> until someone opens it, it expires,
                     you revoke it, or five wrong passphrases destroy it. You can
                     search by name or server, filter by one or more statuses,
@@ -156,14 +157,15 @@ export default function Sharing() {
                     caption="Opened links show when the recipient revealed them. The filter and sort buttons sit next to search."
                 />
                 <p>
-                    Each link has a three-dot menu. On Android, tapping the row
-                    opens it too. <strong>Revoke link</strong> stops a link that
-                    hasn&apos;t been opened yet and deletes its contents from
-                    the server, after you confirm. <strong>Open item</strong>{" "}
-                    jumps to the vault item it came from.{" "}
-                    <strong>Remove from list</strong> only changes your list. If
-                    the link is still active, it revokes it first. Finished
-                    links leave the list on their own after about 90 days.
+                    Each link has a three-dot menu. On Android and iOS, tapping
+                    the row opens it too. <strong>Revoke link</strong> stops a
+                    link that hasn&apos;t been opened yet and deletes its
+                    contents from the server, after you confirm.{" "}
+                    <strong>Open item</strong> jumps to the vault item it came
+                    from. <strong>Remove from list</strong> only changes your
+                    list. If the link is still active, it revokes it first.
+                    Finished links leave the list on their own after about 90
+                    days.
                 </p>
             </DocSection>
 
@@ -229,7 +231,7 @@ export default function Sharing() {
                     happens to the Cryptex Vault service.
                 </p>
                 <p>
-                    In the Browser Extension and on Android, open{" "}
+                    In the Browser Extension and on Android and iOS, open{" "}
                     <strong>Shared Links</strong>, choose the server icon, and
                     enter the server address and your creation token. A
                     self-hosted web app always uses its own server, so it only

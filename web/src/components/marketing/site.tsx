@@ -36,6 +36,8 @@ export const FIREFOX_ADD_ONS =
     "https://addons.mozilla.org/en-US/firefox/addon/cryptex-vault/";
 export const GOOGLE_PLAY =
     "https://play.google.com/store/apps/details?id=com.cryptexindustries.vault";
+export const APP_STORE =
+    "https://apps.apple.com/app/cryptex-vault/id6836340912";
 export { s };
 export function Action({
     href = "/app",
@@ -247,6 +249,7 @@ export function Site({
                             Browser Extension
                         </Link>
                         <Link href="/download/android">Android app</Link>
+                        <a href={APP_STORE}>iOS app</a>
                         <Link href="/docs/ssh-agent#install">SSH agent</Link>
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
@@ -408,6 +411,9 @@ export function FinalCTA() {
                     </Action>
                     <Action href="/download/android" secondary>
                         Get the Android app
+                    </Action>
+                    <Action href={APP_STORE} secondary>
+                        Get the iOS app
                     </Action>
                 </div>
             </div>
@@ -777,7 +783,7 @@ export function Network({
 }
 const coreFeatures: { title: string; description?: string }[] = [
     { title: "Local encrypted vault" },
-    { title: "Web app, Android & Browser Extension" },
+    { title: "Web app, Android & iOS apps, Browser Extension" },
     { title: "Browser autofill" },
     { title: "Passkey support" },
     {

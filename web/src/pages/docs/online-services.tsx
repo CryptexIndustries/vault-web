@@ -446,12 +446,12 @@ export default function OnlineServices() {
                 </p>
                 <ol>
                     <li>
-                        Android app: open Account, then Recovery &amp; access,
-                        and choose Delete online account.
+                        Android or iOS app: open Account, then Recovery &amp;
+                        access, and choose Delete online account.
                     </li>
                     <li>
-                        Web vault, without the Android app: open Account, then
-                        the Security tab, and choose Delete account.
+                        Web vault, without the Android or iOS app: open Account,
+                        then the Security tab, and choose Delete account.
                     </li>
                 </ol>
                 <p>

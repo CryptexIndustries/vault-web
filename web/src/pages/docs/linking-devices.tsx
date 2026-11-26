@@ -56,9 +56,9 @@ export default function LinkingDevices() {
             <DocSection id="prepare" title="Before you start">
                 <p>
                     Open and unlock the vault you want to synchronize. On the
-                    other device, install the Android app, open the web app or
-                    install the Browser Extension. Both devices need to be
-                    online. Keep both apps open until linking finishes.
+                    other device, install the Android or iOS app, open the web
+                    app or install the Browser Extension. Both devices need to
+                    be online. Keep both apps open until linking finishes.
                 </p>
                 <p>
                     To link devices and synchronize your vault, you need either
@@ -105,7 +105,7 @@ export default function LinkingDevices() {
                         aria-controls="sending-instructions"
                         onClick={() => setSender("android")}
                     >
-                        Android app
+                        Android or iOS app
                     </button>
                     <button
                         type="button"
@@ -203,7 +203,7 @@ export default function LinkingDevices() {
                         aria-controls="receiving-instructions"
                         onClick={() => setReceiver("android")}
                     >
-                        Android app
+                        Android or iOS app
                     </button>
                     <button
                         type="button"
@@ -237,8 +237,8 @@ export default function LinkingDevices() {
                             <DocSteps
                                 items={[
                                     <p key="open">
-                                        Install and open the Android app. On the
-                                        first screen, tap{" "}
+                                        Install and open the Android or iOS app.
+                                        On the first screen, tap{" "}
                                         <strong>Use invitation</strong> at the
                                         bottom instead of creating a vault.
                                     </p>,
@@ -510,12 +510,13 @@ export default function LinkingDevices() {
                     Linking moves the receiving vault to the sending
                     device&apos;s Online Services account. If the receiving
                     vault already has an account of its own, the web app and the
-                    Android app ask what to do with it before linking.
+                    Android and iOS apps ask what to do with it before linking.
                 </p>
                 <p>
                     To avoid this, don&apos;t sign up on the second device. Its
-                    Account tab on Android, and the account dialog in the web
-                    app, point to <strong>Use invitation</strong> instead.
+                    Account tab on Android and iOS, and the account dialog in
+                    the web app, point to <strong>Use invitation</strong>{" "}
+                    instead.
                 </p>
                 <DocScreenshot
                     src="/images/docs/android-account-use-invitation.png"

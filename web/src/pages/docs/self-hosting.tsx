@@ -946,7 +946,7 @@ curl -I https://vault.example.com/app`}</DocCode>
                     <li>
                         Each person opens <strong>Shared Links</strong> in their
                         vault, chooses the server icon, and enters their token.
-                        In the extension and on Android they also enter{" "}
+                        In the extension and on Android and iOS they also enter{" "}
                         <code>https://vault.example.com</code> as the share
                         server.
                     </li>
@@ -1030,10 +1030,10 @@ curl -I https://vault.example.com/app`}</DocCode>
                         relay on the same machine.
                     </li>
                     <li>
-                        When the Android app or the web app reads the code, it
-                        asks for the relay&apos;s access token. Enter your{" "}
-                        <code>RELAY_ACCESS_TOKEN</code>. Each device saves it in
-                        the vault for that device only, under{" "}
+                        When the web app or the Android or iOS app reads the
+                        code, it asks for the relay&apos;s access token. Enter
+                        your <code>RELAY_ACCESS_TOKEN</code>. Each device saves
+                        it in the vault for that device only, under{" "}
                         <strong>Agent relays</strong>.
                     </li>
                 </ol>

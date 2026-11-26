@@ -18,7 +18,7 @@ export type MembershipAccess = {
 
 const vaultBenefits = [
     msg`Local encrypted vault`,
-    msg`Web app, Android & iOS apps, Chromium extension`,
+    msg`Web app, Android & iOS apps, browser extension`,
     msg`Autofill`,
     msg`Passkey support`,
     msg`Basic security reports`,

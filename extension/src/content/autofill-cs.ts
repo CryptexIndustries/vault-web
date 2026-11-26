@@ -1,8 +1,8 @@
 /**
  * Cryptex Vault autofill content script.
  *
- * Runs in the isolated world of every top-level http(s) frame and is
- * responsible for:
+ * Runs in the isolated world of the top http(s) frame and of sub-frames
+ * that share its origin, and is responsible for:
  *   - detecting login, signup, and OTP fields in the host page
  *   - tracking qualified fields and showing one control on the active field
  *   - opening the matching inline panel beside that field
@@ -10,8 +10,9 @@
  *   - prompting the user to save new credentials on form submit
  *
  * Security choices (mirrors `extension/docs/autofill/README.md`):
- *   - Top-frame only. Sub-frames cannot run autofill UI; the SW also
- *     enforces this via `sender.frameId === 0`.
+ *   - Top frame and same-origin sub-frames only. Cross-origin frames
+ *     cannot run autofill UI; the SW also checks the sender's origin
+ *     against the top frame's.
  *   - All sensitive traffic with the SW uses the same envelope-encrypted
  *     transport as the popup. The shared client is configured with
  *     `setEnvelopeOriginOverride("autofill-cs")` so the SW recognises us.
@@ -23,6 +24,8 @@
  *     them. (JS strings are immutable; "wipe" amounts to dropping refs
  *     promptly and never keeping module-scoped copies.)
  */
+
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
 
 import {
     ACTIVE_PAGE_ORIGIN_QUERY,
@@ -60,8 +63,12 @@ import {
     type InlineIconController,
     type InlineIconMode,
 } from "./inline-icon";
-import { getEffectiveOrigin, isTopFrame } from "./origin-utils";
-import { base64UrlEncode } from "../utils/crypto-utils";
+import {
+    getEffectiveOrigin,
+    isSameOriginFrameChain,
+    isTopFrame,
+} from "./origin-utils";
+import { copyBytes } from "../utils/bytes";
 import {
     generatePasskeyRegistration,
     PASSKEY_CONTENT_SOURCE,
@@ -70,7 +77,6 @@ import {
     type PasskeyCreateResult,
 } from "./passkey-registration";
 import {
-    encodeBase64Url,
     type PasskeyGetCancel,
     type PasskeyGetRequest,
     type PasskeyGetResult,
@@ -102,6 +108,7 @@ const SAVE_MIN_HEIGHT_PX = 120;
 const SAVE_VIEWPORT_PADDING_PX = 32;
 const SAVE_SHOW_DEFER_MS = 150;
 const SAVE_SHOW_RETRY_MS = [0, 150, 400] as const;
+const PENDING_SAVE_EVENT = "cryptex:pending-save";
 const MUTATION_DEBOUNCE_MS = 150;
 const UNLOCK_POLL_INTERVAL_MS = 750;
 const UNLOCK_POLL_TIMEOUT_MS = 90_000;
@@ -178,7 +185,7 @@ let pendingPasskeyGet: { requestId: string; cancelled: boolean } | null = null;
 let initialised = false;
 
 function shouldRun(): boolean {
-    if (!isTopFrame()) return false;
+    if (!isSameOriginFrameChain()) return false;
     if (
         window.location.protocol !== "http:" &&
         window.location.protocol !== "https:"
@@ -833,7 +840,7 @@ async function showPendingSavePromptWhenReady(): Promise<void> {
 /**
  * For same-document submits (SPA / fetch login), show after a short
  * defer. Skip when the tab is navigating away so we don't flash on
- * the dying page — the next document's bootstrap will mount instead.
+ * the dying page. The next document's bootstrap will mount instead.
  */
 function scheduleSavePromptOnSamePage(): void {
     let pageHiding = false;
@@ -845,8 +852,17 @@ function scheduleSavePromptOnSamePage(): void {
     window.setTimeout(() => {
         window.removeEventListener("pagehide", onPageHide);
         if (pageHiding || document.visibilityState === "hidden") return;
-        void maybeShowPendingSavePrompt();
+        showPendingSavePromptInTopFrame();
     }, SAVE_SHOW_DEFER_MS);
+}
+
+/**
+ * Same-origin sub-frames hand the prompt to the top frame so a page shows at
+ * most one, even when only the sub-frame navigated after submit.
+ */
+function showPendingSavePromptInTopFrame(): void {
+    if (isTopFrame()) void maybeShowPendingSavePrompt();
+    else window.top?.dispatchEvent(new Event(PENDING_SAVE_EVENT));
 }
 
 function promptSaveCredential(payload: SaveCredentialPromptRequest): void {
@@ -863,7 +879,7 @@ function postPasskeyGetResult(result: Omit<PasskeyGetResult, "source">): void {
 
 // Stands in for sender.documentId in Firefox. randomUUID() is missing on http
 // pages, where this script also runs.
-const passkeyDocumentToken = base64UrlEncode(
+const passkeyDocumentToken = uint8ToBase64Url(
     crypto.getRandomValues(new Uint8Array(32)),
 );
 
@@ -919,12 +935,12 @@ function serializePasskeyRequest(
     request: PublicKeyCredentialRequestOptions,
 ): import("../types/sw-messaging").PasskeyRequestOptionsDTO {
     return {
-        challenge: encodeBase64Url(request.challenge),
+        challenge: uint8ToBase64Url(copyBytes(request.challenge)),
         rpId: request.rpId,
         allowCredentials: (request.allowCredentials ?? []).map(
             (descriptor) => ({
                 type: "public-key",
-                id: encodeBase64Url(descriptor.id),
+                id: uint8ToBase64Url(copyBytes(descriptor.id)),
             }),
         ),
         userVerification: request.userVerification ?? "preferred",
@@ -1086,8 +1102,13 @@ async function handlePasskeyCreateRequest(
     }
 }
 
+// The passkey page bridge only runs in the top frame.
 window.addEventListener("message", (event: MessageEvent) => {
-    if (event.source !== window || event.origin !== window.location.origin)
+    if (
+        !isTopFrame() ||
+        event.source !== window ||
+        event.origin !== window.location.origin
+    )
         return;
     const request = event.data as
         | PasskeyCreateRequest
@@ -1442,7 +1463,14 @@ function bootstrap(): void {
     document.addEventListener("animationend", onLayoutChange, true);
 
     attachSubmitListener();
-    void showPendingSavePromptWhenReady();
+    if (isTopFrame()) {
+        window.addEventListener(PENDING_SAVE_EVENT, () => {
+            void maybeShowPendingSavePrompt();
+        });
+        void showPendingSavePromptWhenReady();
+    } else {
+        showPendingSavePromptInTopFrame();
+    }
 }
 
 function debounce<T extends (...args: never[]) => void>(

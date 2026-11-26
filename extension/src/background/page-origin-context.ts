@@ -80,9 +80,11 @@ export async function getActivePageOrigin(): Promise<ActivePageOrigin | null> {
     if (!context || context.tabId !== activeTab.id) return null;
 
     try {
-        const liveOrigin = (await chrome.tabs.sendMessage(activeTab.id, {
-            kind: ACTIVE_PAGE_ORIGIN_QUERY,
-        })) as
+        const liveOrigin = (await chrome.tabs.sendMessage(
+            activeTab.id,
+            { kind: ACTIVE_PAGE_ORIGIN_QUERY },
+            { frameId: 0 },
+        )) as
             | { url?: unknown; host?: unknown; etldPlus1?: unknown }
             | undefined;
         if (
@@ -105,5 +107,32 @@ export async function getActivePageOrigin(): Promise<ActivePageOrigin | null> {
         // No current top-frame content script means the stored origin cannot
         // be proven live (commonly while a navigation is still loading).
         return null;
+    }
+}
+
+/**
+ * Accepts the top frame, or a sub-frame whose browser-reported URL has the
+ * same origin as the top frame's live content script. The sub-frame's
+ * content script separately refuses any cross-origin frame in between.
+ */
+export async function isTopOrSameOriginFrame(
+    sender: chrome.runtime.MessageSender,
+): Promise<boolean> {
+    if (sender.frameId === 0) return true;
+    const tabId = sender.tab?.id;
+    if (tabId == null || !sender.url) return false;
+
+    try {
+        const top = (await chrome.tabs.sendMessage(
+            tabId,
+            { kind: ACTIVE_PAGE_ORIGIN_QUERY },
+            { frameId: 0 },
+        )) as { url?: unknown } | undefined;
+        return (
+            typeof top?.url === "string" &&
+            new URL(top.url).origin === new URL(sender.url).origin
+        );
+    } catch {
+        return false;
     }
 }

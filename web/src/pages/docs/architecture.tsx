@@ -13,13 +13,13 @@ export default function Architecture() {
     return (
         <DocArticle
             title="Architecture"
-            description="Where the vault lives, how devices connect, and how the web application and Chromium Extension run the same vault core."
+            description="Where the vault lives, how devices connect, and how the web application and Browser Extension run the same vault core."
             eyebrow="TECHNICAL GUIDE"
             toc={[
                 { href: "#system", label: "System overview" },
                 { href: "#core", label: "Shared vault core" },
                 { href: "#web", label: "Web application" },
-                { href: "#extension", label: "Chromium Extension" },
+                { href: "#extension", label: "Browser Extension" },
                 { href: "#references", label: "Implementation references" },
             ]}
             related={[
@@ -145,13 +145,13 @@ export default function Architecture() {
                     client, while a backup stores a snapshot for restoration.
                 </p>
             </DocSection>
-            <DocSection id="extension" title="Inside the Chromium Extension">
+            <DocSection id="extension" title="Inside the Browser Extension">
                 <p>
                     The extension uses Manifest V3 and divides work between its
-                    service worker, extension pages, and scripts on visited
-                    websites. The service worker handles vault operations; the
-                    popup and linking page send it requests rather than writing
-                    the vault database themselves.
+                    service worker (an event page in Firefox), extension pages,
+                    and scripts on visited websites. The service worker handles
+                    vault operations; the popup and linking page send it
+                    requests rather than writing the vault database themselves.
                 </p>
                 <ClientArchitecture variant="extension" />
                 <dl>

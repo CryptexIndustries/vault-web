@@ -103,7 +103,10 @@ export type DirectorySchemaType = z.infer<typeof DirectorySchema>;
 export const TOTPFormSchema = z.object({
     Label: z.string().max(255, "Label is too long"),
     Secret: z.string(),
-    Period: z.number().min(1, "Period must be at least 1 second"),
+    Period: z
+        .number()
+        .int("Period must be a whole number of seconds")
+        .min(1, "Period must be at least 1 second"),
     Digits: z.number().min(1, "Digits must be at least 1"),
     Algorithm: z.nativeEnum(VaultUtilTypes.TOTPAlgorithm),
 });

@@ -362,7 +362,6 @@ and `::1`. Use HTTPS for other hosts.
 ## Further documentation
 
 - [Android autofill](docs/ANDROID_AUTOFILL.md) and [passkeys](docs/ANDROID_PASSKEYS.md)
-- [Android PRF feasibility](docs/ANDROID_PRF_FEASIBILITY.md)
 - [QR scanner maintenance](QR_SCANNER.md)
 - [Security threat model](threat-model.md)
 - [F-Droid source builds](fdroid/README.md)

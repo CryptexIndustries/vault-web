@@ -14,14 +14,23 @@ Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that
 - On iOS, copied passwords and other secrets clear after 30 seconds even while Cryptex Vault is in the background, and don't reach your other Apple devices through Universal Clipboard.
 - On iOS, the language can be changed in the app's settings or with the EN/HR switch on the first screen, as on Android.
 - On iOS 17 and later, Cryptex Vault can create and use passkeys in Safari and apps, from vaults with biometric unlock turned on. It asks for Face ID every time. A new passkey works right away, and the app adds it to the vault the next time you unlock that vault.
-- The Backup Center says when a managed backup or a backup destination fails, and why. A dot on the More tab and on the Backup Center row stays until backups work again.
 - On iOS, you can subscribe to Online Services through the App Store, with a 14-day free trial for new subscribers. Restore purchases and the link to your App Store subscriptions are on the Account tab.
 
 ### Changed
 
 - The password generator matches the one in iOS AutoFill.
+
+## 0.6.0 - 2026-11-15
+
+### Added
+
+- The Backup Center says when a managed backup or a backup destination fails, and why. A dot on the More tab and on the Backup Center row stays until backups work again.
+
+### Changed
+
 - The Backup Center opens on the vault's backup status and how much managed storage is used. Managed backups and backup destinations each have their own screen, and the backup history is on the managed backups screen.
 - When managed backup storage is full, the app no longer retries every minute. It tries again after the next change to the vault or a tap on Back up now.
+- SSH agents on a Mac show as macOS, and the pairing steps no longer assume the agent runs on Linux.
 
 ### Fixed
 

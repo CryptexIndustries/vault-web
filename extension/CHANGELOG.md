@@ -2,6 +2,23 @@
 
 Each `extension-vX.Y.Z` release and the Extension tab of the changelog page show that version's section. The extension's version follows the web app's, so a version can have no extension changes.
 
+## Unreleased
+
+### Fixed
+
+- Websites can no longer detect the extension by loading its files at the extension's fixed address. In Chromium, the autofill panels open from an address that changes every browser session.
+
+## 1.12.0 - 2026-11-15
+
+### Changed
+
+- Shared Links has the same header as the web app's screens: a back button, the title and the screen's actions in a fixed header.
+- When a managed backup is too large, the message says storage may be full and suggests deleting older backups in the Backup Center.
+
+### Fixed
+
+- Autofill works on sign-in forms inside a frame from the same domain as the page. Choosing a login fills the username and password together, and signing in there offers to save the login.
+
 ## 1.11.0 - 2026-11-08
 
 ### Added

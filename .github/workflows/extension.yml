@@ -1,7 +1,8 @@
 name: Browser extension
 
-# extension-* tags build production. Run it by hand to build any branch with
-# either profile. Values come from extension/release-config.json and
+# extension-* tags build both profiles, and extension-v* tags also submit them to
+# the Chrome Web Store and addons.mozilla.org. Run it by hand to build any branch
+# with either profile. Values come from extension/release-config.json and
 # extension/prerelease-config.json. Other pushes and pull requests that change
 # something the extension uses only run the tests; tag pushes ignore the paths.
 on:
@@ -64,7 +65,7 @@ jobs:
         with:
             browser: chromium
             package: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
-            profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+            profiles: ${{ github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.profile) || '["production", "preprod"]' }}
 
     firefox:
         name: Firefox
@@ -72,10 +73,11 @@ jobs:
         with:
             browser: firefox
             package: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
-            profile: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+            profiles: ${{ github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.profile) || '["production", "preprod"]' }}
 
     # extension-v1.2.3 tags open a draft GitHub release with the 1.2.3 section
-    # of extension/CHANGELOG.md and both ZIPs. Publishing it is a manual step.
+    # of extension/CHANGELOG.md and both production ZIPs. Publishing it is a
+    # manual step.
     draft-release:
         name: Draft GitHub release
         needs: [chromium, firefox]
@@ -104,4 +106,150 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   RELEASE_OUTRO: The Chrome Web Store and Firefox Add-ons updates follow after review.
               shell: bash
-              run: scripts/draft-release.sh "Extension v${GITHUB_REF_NAME#extension-v}" extension/CHANGELOG.md dist/*.zip
+              run: scripts/draft-release.sh "Extension v${GITHUB_REF_NAME#extension-v}" extension/CHANGELOG.md dist/cryptex-vault-{chromium,firefox}-extension-v*.zip
+
+    # Reviewers at addons.mozilla.org rebuild the add-on from this archive, so
+    # the job rebuilds both Firefox packages from it first and fails on any
+    # difference.
+    firefox-source:
+        name: Firefox source archive
+        needs: firefox
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - name: Enable pnpm
+              run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  pattern: cryptex-vault-firefox-*
+                  merge-multiple: true
+                  skip-decompress: true
+                  path: dist
+            - name: Create source archive
+              run: extension/scripts/source-archive.sh "$RUNNER_TEMP/cryptex-vault-firefox-source.zip"
+            - name: Rebuild both packages from the source archive
+              shell: bash
+              run: |
+                  unzip -q "$RUNNER_TEMP/cryptex-vault-firefox-source.zip" -d "$RUNNER_TEMP/rebuild"
+                  cd "$RUNNER_TEMP/rebuild/cryptex-vault-source"
+                  pnpm install --frozen-lockfile
+                  check() {
+                    pnpm build:ext -- --profile "$1" --browser firefox
+                    rm -rf "$RUNNER_TEMP/expected"
+                    unzip -q "$2" -d "$RUNNER_TEMP/expected"
+                    diff -r "$RUNNER_TEMP/expected" extension/dist-firefox
+                  }
+                  check production "$GITHUB_WORKSPACE"/dist/cryptex-vault-firefox-extension-v*.zip
+                  check preprod "$GITHUB_WORKSPACE"/dist/cryptex-vault-firefox-preprod-extension-v*.zip
+            - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  path: ${{ runner.temp }}/cryptex-vault-firefox-source.zip
+                  archive: false
+                  if-no-files-found: error
+                  retention-days: 30
+
+    # The extension-stores environment admits only extension-v* tags, and the
+    # store credentials work only from jobs in it. Each store and profile is its
+    # own job, so a failed submission can be rerun alone. The packages are
+    # matched by pattern because packaging replaces unusual tag characters.
+    chrome-web-store:
+        name: Chrome Web Store ${{ matrix.profile }}
+        needs: chromium
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        environment: extension-stores
+        permissions:
+            contents: read
+            id-token: write
+        # Upload and publish both act on the item, so two tags at once could
+        # submit each other's package.
+        concurrency:
+            group: chrome-web-store-${{ matrix.item }}
+            cancel-in-progress: false
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - profile: production
+                      item: mmkjefiodfpafhkckekfdeccnkhphfhp
+                      package: cryptex-vault-chromium-extension-v*.zip
+                    - profile: preprod
+                      item: oehijooefkiojfmmdaeondeemennhnkm
+                      package: cryptex-vault-chromium-preprod-extension-v*.zip
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: extension/scripts/chrome-web-store.mjs
+                  sparse-checkout-cone-mode: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  pattern: ${{ matrix.package }}
+                  merge-multiple: true
+                  skip-decompress: true
+                  path: dist
+            # Workload identity federation in the cryptex-vault-releases Google
+            # Cloud project swaps the job's GitHub token for a short-lived token
+            # of the service account the Chrome Web Store publisher trusts.
+            - id: google
+              uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+              with:
+                  workload_identity_provider: projects/418723943846/locations/global/workloadIdentityPools/github/providers/vault-web
+                  service_account: extension-store-publisher@cryptex-vault-releases.iam.gserviceaccount.com
+                  token_format: access_token
+                  access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+                  create_credentials_file: false
+            - name: Submit for review
+              env:
+                  CHROME_WEB_STORE_PUBLISHER: 94428aa9-ba6d-4679-a365-594d4d2b144a
+                  CHROME_WEB_STORE_TOKEN: ${{ steps.google.outputs.access_token }}
+              run: node extension/scripts/chrome-web-store.mjs dist/${{ matrix.package }} ${{ matrix.item }}
+
+    addons-mozilla-org:
+        name: Firefox Add-ons ${{ matrix.profile }}
+        needs: firefox-source
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v')
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        environment: extension-stores
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - profile: production
+                      package: cryptex-vault-firefox-extension-v*.zip
+                    - profile: preprod
+                      package: cryptex-vault-firefox-preprod-extension-v*.zip
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  sparse-checkout: |
+                      extension/scripts/addons-mozilla-org.mjs
+                      extension/amo/reviewer-notes-${{ matrix.profile }}.md
+                  sparse-checkout-cone-mode: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 24.22.2
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  pattern: cryptex-vault-firefox-*
+                  merge-multiple: true
+                  skip-decompress: true
+                  path: dist
+            - name: Submit for review
+              env:
+                  AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+                  AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+              run: >-
+                  node extension/scripts/addons-mozilla-org.mjs
+                  dist/${{ matrix.package }}
+                  dist/cryptex-vault-firefox-source.zip
+                  extension/amo/reviewer-notes-${{ matrix.profile }}.md

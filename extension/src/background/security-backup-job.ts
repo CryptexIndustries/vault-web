@@ -1,4 +1,4 @@
-import { uint8ToBase64 } from "@cryptex-industries/vault-core/encoding";
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
 
 import { createDirectOnlineServicesTrpcClient } from "../app_lib/auth-session-ext";
 import type { SecurityBackupJob } from "../types/sw-messaging";
@@ -117,15 +117,8 @@ export async function getLatestSecurityBackupJobId(
     return job?.vaultId === vaultId ? value : undefined;
 }
 
-function bytesToBase64Url(bytes: Uint8Array): string {
-    return uint8ToBase64(bytes)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/g, "");
-}
-
 async function checksum(bytes: Uint8Array): Promise<string> {
-    return bytesToBase64Url(
+    return uint8ToBase64Url(
         new Uint8Array(
             await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)),
         ),

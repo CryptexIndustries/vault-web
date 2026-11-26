@@ -124,8 +124,13 @@ function autocompleteTokens(el: HTMLInputElement): Set<string> {
 }
 
 function nameSignal(el: HTMLInputElement): string {
-    const labels = Array.from(el.labels ?? [])
-        .map((label) => label.textContent ?? "")
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const labelledBy = (el.getAttribute("aria-labelledby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => root.getElementById(id));
+    const labels = [...Array.from(el.labels ?? []), ...labelledBy]
+        .map((label) => label?.textContent ?? "")
         .filter(Boolean);
 
     return [
@@ -322,8 +327,8 @@ function isPasswordOnlyLogin(
 /**
  * Depth-first walk that yields every `<input>` in the document
  * *including* those nested inside open shadow roots. We deliberately
- * skip `<iframe>` contents — those are addressed by per-frame content
- * script injection (currently top-frame only).
+ * skip `<iframe>` contents. Same-origin frames run their own content
+ * script.
  */
 function* walkInputs(
     root: ParentNode = document,
@@ -367,6 +372,8 @@ function groupContainer(el: HTMLInputElement): Element {
     if (form) return form;
     let walker: HTMLElement | null = el.parentElement;
     let hops = 0;
+    // Formless logins such as Apple's wrap their fields in role=group.
+    let roleGroup: HTMLElement | null = null;
     while (walker && hops < 8) {
         if (
             walker.tagName === "SECTION" ||
@@ -375,10 +382,12 @@ function groupContainer(el: HTMLInputElement): Element {
         ) {
             return walker;
         }
+        if (walker.tagName === "DIV" && walker.getAttribute("role") === "group")
+            roleGroup ??= walker;
         walker = walker.parentElement;
         hops++;
     }
-    return el.parentElement ?? document.body;
+    return roleGroup ?? el.parentElement ?? document.body;
 }
 
 /**

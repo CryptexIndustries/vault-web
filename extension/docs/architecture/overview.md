@@ -53,7 +53,7 @@ flowchart TB
 | Service worker  | `background.js`   | Root                                | N/A (handler)         |
 | Action popup    | `popup.html`      | High                                | Yes — full vault ACL  |
 | Link tab        | `link.html`       | Medium-high                         | Yes — OS + proxy only |
-| Content script  | `autofill-cs.js`  | Semi — top frame only               | Yes — autofill ACL    |
+| Content script  | `autofill-cs.js`  | Semi: top and same-origin frames    | Yes: autofill ACL     |
 | Autofill panels | `autofill-*.html` | Semi — extension origin in host DOM | Yes — per-kind ACL    |
 
 ## Three parallel stacks

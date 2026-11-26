@@ -55,8 +55,9 @@ Important properties:
 - Claims must come from the same tab as the registering content script.
 - Claims must use the same iframe kind registered by the content script.
 - `frameId` is recorded at register time but not checked on claim. Registration
-  comes from the top-frame content script; claims come from extension iframes in
-  subframes and are bound by tab id plus iframe kind.
+  comes from a content script in the top frame or a same-origin sub-frame;
+  claims come from extension iframes in subframes and are bound by tab id plus
+  iframe kind.
 
 `RegisterAutofillFrame` and `ClaimAutofillFrame` are handled before the main
 vault message switch in `background.ts` because iframe bootstrap does not need
@@ -70,7 +71,7 @@ The encrypted envelope allowlist in `background.ts` and sender validation in
 `security-utils.ts` gate bootstrap messages before registry logic:
 
 - `RegisterAutofillFrame` is allowed only from `autofill-cs`, which must be the
-  top-frame content script.
+  content script of the top frame or of a sub-frame with the top frame's origin.
 - `ClaimAutofillFrame` is allowed only from the `autofill-menu`,
   `autofill-generator`, and `autofill-save` extension iframe origins.
 - Other origins cannot invoke these message types even if they reach the service

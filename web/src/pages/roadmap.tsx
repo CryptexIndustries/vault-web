@@ -43,12 +43,6 @@ const roadmap = [
                     "Scan dark web data dumps and alert you to exposed credentials.",
             },
             {
-                title: "Firefox extension",
-                target: null,
-                description:
-                    "Use the Cryptex Vault browser extension in Firefox.",
-            },
-            {
                 title: "iOS application",
                 target: null,
                 description: "Use Cryptex Vault on iOS.",
@@ -60,6 +54,12 @@ const roadmap = [
         label: "BUILT AND AVAILABLE",
         available: true,
         items: [
+            {
+                title: "Firefox extension",
+                target: null,
+                description:
+                    "Use the Browser Extension in Firefox, with the same autofill, passkeys, sync and backups as in Chrome. Install it from Firefox Add-ons.",
+            },
             {
                 title: "Custom backup destinations",
                 target: null,

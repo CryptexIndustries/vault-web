@@ -4,7 +4,7 @@ You can help by reporting a problem, improving the docs, or changing the code.
 
 ## Choose where to post
 
-- [Open an issue](https://github.com/CryptexIndustries/vault-web/issues/new/choose) for a problem with the web app, website, Chromium Extension, documentation, or self-hosted deployment. Search [existing issues](https://github.com/CryptexIndustries/vault-web/issues) first.
+- [Open an issue](https://github.com/CryptexIndustries/vault-web/issues/new/choose) for a problem with the web app, website, browser extension, documentation, or self-hosted deployment. Search [existing issues](https://github.com/CryptexIndustries/vault-web/issues) first.
 - Use [GitHub Discussions](https://github.com/CryptexIndustries/vault-web/discussions) for questions, setup help, and ideas that still need discussion.
 - Follow the [security policy](SECURITY.md) for vulnerabilities. Please do not post security details in a public issue or Discussion.
 

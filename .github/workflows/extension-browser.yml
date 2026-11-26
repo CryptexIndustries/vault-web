@@ -13,10 +13,10 @@ on:
                 description: Build the extension ZIP once the tests pass
                 type: boolean
                 default: false
-            profile:
-                description: Configuration the ZIP is built with
+            profiles:
+                description: JSON list of the configurations to build, one ZIP each
                 type: string
-                default: production
+                default: '["production"]'
 
 permissions:
     contents: read
@@ -53,13 +53,16 @@ jobs:
                   if-no-files-found: ignore
 
     package:
-        name: Package
+        name: Package ${{ matrix.profile }}
         needs: e2e
         if: inputs.package
         runs-on: ubuntu-latest
         timeout-minutes: 15
+        strategy:
+            matrix:
+                profile: ${{ fromJSON(inputs.profiles) }}
         env:
-            PROFILE: ${{ inputs.profile }}
+            PROFILE: ${{ matrix.profile }}
             BROWSER: ${{ inputs.browser }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -94,8 +97,10 @@ jobs:
                     echo "Release extension must not contain source maps" >&2
                     exit 1
                   fi
-                  if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+                  if [[ "$GITHUB_REF_TYPE" == "tag" && "$PROFILE" == "production" ]]; then
                     label="${GITHUB_REF_NAME}"
+                  elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+                    label="${PROFILE}-${GITHUB_REF_NAME}"
                   else
                     label="${PROFILE}-${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
                   fi

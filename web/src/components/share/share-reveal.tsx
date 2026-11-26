@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { BrandBar } from "@/components/marketing/site";
 import * as OTPAuth from "otpauth";
 import QRCode from "react-qr-code";
@@ -15,6 +16,7 @@ import {
     Lock,
 } from "lucide-react";
 import {
+    SHARE_SLOW_REQUEST_MS,
     ShareClient,
     ShareServerError,
 } from "@cryptex-industries/vault-core/vault-utils/share-client";
@@ -24,9 +26,19 @@ import {
     isValidShareId,
     openSharePayload,
     parseShareSecret,
+    type ShareKeys,
     type SharePayload,
 } from "@cryptex-industries/vault-core/vault-utils/share-link";
 import { sshKeyFileName } from "@cryptex-industries/vault-core/vault-utils/ssh-key-info";
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -43,6 +55,12 @@ type RevealState =
     | { step: "revealed"; payload: SharePayload }
     | { step: "broken" };
 
+type SlowReveal =
+    | { step: "waiting" }
+    | { step: "retry"; retry: () => void }
+    | { step: "retrying" }
+    | { step: "opened" };
+
 const formatExpiry = (timestamp: number) =>
     new Date(timestamp).toLocaleString(undefined, {
         dateStyle: "medium",
@@ -54,6 +72,49 @@ export function ShareReveal({ id }: { id: string | undefined }) {
     const [secret, setSecret] = useState<Uint8Array | null>(null);
     const [passphrase, setPassphrase] = useState("");
     const [error, setError] = useState("");
+    // Set once revealing is slow. A retry runs alongside the first request.
+    // Links with a passphrase get none: a wrong guess sent twice would use up
+    // two tries.
+    const [slow, setSlow] = useState<SlowReveal | null>(null);
+    const router = useRouter();
+    const left = useRef(false);
+    const [leaveTo, setLeaveTo] = useState<
+        { href: string } | { back: true } | null
+    >(null);
+    const revealing = state.step === "revealing";
+
+    // The server deletes the secret as it sends it, so leaving now loses it.
+    useEffect(() => {
+        if (!revealing) return;
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+        const shareState: unknown = window.history.state;
+        const shareUrl = window.location.href;
+        router.beforePopState(() => {
+            window.history.pushState(shareState, "", shareUrl);
+            setLeaveTo({ back: true });
+            return false;
+        });
+        return () => {
+            window.removeEventListener("beforeunload", onBeforeUnload);
+            router.beforePopState(() => true);
+            setLeaveTo(null);
+        };
+    }, [revealing, router]);
+
+    const leave = () => {
+        if (!leaveTo) return;
+        left.current = true;
+        if ("href" in leaveTo) {
+            void router.push(leaveTo.href);
+        } else {
+            router.beforePopState(() => true);
+            window.history.back();
+        }
+    };
 
     useEffect(() => {
         if (id === undefined) return;
@@ -95,17 +156,49 @@ export function ShareReveal({ id }: { id: string | undefined }) {
         setError("");
         setState({ ...state, step: "revealing" });
         const usedPassphrase = state.passphrase ? passphrase : undefined;
-        let ciphertext: Uint8Array;
+        let keys: ShareKeys;
         try {
-            const keys = await deriveShareKeys(secret, usedPassphrase);
-            ciphertext = await new ShareClient(window.location.origin).reveal(
-                id,
-                keys.peekToken,
-                keys.revealToken,
-            );
-        } catch (err) {
-            if (err instanceof ShareServerError) {
-                if (err.code === "wrong_passphrase") {
+            keys = await deriveShareKeys(secret, usedPassphrase);
+        } catch {
+            setState({ ...state, step: "ready" });
+            setError("Couldn't reach the server. Try again.");
+            return;
+        }
+        const client = new ShareClient(window.location.origin);
+        let pending = 0;
+        let settled = false;
+        let gone = false;
+        const settle = () => {
+            settled = true;
+            window.clearTimeout(slowTimer);
+            setSlow(null);
+        };
+        const send = async () => {
+            pending += 1;
+            let ciphertext: Uint8Array;
+            try {
+                ciphertext = await client.reveal(
+                    id,
+                    keys.peekToken,
+                    keys.revealToken,
+                );
+            } catch (err) {
+                pending -= 1;
+                if (err instanceof ShareServerError && err.code === "gone") {
+                    gone = true;
+                }
+                // A "gone" from a retry can mean an earlier request got the
+                // secret, so wait for every request before giving up.
+                if (settled || pending > 0) return;
+                settle();
+                if (gone) {
+                    setState({ step: "gone" });
+                    return;
+                }
+                if (
+                    err instanceof ShareServerError &&
+                    err.code === "wrong_passphrase"
+                ) {
                     setState({ ...state, step: "ready" });
                     setError(
                         `Wrong passphrase. ${err.attemptsLeft ?? 0} ${
@@ -114,34 +207,77 @@ export function ShareReveal({ id }: { id: string | undefined }) {
                     );
                     return;
                 }
-                if (err.code === "gone") {
-                    setState({ step: "gone" });
-                    return;
-                }
+                setState({ ...state, step: "ready" });
+                setError("Couldn't reach the server. Try again.");
+                return;
             }
-            setState({ ...state, step: "ready" });
-            setError("Couldn't reach the server. Try again.");
-            return;
-        }
-        // The server has deleted it now. Drop the key from the address bar
-        // and history; a reload can't bring the secret back anyway.
-        window.history.replaceState(null, "", window.location.pathname);
-        try {
-            const payload = await openSharePayload(
-                ciphertext,
-                secret,
-                usedPassphrase,
-            );
-            setState({ step: "revealed", payload });
-        } catch {
-            setState({ step: "broken" });
-        } finally {
-            setPassphrase("");
-        }
+            if (settled) return;
+            settle();
+            // The recipient left, so the address bar belongs to the next page.
+            if (left.current) return;
+            // The server has deleted it now. Drop the key from the address bar
+            // and history; a reload can't bring the secret back anyway.
+            window.history.replaceState(null, "", window.location.pathname);
+            try {
+                const payload = await openSharePayload(
+                    ciphertext,
+                    secret,
+                    usedPassphrase,
+                );
+                setState({ step: "revealed", payload });
+            } catch {
+                setState({ step: "broken" });
+            } finally {
+                setPassphrase("");
+            }
+        };
+        const retry = async () => {
+            // A click can land before React hides the button after settling.
+            if (settled) return;
+            setSlow({ step: "retrying" });
+            await send();
+            // After a "gone" only a request still on its way can bring the
+            // secret, so another retry can't help.
+            if (!settled) {
+                setSlow(
+                    gone
+                        ? { step: "opened" }
+                        : { step: "retry", retry: () => void retry() },
+                );
+            }
+        };
+        const slowTimer = window.setTimeout(
+            () =>
+                setSlow(
+                    state.passphrase
+                        ? { step: "waiting" }
+                        : { step: "retry", retry: () => void retry() },
+                ),
+            SHARE_SLOW_REQUEST_MS,
+        );
+        await send();
     }, [id, passphrase, secret, state]);
 
     return (
-        <div className="dark flex min-h-svh flex-col bg-background text-foreground">
+        <div
+            className="dark flex min-h-svh flex-col bg-background text-foreground"
+            // Runs before next/link, which then ignores the prevented click.
+            onClickCapture={(event) => {
+                const link = (event.target as Element).closest("a");
+                if (
+                    !revealing ||
+                    !link ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                ) {
+                    return;
+                }
+                event.preventDefault();
+                setLeaveTo({ href: link.href });
+            }}
+        >
             <BrandBar />
             <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
                 <ShareRevealBody
@@ -150,6 +286,7 @@ export function ShareReveal({ id }: { id: string | undefined }) {
                     onPassphraseChange={setPassphrase}
                     error={error}
                     onReveal={() => void reveal()}
+                    slow={slow}
                 />
             </main>
             <footer className="border-t border-border">
@@ -162,6 +299,31 @@ export function ShareReveal({ id }: { id: string | undefined }) {
                     encrypted this secret, and your browser decrypted it.
                 </div>
             </footer>
+            <AlertDialog
+                open={leaveTo !== null}
+                onOpenChange={(open) => {
+                    if (!open) setLeaveTo(null);
+                }}
+            >
+                <AlertDialogContent className="dark text-foreground">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Leave and lose this secret?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            It&apos;s opening now, and the server deletes it as
+                            it sends it. If you leave, you can&apos;t open it
+                            again.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Stay</AlertDialogCancel>
+                        <Button variant="destructive" onClick={leave}>
+                            Leave
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -192,12 +354,14 @@ function ShareRevealBody({
     onPassphraseChange,
     error,
     onReveal,
+    slow,
 }: {
     state: RevealState;
     passphrase: string;
     onPassphraseChange: (value: string) => void;
     error: string;
     onReveal: () => void;
+    slow: SlowReveal | null;
 }) {
     switch (state.step) {
         case "loading":
@@ -304,6 +468,32 @@ function ShareRevealBody({
                             ? "Opening…"
                             : "Reveal secret"}
                     </Button>
+                    {slow ? (
+                        <div className="space-y-3" role="status">
+                            <p className="text-sm text-muted-foreground">
+                                {slow.step === "waiting"
+                                    ? "This is taking longer than usual. Keep this page open."
+                                    : slow.step === "opened"
+                                      ? "The server says the secret has already been opened, probably by your first attempt, which is still loading. Keep this page open to receive it."
+                                      : "This is taking longer than usual. You can keep waiting, or try again."}
+                            </p>
+                            {slow.step === "retry" ? (
+                                <Button variant="outline" onClick={slow.retry}>
+                                    Try again
+                                </Button>
+                            ) : null}
+                            {slow.step === "retrying" ? (
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                    disabled
+                                >
+                                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                                    Trying again…
+                                </Button>
+                            ) : null}
+                        </div>
+                    ) : null}
                 </div>
             );
         case "revealed":

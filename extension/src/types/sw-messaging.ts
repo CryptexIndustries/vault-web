@@ -5,7 +5,7 @@ import type {
     PasskeyData,
     AdditionalKeyProtectionKind,
 } from "@cryptex-industries/vault-core/proto";
-import { type CredentialFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
+import { type CredentialDraftFormSchemaType } from "@cryptex-industries/vault-core/vault-utils/vault";
 import type { LogEntry } from "@/utils/logging";
 
 export enum MessageType {
@@ -217,8 +217,8 @@ export enum MessageType {
  * flow, which historically wasn't recognised by the origin validator.
  * The "autofill-*" origins cover the page-injected autofill surfaces:
  *   - `autofill-cs`: content script running in the host page (isolated
- *     world). Only ever validated when `sender.frameId === 0` so
- *     clickjacked sub-frames cannot pose as the top frame.
+ *     world). Only accepted from the top frame or a sub-frame with the
+ *     top frame's origin, so clickjacked cross-origin frames cannot use it.
  *   - `autofill-menu`: shared inline picker/unlock iframe loaded from the
  *     extension.
  *   - `autofill-generator`: inline password generator iframe loaded from
@@ -501,7 +501,7 @@ export interface CredentialDraft {
      * stale drafts when the credential changed (sync) while the popup was closed.
      */
     credentialVersion: number | null;
-    form: CredentialFormSchemaType;
+    form: CredentialDraftFormSchemaType;
     /** Epoch millis when the draft was stashed. */
     stashedAt: number;
     sshKeySource?: CredentialDraftSSHKeySource;
@@ -512,7 +512,7 @@ export interface SaveCredentialDraftRequest {
     mode: CredentialDraftMode;
     /** Required in edit mode. */
     credentialId?: string;
-    form: CredentialFormSchemaType;
+    form: CredentialDraftFormSchemaType;
     sshKeySource?: CredentialDraftSSHKeySource;
 }
 

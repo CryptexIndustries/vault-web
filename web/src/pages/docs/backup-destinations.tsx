@@ -62,7 +62,7 @@ export default function BackupDestinations() {
                 A backup destination is a bucket on AWS S3, Backblaze B2,
                 Cloudflare R2, Wasabi, MinIO, Garage or any other service that
                 speaks the S3 API. After each change to your vault, the web app,
-                the Chromium Extension and the Android app upload the same
+                the Browser Extension and the Android app upload the same
                 encrypted <code>.cryx</code> file you get from{" "}
                 <strong>Download backup</strong>. Your devices talk to the
                 bucket directly. Our servers never see the bucket or its keys,
@@ -108,7 +108,7 @@ export default function BackupDestinations() {
                 <p>
                     Browsers block a page from talking to another site unless
                     that site allows it. The web app therefore needs a CORS rule
-                    on the bucket. The Chromium Extension and the Android app
+                    on the bucket. The Browser Extension and the Android app
                     don&apos;t. Put the address you open the web app from in{" "}
                     <code>AllowedOrigins</code>, without a path. Self-hosters
                     use their own domain.
@@ -211,8 +211,11 @@ export default function BackupDestinations() {
                 <DocSteps
                     items={[
                         <p key="tab">
-                            Open <Link href="/app">Cryptex Vault</Link> and
-                            select the <strong>Restore</strong> tab. Choose{" "}
+                            Open{" "}
+                            <Link href="/app" prefetch={false}>
+                                Cryptex Vault
+                            </Link>{" "}
+                            and select the <strong>Restore</strong> tab. Choose{" "}
                             <strong>Restore from your own S3 storage</strong>.
                             On Android, choose <strong>Your own storage</strong>{" "}
                             as the backup source.

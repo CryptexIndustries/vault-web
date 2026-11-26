@@ -2,3 +2,5 @@
 User-agent: *
 Allow: /
 Disallow: /app
+
+Sitemap: https://www.cryptex-vault.com/sitemap.xml

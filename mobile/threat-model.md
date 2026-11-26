@@ -816,7 +816,8 @@ results. Use the gates in section 16 and the [device testing guide](e2e/README.m
 Unit tests and JavaScript exports do not establish native runtime behavior.
 
 Check the publication APK separately for signing, configuration, dependencies,
-and screen protection. See the [native dependency audit](FDROID_NATIVE_DEPENDENCIES.md)
+and screen protection. See the
+[F-Droid dependency checks](fdroid/README.md#inputs-that-survive-expo-prebuild).
 
 ## 18. Review triggers
 

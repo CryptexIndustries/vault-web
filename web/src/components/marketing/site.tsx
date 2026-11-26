@@ -1,7 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type ReactNode,
+} from "react";
 import {
     ArrowRight,
     Check,
@@ -9,7 +15,9 @@ import {
     X,
     Monitor,
     Laptop,
+    KeyRound,
     LockKeyhole,
+    LockKeyholeOpen,
     Play,
     Pause,
 } from "lucide-react";
@@ -22,8 +30,10 @@ import {
 } from "@/lib/price-lists";
 
 export const REPO = "https://github.com/CryptexIndustries/vault-web";
-export const BROWSER_EXTENSION =
+export const CHROME_WEB_STORE =
     "https://chromewebstore.google.com/detail/mmkjefiodfpafhkckekfdeccnkhphfhp";
+export const FIREFOX_ADD_ONS =
+    "https://addons.mozilla.org/en-US/firefox/addon/cryptex-vault/";
 export const GOOGLE_PLAY =
     "https://play.google.com/store/apps/details?id=com.cryptexindustries.vault";
 export { s };
@@ -40,6 +50,7 @@ export function Action({
         <Link
             className={`${secondary ? s.secondary : s.button} inline-flex min-h-[50px] items-center justify-center px-[23px] py-[16px] text-[13px] font-medium leading-[1.4]`}
             href={href}
+            prefetch={!href.startsWith("/app")}
         >
             {children}
         </Link>
@@ -157,6 +168,7 @@ function SiteHeader() {
                     {pathname !== "/" && (
                         <Link
                             href="/app"
+                            prefetch={false}
                             className={s.navCta}
                             onClick={() => {
                                 if (open) closeMenu();
@@ -170,15 +182,22 @@ function SiteHeader() {
         </div>
     );
 }
+// Marketing pages are prerendered when the image is built, before the
+// deployment's NEXT_PUBLIC_APP_URL is known, so the public origin is fixed.
+const SITE_ORIGIN = "https://www.cryptex-vault.com";
+
 export function Site({
     title,
     description,
+    linkPreview = true,
     children,
 }: {
     title: string;
     description: string;
+    linkPreview?: boolean;
     children: ReactNode;
 }) {
+    const { pathname } = useRouter();
     return (
         <div className={`dark ${s.site}`}>
             <HTMLHeader
@@ -188,6 +207,7 @@ export function Site({
                         : `${title} - Cryptex Vault`
                 }
                 description={description}
+                url={linkPreview ? SITE_ORIGIN + pathname : undefined}
             />
             <a className={s.skip} href="#main">
                 Skip to content
@@ -209,7 +229,6 @@ export function Site({
                                 </span>
                             </span>
                         </Link>
-                        <p>Your vault. Your devices. Your choice.</p>
                         <a href="https://cryptexindustries.com">
                             Cryptex Industries d.o.o.
                         </a>
@@ -219,12 +238,14 @@ export function Site({
                     </div>
                     <div className="flex flex-col items-start gap-[9px]">
                         <span>PRODUCT</span>
-                        <Link href="/app">Open Vault</Link>
+                        <Link href="/app" prefetch={false}>
+                            Open Vault
+                        </Link>
                         <Link href="/pricing">Pricing</Link>
                         <Link href="/roadmap">Roadmap</Link>
-                        <a href={BROWSER_EXTENSION} className="mt-3">
-                            Chromium Extension
-                        </a>
+                        <Link href="/download" className="mt-3">
+                            Browser Extension
+                        </Link>
                         <Link href="/download/android">Android app</Link>
                         <Link href="/docs/ssh-agent#install">SSH agent</Link>
                     </div>
@@ -382,7 +403,7 @@ export function FinalCTA() {
                 </p>
                 <div className={s.finalActions}>
                     <Action />
-                    <Action href={BROWSER_EXTENSION} secondary>
+                    <Action href="/download" secondary>
                         Install browser extension
                     </Action>
                     <Action href="/download/android" secondary>
@@ -408,6 +429,7 @@ export function Network({
     const [paused, setPaused] = useState(false);
     const [reducedMotion, setReducedMotion] = useState(false);
     const networkRef = useRef<HTMLDivElement>(null);
+    const drawingRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const preference = window.matchMedia(
             "(prefers-reduced-motion: reduce)",
@@ -449,6 +471,84 @@ export function Network({
             document.removeEventListener("visibilitychange", update);
         };
     }, [paused, reducedMotion, detailed]);
+    useEffect(() => {
+        const drawing = drawingRef.current;
+        if (!hero || !drawing || reducedMotion || paused) return;
+        const tilt = (event: PointerEvent) => {
+            if (event.pointerType !== "mouse") return;
+            const box = drawing.getBoundingClientRect();
+            // Clamped so the angle stays small while the hero is scrolled away.
+            const clamp = (offset: number) => Math.max(-1, Math.min(1, offset));
+            const x = clamp(
+                (event.clientX - box.left - box.width / 2) / innerWidth,
+            );
+            const y = clamp(
+                (event.clientY - box.top - box.height / 2) / innerHeight,
+            );
+            drawing.style.setProperty("--tilt-x", `${x * 18}deg`);
+            drawing.style.setProperty("--tilt-y", `${-y * 18}deg`);
+        };
+        window.addEventListener("pointermove", tilt);
+        return () => window.removeEventListener("pointermove", tilt);
+    }, [hero, reducedMotion, paused]);
+    // A packet reaches the other device 1980ms into its 4400ms round trip and the laptop at 4180ms.
+    const vault = (side: "left" | "right") => {
+        const arrival = side === "left" ? 4180 : 1980;
+        return (
+            <div
+                key={`vault-${relay}`}
+                className={`pointer-events-none absolute top-[12px] h-[34px] w-[52px] [transform-style:preserve-3d] max-[720px]:!left-[calc(50%-26px)] max-[720px]:top-[-48px] max-[720px]:[--dir:0] ${side === "left" ? "right-[calc(50%+38px)] [--dir:-1]" : "left-[calc(50%+38px)] [--dir:1]"}`}
+            >
+                {[0, 1, 2, 3].map((depth) => (
+                    <div
+                        key={depth}
+                        className={`${s.vaultCard} absolute inset-0 flex items-center gap-[5px] rounded-[5px] border border-[rgba(252,248,236,0.4)] bg-[var(--navy)] px-[6px] text-[var(--coral)]`}
+                        style={
+                            {
+                                "--depth": depth,
+                                animationDelay: `${arrival - depth * 4400}ms`,
+                            } as CSSProperties
+                        }
+                    >
+                        <KeyRound size={12} />
+                        <i className="h-[3px] flex-1 rounded-full bg-[var(--soft)] blur-[1.5px]" />
+                    </div>
+                ))}
+            </div>
+        );
+    };
+    const lock = (side: "left" | "right") => (
+        <div
+            key={`lock-${relay}`}
+            className={`${side === "right" ? s.vaultLockRight : ""} relative size-[16px] text-[var(--coral)]`}
+        >
+            <LockKeyhole size={16} className={s.lockShut} />
+            <LockKeyholeOpen
+                size={16}
+                className={`${s.lockOpen} absolute inset-0 opacity-0`}
+            />
+        </div>
+    );
+    const packets = (route: "direct" | "relay") =>
+        (hero ? [0, 1, 2, 3] : [0]).map((lag) => (
+            <circle
+                key={`${route}-transfer-${lag}`}
+                className={`${s.packet} ${route === "relay" ? s.relayPacket : s.directPacket} ${lag ? "!fill-[var(--coral)]" : ""}`}
+                r={2.5 - lag * 0.4}
+                style={{
+                    animationDelay: `${lag * 80}ms`,
+                    fillOpacity: 1 - lag * 0.22,
+                }}
+            />
+        ));
+    const relayRoute = (
+        <g className={s.relayRoute}>
+            <path d="M 0 52 L 50 52 L 85 18 L 115 18 L 150 52 L 200 52" />
+            {relay && packets("relay")}
+            <rect x="89" y="7" width="22" height="22" rx="3" />
+            <path d="M 95 14 H 105 M 95 18 H 105 M 95 22 H 105" />
+        </g>
+    );
     return (
         <div
             ref={networkRef}
@@ -457,12 +557,6 @@ export function Network({
             className={`${s.network} ${hero ? s.heroNetwork : ""} ${detailed ? s.detailedNetwork : ""}`}
         >
             <div className={s.networkTop}>
-                <span>
-                    <i />{" "}
-                    {hero
-                        ? "LOCAL-FIRST ARCHITECTURE"
-                        : "VAULT SYNCHRONIZATION"}
-                </span>
                 <div
                     className={`${s.networkControls} flex flex-wrap items-center justify-end gap-x-[22px] gap-y-[12px]`}
                 >
@@ -513,7 +607,10 @@ export function Network({
                     )}
                 </div>
             </div>
-            <div className={s.networkDrawing}>
+            <div
+                ref={drawingRef}
+                className={`${s.networkDrawing} ${hero ? "transition-transform duration-700 ease-out [transform-style:preserve-3d] [transform:perspective(1000px)_rotateX(var(--tilt-y,0deg))_rotateY(var(--tilt-x,0deg))]" : ""}`}
+            >
                 {detailed && (
                     <>
                         <svg
@@ -536,16 +633,23 @@ export function Network({
                         </div>
                     </>
                 )}
-                <div className={s.orbit} />
-                <div className={s.orbitTwo} />
-                <div className={s.device}>
+                {!hero && (
+                    <>
+                        <div className={s.orbit} />
+                        <div className={s.orbitTwo} />
+                    </>
+                )}
+                <div
+                    className={`${s.device} ${hero ? "[transform-style:preserve-3d] [transform:translateZ(40px)]" : ""}`}
+                >
                     <Laptop size={hero ? 58 : 38} strokeWidth={1} />
-                    <LockKeyhole size={16} />
+                    {hero ? lock("left") : <LockKeyhole size={16} />}
                     <span>YOUR LAPTOP</span>
                     <small>Encrypted local vault</small>
+                    {hero && vault("left")}
                 </div>
                 <div
-                    className={`${s.connection} ${relay ? s.relayActive : ""}`}
+                    className={`${s.connection} ${relay ? s.relayActive : ""} ${hero ? "[transform-style:preserve-3d] [transform:translateZ(20px)]" : ""}`}
                 >
                     <span className={s.connectionLabel}>
                         {detailed && phase === 0
@@ -556,58 +660,54 @@ export function Network({
                                 ? "ENCRYPTED TURN RELAY"
                                 : "DIRECT P2P"}
                     </span>
-                    <svg
-                        className={s.connectionRoute}
-                        viewBox="0 0 200 72"
-                        aria-hidden="true"
-                    >
-                        <g className={s.directRoute}>
-                            <path d="M 0 52 L 200 52" />
-                            {!relay && (!detailed || phase === 2) && (
-                                <circle
-                                    key="direct-transfer"
-                                    className={`${s.packet} ${s.directPacket}`}
-                                    r="2.5"
-                                />
-                            )}
-                        </g>
-                        <g className={s.relayRoute}>
-                            <path d="M 0 52 L 50 52 L 85 18 L 115 18 L 150 52 L 200 52" />
-                            {relay && (
-                                <circle
-                                    key="relay-transfer"
-                                    className={`${s.packet} ${s.relayPacket}`}
-                                    r="2.5"
-                                />
-                            )}
-                            <rect x="89" y="7" width="22" height="22" rx="3" />
-                            <path d="M 95 14 H 105 M 95 18 H 105 M 95 22 H 105" />
-                        </g>
-                        {detailed && phase === 1 && (
-                            <g className={s.authenticationExchange}>
-                                <circle
-                                    className={s.authenticationRequest}
-                                    r="3"
-                                />
-                                <circle
-                                    className={s.authenticationResponse}
-                                    r="3"
-                                />
+                    <div className="relative w-full [transform-style:preserve-3d]">
+                        <svg
+                            className={s.connectionRoute}
+                            viewBox="0 0 200 72"
+                            aria-hidden="true"
+                        >
+                            <g className={s.directRoute}>
+                                <path d="M 0 52 L 200 52" />
+                                {!relay &&
+                                    (!detailed || phase === 2) &&
+                                    packets("direct")}
                             </g>
+                            {!hero && relayRoute}
+                            {detailed && phase === 1 && (
+                                <g className={s.authenticationExchange}>
+                                    <circle
+                                        className={s.authenticationRequest}
+                                        r="3"
+                                    />
+                                    <circle
+                                        className={s.authenticationResponse}
+                                        r="3"
+                                    />
+                                </g>
+                            )}
+                            <circle
+                                className={s.routeEndpoint}
+                                cx="3"
+                                cy="52"
+                                r="2.5"
+                            />
+                            <circle
+                                className={s.routeEndpoint}
+                                cx="197"
+                                cy="52"
+                                r="2.5"
+                            />
+                        </svg>
+                        {hero && (
+                            <svg
+                                className={`${s.connectionRoute} ${s.liftedRelay} absolute inset-0`}
+                                viewBox="0 0 200 72"
+                                aria-hidden="true"
+                            >
+                                {relayRoute}
+                            </svg>
                         )}
-                        <circle
-                            className={s.routeEndpoint}
-                            cx="3"
-                            cy="52"
-                            r="2.5"
-                        />
-                        <circle
-                            className={s.routeEndpoint}
-                            cx="197"
-                            cy="52"
-                            r="2.5"
-                        />
-                    </svg>
+                    </div>
                     <LockKeyhole size={15} />
                     <small>
                         {detailed && phase === 0
@@ -615,11 +715,14 @@ export function Network({
                             : "End-to-end encrypted"}
                     </small>
                 </div>
-                <div className={s.device}>
+                <div
+                    className={`${s.device} ${hero ? "[transform-style:preserve-3d] [transform:translateZ(40px)]" : ""}`}
+                >
                     <Monitor size={hero ? 58 : 38} strokeWidth={1} />
-                    <LockKeyhole size={16} />
+                    {hero ? lock("right") : <LockKeyhole size={16} />}
                     <span>YOUR OTHER DEVICE</span>
                     <small>Encrypted local vault</small>
+                    {hero && vault("right")}
                 </div>
             </div>
             <div className={s.networkBottom}>
@@ -674,7 +777,7 @@ export function Network({
 }
 const coreFeatures: { title: string; description?: string }[] = [
     { title: "Local encrypted vault" },
-    { title: "Web app, Android & Chromium Extension" },
+    { title: "Web app, Android & Browser Extension" },
     { title: "Browser autofill" },
     { title: "Passkey support" },
     {
@@ -736,23 +839,30 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                     </div>
                     <p>A complete password manager, on your own terms.</p>
                     <Action secondary />{" "}
-                    <ul>
-                        {coreFeatures.map((f) => (
-                            <li key={f.title} className={s.featureBenefit}>
-                                <Check size={16} />
-                                <span>
-                                    {f.title}
-                                    {f.description && (
-                                        <small>{f.description}</small>
-                                    )}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                    <small>
-                        AGPL-3.0 - No Online Services account required for local
-                        use.
-                    </small>
+                    {detailed && (
+                        <>
+                            <ul>
+                                {coreFeatures.map((f) => (
+                                    <li
+                                        key={f.title}
+                                        className={s.featureBenefit}
+                                    >
+                                        <Check size={16} />
+                                        <span>
+                                            {f.title}
+                                            {f.description && (
+                                                <small>{f.description}</small>
+                                            )}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <small>
+                                AGPL-3.0 - No Online Services account required
+                                for local use.
+                            </small>
+                        </>
+                    )}
                 </article>
                 <article
                     className={`${s.plan} ${s.paidPlan} flex flex-col items-start`}
@@ -785,79 +895,85 @@ export function Plans({ detailed = false }: { detailed?: boolean }) {
                         ends unless you cancel first. New to Online Services?
                         Start with monthly billing before committing to a year.
                     </small>
-                    <ul>
-                        <li className={s.featureBenefit}>
-                            <Check size={16} />
-                            <span>
-                                Managed P2P infrastructure
-                                <small>
-                                    Connect linked devices through hosted
-                                    signaling and relay services, without
-                                    maintaining servers.
-                                </small>
-                            </span>
-                        </li>
-                        <li className={s.featureBenefit}>
-                            <Check size={16} />
-                            <span>
-                                Managed encrypted backups
-                                <small>
-                                    Keep encrypted restore points online and
-                                    retrieve available backups with your
-                                    Recovery Kit if a device is lost.
-                                </small>
-                            </span>
-                        </li>
-                        <li className={s.featureBenefit}>
-                            <Check size={16} />
-                            <span>
-                                One-time share links
-                                <small>
-                                    Send a login or secret to anyone, even
-                                    people without Cryptex Vault. It opens once,
-                                    then it&apos;s deleted.
-                                </small>
-                            </span>
-                        </li>
-                        <li className={s.featureBenefit}>
-                            <Check size={16} />
-                            <span>
-                                Hosted SSH agent relay
-                                <small>
-                                    Approve SSH logins on up to 25 Linux and
-                                    macOS machines without running your own
-                                    relay.
-                                </small>
-                            </span>
-                        </li>
-                        <li className={s.featureBenefit}>
-                            <Check size={16} />
-                            <span>
-                                Online Services device management
-                                <small>
-                                    Manage registered devices, view and control
-                                    their linking relationships, and revoke
-                                    their access to Online Services.
-                                </small>
-                            </span>
-                        </li>
-                    </ul>
-                    <div className={s.planNote}>
-                        <strong>
-                            Same P2P model. Less infrastructure to run.
-                        </strong>
-                        <p>
-                            Both devices must be online. You initiate
-                            synchronization. Backups are stored separately as
-                            encrypted copies.
-                        </p>
-                    </div>
                     {detailed && (
-                        <small>
-                            No voluntary subscription refunds. Your statutory
-                            consumer rights and applicable Stripe/Link or Google
-                            Play refund terms are unaffected.
-                        </small>
+                        <>
+                            <ul>
+                                <li className={s.featureBenefit}>
+                                    <Check size={16} />
+                                    <span>
+                                        Managed P2P infrastructure
+                                        <small>
+                                            Connect linked devices through
+                                            hosted signaling and relay services,
+                                            without maintaining servers.
+                                        </small>
+                                    </span>
+                                </li>
+                                <li className={s.featureBenefit}>
+                                    <Check size={16} />
+                                    <span>
+                                        Managed encrypted backups
+                                        <small>
+                                            Keep encrypted restore points online
+                                            and retrieve available backups with
+                                            your Recovery Kit if a device is
+                                            lost.
+                                        </small>
+                                    </span>
+                                </li>
+                                <li className={s.featureBenefit}>
+                                    <Check size={16} />
+                                    <span>
+                                        One-time share links
+                                        <small>
+                                            Send a login or secret to anyone,
+                                            even people without Cryptex Vault.
+                                            It opens once, then it&apos;s
+                                            deleted.
+                                        </small>
+                                    </span>
+                                </li>
+                                <li className={s.featureBenefit}>
+                                    <Check size={16} />
+                                    <span>
+                                        Hosted SSH agent relay
+                                        <small>
+                                            Approve SSH logins on up to 25 Linux
+                                            and macOS machines without running
+                                            your own relay.
+                                        </small>
+                                    </span>
+                                </li>
+                                <li className={s.featureBenefit}>
+                                    <Check size={16} />
+                                    <span>
+                                        Online Services device management
+                                        <small>
+                                            Manage registered devices, view and
+                                            control their linking relationships,
+                                            and revoke their access to Online
+                                            Services.
+                                        </small>
+                                    </span>
+                                </li>
+                            </ul>
+                            <div className={s.planNote}>
+                                <strong>
+                                    Same P2P model. Less infrastructure to run.
+                                </strong>
+                                <p>
+                                    Both devices must be online. You initiate
+                                    synchronization. Backups are stored
+                                    separately as encrypted copies.
+                                </p>
+                            </div>
+                            <small>
+                                No voluntary subscription refunds. Your
+                                statutory consumer rights and applicable
+                                Stripe/Link or Google Play refund terms are
+                                unaffected.
+                            </small>
+                        </>
                     )}
                 </article>
             </div>

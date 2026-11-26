@@ -1,10 +1,13 @@
 import {
+    base64UrlToUint8,
+    uint8ToBase64Url,
+} from "@cryptex-industries/vault-core/encoding";
+import {
     PASSKEY_CONTENT_SOURCE,
     PASSKEY_PAGE_SOURCE,
     type PasskeyCreateResult,
 } from "./passkey-registration";
 import {
-    decodeBase64Url,
     type PasskeyGetCancel,
     type PasskeyGetRequest,
     type PasskeyGetResult,
@@ -13,16 +16,6 @@ import {
 const credentials = navigator.credentials;
 const nativeCreate = credentials?.create?.bind(credentials);
 const nativeGet = credentials?.get?.bind(credentials);
-
-function base64Url(value: ArrayBuffer): string {
-    const data = new Uint8Array(value);
-    let binary = "";
-    for (const byte of data) binary += String.fromCharCode(byte);
-    return btoa(binary)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/u, "");
-}
 
 if (nativeCreate) {
     const pending = new Map<
@@ -85,15 +78,21 @@ if (nativeCreate) {
         } as unknown as PublicKeyCredential;
         credential.toJSON = () => ({
             id: value.id,
-            rawId: base64Url(value.rawId),
+            rawId: uint8ToBase64Url(new Uint8Array(value.rawId)),
             type: "public-key",
             authenticatorAttachment: value.authenticatorAttachment,
             clientExtensionResults: {},
             response: {
-                clientDataJSON: base64Url(value.clientDataJSON),
-                attestationObject: base64Url(value.attestationObject),
-                authenticatorData: base64Url(value.authenticatorData),
-                publicKey: base64Url(value.publicKey),
+                clientDataJSON: uint8ToBase64Url(
+                    new Uint8Array(value.clientDataJSON),
+                ),
+                attestationObject: uint8ToBase64Url(
+                    new Uint8Array(value.attestationObject),
+                ),
+                authenticatorData: uint8ToBase64Url(
+                    new Uint8Array(value.authenticatorData),
+                ),
+                publicKey: uint8ToBase64Url(new Uint8Array(value.publicKey)),
                 publicKeyAlgorithm: value.publicKeyAlgorithm,
                 transports: value.transports,
             },
@@ -190,15 +189,15 @@ if (nativeGet) {
         }
 
         const value = result.assertion;
-        const rawId = decodeBase64Url(value.rawId).slice().buffer;
-        const clientDataJSON = decodeBase64Url(value.clientDataJSON).slice()
+        const rawId = base64UrlToUint8(value.rawId).slice().buffer;
+        const clientDataJSON = base64UrlToUint8(value.clientDataJSON).slice()
             .buffer;
-        const authenticatorData = decodeBase64Url(
+        const authenticatorData = base64UrlToUint8(
             value.authenticatorData,
         ).slice().buffer;
-        const signature = decodeBase64Url(value.signature).slice().buffer;
+        const signature = base64UrlToUint8(value.signature).slice().buffer;
         const userHandle = value.userHandle
-            ? decodeBase64Url(value.userHandle).slice().buffer
+            ? base64UrlToUint8(value.userHandle).slice().buffer
             : null;
         const credential = {
             id: value.id,

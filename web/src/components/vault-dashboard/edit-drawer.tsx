@@ -1256,6 +1256,7 @@ export function EditDrawer({
                                                                 type="button"
                                                                 variant="ghost"
                                                                 size="icon"
+                                                                aria-label="Remove custom field"
                                                                 onClick={() =>
                                                                     remove(
                                                                         index,

@@ -94,6 +94,12 @@ const knownErrorCodes = new Set<string>([
     "bad_request",
 ]);
 
+/** Covers sending the request and reading the response body. */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/** When to tell the user that creating or revealing a share is slow. */
+export const SHARE_SLOW_REQUEST_MS = 10_000;
+
 export type ShareClientOptions = {
     fetch?: typeof fetch;
 };
@@ -137,7 +143,8 @@ export class ShareClient {
                 ? `Ticket ${auth.ticket}`
                 : `Bearer ${auth.token}`;
         return createResponseSchema.parse(
-            await this.request("POST", "/shares", body, authorization),
+            // No timeout: the server may already have created the share.
+            await this.request("POST", "/shares", body, authorization, null),
         );
     }
 
@@ -170,6 +177,9 @@ export class ShareClient {
                     peekToken: uint8ToBase64Url(peekToken),
                     revealToken: uint8ToBase64Url(revealToken),
                 },
+                undefined,
+                // No timeout: a late reply is the only copy of the secret.
+                null,
             ),
         );
         return base64UrlToUint8(response.ciphertext);
@@ -211,11 +221,18 @@ export class ShareClient {
         path: string,
         body?: unknown,
         authorization?: string,
+        timeoutMs: number | null = REQUEST_TIMEOUT_MS,
     ): Promise<unknown> {
         const headers: Record<string, string> = { Accept: "application/json" };
         if (body !== undefined) headers["Content-Type"] = "application/json";
         if (authorization) headers.Authorization = authorization;
+        const abort = new AbortController();
+        const timeout =
+            timeoutMs === null
+                ? undefined
+                : setTimeout(() => abort.abort(), timeoutMs);
         let response: Response;
+        let json: unknown;
         try {
             response = await this.fetchImpl(`${this.base}${path}`, {
                 method,
@@ -224,12 +241,17 @@ export class ShareClient {
                 cache: "no-store",
                 credentials: "omit",
                 referrerPolicy: "no-referrer",
+                signal: abort.signal,
             });
+            if (response.status === 204) return null;
+            json = await response.json().catch(() => null);
         } catch {
             throw new ShareServerError("unavailable", 0);
+        } finally {
+            clearTimeout(timeout);
         }
-        if (response.status === 204) return null;
-        const json: unknown = await response.json().catch(() => null);
+        // A body cut off by the timeout reads as null above.
+        if (abort.signal.aborted) throw new ShareServerError("unavailable", 0);
         if (response.ok) return json;
         const parsed = errorBodySchema.safeParse(json);
         const code =

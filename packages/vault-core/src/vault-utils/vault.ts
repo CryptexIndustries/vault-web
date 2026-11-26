@@ -469,19 +469,24 @@ export const calculateTOTP = (
 ): {
     code: string;
     timeRemaining: number;
+    period: number;
 } => {
+    const period = data.Period > 0 ? data.Period : TOTPConstants.PERIOD_DEFAULT;
+    const timestamp = Date.now();
     const code = OTPAuth.TOTP.generate({
         secret: OTPAuth.Secret.fromBase32(data.Secret),
         algorithm: VaultUtilTypes.TOTPAlgorithm[data.Algorithm],
         digits: data.Digits,
-        period: data.Period,
+        period,
+        timestamp,
     });
 
-    const timeRemaining = data.Period - (new Date().getSeconds() % data.Period);
+    const timeRemaining = period - (Math.floor(timestamp / 1000) % period);
 
     return {
         code,
         timeRemaining,
+        period,
     };
 };
 
@@ -636,6 +641,19 @@ export const CredentialFormSchema = CredentialFormBaseSchema.superRefine(
 export const CredentialDraftFormSchema = z.object({
     ...CredentialFormBaseSchema.shape,
     Name: z.string(),
+    TOTP: TOTPFormSchema.extend({
+        Label: z.string(),
+        // JSON turns an emptied number input (NaN) into null.
+        Period: z.number().nullable(),
+        Digits: z.number().nullable(),
+    })
+        .optional()
+        .nullable(),
+    Passkey: CredentialFormBaseSchema.shape.Passkey.unwrap()
+        .unwrap()
+        .extend({ Algorithm: z.number(), SignCount: z.number() })
+        .optional()
+        .nullable(),
 });
 
 export type CredentialDraftFormSchemaType = z.infer<

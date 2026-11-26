@@ -1,6 +1,6 @@
 # Cryptex Vault
 
-Cryptex Vault is an open source password manager that keeps an encrypted vault on each of your devices. Use the web app and Chromium Extension to manage and fill passwords, then sync between linked devices. You can run the connection services yourself or use optional Online Services for managed connections and encrypted backups.
+Cryptex Vault is an open source password manager that keeps an encrypted vault on each of your devices. Use the web app and the browser extension for [Chrome, Edge and Brave](https://chromewebstore.google.com/detail/mmkjefiodfpafhkckekfdeccnkhphfhp) or [Firefox](https://addons.mozilla.org/en-US/firefox/addon/cryptex-vault/) to manage and fill passwords, then sync between linked devices. You can run the connection services yourself or use optional Online Services for managed connections and encrypted backups.
 
 The web app, extension, and shared vault and sync cryptography are in this repository under the [AGPL-3.0 license](LICENSE.md). You can inspect the code and build the software yourself. The hosted Online Services backend is private and lives in a separate repository.
 
@@ -17,7 +17,7 @@ New links connect and sync automatically by default when both vaults are open, u
 ## What's in this repository
 
 - [`web/`](web/) contains the web vault, public website, and user guides.
-- [`extension/`](extension/) contains the Chromium Extension and its [developer notes](extension/README.md).
+- [`extension/`](extension/) contains the browser extension and its [developer notes](extension/README.md).
 - [`mobile/`](mobile/) contains the Android app and its [build and development notes](mobile/README.md).
 - [`packages/vault-core/`](packages/vault-core/) holds the shared vault format, encryption, imports and exports, device linking, and synchronization code.
 - [`packages/api-contract/`](packages/api-contract/) and [`packages/shared-ui/`](packages/shared-ui/) hold client API types and shared interface code.

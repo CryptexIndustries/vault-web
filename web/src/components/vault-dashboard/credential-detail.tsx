@@ -155,6 +155,7 @@ function CopyableField({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Open website"
                                         onClick={onOpenUrl}
                                         className="h-7 w-7"
                                     >
@@ -201,6 +202,7 @@ function CopyableField({
 
 function TOTPField({ credential }: { credential: VaultCredential }) {
     const [timeLeft, setTimeLeft] = useState(30);
+    const [period, setPeriod] = useState(30);
     const [totpCode, setTotpCode] = useState("------");
     const [isCopied, setIsCopied] = useState(false);
 
@@ -212,9 +214,12 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
             }
 
             try {
-                const { code, timeRemaining } = calculateTOTP(credential.TOTP);
+                const { code, timeRemaining, period } = calculateTOTP(
+                    credential.TOTP,
+                );
                 setTotpCode(code);
                 setTimeLeft(timeRemaining);
+                setPeriod(period);
             } catch {
                 setTotpCode("------");
             }
@@ -228,13 +233,16 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
     }, [credential]);
 
     const handleCopy = () => {
-        if (totpCode === "------") return;
-        void copySecretToClipboard(totpCode).then((copied) => {
+        if (!credential.TOTP || totpCode === "------") return;
+        const { code } = calculateTOTP(credential.TOTP);
+        void copySecretToClipboard(code).then((copied) => {
             if (!copied) return;
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000);
         });
     };
+
+    const progress = Math.max(0, Math.min(1, timeLeft / period));
 
     return (
         <div className="group">
@@ -287,7 +295,7 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
-                                strokeDasharray={`${(timeLeft / 30) * 88} 88`}
+                                strokeDasharray={`${progress * 88} 88`}
                                 className={
                                     timeLeft > 10
                                         ? "text-primary"
@@ -303,6 +311,7 @@ function TOTPField({ credential }: { credential: VaultCredential }) {
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleCopy}
+                                    aria-label="Copy authenticator code"
                                     className={cn(
                                         "h-7 w-7",
                                         isCopied && "text-primary",
@@ -832,6 +841,7 @@ export function CredentialDetail({
                                 <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Delete credential"
                                     onClick={() =>
                                         onDeleteCredential(credential)
                                     }

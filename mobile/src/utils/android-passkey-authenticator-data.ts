@@ -1,5 +1,5 @@
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { Buffer } from "@craftzdog/react-native-buffer";
 
 export const ES256_ALGORITHM_IDENTIFIER = -7;
 
@@ -120,18 +120,13 @@ function encodeCbor(value: CborValue): Uint8Array {
     );
 }
 
-function decodeBase64Url(value: string): Uint8Array {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    return new Uint8Array(Buffer.from(base64, "base64"));
-}
-
 function encodePublicKey(publicKey: JsonWebKey): Uint8Array {
     if (!publicKey.x || !publicKey.y) {
         throw new Error("PASSKEY_PUBLIC_KEY_COORDINATES_MISSING");
     }
 
-    const x = decodeBase64Url(publicKey.x);
-    const y = decodeBase64Url(publicKey.y);
+    const x = base64UrlToUint8(publicKey.x);
+    const y = base64UrlToUint8(publicKey.y);
     if (x.length !== 32 || y.length !== 32) {
         throw new Error("PASSKEY_PUBLIC_KEY_COORDINATES_INVALID");
     }

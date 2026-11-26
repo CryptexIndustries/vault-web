@@ -4,8 +4,8 @@
 import { describe, it, expect, beforeAll, jest } from "@jest/globals";
 import { webcrypto } from "crypto";
 
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
 import {
-    base64UrlToUint8Array,
     generateKeyPair,
     parseJwkFromString,
     privateKeyJwkToString,
@@ -65,23 +65,11 @@ describe("device-signing-key.ts", () => {
         ).toBe(true);
     });
 
-    it("base64UrlToUint8Array round-trips arbitrary bytes", () => {
-        const bytes = new Uint8Array([1, 2, 3, 4, 5, 255, 0, 128]);
-        const b64url = Buffer.from(bytes)
-            .toString("base64")
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_")
-            .replace(/=+$/, "");
-        expect(Array.from(base64UrlToUint8Array(b64url))).toEqual(
-            Array.from(bytes),
-        );
-    });
-
-    it("base64UrlToUint8Array decodes Web Crypto–style base64url signatures", async () => {
+    it("signChallenge returns a raw 64-byte signature as base64url", async () => {
         const { privateKey } = await generateKeyPair();
         const challenge = new Uint8Array([1, 2, 3, 4, 5]);
         const b64url = await signChallenge(privateKey, challenge);
-        const decoded = base64UrlToUint8Array(b64url);
+        const decoded = base64UrlToUint8(b64url);
         expect(decoded).toBeInstanceOf(Uint8Array);
         expect(decoded.length).toBe(64);
     });

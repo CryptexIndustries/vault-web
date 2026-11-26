@@ -12,8 +12,8 @@ while the proxy reaches the app through Compose service DNS.
 
 The specs in `tests/` cover the main vault journey (create, edit, search,
 lock and unlock), importing, SSH keys and the SSH agent, the purchase journey,
-device linking between two browsers, the vault's server settings, and backup
-destinations.
+device linking between two browsers, the vault's server settings, backup
+destinations, and leaving a share link page while its secret opens.
 
 The backup destination specs run against a real Garage. Each test makes its
 own bucket and keys, then checks the bucket directly. They cover a refused key,

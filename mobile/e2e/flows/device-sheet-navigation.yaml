@@ -17,16 +17,29 @@ name: Device and connection sheets, map legend and tab navigation
 - assertVisible: Custom signaling
 - assertNotVisible: Focus selected
 - assertNotVisible: Got it
-- assertVisible:
-      id: device-map-animation
-      checked: true
-- tapOn:
-      id: device-map-animation
-- assertVisible:
-      id: device-map-animation
-      checked: false
-- tapOn:
-      id: device-map-animation
+- runFlow:
+      when:
+          notVisible: Reduced motion is enabled on this device.
+      commands:
+          - assertVisible:
+                id: device-map-animation
+                checked: true
+          - tapOn:
+                id: device-map-animation
+          - assertVisible:
+                id: device-map-animation
+                checked: false
+          - tapOn:
+                id: device-map-animation
+# Android's Remove animations setting turns the switch off and disables it.
+- runFlow:
+      when:
+          visible: Reduced motion is enabled on this device.
+      commands:
+          - assertVisible:
+                id: device-map-animation
+                checked: false
+                enabled: false
 - tapOn: Close map legend
 # The default selection is the current device. It has no relative sync activity.
 - tapOn:

@@ -336,6 +336,8 @@ func TestPendingCapsPerAddressAndNetwork(t *testing.T) {
 	if reply := h.auth(first, newIdentity(t), authOptions{role: agentpb.Role_ROLE_APPROVER, token: testToken}); reply.GetReady() == nil {
 		t.Fatalf("auth: %v", reply)
 	}
+	// The relay frees the slot after it sends Ready, before it answers frames.
+	first.ping()
 	hold("198.51.100.1")
 	refused("198.51.100.1")
 

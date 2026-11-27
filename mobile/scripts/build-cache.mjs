@@ -49,7 +49,7 @@ export function sourceFiles(checkout) {
         .filter(
             (file) =>
                 file &&
-                !/^mobile\/(?:android|ios)\//.test(file) &&
+                !/^mobile\/(?:android|ios|modules\/[^/]+\/ios)\//.test(file) &&
                 !/(?:^|\/)(?:node_modules|dist|build|\.mobile-build|\.cxx|\.gradle|\.kotlin|\.expo|\.next|\.review-artifacts)(?:\/|$)/.test(
                     file,
                 ) &&

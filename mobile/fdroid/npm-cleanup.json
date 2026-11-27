@@ -5,6 +5,7 @@
     "react-native-skia-apple-macos@147.1.0": ["libs"],
     "react-native-skia-apple-tvos@147.1.0": ["libs"],
     "canvaskit-wasm@0.41.0": ["bin"],
+    "@bacons/apple-targets@5.0.0": ["prebuild-blank.tgz"],
     "@expo/dom-webview@57.0.1": ["local-maven-repo"],
     "@expo/ui@57.0.14": ["local-maven-repo"],
     "expo-asset@57.0.15": ["local-maven-repo"],

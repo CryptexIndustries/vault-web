@@ -6,6 +6,7 @@ import {
     base64ToUint8,
     uint8ToBase64,
 } from "@cryptex-industries/vault-core/encoding";
+import { iosCredentials } from "@/utils/ios-credentials";
 import { vaultLog } from "@/utils/logging";
 
 let enrollmentMutationTail: Promise<void> = Promise.resolve();
@@ -57,6 +58,10 @@ function enrollmentStorage(vaultDbIndex: number) {
             keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
             // Android shares native wrapping keys within each keychain service.
             keychainService: `cryptex.biometric.${vaultDbIndex}`,
+            // The iOS AutoFill extension reads both items through the App Group.
+            ...(iosCredentials?.appGroup
+                ? { accessGroup: iosCredentials.appGroup }
+                : {}),
         },
     };
 }

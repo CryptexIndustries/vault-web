@@ -1,0 +1,61 @@
+appId: ${CRYPTEX_APP_ID}
+name: Connect with the chosen invitation and protect the linked vault
+---
+- assertVisible: Invitation ready.*
+- tapOn:
+      id: link-verification-words
+- inputText: ${TRANSFER_PHRASE}
+- runFlow: hide-keyboard.yaml
+- scrollUntilVisible:
+      element:
+          text: Connect to sending device
+      direction: DOWN
+- tapOn: Connect to sending device
+- extendedWaitUntil:
+      visible: Linked vault name
+      timeout: 120000
+- tapOn:
+      id: linked-vault-name
+- eraseText: 100
+- inputText: E2E Receiver Vault
+- tapOn:
+      id: linked-master-password
+- inputText: ReceiverHorseBatteryStaple42
+- runFlow: hide-keyboard.yaml
+- tapOn:
+      id: linked-confirm-master-password
+- inputText: ReceiverHorseBatteryStaple42
+- runFlow: hide-keyboard.yaml
+- scrollUntilVisible:
+      element:
+          text: Continue
+      direction: DOWN
+- tapOn: Continue
+- extendedWaitUntil:
+      visible: Keep your way back in
+      timeout: 120000
+# The sheet slides up; a tap while it moves misses the checkbox.
+- waitForAnimationToEnd
+- tapOn: I have written down the recovery code
+- scrollUntilVisible:
+      element:
+          text: Save and open vault
+          enabled: true
+      direction: DOWN
+- tapOn: Save and open vault
+- assertVisible: E2E Transfer Login.*
+- tapOn: E2E Transfer Login.*
+- assertVisible: transfer@example.test
+- tapOn: Reveal Password
+- assertVisible: transfer-password-42
+- tapOn: Back
+- runFlow: sync-disable-auto-lock.yaml
+- stopApp
+- launchApp
+- tapOn:
+      id: unlock-master-password
+- inputText: ReceiverHorseBatteryStaple42
+- runFlow: hide-keyboard.yaml
+- tapOn:
+      id: unlock-vault
+- assertVisible: E2E Transfer Login.*

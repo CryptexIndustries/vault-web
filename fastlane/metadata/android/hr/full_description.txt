@@ -13,6 +13,6 @@ Cryptex Vault sprema lozinke, pristupne ključeve i kodove za potvrdu u šifrira
 Izradi ili iskoristi pozivnicu putem QR koda ili datoteke s pozivnicom. Povezani trezori mogu se sinkronizirati s aplikacijom Cryptex Vault na Androidu, webu i u podržanim proširenjima preglednika. Povezivanje uređaja i sinkronizacija odvijaju se šifriranim prijenosom.
 
 <b>Online Services (neobavezno)</b>
-Online Services nudi plaćenu mjesečnu ili godišnju pretplatu za upravljane šifrirane sigurnosne kopije, usluge signalizacije i releja na našim poslužiteljima te upravljanje uređajima na računu. Za korištenje lokalnog trezora pretplata nije potrebna. Za izradu računa koristi se Cloudflare Turnstile, a plaćanje otvara Stripe Checkout u tvom pregledniku. Ove neobavezne značajke koriste vanjske mrežne usluge.
+Online Services nudi plaćenu mjesečnu ili godišnju pretplatu za upravljane šifrirane sigurnosne kopije, usluge signalizacije i releja na našim poslužiteljima te upravljanje uređajima na računu. Za korištenje lokalnog trezora pretplata nije potrebna. Plaćanje otvara Stripe Checkout u tvom pregledniku. Ove neobavezne značajke koriste vanjske mrežne usluge.
 
 Cryptex Vault je slobodni softver pod licencom GNU Affero General Public License, verzija 3.

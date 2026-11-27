@@ -8,6 +8,7 @@ import {
 } from "react";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
+import { TRPCClientError } from "@trpc/client";
 import { t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
@@ -44,6 +45,8 @@ import {
     missingVaultSecretError,
 } from "@/utils/vault-session";
 import { onlineServicesLog } from "@/utils/logging";
+import { holdAutoLock } from "@/utils/session-timeout";
+import { RECOVERY_WINDOW_HOURS } from "@/app_lib/recovery-limit";
 import { trpcReact } from "@/utils/trpc";
 import {
     Dialog,
@@ -62,7 +65,7 @@ import {
     joinRecoveryPhrase,
     splitRecoveryPhraseIntoSlots,
 } from "@ui/lib/recovery-kit-utils";
-import type { RecoveryKitData } from "./types";
+import type { RecoveryKitData, RecoveryOutcome } from "./types";
 
 const DEVICE_PURPOSE = "mobile" as const;
 
@@ -143,7 +146,28 @@ async function rollbackFailedRegistrationBinding(options: {
     }
 }
 
-function useCreateAccountController() {
+/**
+ * The outcome shown for a sent recovery request that failed. Only a refusal
+ * is definite; anything else may have reached the server.
+ */
+function refusedRecovery(code: string | undefined): RecoveryOutcome {
+    if (code === "TOO_MANY_REQUESTS")
+        // The latest the refusal can last; shown, never enforced here.
+        return {
+            state: "rateLimited",
+            until: Date.now() + RECOVERY_WINDOW_HOURS * 60 * 60 * 1000,
+        };
+    if (
+        code === "UNAUTHORIZED" ||
+        code === "FORBIDDEN" ||
+        code === "NOT_FOUND" ||
+        code === "BAD_REQUEST"
+    )
+        return { state: "rejected" };
+    return { state: "unreachable" };
+}
+
+function useCreateAccountController(humanCheckDialog: boolean) {
     const { t } = useLingui();
     const vault = useAtomValue(unlockedVaultAtom);
     const onlineServicesData = useAtomValue(onlineServicesDataAtom, {
@@ -174,8 +198,11 @@ function useCreateAccountController() {
     const [deleteAccountPending, setDeleteAccountPending] = useState(false);
     const [accountExitPending, setAccountExitPending] = useState(false);
 
-    const { requestToken, dialog: turnstileDialog } =
-        useTurnstileTokenRequest();
+    const {
+        requestToken,
+        dialog: humanCheck,
+        cancel: cancelHumanCheck,
+    } = useTurnstileTokenRequest({ inline: !humanCheckDialog });
     const registerMut = trpcReact.v1.auth.register.useMutation();
     const recoverMut = trpcReact.v1.auth.recover.useMutation();
     const deleteUserMut = trpcReact.v1.user.delete.useMutation();
@@ -360,12 +387,114 @@ function useCreateAccountController() {
         return true;
     };
 
+    const recoveringRef = useRef(false);
+    /**
+     * A recovery the server accepted but this vault has not saved yet. It
+     * lives only in memory, so it holds off auto-lock until it is saved.
+     */
+    const acceptedRecoveryRef = useRef<{
+        generation: number;
+        deviceId: string;
+        userId: string;
+        publicKeyJWK: string;
+        privateKeyJWK: string;
+    } | null>(null);
+    // Held from sending the Kit until the accepted account is saved.
+    const lockHoldRef = useRef<(() => void) | null>(null);
+    const releaseLockHold = () => {
+        lockHoldRef.current?.();
+        lockHoldRef.current = null;
+    };
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            lockHoldRef.current?.();
+            lockHoldRef.current = null;
+        };
+    }, []);
+
+    // A retry reuses the accepted binding and never resends the spent Kit.
+    const finishRecovery = async (
+        accepted: NonNullable<typeof acceptedRecoveryRef.current>,
+    ): Promise<RecoveryOutcome> => {
+        const { generation, deviceId, userId, publicKeyJWK, privateKeyJWK } =
+            accepted;
+        let step = "saving to this vault";
+        try {
+            const save = async () => {
+                assertAccountVaultSession(generation);
+                const result = await persistAccountMutation((currentVault) => {
+                    const next = Object.assign(new Vault(), currentVault);
+                    Vault.bindOnlineServices(
+                        next,
+                        new OnlineServices(
+                            deviceId,
+                            userId,
+                            publicKeyJWK,
+                            privateKeyJWK,
+                        ),
+                    );
+                    return next;
+                });
+                assertAccountVaultSession(generation);
+                return result;
+            };
+            let persisted = await save();
+            if (!persisted.ok) {
+                onlineServicesLog.warn(
+                    "Account recovery save failed, retrying",
+                    { step },
+                );
+                persisted = await save();
+            }
+            if (!persisted.ok) {
+                onlineServicesLog.error("Account recovery failed", {
+                    step,
+                    reason: "saveFailed",
+                });
+                return { state: "saveFailed" };
+            }
+            releaseLockHold();
+            acceptedRecoveryRef.current = null;
+            setOnlineServicesData({
+                deviceId,
+                sessionToken: null,
+                sessionExpiresAt: null,
+                remoteData: null,
+            });
+            step = "signing in";
+            await establishOnlineServicesSession({ deviceId, privateKeyJWK });
+            assertAccountVaultSession(generation);
+            step = "loading the account";
+            const config = await refreshAccountConfiguration();
+            assertAccountVaultSession(generation);
+            const kitMissing = !!config && !config.recoveryTokenCreatedAt;
+            onlineServicesLog.info("Account recovery finished", { kitMissing });
+            return { state: kitMissing ? "kitMissing" : "recovered" };
+        } catch (error) {
+            const state = acceptedRecoveryRef.current
+                ? "saveFailed"
+                : "notConnected";
+            onlineServicesLog.error("Account recovery failed", {
+                step,
+                reason: state,
+                name: error instanceof Error ? error.name : undefined,
+            });
+            return { state };
+        }
+    };
+
     // Recovery spends the Kit used; review accounts keep theirs.
-    const handleRecover = async (): Promise<
-        "recovered" | "kit-missing" | false
-    > => {
+    // Resolves null when another recovery is already running.
+    const handleRecover = async (
+        onStage: (stage: "check" | "recovering" | "connecting") => void,
+    ): Promise<RecoveryOutcome | null> => {
+        if (recoveringRef.current) return null;
+        if (!checkRecoverForm()) return { state: "invalid" };
+        recoveringRef.current = true;
         const generation = getVaultSessionGeneration();
-        if (!checkRecoverForm()) return false;
         const userId = recoverUserId.trim();
         const normalizedPhrase = joinRecoveryPhrase(
             splitRecoveryPhraseIntoSlots(recoverPhrase),
@@ -373,72 +502,91 @@ function useCreateAccountController() {
         setBusy(true);
         setMessage(null);
         let captchaToken: string | null = null;
+        let step = "human check";
+        onlineServicesLog.info("Account recovery started");
         try {
             assertAccountVaultSession(generation);
+            onStage("check");
             captchaToken = await requestToken("auth_recover");
             if (captchaToken == null) {
-                return false;
+                onlineServicesLog.warn(
+                    "Account recovery stopped before the human check passed",
+                );
+                return { state: "checkIncomplete" };
             }
             assertAccountVaultSession(generation);
+            onStage("recovering");
+            step = "key generation";
             const { publicKey, privateKey } = await generateKeyPair();
             assertAccountVaultSession(generation);
             const publicKeyJWK = publicKeyJwkToString(publicKey);
             const privateKeyJWK = privateKeyJwkToString(privateKey);
+            step = "recovery request";
+            // A lock while the answer is out would lose an acceptance.
+            if (mountedRef.current) lockHoldRef.current = holdAutoLock();
+            onlineServicesLog.info("Account recovery request sent");
             const { deviceId } = await recoverMut.mutateAsync({
                 userId,
                 recoveryPhrase: normalizedPhrase,
                 newPublicKeyJWK: publicKeyJWK,
                 captchaToken,
             });
-            assertAccountVaultSession(generation);
+            onlineServicesLog.info("Account recovery accepted");
+            acceptedRecoveryRef.current = {
+                generation,
+                deviceId,
+                userId,
+                publicKeyJWK,
+                privateKeyJWK,
+            };
             captchaToken = "";
             setRecoverPhrase("");
-            const persisted = await persistAccountMutation((currentVault) => {
-                const next = Object.assign(new Vault(), currentVault);
-                Vault.bindOnlineServices(
-                    next,
-                    new OnlineServices(
-                        deviceId,
-                        userId,
-                        publicKeyJWK,
-                        privateKeyJWK,
-                    ),
-                );
-                return next;
-            });
-            assertAccountVaultSession(generation);
-            if (!persisted.ok) {
-                setMessage({ tone: "error", text: persisted.message });
-                return false;
-            }
-            setOnlineServicesData({
-                deviceId,
-                sessionToken: null,
-                sessionExpiresAt: null,
-                remoteData: null,
-            });
-            await establishOnlineServicesSession({ deviceId, privateKeyJWK });
-            assertAccountVaultSession(generation);
-            const config = await refreshAccountConfiguration();
-            assertAccountVaultSession(generation);
-            return config && !config.recoveryTokenCreatedAt
-                ? "kit-missing"
-                : "recovered";
+            onStage("connecting");
+            return await finishRecovery(acceptedRecoveryRef.current);
         } catch (error) {
-            onlineServicesLog.error("Online Services account recovery failed", {
-                error,
+            const code =
+                error instanceof TRPCClientError
+                    ? (error.data as { code?: string } | undefined)?.code
+                    : undefined;
+            // Once sent, a vault change says nothing about what the server did.
+            const outcome: RecoveryOutcome =
+                step === "recovery request"
+                    ? refusedRecovery(code)
+                    : !isSameActiveVaultSession(generation)
+                      ? { state: "failed", cause: "vault" }
+                      : {
+                            state: "failed",
+                            cause: "device",
+                            detail:
+                                error instanceof Error
+                                    ? error.message
+                                    : undefined,
+                        };
+            onlineServicesLog.error("Account recovery failed", {
+                step,
+                reason:
+                    outcome.state === "failed" ? outcome.cause : outcome.state,
+                code,
+                name: error instanceof Error ? error.name : undefined,
             });
-            setMessage({
-                tone: "error",
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : t`Recovery failed.`,
-            });
-            return false;
+            return outcome;
         } finally {
+            if (!acceptedRecoveryRef.current) releaseLockHold();
             captchaToken = null;
-            setRecoverPhrase("");
+            recoveringRef.current = false;
+            setBusy(false);
+        }
+    };
+
+    const retryRecoverySave = async (): Promise<RecoveryOutcome | null> => {
+        const accepted = acceptedRecoveryRef.current;
+        if (!accepted || recoveringRef.current) return null;
+        recoveringRef.current = true;
+        setBusy(true);
+        try {
+            return await finishRecovery(accepted);
+        } finally {
+            recoveringRef.current = false;
             setBusy(false);
         }
     };
@@ -688,12 +836,14 @@ function useCreateAccountController() {
         handleRegister,
         checkRecoverForm,
         handleRecover,
+        retryRecoverySave,
         handleGenerateRecovery,
         handleRefresh,
         openRemoveLocalBinding: () => setRemoveLocalBindingOpen(true),
         openRotateRecovery: () => setRotateRecoveryOpen(true),
         openDeleteAccount: () => setDeleteAccountOpen(true),
-        turnstileDialog,
+        humanCheck,
+        cancelHumanCheck,
         dialogs: (
             <>
                 <Dialog
@@ -790,21 +940,24 @@ function useCreateAccountController() {
 
 type AccountController = Omit<
     ReturnType<typeof useCreateAccountController>,
-    "dialogs" | "turnstileDialog"
+    "dialogs"
 >;
 const AccountControllerContext = createContext<AccountController | null>(null);
 
+/** Screens render humanCheck where it belongs: inline, or as a dialog over a sheet. */
 export function AccountControllerProvider({
     children,
+    humanCheckDialog = false,
 }: {
     children: ReactNode;
+    /** For a sheet, which cannot show inline content under its loading overlay. */
+    humanCheckDialog?: boolean;
 }) {
-    const { dialogs, turnstileDialog, ...controller } =
-        useCreateAccountController();
+    const { dialogs, ...controller } =
+        useCreateAccountController(humanCheckDialog);
     return (
         <AccountControllerContext.Provider value={controller}>
             {children}
-            {turnstileDialog}
             {dialogs}
         </AccountControllerContext.Provider>
     );

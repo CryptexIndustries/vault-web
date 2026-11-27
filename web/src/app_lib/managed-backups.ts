@@ -1,5 +1,6 @@
 import { trpc } from "@/utils/trpc";
 import type { VaultMetadata } from "@/app_lib/vault-utils/storage";
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
 import type { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { ManagedBackupError } from "./managed-backup-errors";
 
@@ -7,21 +8,11 @@ export type BackupSnapshot = Awaited<
     ReturnType<typeof trpc.v1.backup.list.query>
 >["items"][number];
 
-// TODO: Centralize the b64<->bytes conversion
-function bytesToBase64Url(bytes: Uint8Array): string {
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary)
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/g, "");
-}
-
 /** Opaque client token so retries reuse one recovery session after Kit consume. */
 export function createBackupRecoverySessionToken(): string {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
-    return bytesToBase64Url(bytes);
+    return uint8ToBase64Url(bytes);
 }
 
 export function sortSnapshotsNewestFirst<T extends { createdAt: Date }>(
@@ -94,7 +85,7 @@ export async function deleteManagedBackupHistoryBefore(
 
 export async function sha256Base64Url(bytes: Uint8Array): Promise<string> {
     const copy = new Uint8Array(bytes);
-    return bytesToBase64Url(
+    return uint8ToBase64Url(
         new Uint8Array(await crypto.subtle.digest("SHA-256", copy)),
     );
 }

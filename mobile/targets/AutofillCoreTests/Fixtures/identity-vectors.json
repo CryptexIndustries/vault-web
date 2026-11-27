@@ -1,0 +1,236 @@
+{
+    "cases": [
+        {
+            "name": "registers the narrowest domain of each rule",
+            "vaultIndex": 4,
+            "credentials": [
+                {
+                    "ID": "a",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://Login.Example.com./path",
+                    "AdditionalURLs": [
+                        {
+                            "URL": "www.shop.example.co.uk",
+                            "MatchMode": 1
+                        },
+                        {
+                            "URL": "https://api.*.example.net/v1/*",
+                            "MatchMode": 2
+                        },
+                        {
+                            "URL": "http://192.168.1.1",
+                            "MatchMode": 1
+                        },
+                        {
+                            "URL": "login.example.com:8443",
+                            "MatchMode": 0
+                        },
+                        {
+                            "URL": "androidapp://com.example.app",
+                            "MatchMode": 0
+                        },
+                        {
+                            "URL": "*.co.uk",
+                            "MatchMode": 2
+                        },
+                        {
+                            "URL": "not a url",
+                            "MatchMode": 0
+                        }
+                    ]
+                }
+            ],
+            "expected": [
+                {
+                    "kind": "password",
+                    "recordIdentifier": "4:a",
+                    "domain": "login.example.com",
+                    "user": "alice"
+                },
+                {
+                    "kind": "password",
+                    "recordIdentifier": "4:a",
+                    "domain": "example.co.uk",
+                    "user": "alice"
+                },
+                {
+                    "kind": "password",
+                    "recordIdentifier": "4:a",
+                    "domain": "example.net",
+                    "user": "alice"
+                },
+                {
+                    "kind": "password",
+                    "recordIdentifier": "4:a",
+                    "domain": "192.168.1.1",
+                    "user": "alice"
+                }
+            ]
+        },
+        {
+            "name": "skips logins the extension cannot fill or iOS cannot show",
+            "vaultIndex": 1,
+            "credentials": [
+                {
+                    "ID": "deleted",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com",
+                    "Deleted": true
+                },
+                {
+                    "ID": "ssh",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com",
+                    "Type": 5
+                },
+                {
+                    "ID": "no-password",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "",
+                    "URL": "https://example.com"
+                },
+                {
+                    "ID": "no-username",
+                    "Name": "Login",
+                    "Username": "",
+                    "Password": "password-secret",
+                    "URL": "https://example.com"
+                },
+                {
+                    "ID": "no-website",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret"
+                },
+                {
+                    "ID": "kept",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com"
+                }
+            ],
+            "expected": [
+                {
+                    "kind": "password",
+                    "recordIdentifier": "1:kept",
+                    "domain": "example.com",
+                    "user": "alice"
+                }
+            ]
+        },
+        {
+            "name": "adds one-time codes for logins with a TOTP secret",
+            "vaultIndex": 2,
+            "credentials": [
+                {
+                    "ID": "both",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com",
+                    "AdditionalURLs": [
+                        {
+                            "URL": "*.example.org",
+                            "MatchMode": 2
+                        }
+                    ],
+                    "TOTP": {
+                        "Secret": "JBSWY3DPEHPK3PXP"
+                    }
+                },
+                {
+                    "ID": "code-only",
+                    "Name": "Bank codes",
+                    "Username": "",
+                    "Password": "",
+                    "URL": "bank.example.net",
+                    "URLMatchMode": 1,
+                    "TOTP": {
+                        "Secret": "JBSWY3DPEHPK3PXP"
+                    }
+                },
+                {
+                    "ID": "deleted",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com",
+                    "Deleted": true,
+                    "TOTP": {
+                        "Secret": "JBSWY3DPEHPK3PXP"
+                    }
+                },
+                {
+                    "ID": "ssh",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "URL": "https://example.com",
+                    "Type": 5,
+                    "TOTP": {
+                        "Secret": "JBSWY3DPEHPK3PXP"
+                    }
+                },
+                {
+                    "ID": "empty-secret",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "",
+                    "URL": "https://example.com",
+                    "TOTP": {
+                        "Secret": ""
+                    }
+                },
+                {
+                    "ID": "no-website",
+                    "Name": "Login",
+                    "Username": "alice",
+                    "Password": "password-secret",
+                    "TOTP": {
+                        "Secret": "JBSWY3DPEHPK3PXP"
+                    }
+                }
+            ],
+            "expected": [
+                {
+                    "kind": "password",
+                    "recordIdentifier": "2:both",
+                    "domain": "example.com",
+                    "user": "alice"
+                },
+                {
+                    "kind": "password",
+                    "recordIdentifier": "2:both",
+                    "domain": "example.org",
+                    "user": "alice"
+                },
+                {
+                    "kind": "oneTimeCode",
+                    "recordIdentifier": "2:both",
+                    "domain": "example.com",
+                    "user": "alice"
+                },
+                {
+                    "kind": "oneTimeCode",
+                    "recordIdentifier": "2:both",
+                    "domain": "example.org",
+                    "user": "alice"
+                },
+                {
+                    "kind": "oneTimeCode",
+                    "recordIdentifier": "2:code-only",
+                    "domain": "example.net",
+                    "user": "Bank codes"
+                }
+            ]
+        }
+    ]
+}

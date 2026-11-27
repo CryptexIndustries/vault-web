@@ -102,14 +102,8 @@ function DestinationRow({
     const { t, i18n } = useLingui();
     const subtitle = statusText(i18n, status);
     return (
-        <Pressable
-            testID={`backup-destination-${destination.ID}`}
-            accessibilityRole="button"
-            accessibilityLabel={`${destination.Name}, ${subtitle}`}
-            onPress={onPress}
-            android_ripple={{ color: colors.border }}
+        <View
             style={{
-                minHeight: 70,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 13,
@@ -117,32 +111,49 @@ function DestinationRow({
                 borderBottomColor: colors.border,
             }}
         >
-            <Database size={22} color={colors.muted} strokeWidth={1.7} />
-            <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
-                <Text numberOfLines={1} style={{ fontSize: 14 }}>
-                    {destination.Name}
-                </Text>
-                <Text
-                    numberOfLines={2}
-                    style={{
-                        color:
-                            status?.phase === "error"
-                                ? colors.primary
-                                : colors.muted,
-                        fontSize: 12,
-                        lineHeight: 18,
-                        marginTop: 5,
-                    }}
-                >
-                    {subtitle}
-                </Text>
-            </View>
+            {/* iOS hides controls nested in an accessible row. */}
+            <Pressable
+                testID={`backup-destination-${destination.ID}`}
+                accessibilityRole="button"
+                accessibilityLabel={`${destination.Name}, ${subtitle}`}
+                onPress={onPress}
+                android_ripple={{ color: colors.border }}
+                style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 70,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 13,
+                }}
+            >
+                <Database size={22} color={colors.muted} strokeWidth={1.7} />
+                <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 14 }}>
+                        {destination.Name}
+                    </Text>
+                    <Text
+                        numberOfLines={2}
+                        style={{
+                            color:
+                                status?.phase === "error"
+                                    ? colors.primary
+                                    : colors.muted,
+                            fontSize: 12,
+                            lineHeight: 18,
+                            marginTop: 5,
+                        }}
+                    >
+                        {subtitle}
+                    </Text>
+                </View>
+            </Pressable>
             <Switch
                 value={!destination.Paused}
                 onValueChange={(enabled) => onPausedChange(!enabled)}
                 accessibilityLabel={t`Automatic backups to ${destination.Name}`}
             />
-        </Pressable>
+        </View>
     );
 }
 
@@ -280,7 +291,6 @@ export function BackupDestinationsSection() {
             confirmLabel: t`Remove`,
             destructive: true,
             onConfirm: () => {
-                setEditing(null);
                 void saveBackupDestinations({
                     type: "remove",
                     id: destination.ID,
@@ -430,9 +440,14 @@ export function BackupDestinationsSection() {
                     value={form.PathStyle}
                     onValueChange={(value) => set("PathStyle", value)}
                 />
-                {field("AccessKeyID", t`Access key ID`)}
+                {field("AccessKeyID", t`Access key ID`, {
+                    // iOS treats this as the username for the secret below.
+                    textContentType: "oneTimeCode",
+                })}
                 {field("SecretAccessKey", t`Secret access key`, {
                     secureTextEntry: true,
+                    // Keeps iOS from offering to store it in Apple Passwords.
+                    textContentType: "oneTimeCode",
                 })}
                 <UnlockedSwitchRow
                     testID="backup-destination-KeepAll"
@@ -473,7 +488,10 @@ export function BackupDestinationsSection() {
                     <Button
                         variant="ghost"
                         disabled={busy != null}
-                        onPress={() => remove(editing)}
+                        onPress={() => {
+                            setEditing(null);
+                            remove(editing);
+                        }}
                     >
                         {t`Remove destination`}
                     </Button>

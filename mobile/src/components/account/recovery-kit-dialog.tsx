@@ -9,6 +9,7 @@ import {
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
 import { InlineNotice } from "@/components/inline-notice";
+import { StepHeader } from "./step-header";
 import { copySecretToClipboard } from "@/utils/clipboard";
 import { useSecretRelease } from "@/utils/secret-release";
 import { shareSecretFile } from "@/utils/secret-share";
@@ -26,7 +27,6 @@ type RecoveryKitDialogProps = {
     kit: RecoveryKitData | null;
     onComplete: () => void;
     continueToPayment?: boolean;
-    completionDisabled?: boolean;
 };
 
 export function RecoveryKitDialog({
@@ -34,7 +34,6 @@ export function RecoveryKitDialog({
     kit,
     onComplete,
     continueToPayment = false,
-    completionDisabled = false,
 }: RecoveryKitDialogProps) {
     const { t } = useLingui();
     const [acknowledged, setAcknowledged] = useState(false);
@@ -125,25 +124,14 @@ export function RecoveryKitDialog({
 
     return (
         <View className="gap-4">
-            {!continueToPayment ? (
-                <View className="mb-2">
-                    <View className="mb-3 flex-row justify-between">
-                        <Text className="text-[10px] uppercase tracking-[1.3px] text-muted-foreground">
-                            {t({
-                                message: "Save kit",
-                                comment: "Step label above the Recovery Kit",
-                            })}
-                        </Text>
-                        <Text className="text-[10px] tracking-[1.3px] text-muted-foreground">
-                            02 / 02
-                        </Text>
-                    </View>
-                    <View className="flex-row gap-1.5">
-                        <View className="h-0.5 flex-1 bg-primary" />
-                        <View className="h-0.5 flex-1 bg-primary" />
-                    </View>
-                </View>
-            ) : null}
+            <StepHeader
+                label={t({
+                    message: "Save kit",
+                    comment: "Step label above the Recovery Kit",
+                })}
+                step={2}
+                total={continueToPayment ? 3 : 2}
+            />
 
             <View className="border-b border-border pb-5">
                 {!continueToPayment ? (
@@ -235,10 +223,7 @@ export function RecoveryKitDialog({
                     {status.text}
                 </Text>
             ) : null}
-            <Button
-                disabled={!canContinue || completionDisabled}
-                onPress={onComplete}
-            >
+            <Button disabled={!canContinue} onPress={onComplete}>
                 {continueToPayment
                     ? t`I've saved my kit. Continue to payment`
                     : t({

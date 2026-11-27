@@ -858,6 +858,7 @@ export function SSHKeyForm({
                                                     onSubmitEditing={unlock}
                                                     accessibilityLabel={t`Key passphrase`}
                                                     testID="ssh-key-passphrase"
+                                                    textContentType="oneTimeCode"
                                                 />
                                                 <Text className="mt-1 text-xs text-muted-foreground">
                                                     {t`Only used to open the key. It isn't saved.`}

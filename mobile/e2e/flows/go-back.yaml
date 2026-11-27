@@ -1,0 +1,16 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - pressKey: Back
+# iOS has no Back key; its screens go back with an edge swipe.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - swipe:
+                start: 0%, 50%
+                end: 80%, 50%
+                duration: 300

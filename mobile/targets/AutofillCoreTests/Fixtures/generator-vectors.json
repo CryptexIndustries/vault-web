@@ -1,0 +1,146 @@
+{
+    "vectors": [
+        {
+            "name": "random defaults",
+            "options": {
+                "type": "random",
+                "length": 16,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": false,
+                "wordSeparator": "space"
+            },
+            "seed": 1,
+            "expected": "X27XHfGar72nBM5E"
+        },
+        {
+            "name": "random rejects a draw past the last full range",
+            "options": {
+                "type": "random",
+                "length": 16,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": false,
+                "wordSeparator": "space"
+            },
+            "seed": 1,
+            "prefix": [4294967295, 4294967290],
+            "expected": "8X27XHfGar72nBM5"
+        },
+        {
+            "name": "random every class",
+            "options": {
+                "type": "random",
+                "length": 8,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": true,
+                "wordSeparator": "space"
+            },
+            "seed": 2,
+            "expected": ">oE5-8Y9"
+        },
+        {
+            "name": "random lowercase only",
+            "options": {
+                "type": "random",
+                "length": 6,
+                "includeUppercase": false,
+                "includeLowercase": true,
+                "includeNumbers": false,
+                "includeSymbols": false,
+                "wordSeparator": "space"
+            },
+            "seed": 3,
+            "expected": "lskonp"
+        },
+        {
+            "name": "random retries until every class appears",
+            "options": {
+                "type": "random",
+                "length": 4,
+                "includeUppercase": true,
+                "includeLowercase": false,
+                "includeNumbers": true,
+                "includeSymbols": true,
+                "wordSeparator": "space"
+            },
+            "seed": 0,
+            "prefix": [0, 1, 2, 3],
+            "expected": "$YE6"
+        },
+        {
+            "name": "random without classes",
+            "options": {
+                "type": "random",
+                "length": 16,
+                "includeUppercase": false,
+                "includeLowercase": false,
+                "includeNumbers": false,
+                "includeSymbols": false,
+                "wordSeparator": "space"
+            },
+            "seed": 4,
+            "expected": ""
+        },
+        {
+            "name": "memorable defaults",
+            "options": {
+                "type": "memorable",
+                "length": 4,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": false,
+                "wordSeparator": "space"
+            },
+            "seed": 5,
+            "expected": "Gallery hood7 actual5 genuine"
+        },
+        {
+            "name": "memorable dash without extras",
+            "options": {
+                "type": "memorable",
+                "length": 3,
+                "includeUppercase": false,
+                "includeLowercase": true,
+                "includeNumbers": false,
+                "includeSymbols": false,
+                "wordSeparator": "dash"
+            },
+            "seed": 6,
+            "expected": "clump-evoke-sibling"
+        },
+        {
+            "name": "memorable underscore",
+            "options": {
+                "type": "memorable",
+                "length": 5,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": false,
+                "wordSeparator": "underscore"
+            },
+            "seed": 7,
+            "expected": "eagle7_always_coconut9_Discover_Swarm"
+        },
+        {
+            "name": "memorable no separator",
+            "options": {
+                "type": "memorable",
+                "length": 3,
+                "includeUppercase": true,
+                "includeLowercase": true,
+                "includeNumbers": true,
+                "includeSymbols": false,
+                "wordSeparator": "none"
+            },
+            "seed": 8,
+            "expected": "aisleSheriff2furnace9"
+        }
+    ]
+}

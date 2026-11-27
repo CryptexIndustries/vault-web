@@ -14,7 +14,8 @@ type SwitchProps = RNSwitchProps & {
 function Switch({ className, disabled, ...props }: SwitchProps) {
     return (
         <RNSwitch
-            className={cn(disabled && "opacity-50", className)}
+            // React Native's iOS switch pins itself to the top of its row.
+            className={cn("self-center", disabled && "opacity-50", className)}
             trackColor={{ false: colors.trackOff, true: colors.primary }}
             thumbColor={colors.foreground}
             ios_backgroundColor={colors.trackOff}

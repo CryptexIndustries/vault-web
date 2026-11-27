@@ -10,9 +10,9 @@ Object.defineProperty(globalThis, "atob", {
     value: (value: string) => Buffer.from(value, "base64").toString("binary"),
 });
 
+import { base64UrlToUint8 } from "@cryptex-industries/vault-core/encoding";
 import type { PasskeyData } from "@cryptex-industries/vault-core/proto";
 import {
-    decodeBase64Url,
     es256RawSignatureToDer,
     generatePasskeyAssertion,
 } from "../src/content/passkey-assertion";
@@ -80,14 +80,14 @@ describe("passkey assertion generation", () => {
             userVerified: true,
         });
 
-        const clientData = decodeBase64Url(assertion.clientDataJSON);
+        const clientData = base64UrlToUint8(assertion.clientDataJSON);
         expect(JSON.parse(new TextDecoder().decode(clientData))).toEqual({
             type: "webauthn.get",
             challenge,
             origin: "https://example.com",
             crossOrigin: false,
         });
-        const authenticatorData = decodeBase64Url(assertion.authenticatorData);
+        const authenticatorData = base64UrlToUint8(assertion.authenticatorData);
         const clientHash = new Uint8Array(
             await crypto.subtle.digest("SHA-256", clientData),
         );
@@ -98,7 +98,7 @@ describe("passkey assertion generation", () => {
         const verified = await crypto.subtle.verify(
             { name: "ECDSA", hash: "SHA-256" },
             keyPair.publicKey,
-            derToRaw(decodeBase64Url(assertion.signature)),
+            derToRaw(base64UrlToUint8(assertion.signature)),
             signedData,
         );
         expect(verified).toBe(true);

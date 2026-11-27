@@ -34,6 +34,11 @@ import {
 import { PasswordStrengthMeter } from "@/components/vault/password-strength-meter";
 import { PasswordGeneratorDialog } from "@/components/vault/password-generator";
 import { InlineNotice } from "@/components/inline-notice";
+import { clearIosCredentialIdentities } from "@/utils/ios-credential-identities";
+import {
+    lockIosAutofillInbox,
+    mergeIosAutofillInbox,
+} from "@/utils/ios-autofill-inbox";
 import {
     UnlockedButton as Button,
     UnlockedDialogTitle,
@@ -85,6 +90,7 @@ function KeyRotationOptions({
                 onValueChange={onRotateDataKeyChange}
                 disabled={disabled}
                 label={t`Rotate this device's vault encryption key`}
+                testID="rotate-data-key"
                 hint={t`Off by default. Rotation re-encrypts this vault with a fresh data key and generates a new recovery code. Linked devices keep their own vault keys.`}
             />
             {rotateDataKey ? (
@@ -109,6 +115,7 @@ function KeyRotationOptions({
                     onValueChange={onDeleteOlderDestinationBackupsChange}
                     disabled={disabled}
                     label={t`Delete older destination backups after replacement`}
+                    testID="delete-older-destination-backups"
                     hint={t`This device's older backups in your backup destinations are deleted only after the new backup uploads to each one. Other devices' backups stay.`}
                 />
             ) : null}
@@ -233,7 +240,32 @@ export function VaultSecurityDialog({
             if (!refreshed) throw new Error("BIOMETRIC_REFRESH_FAILED");
         } catch (error) {
             await clearSecureDek(metadata.DBIndex).catch(() => undefined);
+            void clearIosCredentialIdentities(metadata.DBIndex);
             throw error;
+        }
+    };
+
+    /**
+     * Logins the iOS AutoFill extension saved are sealed with the current data
+     * key and would never open after a rotation, so they are added first. If
+     * they can't be, the key isn't changed. Entries that already don't open
+     * stay unreadable either way, so they only warn.
+     */
+    const mergeAutofillInboxBeforeRotation = async (): Promise<boolean> => {
+        const vaultDbIndex = vaultStore.get(unlockedVaultMetadataAtom)?.DBIndex;
+        if (vaultDbIndex == null) return true;
+        try {
+            const merged = await mergeIosAutofillInbox(vaultDbIndex);
+            if (merged?.failed)
+                setWarning(
+                    t`Some logins saved by AutoFill could not be read and were not added to this vault.`,
+                );
+            return true;
+        } catch {
+            setError(
+                t`Logins saved by AutoFill could not be added to this vault, so its key was not changed. Try again.`,
+            );
+            return false;
         }
     };
 
@@ -363,7 +395,12 @@ export function VaultSecurityDialog({
         setProtectionPhraseAck(false);
         setRevealRecovery(null);
         setRecoveryAck(false);
+        let unlockInbox: (() => void) | null = null;
         try {
+            if (rotateDataKeyOnProtection) {
+                unlockInbox = await lockIosAutofillInbox();
+                if (!(await mergeAutofillInboxBeforeRotation())) return;
+            }
             const res = await persistSecurityChange((metadata, vault, dek) =>
                 metadata.reconfigureSecurity({
                     currentMasterPassword: currentPassword,
@@ -441,6 +478,7 @@ export function VaultSecurityDialog({
             clearCurrentAuthorization();
             setError(t`Failed to update security settings.`);
         } finally {
+            unlockInbox?.();
             setIsSaving(false);
         }
     };
@@ -469,7 +507,12 @@ export function VaultSecurityDialog({
         setWarning("");
         setRevealRecovery(null);
         setRecoveryAck(false);
+        let unlockInbox: (() => void) | null = null;
         try {
+            if (rotateDataKeyOnRecovery) {
+                unlockInbox = await lockIosAutofillInbox();
+                if (!(await mergeAutofillInboxBeforeRotation())) return;
+            }
             const res = await persistSecurityChange((metadata, vault, dek) =>
                 metadata.resetRecoveryCode({
                     currentMasterPassword: currentPassword,
@@ -522,6 +565,7 @@ export function VaultSecurityDialog({
             clearCurrentAuthorization();
             setError(t`Failed to reset recovery code.`);
         } finally {
+            unlockInbox?.();
             setIsRotating(false);
         }
     };
@@ -669,6 +713,7 @@ export function VaultSecurityDialog({
                     editable={isEnvelope && !busy && !webauthnVault}
                     placeholder={t`Required to authorize changes`}
                     accessibilityLabel={t`Current master password`}
+                    testID="current-master-password"
                 />
             </View>
             {isProtectionPhraseKind(currentKind) ? (
@@ -776,6 +821,7 @@ export function VaultSecurityDialog({
                                 textContentType="newPassword"
                                 editable={isEnvelope && !busy && !webauthnVault}
                                 accessibilityLabel={t`New master password`}
+                                testID="new-master-password"
                             />
                             {newPassword.length > 0 ? (
                                 <PasswordStrengthMeter password={newPassword} />

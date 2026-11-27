@@ -50,11 +50,11 @@ on:
         type: choice
         options: [preprod, production]
       distribution:
-        description: fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; play builds the Google Play APK and AAB
+        description: fdroid builds the F-Droid APKs, only arm64-v8a and x86_64 for preprod; play builds the Google Play APK and AAB; app-store builds and signs the production iOS app without uploading it
         required: true
         default: fdroid
         type: choice
-        options: [fdroid, play]
+        options: [fdroid, play, app-store]
 
 concurrency:
   group: mobile-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.profile || 'checks' }}-${{ inputs.distribution || 'standard' }}
@@ -91,7 +91,8 @@ jobs:
 
       - name: Validate release selection
         env:
-          RELEASE_PROFILE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v') && 'production' || inputs.profile || 'preprod' }}
+          # An app-store dispatch builds production but never uploads, so it skips the release tag check.
+          RELEASE_PROFILE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v') && 'production' || inputs.distribution != 'app-store' && inputs.profile || 'preprod' }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -116,6 +117,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     needs: check
+    if: inputs.distribution != 'app-store'
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
 
@@ -463,3 +465,60 @@ jobs:
           name: mobile-google-play-release-${{ github.run_id }}
           path: ${{ runner.temp }}/mobile-release/
           if-no-files-found: error
+
+  app_store:
+    name: build and upload iOS app
+    runs-on: macos-26
+    timeout-minutes: 180
+    needs: check
+    # mobile-v tags upload. A manual app-store run is a dry run that keeps the
+    # signed IPA as a run artifact.
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mobile-v')) || (github.event_name == 'workflow_dispatch' && inputs.distribution == 'app-store')
+    environment: App Store
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.22.2
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+
+      - name: Build, sign and upload
+        # Leaves time for the certificate cleanup below.
+        timeout-minutes: 150
+        env:
+          CRYPTEX_ASC_API_KEY_ID: ${{ secrets.CRYPTEX_ASC_API_KEY_ID }}
+          CRYPTEX_ASC_API_ISSUER_ID: ${{ secrets.CRYPTEX_ASC_API_ISSUER_ID }}
+          CRYPTEX_ASC_API_KEY: ${{ secrets.CRYPTEX_ASC_API_KEY }}
+          UPLOAD: ${{ github.event_name == 'push' && '--upload' || '' }}
+        run: pnpm mobile:build -- --platform ios --build-number "$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT" $UPLOAD
+
+      - name: Upload the signed dry run IPA
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-app-store-${{ github.run_id }}
+          path: mobile/dist/ios/
+          if-no-files-found: error
+
+      - name: Revoke the run's development certificate
+        if: always()
+        env:
+          CRYPTEX_ASC_API_KEY_ID: ${{ secrets.CRYPTEX_ASC_API_KEY_ID }}
+          CRYPTEX_ASC_API_ISSUER_ID: ${{ secrets.CRYPTEX_ASC_API_ISSUER_ID }}
+          CRYPTEX_ASC_API_KEY: ${{ secrets.CRYPTEX_ASC_API_KEY }}
+        run: node mobile/scripts/build-ios.mjs revoke-runner-certificates

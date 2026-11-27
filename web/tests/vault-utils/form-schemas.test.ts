@@ -1,19 +1,4 @@
-import { describe, it, expect, jest } from "@jest/globals";
-
-jest.mock(
-    "@/lib/utils",
-    () => ({
-        base64ToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64url"),
-    }),
-    { virtual: true },
-);
+import { describe, it, expect } from "@jest/globals";
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {
@@ -171,6 +156,16 @@ describe("vault-utils/form-schemas", () => {
                 Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
             }),
         ).toThrow("Period must be at least 1 second");
+
+        expect(() =>
+            TOTPFormSchema.parse({
+                Label: "A",
+                Secret: "B",
+                Period: 30.1,
+                Digits: 6,
+                Algorithm: VaultUtilTypes.TOTPAlgorithm.SHA1,
+            }),
+        ).toThrow("Period must be a whole number of seconds");
     });
 
     it("validates synchronization server upsert schemas", () => {

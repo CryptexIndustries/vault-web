@@ -33,7 +33,7 @@ import {
     notifyVaultLockStarted,
     resumeAgentSigning,
 } from "@/utils/vault-lock-listeners";
-import AppIndex from "@/pages/app";
+import { AppIndex } from "@/pages/app";
 
 type UnlockResult = {
     isOk(): boolean;
@@ -125,6 +125,7 @@ jest.mock("@/app_lib/auth-session", () => ({
     establishPremiumSession: jest.fn(),
     syncOnlineServicesRemoteConfiguration: jest.fn(),
 }));
+jest.mock("@/app_lib/vault-core-runtime", () => ({}));
 jest.mock("@/app_lib/managed-backup-hooks", () => ({
     flushManagedBackupBeforeLock: jest.fn(async () => undefined),
     stopManagedBackup: jest.fn(),

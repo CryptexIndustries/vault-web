@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "minimum_chrome_version": "140",
     "name": "Cryptex Vault - Local-first password manager",
-    "version": "1.12.0",
+    "version": "1.13.0",
     "description": "Open-source password manager with browser autofill and peer-to-peer sync. Keep your vault local, private, and under your control",
     "homepage_url": "https://cryptex-vault.com",
     "icons": {
@@ -51,10 +51,10 @@
             "resources": [
                 "autofill-generator.html",
                 "autofill-menu.html",
-                "autofill-save.html",
-                "assets/*"
+                "autofill-save.html"
             ],
-            "matches": ["http://*/*", "https://*/*"]
+            "matches": ["http://*/*", "https://*/*"],
+            "use_dynamic_url": true
         }
     ]
 }

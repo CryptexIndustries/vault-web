@@ -1,3 +1,5 @@
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
+
 export const CHUNKED_QR_PREFIX = "CVQ1";
 export const DEFAULT_CHUNKED_QR_CHARS = 750;
 export const DEFAULT_CHUNKED_QR_CYCLE_MS = 250;
@@ -246,16 +248,5 @@ async function hasSha256Base64Url(payload: string, expectedHash: string) {
 async function sha256Base64Url(payload: string): Promise<string> {
     const bytes = new TextEncoder().encode(payload);
     const digest = await crypto.subtle.digest("SHA-256", bytes);
-    return bytesToBase64Url(new Uint8Array(digest));
-}
-
-function bytesToBase64Url(bytes: Uint8Array): string {
-    let binary = "";
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
-    }
-    return btoa(binary)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/u, "");
+    return uint8ToBase64Url(new Uint8Array(digest));
 }

@@ -7,6 +7,7 @@ const profiles = Object.freeze({
         configFile: "release-config.json",
         artifactBase: "cryptex-vault",
         signingIdentityFile: "release-signing.json",
+        appStoreAppId: "6836340912",
     }),
     preprod: Object.freeze({
         name: "preprod",

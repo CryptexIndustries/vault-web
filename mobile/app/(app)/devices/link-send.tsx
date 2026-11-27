@@ -1613,6 +1613,7 @@ export default function LinkSendScreen() {
                                 autoCapitalize="words"
                                 placeholder={t`e.g. Laptop`}
                                 accessibilityLabel={t`Receiving device name`}
+                                testID="link-device-name"
                                 maxLength={150}
                             />
                         </View>
@@ -1880,7 +1881,6 @@ export default function LinkSendScreen() {
                                             </UnlockedText>
                                             <UnlockedText
                                                 selectable
-                                                accessibilityLabel={t`Verification words`}
                                                 className="font-mono text-sm leading-6 text-foreground"
                                             >
                                                 {invitation.mnemonic}

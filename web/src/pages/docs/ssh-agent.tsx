@@ -92,8 +92,9 @@ export default function SSHAgent() {
                     macOS that holds no private keys. When <code>ssh</code>,{" "}
                     <code>git</code> or <code>ssh-keygen</code> asks it to sign,
                     it sends the request to the device you paired it with: the
-                    Android app or the web app. You approve there, your vault
-                    signs, and only the signature goes back to the machine.
+                    Android or iOS app, or the web app. You approve there, your
+                    vault signs, and only the signature goes back to the
+                    machine.
                 </p>
                 <p>
                     The private key never reaches the machine, so malware on
@@ -158,7 +159,7 @@ export default function SSHAgent() {
                     <code>cryptex-agent pair --invert</code> so the QR code
                     scans.
                 </p>
-                <h3>With the Android app</h3>
+                <h3>With the Android or iOS app</h3>
                 <DocSteps
                     items={[
                         <p key="open">
@@ -511,7 +512,7 @@ export default function SSHAgent() {
                 <p>
                     If you didn&apos;t expect a request, choose{" "}
                     <strong>Pause agent</strong> at the bottom of the prompt. On
-                    Android the button names the agent, such as{" "}
+                    Android and iOS the button names the agent, such as{" "}
                     <strong>Pause work-laptop</strong>. That refuses the request
                     in front of you too. While an agent is paused, its requests
                     are refused without a prompt and its remembered approvals
@@ -581,6 +582,14 @@ export default function SSHAgent() {
                     width={720}
                     height={1404}
                 />
+                <h3>On iOS</h3>
+                <p>
+                    The iOS app approves only while Cryptex Vault is open on the
+                    screen. Requests that arrive while the app is closed or in
+                    the background don&apos;t reach you, because iOS
+                    doesn&apos;t keep it connected. With the app open, a request
+                    opens straight away, on the same screen as on Android.
+                </p>
                 <h3>In the web app</h3>
                 <p>
                     The browser approves only while your vault is unlocked and a
@@ -619,7 +628,7 @@ export default function SSHAgent() {
 
             <DocSection id="manage" title="Manage and revoke agents">
                 <p>
-                    On Android, agents are listed under{" "}
+                    On Android and iOS, agents are listed under{" "}
                     <strong>Connected agents</strong> in the{" "}
                     <strong>List</strong> view of the Devices tab. In the web
                     app, they are under <strong>Connected Agents</strong> in the
@@ -659,9 +668,9 @@ export default function SSHAgent() {
                 <h3>Revoke an agent</h3>
                 <p>
                     Open the agent, open the menu at the top and choose{" "}
-                    <strong>Revoke agent</strong>, in the web app or on Android.
-                    Any of your linked devices can do this. On the machine
-                    itself, run:
+                    <strong>Revoke agent</strong>, in the web app or on Android
+                    or iOS. Any of your linked devices can do this. On the
+                    machine itself, run:
                 </p>
                 <DocScreenshot
                     src="/images/docs/ssh-agent-android-agent-menu.png"
@@ -741,11 +750,12 @@ export default function SSHAgent() {
                     Each agent keeps the relay it was paired on. To see or
                     change the access tokens a device has saved, open{" "}
                     <strong>Agent relays</strong>. In the web app, that is the
-                    gear next to <strong>Connected Agents</strong>. On Android,
-                    it is the gear next to <strong>Connected agents</strong> in
-                    the <strong>List</strong> view of the Devices tab. Before
-                    you connect an agent, tap <strong>+</strong> on the Devices
-                    tab, choose <strong>Create invitation</strong>, then{" "}
+                    gear next to <strong>Connected Agents</strong>. On Android
+                    and iOS, it is the gear next to{" "}
+                    <strong>Connected agents</strong> in the{" "}
+                    <strong>List</strong> view of the Devices tab. Before you
+                    connect an agent, tap <strong>+</strong> on the Devices tab,
+                    choose <strong>Create invitation</strong>, then{" "}
                     <strong>Advanced connection</strong> and{" "}
                     <strong>Manage custom servers</strong>. The SSH agents
                     section of that screen has <strong>Agent relays</strong>.
@@ -761,10 +771,11 @@ export default function SSHAgent() {
                     A relay address must start with <code>https://</code>. Plain{" "}
                     <code>http://</code> works only for a relay on the same
                     machine (<code>localhost</code>, <code>127.0.0.1</code> or{" "}
-                    <code>[::1]</code>), for testing. The agent, the Android app
-                    and the web app all refuse other <code>http://</code>{" "}
-                    addresses. The agent also doesn&apos;t follow redirects, so
-                    a relay can&apos;t send it to another server.
+                    <code>[::1]</code>), for testing. The agent, the Android and
+                    iOS apps and the web app all refuse other{" "}
+                    <code>http://</code> addresses. The agent also doesn&apos;t
+                    follow redirects, so a relay can&apos;t send it to another
+                    server.
                 </p>
                 <p>
                     Pass the relay&apos;s address exactly as the relay knows it
@@ -798,6 +809,10 @@ export default function SSHAgent() {
                         phone is idle, open <strong>Battery settings</strong> on
                         the <strong>Agent relays</strong> screen and let Cryptex
                         Vault run in the background.
+                    </li>
+                    <li>
+                        On iOS, keep Cryptex Vault open while you use the agent.
+                        Requests don&apos;t reach the app in the background.
                     </li>
                     <li>
                         In the web app, unlock the vault and keep a vault tab

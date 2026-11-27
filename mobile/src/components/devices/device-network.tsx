@@ -325,19 +325,24 @@ export const DeviceNetwork = memo(function DeviceNetwork({
     const isolatedBounds = useMemo(() => {
         if (!isolated.length) return null;
         const points = isolated.map((node) => layout.positions.get(node.id)!);
+        const minX = Math.min(...points.map((point) => point.x));
+        const maxX = Math.max(...points.map((point) => point.x));
+        const isolatedCount = isolated.length;
+        // Same message the canvas draws as the box title, 18 in from each side.
+        const titleWidth = fonts.isolated.measureText(
+            t`No recorded links (${isolatedCount})`,
+        ).width;
+        const width = Math.max(maxX - minX + 140, titleWidth + 36);
         return {
-            x: Math.min(...points.map((point) => point.x)) - 70,
+            x: (minX + maxX - width) / 2,
             y: Math.min(...points.map((point) => point.y)) - 90,
-            width:
-                Math.max(...points.map((point) => point.x)) -
-                Math.min(...points.map((point) => point.x)) +
-                140,
+            width,
             height:
                 Math.max(...points.map((point) => point.y)) -
                 Math.min(...points.map((point) => point.y)) +
                 180,
         };
-    }, [isolated, layout.positions]);
+    }, [isolated, layout.positions, fonts, t]);
     const hitNodes = useMemo(
         () =>
             nodes.flatMap((node) => {

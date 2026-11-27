@@ -40,6 +40,9 @@ module.exports = ({ config }) => {
               : "development",
     });
     const preprod = profile.name === "preprod";
+    // Shared with the AutoFill extension, whose Info.plist derives the same
+    // name from its bundle identifier. Also the biometric keychain group.
+    const appGroup = `group.${profile.applicationId}.autofill`;
     return {
         ...config,
         ...ota,
@@ -79,7 +82,20 @@ module.exports = ({ config }) => {
                     : {}),
             },
         },
-        ios: { ...config.ios, bundleIdentifier: profile.applicationId },
+        ios: {
+            ...config.ios,
+            bundleIdentifier: profile.applicationId,
+            // App Store uploads from CI take the workflow run number.
+            buildNumber:
+                process.env.CRYPTEX_IOS_BUILD_NUMBER || config.ios?.buildNumber,
+            // react-native-mmkv keeps its files in this App Group.
+            infoPlist: { ...config.ios?.infoPlist, AppGroup: appGroup },
+            entitlements: {
+                ...config.ios?.entitlements,
+                "com.apple.developer.authentication-services.autofill-credential-provider": true,
+                "com.apple.security.application-groups": [appGroup],
+            },
+        },
         extra: {
             ...config.extra,
             ...ota.extra,

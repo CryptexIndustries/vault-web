@@ -14,7 +14,7 @@ name: Account devices, permissions and topology visibility
 - tapOn: Receiving device name
 - eraseText: 20
 - inputText: E2E Root Invitation
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn: Advanced connection,.*
 - scrollUntilVisible:
       element:
@@ -51,7 +51,7 @@ name: Account devices, permissions and topology visibility
 - tapOn:
       id: device-search
 - inputText: e2e-peer
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - assertVisible: 1 device
 - tapOn:
       id: device-row-e2e-peer-.*
@@ -112,7 +112,7 @@ name: Account devices, permissions and topology visibility
 - tapOn:
       id: device-search
 - eraseText: 100
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - assertNotVisible:
       id: device-row-e2e-peer-.*
 - tapOn:

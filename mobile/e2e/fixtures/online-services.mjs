@@ -31,6 +31,7 @@ export function createOnlineServicesFixture({
         objects = new Map(),
         relationships = new Map();
     let sequence = 0;
+    const failNext = new Map();
     const id = (prefix) => `${prefix}-${++sequence}`;
     const tokens = (deviceId) => {
         const sessionToken = randomBytes(32).toString("base64url");
@@ -70,8 +71,15 @@ export function createOnlineServicesFixture({
             if (!account)
                 fail("Device is no longer registered", "UNAUTHORIZED");
         }
+        const injected = failNext.get(path);
+        if (injected) {
+            failNext.delete(path);
+            fail(injected.message, injected.code);
+        }
         switch (path) {
             case "v1.auth.register": {
+                // A new run reuses a running fixture; drop failures an aborted run left armed.
+                failNext.clear();
                 const publicKey = createPublicKey({
                     key: JSON.parse(input.publicKeyJWK),
                     format: "jwk",
@@ -463,6 +471,17 @@ export function createOnlineServicesFixture({
                         ...(deviceCount !== 3 ? { deviceCount } : {}),
                     }),
                 );
+                return;
+            }
+            // The cloud suite fails one call to check how the app reports it.
+            if (url.pathname === "/fail-next" && request.method === "POST") {
+                const chunks = [];
+                for await (const chunk of request) chunks.push(chunk);
+                const { path, message, code } = JSON.parse(
+                    Buffer.concat(chunks).toString(),
+                );
+                failNext.set(path, { message, code });
+                response.end();
                 return;
             }
             if (url.pathname.startsWith("/objects/")) {

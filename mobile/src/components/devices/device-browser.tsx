@@ -19,7 +19,7 @@ import {
     type DeviceRelationshipMap,
 } from "@/components/account/device-topology";
 import { UnlockedText as Text } from "@/components/unlocked/unlocked-ui";
-import { colors } from "@/theme";
+import { colors, layout } from "@/theme";
 import { DeviceGlyph } from "./device-glyph";
 import { formatDeviceActivity, formatDeviceDateTime } from "./device-dates";
 
@@ -575,6 +575,9 @@ export function DeviceSelectionSummary({
     return (
         <View
             style={{
+                width: "100%",
+                maxWidth: layout.panelMaxWidth,
+                alignSelf: "center",
                 backgroundColor: colors.navigation,
                 borderTopWidth: 1,
                 borderTopColor: colors.border,

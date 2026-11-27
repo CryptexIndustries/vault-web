@@ -13,6 +13,6 @@ Cryptex Vault stores passwords, passkeys and verification codes in an encrypted 
 Create or use an invitation with a QR code or invitation file. Linked vaults can synchronize with Cryptex Vault on Android, the web and supported browser extensions. Device linking and synchronization use encrypted transfers.
 
 <b>Optional Online Services</b>
-Online Services offers a paid monthly or yearly subscription for managed encrypted backups, hosted signaling and relay services, and account device management. Local vault use does not require a subscription. Account creation uses Cloudflare Turnstile, and billing opens Stripe Checkout in your browser. These optional features use external network services.
+Online Services offers a paid monthly or yearly subscription for managed encrypted backups, hosted signaling and relay services, and account device management. Local vault use does not require a subscription. Billing opens Stripe Checkout in your browser. These optional features use external network services.
 
 Cryptex Vault is free software under the GNU Affero General Public License, version 3.

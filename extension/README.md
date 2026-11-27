@@ -130,11 +130,10 @@ across reloads.
 ### CI extension packages
 
 The [`Browser extension`](../.github/workflows/extension.yml) workflow packages
-the extension from the committed configurations. No repository variables or
-environments are involved.
+the extension from the committed configurations.
 
-- Pushing a Git tag that starts with `extension-` builds the production
-  profile.
+- Pushing a Git tag that starts with `extension-` builds the production and
+  preprod profiles.
 - In the Actions tab, **Browser extension** > **Run workflow** builds the branch
   you pick with the profile you choose. GitHub offers **Run workflow** only once
   the workflow file is on the default branch.
@@ -154,19 +153,42 @@ git push origin extension-v1.4.2
 
 A tag build creates `cryptex-vault-chromium-extension-v1.4.2.zip` and
 `cryptex-vault-firefox-extension-v1.4.2.zip`, each with `manifest.json` at the
-archive root and no source maps. The filenames use
-`cryptex-vault-{browser}-{tag}.zip`, preserving the full tag and its case.
+archive root and no source maps, plus the same pair with `preprod-` before the
+tag. The filenames use `cryptex-vault-{browser}-{tag}.zip`, preserving the full
+tag and its case.
 Characters outside letters, digits, `.`, `_`, and `-` become `-` in the
 filename, so tags containing `/` still produce a single filename. A manual run
 names the archives `cryptex-vault-{browser}-{profile}-{branch}-{short commit}.zip`.
 
 Download the ZIPs from the Actions run's **Artifacts** section. Each download
 is the extension ZIP itself, ready to upload. Artifacts expire after 30 days.
-This workflow does not create a GitHub Release or submit to either store.
 
 The tag names the archives. The extension version still comes from
 [`extension/manifest.json`](manifest.json); update it before tagging a new
-Web Store version.
+Web Store version. Both stores reject a version they already have.
+
+### Store submission
+
+An `extension-v*` tag also drafts the GitHub release and submits all four
+packages for review, each in its own job so a failed one can be rerun alone.
+The jobs run in the `extension-stores` environment, which only `extension-v*`
+tags can use. Both stores publish a version once it passes review.
+
+- **Chrome Web Store**: [`scripts/chrome-web-store.mjs`](scripts/chrome-web-store.mjs)
+  uploads each ZIP to its item and submits it. The job signs in through
+  workload identity federation in the `cryptex-vault-releases` Google Cloud
+  project as `extension-store-publisher@cryptex-vault-releases.iam.gserviceaccount.com`,
+  the service account added under the publisher's settings in the developer
+  dashboard. No key is stored. If someone changes an item's visibility in the
+  dashboard, the next version has to be published there by hand once.
+- **addons.mozilla.org**: [`scripts/source-archive.sh`](scripts/source-archive.sh)
+  writes the source archive with [`amo/BUILD-INSTRUCTIONS.md`](amo/BUILD-INSTRUCTIONS.md).
+  The workflow rebuilds both Firefox packages from it and fails on any
+  difference. [`scripts/addons-mozilla-org.mjs`](scripts/addons-mozilla-org.mjs)
+  then submits each package with the archive and the reviewer notes from
+  [`amo/`](amo/). It uses the `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` secrets of
+  the `extension-stores` environment, an API key of the Cryptex Industries
+  account.
 
 ### Shipping checklist (Web Store)
 
@@ -193,10 +215,5 @@ Before submitting to the Chrome Web Store:
    must be `extension@cryptex-vault.com`, the ID of the published add-on.
 3. Smoke-test the build in Firefox (load it from `about:debugging`, link a
    vault, unlock it, autofill a login).
-4. Upload `cryptex-vault-firefox-extension-v1.4.2.zip` to addons.mozilla.org.
-   The bundle is minified, so the site also asks for the source code. Upload
-   the release's **Source code (zip)** from GitHub and give these build steps:
-   Node 24.22.2, pnpm 11.28.9, `pnpm install --frozen-lockfile`, then
-   `pnpm build:ext -- --browser firefox`. The output is `extension/dist-firefox`.
-5. On the first upload, keep Firefox for Android unchecked. Testing so far
+4. On the first upload, keep Firefox for Android unchecked. Testing so far
    covers desktop Firefox only.

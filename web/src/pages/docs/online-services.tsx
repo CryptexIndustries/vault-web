@@ -409,9 +409,10 @@ export default function OnlineServices() {
                     <div className={t.definition}>
                         <dt>Cancel subscription</dt>
                         <dd>
-                            Cancel a Stripe subscription from Manage billing, or
-                            a Google Play subscription in Google Play. Paid
-                            access continues to the end of the paid period.
+                            Cancel a Stripe subscription from Manage billing, a
+                            Google Play subscription in Google Play, or an App
+                            Store subscription in your Apple Account settings.
+                            Paid access continues to the end of the paid period.
                             Cancelling during the free trial keeps access until
                             the trial ends, and nothing is charged. After
                             entitlement ends, new uploads stop.
@@ -445,12 +446,12 @@ export default function OnlineServices() {
                 </p>
                 <ol>
                     <li>
-                        Android app: open Account, then Recovery &amp; access,
-                        and choose Delete online account.
+                        Android or iOS app: open Account, then Recovery &amp;
+                        access, and choose Delete online account.
                     </li>
                     <li>
-                        Web vault, without the Android app: open Account, then
-                        the Security tab, and choose Delete account.
+                        Web vault, without the Android or iOS app: open Account,
+                        then the Security tab, and choose Delete account.
                     </li>
                 </ol>
                 <p>
@@ -459,9 +460,9 @@ export default function OnlineServices() {
                     hosted backups for deletion. Copies remain in database
                     backups for up to seven days, and operational and security
                     logs for up to 30 days. Deleting the account does not cancel
-                    a subscription billed by Google Play or Stripe; cancel it
-                    there first. Payment providers keep their own records under
-                    their own policies.
+                    a subscription billed by Google Play, the App Store or
+                    Stripe; cancel it there first. Payment providers keep their
+                    own records under their own policies.
                 </p>
             </DocSection>
 

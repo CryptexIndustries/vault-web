@@ -12,6 +12,7 @@ import {
     type WebViewMessageEvent,
     type WebViewNavigation,
 } from "react-native-webview";
+import { AlertCircle, ShieldCheck } from "lucide-react-native";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +24,10 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { InlineNotice } from "@/components/inline-notice";
+import { UnlockedButton } from "@/components/unlocked/unlocked-ui";
+import { onlineServicesLog } from "@/utils/logging";
 import { colors } from "@/theme";
+import { StatusPanel } from "./status-panel";
 
 import {
     assertTurnstileBridgeUrlAllowed,
@@ -55,6 +58,8 @@ type TurnstileChallengeDialogProps = {
     title?: string;
     description?: string;
     placement?: "center" | "bottom";
+    /** In the screen's own content, never a modal that could fail to present. */
+    inline?: boolean;
 };
 
 function TurnstileChallengeDialog({
@@ -65,6 +70,7 @@ function TurnstileChallengeDialog({
     title,
     description,
     placement = "center",
+    inline = false,
 }: TurnstileChallengeDialogProps) {
     const { t } = useLingui();
     const [instanceNonce, setInstanceNonce] = useState("");
@@ -187,7 +193,95 @@ function TurnstileChallengeDialog({
 
     const showRetry =
         status === "error" || status === "expired" || status === "timeout";
+    useEffect(() => {
+        if (showRetry)
+            onlineServicesLog.warn("Human check failed", { action, status });
+    }, [showRetry, action, status]);
 
+    const errorCard =
+        showRetry && errorMessage ? (
+            <StatusPanel
+                compact
+                content={{
+                    tone: "error",
+                    icon: AlertCircle,
+                    title: t`Human check failed`,
+                    body: errorMessage,
+                }}
+            />
+        ) : null;
+    const webView =
+        bridgeUrl && instanceNonce && !showRetry ? (
+            <WebView
+                key={webViewKey}
+                source={{ uri: bridgeUrl }}
+                style={{
+                    flex: 1,
+                    backgroundColor: colors.background,
+                }}
+                javaScriptEnabled
+                domStorageEnabled
+                sharedCookiesEnabled
+                thirdPartyCookiesEnabled
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                setSupportMultipleWindows={false}
+                originWhitelist={[
+                    "https://*",
+                    "http://*",
+                    "about:blank",
+                    "about:srcdoc",
+                ]}
+                onShouldStartLoadWithRequest={handleShouldStart}
+                onNavigationStateChange={handleNavigationStateChange}
+                onMessage={handleMessage}
+                onError={() => {
+                    setStatus("error");
+                    setErrorMessage(t`Could not load verification page.`);
+                }}
+                onHttpError={() => {
+                    setStatus("error");
+                    setErrorMessage(t`Verification page returned an error.`);
+                }}
+                accessibilityLabel={t`Cloudflare Turnstile verification`}
+            />
+        ) : null;
+
+    if (inline)
+        return open ? (
+            <View className="gap-6">
+                <StatusPanel
+                    content={{
+                        tone: status === "loading" ? "progress" : "waiting",
+                        icon: ShieldCheck,
+                        title: t`Checking you're human`,
+                        body: t`Complete the check below. The token is used once and never stored.`,
+                    }}
+                />
+                {errorCard}
+                {/* Sized to the Turnstile widget; shown once it is ready to use. */}
+                {webView ? (
+                    <View
+                        style={{
+                            height: 72,
+                            opacity: status === "loading" ? 0 : 1,
+                        }}
+                    >
+                        {webView}
+                    </View>
+                ) : null}
+                <View className="gap-[9px]">
+                    {showRetry ? (
+                        <UnlockedButton onPress={resetChallenge}>
+                            {t`Retry`}
+                        </UnlockedButton>
+                    ) : null}
+                    <UnlockedButton variant="outline" onPress={handleClose}>
+                        {t`Cancel`}
+                    </UnlockedButton>
+                </View>
+            </View>
+        ) : null;
     return (
         <Dialog
             open={open}
@@ -221,51 +315,11 @@ function TurnstileChallengeDialog({
                     </View>
                 ) : null}
 
-                {showRetry && errorMessage ? (
-                    <InlineNotice tone="error" message={errorMessage} />
-                ) : null}
+                {errorCard}
 
-                {bridgeUrl && instanceNonce && !showRetry ? (
+                {webView ? (
                     <View className="h-[180px] w-full overflow-hidden rounded-md border border-border">
-                        <WebView
-                            key={webViewKey}
-                            source={{ uri: bridgeUrl }}
-                            style={{
-                                flex: 1,
-                                backgroundColor: colors.background,
-                            }}
-                            javaScriptEnabled
-                            domStorageEnabled
-                            sharedCookiesEnabled
-                            thirdPartyCookiesEnabled
-                            allowsInlineMediaPlayback
-                            mediaPlaybackRequiresUserAction={false}
-                            setSupportMultipleWindows={false}
-                            originWhitelist={[
-                                "https://*",
-                                "http://*",
-                                "about:blank",
-                                "about:srcdoc",
-                            ]}
-                            onShouldStartLoadWithRequest={handleShouldStart}
-                            onNavigationStateChange={
-                                handleNavigationStateChange
-                            }
-                            onMessage={handleMessage}
-                            onError={() => {
-                                setStatus("error");
-                                setErrorMessage(
-                                    t`Could not load verification page.`,
-                                );
-                            }}
-                            onHttpError={() => {
-                                setStatus("error");
-                                setErrorMessage(
-                                    t`Verification page returned an error.`,
-                                );
-                            }}
-                            accessibilityLabel={t`Cloudflare Turnstile verification`}
-                        />
+                        {webView}
                     </View>
                 ) : null}
             </DialogContent>
@@ -290,58 +344,112 @@ function TurnstileChallengeDialog({
     );
 }
 
+/** A check still open by then ends with no token, so the caller can offer a retry. */
+export const HUMAN_CHECK_TIMEOUT_MS = 120_000;
+
 /**
  * Request a fresh Turnstile token immediately before a mutation.
  * Caller supplies an allowlisted action (auth_register | auth_recover).
- * Returns empty string when captcha is disabled (no site key).
+ * Resolves with an empty string when no site key is set, and with null when
+ * the check is closed, replaced, unmounted or times out.
  */
 export function useTurnstileTokenRequest({
     placement = "center",
+    inline = false,
 }: {
     placement?: "center" | "bottom";
+    inline?: boolean;
 } = {}) {
     const [open, setOpen] = useState(false);
     const [action, setAction] = useState<TurnstileAction>("auth_register");
-    const resolverRef = useRef<((token: string | null) => void) | null>(null);
+    // Each request gets its own challenge, so an old one cannot answer a new one.
+    const [requestId, setRequestId] = useState(0);
+    const lastIdRef = useRef(0);
+    const pendingRef = useRef<{
+        id: number;
+        action: TurnstileAction;
+        resolve: (token: string | null) => void;
+        timer: ReturnType<typeof setTimeout>;
+    } | null>(null);
+
+    const settle = useCallback(
+        (token: string | null, reason?: string, id?: number) => {
+            const pending = pendingRef.current;
+            if (!pending || (id !== undefined && id !== pending.id)) return;
+            pendingRef.current = null;
+            clearTimeout(pending.timer);
+            if (token === null)
+                onlineServicesLog.warn("Human check ended without a result", {
+                    action: pending.action,
+                    reason,
+                });
+            else
+                onlineServicesLog.info("Human check passed", {
+                    action: pending.action,
+                });
+            pending.resolve(token);
+        },
+        [],
+    );
 
     const requestToken = useCallback(
         (nextAction: TurnstileAction): Promise<string | null> => {
             if (!isTurnstileConfigured()) {
                 return Promise.resolve("");
             }
+            settle(null, "replaced");
+            onlineServicesLog.info("Human check opened", {
+                action: nextAction,
+            });
+            const id = ++lastIdRef.current;
             return new Promise((resolve) => {
-                resolverRef.current = resolve;
+                pendingRef.current = {
+                    id,
+                    action: nextAction,
+                    resolve,
+                    timer: setTimeout(() => {
+                        setOpen(false);
+                        settle(null, "timed out");
+                    }, HUMAN_CHECK_TIMEOUT_MS),
+                };
                 setAction(nextAction);
+                setRequestId(id);
                 setOpen(true);
             });
         },
-        [],
+        [settle],
     );
 
-    const handleToken = useCallback((token: string) => {
-        const resolve = resolverRef.current;
-        resolverRef.current = null;
-        resolve?.(token);
-    }, []);
+    const handleOpenChange = useCallback(
+        (next: boolean) => {
+            setOpen(next);
+            if (!next) settle(null, "closed");
+        },
+        [settle],
+    );
 
-    const handleOpenChange = useCallback((next: boolean) => {
-        setOpen(next);
-        if (!next && resolverRef.current) {
-            const resolve = resolverRef.current;
-            resolverRef.current = null;
-            resolve(null);
-        }
-    }, []);
+    useEffect(() => () => settle(null, "unmounted"), [settle]);
 
     const dialog = (
         <TurnstileChallengeDialog
+            key={requestId}
             open={open}
-            onOpenChange={handleOpenChange}
+            onOpenChange={(next) => {
+                const pending = pendingRef.current;
+                if (!pending || pending.id === requestId)
+                    handleOpenChange(next);
+            }}
             action={action}
-            onToken={handleToken}
+            onToken={(token) => settle(token, undefined, requestId)}
             placement={placement}
+            inline={inline}
         />
     );
 
-    return { requestToken, dialog };
+    const cancel = useCallback(
+        () => handleOpenChange(false),
+        [handleOpenChange],
+    );
+
+    return { requestToken, dialog, cancel };
 }

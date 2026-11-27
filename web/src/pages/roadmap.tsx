@@ -42,11 +42,6 @@ const roadmap = [
                 description:
                     "Scan dark web data dumps and alert you to exposed credentials.",
             },
-            {
-                title: "iOS application",
-                target: null,
-                description: "Use Cryptex Vault on iOS.",
-            },
         ],
     },
     {
@@ -54,6 +49,12 @@ const roadmap = [
         label: "BUILT AND AVAILABLE",
         available: true,
         items: [
+            {
+                title: "iOS application",
+                target: null,
+                description:
+                    "Use Cryptex Vault on iPhone and iPad, with AutoFill in Safari and apps. Install it from the App Store.",
+            },
             {
                 title: "Firefox extension",
                 target: null,

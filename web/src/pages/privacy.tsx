@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
                     How we use personal data when you visit our website or use
                     Cryptex Vault and Online Services.
                 </p>
-                <p>Last updated: 12 October 2026</p>
+                <p>Last updated: 19 November 2026</p>
             </section>
 
             <Section
@@ -193,6 +193,21 @@ export default function PrivacyPolicy() {
                     and{" "}
                     <a href="https://www.revenuecat.com/privacy">
                         RevenueCat&apos;s privacy policy
+                    </a>
+                    .
+                </p>
+                <p>
+                    In the iOS app, Apple handles subscription payments through
+                    the App Store and collects the payment details you give it.
+                    RevenueCat receives the purchase record and subscription
+                    status from Apple, your Online Services account identifier,
+                    and basic device information such as the app version,
+                    operating system and country. RevenueCat passes the
+                    subscription status to us. We do not receive your payment
+                    details. Apple processes App Store purchases under its own
+                    privacy policy. See{" "}
+                    <a href="https://www.apple.com/legal/privacy/">
+                        Apple&apos;s privacy policy
                     </a>
                     .
                 </p>

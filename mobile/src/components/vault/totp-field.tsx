@@ -32,10 +32,12 @@ export function TotpField({ credential, embedded = false }: TotpFieldProps) {
                 return;
             }
             try {
-                const { code, timeRemaining } = calculateTOTP(credential.TOTP);
+                const { code, timeRemaining, period } = calculateTOTP(
+                    credential.TOTP,
+                );
                 setTotpCode(code);
                 setTimeLeft(timeRemaining);
-                setPeriod(credential.TOTP.Period || 30);
+                setPeriod(period);
             } catch {
                 setTotpCode("------");
             }
@@ -47,8 +49,9 @@ export function TotpField({ credential, embedded = false }: TotpFieldProps) {
     }, [credential.TOTP]);
 
     const handleCopy = async () => {
-        if (totpCode === "------") return;
-        const ok = await copySecretToClipboard(totpCode);
+        if (!credential.TOTP || totpCode === "------") return;
+        const { code } = calculateTOTP(credential.TOTP);
+        const ok = await copySecretToClipboard(code);
         if (!ok) return;
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);

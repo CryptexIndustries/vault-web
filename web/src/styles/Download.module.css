@@ -172,21 +172,6 @@
     color: var(--soft);
 }
 
-.planned {
-    margin: 64px 0 0;
-    font-size: 14px !important;
-}
-
-.planned a {
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-}
-
-.planned a:hover {
-    color: var(--coral);
-}
-
 @media (max-width: 1100px) {
     .repoGrid {
         grid-template-columns: 1fr;

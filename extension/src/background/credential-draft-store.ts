@@ -16,7 +16,7 @@
 
 import {
     CredentialDraftFormSchema,
-    type CredentialFormSchemaType,
+    type CredentialDraftFormSchemaType,
 } from "@cryptex-industries/vault-core/vault-utils/vault";
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import type {
@@ -179,10 +179,10 @@ export function validateSaveCredentialDraftRequest(
  * normalization.
  */
 export function normalizeDraftForm(
-    form: CredentialFormSchemaType,
+    form: CredentialDraftFormSchemaType,
     mode: CredentialDraftMode,
     credentialId: string | null,
-): CredentialFormSchemaType {
+): CredentialDraftFormSchemaType {
     return {
         ...form,
         ID: mode === "edit" ? credentialId : null,

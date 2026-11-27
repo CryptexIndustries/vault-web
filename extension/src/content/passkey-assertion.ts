@@ -1,3 +1,4 @@
+import { uint8ToBase64Url } from "@cryptex-industries/vault-core/encoding";
 import type { PasskeyData } from "@cryptex-industries/vault-core/proto";
 
 import {
@@ -50,27 +51,6 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
 }
 
 const exactBuffer = (value: Uint8Array): ArrayBuffer => value.slice().buffer;
-
-// TODO: We desperately need to centralize these base64 helpers.
-export function encodeBase64Url(value: BufferSource): string {
-    let binary = "";
-    for (const byte of copyBytes(value)) binary += String.fromCharCode(byte);
-    return btoa(binary)
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/u, "");
-}
-
-export function decodeBase64Url(value: string): Uint8Array {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    const padded = base64.padEnd(
-        base64.length + ((4 - (base64.length % 4)) % 4),
-        "=",
-    );
-    return Uint8Array.from(atob(padded), (character) =>
-        character.charCodeAt(0),
-    );
-}
 
 function derInteger(value: Uint8Array): Uint8Array {
     let first = 0;
@@ -141,11 +121,9 @@ export async function generatePasskeyAssertion(options: {
     return {
         id: passkey.CredentialID,
         rawId: passkey.CredentialID,
-        clientDataJSON: encodeBase64Url(exactBuffer(clientDataJSON)),
-        authenticatorData: encodeBase64Url(exactBuffer(authenticatorData)),
-        signature: encodeBase64Url(
-            exactBuffer(es256RawSignatureToDer(rawSignature)),
-        ),
+        clientDataJSON: uint8ToBase64Url(clientDataJSON),
+        authenticatorData: uint8ToBase64Url(authenticatorData),
+        signature: uint8ToBase64Url(es256RawSignatureToDer(rawSignature)),
         userHandle: passkey.UserHandle,
         authenticatorAttachment: "platform",
     };

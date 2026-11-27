@@ -3,7 +3,7 @@
  *
  * Uses real `libsodium-wrappers-sumo` (unlike `encryption.test.ts`, which mocks it for branch coverage).
  */
-import { beforeAll, describe, expect, it, jest } from "@jest/globals";
+import { beforeAll, describe, expect, it } from "@jest/globals";
 import sodium from "libsodium-wrappers-sumo";
 import { webcrypto } from "crypto";
 import { TextDecoder, TextEncoder } from "util";
@@ -22,21 +22,6 @@ Object.defineProperty(globalThis, "crypto", {
     value: webcrypto,
     writable: true,
 });
-
-jest.mock(
-    "@/lib/utils",
-    () => ({
-        base64ToUint8: (value: string): Uint8Array =>
-            new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array): string =>
-            Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string): Uint8Array =>
-            new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array): string =>
-            Buffer.from(value).toString("base64url"),
-    }),
-    { virtual: true },
-);
 
 import * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
 import {

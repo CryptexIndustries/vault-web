@@ -1,0 +1,21 @@
+appId: ${CRYPTEX_APP_ID}
+---
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - pressKey: Back
+# iOS sheets close by scrolling to the top and pulling down.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - repeat:
+                times: 4
+                while:
+                    visible: Close dialog
+                commands:
+                    - swipe:
+                          start: 50%, 30%
+                          end: 50%, 95%
+                          duration: 400

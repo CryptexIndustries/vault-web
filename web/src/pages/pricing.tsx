@@ -90,13 +90,14 @@ export default function Pricing() {
                             Your first subscription starts with a 14-day free
                             trial. Checkout asks for a card, and it is charged
                             when the trial ends unless you cancel before then.
-                            We recommend starting with monthly billing. We do
-                            not offer voluntary subscription refunds; your
-                            statutory consumer rights are unaffected. For
-                            purchases through Stripe Managed Payments,
-                            Stripe/Link may also issue refunds under its own
-                            terms. Google Play purchases follow Google Play's
-                            refund policy.
+                            Cancel an App Store subscription at least 24 hours
+                            before the trial ends. We recommend starting with
+                            monthly billing. We do not offer voluntary
+                            subscription refunds; your statutory consumer rights
+                            are unaffected. For purchases through Stripe Managed
+                            Payments, Stripe/Link may also issue refunds under
+                            its own terms. Google Play and App Store purchases
+                            follow that store's refund policy.
                         </dd>
                     </div>
                     <div>
@@ -158,12 +159,15 @@ export default function Pricing() {
                         <dt>Managing cancellation</dt>
                         <dd>
                             Manage a Stripe subscription through Stripe’s
-                            billing portal, accessible from the app. Manage a
-                            Google Play subscription in Google Play.
-                            Cancellation takes effect at the end of the current
-                            paid period. If you cancel during the free trial,
-                            you keep access until the trial ends and nothing is
-                            charged.
+                            billing portal, accessible from the web app. Manage
+                            a Google Play subscription in Google Play, and an
+                            App Store subscription in your Apple Account
+                            settings. Cancellation takes effect at the end of
+                            the current paid period. If you cancel during the
+                            free trial, you keep access until the trial ends and
+                            nothing is charged. Cancel an App Store subscription
+                            at least 24 hours before the trial or paid period
+                            ends to avoid the next charge.
                         </dd>
                     </div>
                     <div>
@@ -212,17 +216,21 @@ export default function Pricing() {
                             </summary>
                             <p>
                                 Your first Online Services subscription, on the
-                                web or through Google Play, starts with 14 days
-                                free on the monthly or yearly plan. The trial
-                                includes everything a paid subscription does.
-                                You need a card to start it. When the trial
-                                ends, the card is charged and the subscription
-                                renews as usual. Cancel before then and you pay
-                                nothing. Each account gets one trial, and only
-                                if it has never had a subscription. Google Play
-                                also allows one trial per Google account. Link
-                                emails you when a web trial starts and before it
-                                ends, and Google Play sends its own reminder.
+                                web, through Google Play or through the App
+                                Store, starts with 14 days free on the monthly
+                                or yearly plan. The trial includes everything a
+                                paid subscription does. You need a card to start
+                                it. When the trial ends, the card is charged and
+                                the subscription renews as usual. Cancel before
+                                then and you pay nothing. In the App Store,
+                                cancel at least 24 hours before the trial ends.
+                                On the web and through Google Play, each account
+                                gets one trial, and only if it has never had a
+                                subscription. Google Play also allows one trial
+                                per Google account. The App Store allows one
+                                trial per Apple Account. Link emails you when a
+                                web trial starts and before it ends, and Google
+                                Play sends its own reminder.
                             </p>
                         </details>
                         <details>

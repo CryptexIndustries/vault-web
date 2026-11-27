@@ -6,5 +6,13 @@ appId: ${CRYPTEX_APP_ID}
           visible: Show roots
       commands:
           - tapOn: Show roots
-          - tapOn: Downloads
+          # The folder title behind the drawer also reads Downloads once the picker remembers it.
+          - tapOn:
+                text: Downloads
+                childOf:
+                    # Google and AOSP images name the picker package differently.
+                    id: .*:id/roots_list
+# Downloads keeps files from earlier runs, so the file can be below the fold.
+- scrollUntilVisible:
+      element: ${EXPORTED_FILE}
 - tapOn: ${EXPORTED_FILE}

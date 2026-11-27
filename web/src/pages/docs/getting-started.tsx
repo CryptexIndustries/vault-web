@@ -32,9 +32,12 @@ export default function GettingStarted() {
                 <DocSteps
                     items={[
                         <p key="open">
-                            Open <Link href="/app">Cryptex Vault</Link>. On a
-                            new browser, the <strong>Create</strong> tab is
-                            selected.
+                            Open{" "}
+                            <Link href="/app" prefetch={false}>
+                                Cryptex Vault
+                            </Link>
+                            . On a new browser, the <strong>Create</strong> tab
+                            is selected.
                         </p>,
                         <p key="name">
                             Give the vault a name. The description is optional.

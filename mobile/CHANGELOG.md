@@ -1,6 +1,32 @@
-# Android changelog
+# Mobile changelog
 
-Each `mobile-vX.Y.Z` release and the Android tab of the changelog page show that version's section.
+Release notes for the Android and iOS apps. Each `mobile-vX.Y.Z` release and the Android & iOS tab of the changelog page show that version's section.
+
+## 0.7.0 - 2026-11-26
+
+### Added
+
+- iOS support.
+
+### Changed
+
+- The password generator matches the one in iOS AutoFill.
+- Subscribing has its own payment step. It shows whether Google Play or Stripe is waiting for you, checking the payment or confirming the membership.
+- Account recovery says how many attempts it allows before you start, and explains in plain words why an attempt failed.
+- Biometric unlock says "biometrics" instead of "fingerprint".
+
+### Fixed
+
+- If your Google account already has the subscription, the app says so and points you to Restore Google Play purchases.
+- Account recovery no longer hangs after you confirm it.
+- The accessibility fallback saves a field labelled as a username even when it uses the email keyboard, keeps a fill request while Android restarts the service, and reads web field labels in Chrome 155.
+- Bottom sheets no longer stick at the screen edge when reduced motion is on.
+- A failed snapshot download in the Backup Center shows its error inside the sheet.
+- On tablets, forms, lists and the device panel no longer stretch across the whole screen, the list highlights the item open in the detail pane, and the unlinked-devices title fits in the device map.
+- The Directories screen has a back button.
+- A tab opened again while the previous tab switch was still animating no longer goes blank.
+- Authenticator codes with a period that doesn't divide a minute, such as 45 or 90 seconds, count down correctly, and copying a code copies a freshly generated one.
+- Creating a share link that takes more than 10 seconds shows a warning to keep the screen open. Other share requests give up after 30 seconds instead of waiting.
 
 ## 0.6.0 - 2026-11-15
 

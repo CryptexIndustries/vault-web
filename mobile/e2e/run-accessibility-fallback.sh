@@ -274,7 +274,14 @@ for phase_index in "${!phases[@]}"; do
   echo "[accessibility driver] action $phase_number/${#actions[@]}: $action"
   focus_until_overlay "$focus_x" "$focus_y"
   echo "[accessibility driver] action $phase_number: button detected"
-  adb -s "$MAESTRO_DEVICE" shell input tap "$(scale_x 918)" "$(scale_y 288)"
+  # The button sits a fixed distance from the top corner, so scaled coordinates
+  # miss it. Tap the bounds Android reports.
+  read -r left top right bottom < <(
+    adb -s "$MAESTRO_DEVICE" shell dumpsys accessibility |
+      sed -n 's/.*title=null.*type=TYPE_ACCESSIBILITY_OVERLAY.*bounds=Rect(\([0-9]*\), \([0-9]*\) - \([0-9]*\), \([0-9]*\)).*/\1 \2 \3 \4/p' |
+      head -n 1
+  )
+  adb -s "$MAESTRO_DEVICE" shell input tap "$(( (left + right) / 2 ))" "$(( (top + bottom) / 2 ))"
   wait_for_overlay "$CRYPTEX_APP_NAME"
   echo "[accessibility driver] action $phase_number: dialog detected"
   sleep 0.5

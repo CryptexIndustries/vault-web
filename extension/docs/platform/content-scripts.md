@@ -226,7 +226,9 @@ channel:
 | `autofill-save.html`      | Save-login consent panel |
 
 The iframe URLs come from `chrome.runtime.getURL()` and are web-accessible
-resources. The field control is not web-accessible.
+resources. In Chromium that URL has a per-session ID (`use_dynamic_url`), and
+the loaded frame reports the fixed extension URL. The field control is not
+web-accessible.
 
 ### Bootstrap handshake
 

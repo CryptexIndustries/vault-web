@@ -2,6 +2,24 @@
 
 Each `web-vX.Y.Z` release and the Web app tab of the changelog page show that version's section.
 
+## 1.13.0 - 2026-11-26
+
+### Added
+
+- The iOS app is on the App Store. Find it on the download page.
+- The terms and privacy policy cover subscriptions bought through the App Store.
+
+### Changed
+
+- Marketing pages no longer load the vault's code, so they open faster.
+
+### Fixed
+
+- Creating or opening a share link that takes more than 10 seconds shows a warning to keep the page open. Other share requests give up after 30 seconds instead of waiting.
+- Leaving the page while a shared secret is opening asks first. A reply that arrives after you leave no longer appears on another page.
+- Authenticator codes with a period that doesn't divide a minute, such as 45 or 90 seconds, count down correctly. Copying a code copies a freshly generated one, and the period must be a whole number of seconds.
+- Screen readers name the icon-only buttons in the credential view, the edit drawer, the password generator and the log inspector.
+
 ## 1.12.0 - 2026-11-15
 
 ### Added

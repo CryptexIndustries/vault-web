@@ -402,6 +402,7 @@ export const PasswordGeneratorPanel: React.FC<PasswordGeneratorPanelProps> = ({
                                     type="button"
                                     variant="ghost"
                                     size="icon"
+                                    aria-label="Regenerate password"
                                     onClick={regeneratePassword}
                                     className={compact ? "h-5 w-5" : "h-6 w-6"}
                                 >

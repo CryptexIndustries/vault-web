@@ -18,7 +18,7 @@ name: Android autofill presentation modes
 - assertVisible: Popup / dropdown
 - launchApp: com.android.chrome
 - openLink: http://localhost:43110/login
-- tapOn: Username
+- tapOn: Username.*
 - assertVisible: Open ${CRYPTEX_APP_NAME}
 - takeScreenshot: popup-autofill
 - back
@@ -31,7 +31,7 @@ name: Android autofill presentation modes
 - assertVisible: Above keyboard
 - launchApp: com.android.chrome
 - openLink: http://localhost:43110/login
-- tapOn: Username
+- tapOn: Username.*
 - assertVisible: ${CRYPTEX_APP_NAME}
 - takeScreenshot: inline-autofill
 - back

@@ -83,9 +83,12 @@ export default function Recovery() {
                 <DocSteps
                     items={[
                         <p key="unlock">
-                            Open <Link href="/app">Cryptex Vault</Link>, choose
-                            the <strong>Unlock</strong> tab, and select the
-                            vault.
+                            Open{" "}
+                            <Link href="/app" prefetch={false}>
+                                Cryptex Vault
+                            </Link>
+                            , choose the <strong>Unlock</strong> tab, and select
+                            the vault.
                         </p>,
                         <p key="recovery">
                             Choose <strong>Use recovery code</strong>.

@@ -2,6 +2,12 @@
 
 Each `share-server-vX.Y.Z` release and the Share server tab of the changelog page show that version's section.
 
+## 1.0.2 - 2026-11-26
+
+### Changed
+
+- The server no longer logs passing health checks. It still logs failing ones.
+
 ## 1.0.1 - 2026-10-22
 
 ### Added

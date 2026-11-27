@@ -16,4 +16,4 @@ name: Accessibility fallback - setup and browser request
           - tapOn: No thanks
 - openLink: http://localhost:43110/fresh-login
 - assertVisible: Deterministic login fixture
-- tapOn: Username
+- tapOn: Username.*

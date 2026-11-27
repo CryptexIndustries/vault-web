@@ -9,7 +9,7 @@ name: Android security lifecycle
 - assertVisible: Enable biometric unlock
 - tapOn: Confirm vault password for biometric unlock
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       text: Enable biometric unlock
       below: Confirm vault password for biometric unlock
@@ -30,7 +30,17 @@ name: Android security lifecycle
 - tapOn: Security,.*
 - tapOn: Auto-lock,.*
 - tapOn: 1 minute
-- assertNotVisible: Lock after no interaction.*
+# On Android the row's chosen value is its own element, so check that the picker closed.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertNotVisible: 1 minute
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertNotVisible: Lock after no interaction while the app is open,.*
 - tapOn: Back
 - stopApp
 - launchApp

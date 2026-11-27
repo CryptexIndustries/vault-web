@@ -8,7 +8,7 @@ appId: ${CRYPTEX_APP_ID}
 - inputText: ${LOGIN_NAME}
 - tapOn: Credential username
 - inputText: garage@example.test
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: credential-submit

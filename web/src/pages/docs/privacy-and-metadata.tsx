@@ -299,6 +299,16 @@ export default function PrivacyAndMetadata() {
                                     status to the service.
                                 </td>
                             </tr>
+                            <tr>
+                                <td>Buying through the App Store</td>
+                                <td>
+                                    In the iOS app, Apple handles the purchase
+                                    and the payment details. RevenueCat receives
+                                    the purchase record and the Online Services
+                                    account identifier, and passes the
+                                    subscription status to the service.
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

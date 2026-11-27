@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Link2, LoaderCircle, Lock } from "lucide-react";
+import { toast } from "sonner";
 import type * as VaultUtilTypes from "@cryptex-industries/vault-core/proto";
-import { ShareClient } from "@cryptex-industries/vault-core/vault-utils/share-client";
+import {
+    SHARE_SLOW_REQUEST_MS,
+    ShareClient,
+} from "@cryptex-industries/vault-core/vault-utils/share-client";
 import {
     SHARE_EXPIRY_OPTIONS,
     defaultShareExpiry,
@@ -74,6 +78,7 @@ type ServerState =
     | { state: "unreachable" };
 
 const DEFAULT_EXPIRY = SHARE_EXPIRY_OPTIONS[1].seconds;
+const SLOW_TOAST_ID = "share-create-slow";
 
 export function ShareDialog({
     open,
@@ -117,6 +122,7 @@ export function ShareDialog({
 
     useEffect(() => {
         sessionRef.current += 1;
+        toast.dismiss(SLOW_TOAST_ID);
         if (!open) return;
         setSelection(defaultCredentialShareSelection());
         setText("");
@@ -204,6 +210,13 @@ export function ShareDialog({
         setCreating(true);
         const session = sessionRef.current;
         const askedExpiry = expiryLabel;
+        const slowTimer = window.setTimeout(() => {
+            if (session !== sessionRef.current) return;
+            toast.loading(
+                "Creating the link is taking longer than usual. Keep this open until it's done.",
+                { id: SLOW_TOAST_ID },
+            );
+        }, SHARE_SLOW_REQUEST_MS);
         try {
             const created = await createShareLink(backend.deps, {
                 payload: await withExportedSSHKey(payload),
@@ -224,7 +237,13 @@ export function ShareDialog({
             if (session !== sessionRef.current) return;
             setError(describeShareError(err));
         } finally {
-            if (session === sessionRef.current) setCreating(false);
+            window.clearTimeout(slowTimer);
+            // A closed dialog already dismissed the toast, and a newer
+            // request may own it now.
+            if (session === sessionRef.current) {
+                toast.dismiss(SLOW_TOAST_ID);
+                setCreating(false);
+            }
         }
     };
 

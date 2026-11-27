@@ -121,10 +121,12 @@ function validateOrigin(
     }
 
     // Autofill menu iframe: extension-origin page loaded inside a host tab.
+    // The frame pages use use_dynamic_url, so getURL would return their
+    // per-session URL, while the frames report the fixed extension URL.
     if (claimedOrigin === "autofill-menu") {
         if (
             !sender.url?.startsWith(
-                chrome.runtime.getURL("/autofill-menu.html"),
+                chrome.runtime.getURL("/") + "autofill-menu.html",
             )
         ) {
             return {
@@ -140,7 +142,7 @@ function validateOrigin(
     if (claimedOrigin === "autofill-generator") {
         if (
             !sender.url?.startsWith(
-                chrome.runtime.getURL("/autofill-generator.html"),
+                chrome.runtime.getURL("/") + "autofill-generator.html",
             )
         ) {
             return {
@@ -156,7 +158,7 @@ function validateOrigin(
     if (claimedOrigin === "autofill-save") {
         if (
             !sender.url?.startsWith(
-                chrome.runtime.getURL("/autofill-save.html"),
+                chrome.runtime.getURL("/") + "autofill-save.html",
             )
         ) {
             return {

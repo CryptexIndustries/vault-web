@@ -131,7 +131,7 @@ export function productionEnvironment(
     };
 }
 
-function run(command, args, options) {
+export function run(command, args, options) {
     const result = spawnSync(command, args, { stdio: "inherit", ...options });
     if (result.error) throw result.error;
     assert.equal(result.status, 0, `${command} failed`);
@@ -276,6 +276,19 @@ export function finishStaging(staging, successful) {
     else console.error(`Failed build preserved for inspection: ${staging}`);
 }
 
+export function currentSourceRevision(env) {
+    const git = (...args) =>
+        execFileSync("git", args, {
+            cwd: checkout,
+            env,
+            encoding: "utf8",
+        }).trim();
+    return {
+        commit: git("rev-parse", "HEAD"),
+        dirty: Boolean(git("status", "--porcelain")),
+    };
+}
+
 export function prepareProduction(args, inherited = process.env) {
     const options = productionBuildOptions(args);
     const { unsigned, reproduceFrom, configPath, profile, distribution } =
@@ -294,20 +307,7 @@ export function prepareProduction(args, inherited = process.env) {
         ...options,
         unsigned: true,
     });
-    const sourceRevision = {
-        commit: execFileSync("git", ["rev-parse", "HEAD"], {
-            cwd: checkout,
-            env: inspectionEnv,
-            encoding: "utf8",
-        }).trim(),
-        dirty: Boolean(
-            execFileSync("git", ["status", "--porcelain"], {
-                cwd: checkout,
-                env: inspectionEnv,
-                encoding: "utf8",
-            }).trim(),
-        ),
-    };
+    const sourceRevision = currentSourceRevision(inspectionEnv);
     const nativeOptions = {
         ...options,
         unsigned: unsigned || Boolean(reproduceFrom),

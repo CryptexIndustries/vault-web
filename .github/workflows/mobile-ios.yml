@@ -1,0 +1,49 @@
+name: Mobile iOS Simulator
+
+# Manual check that the dev client still builds and installs on an iOS Simulator.
+# workflow_dispatch only appears once this file is on the default branch, so a
+# change to the workflow itself also runs it.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/mobile-ios.yml"
+
+concurrency:
+  group: mobile-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: ios simulator dev build
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@11.28.9 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+          xcrun simctl list devices available
+
+      - name: Build and install the dev client
+        run: pnpm mobile:build -- --dev --platform ios

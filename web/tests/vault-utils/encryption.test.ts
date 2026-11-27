@@ -28,21 +28,6 @@ Object.defineProperty(globalThis, "crypto", {
     writable: true,
 });
 
-jest.mock(
-    "@/lib/utils",
-    () => ({
-        base64ToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64")),
-        uint8ToBase64: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64"),
-        base64UrlToUint8: (value: string) =>
-            new Uint8Array(Buffer.from(value, "base64url")),
-        uint8ToBase64Url: (value: Uint8Array) =>
-            Buffer.from(value).toString("base64url"),
-    }),
-    { virtual: true },
-);
-
 jest.mock("libsodium-wrappers-sumo", () => {
     const xorWithKey = (data: Uint8Array, key: Uint8Array): Uint8Array => {
         const out = new Uint8Array(data.length);

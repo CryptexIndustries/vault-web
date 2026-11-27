@@ -5,6 +5,7 @@ import {
     mkdirSync,
     mkdtempSync,
     readFileSync,
+    realpathSync,
     rmSync,
     symlinkSync,
     writeFileSync,
@@ -42,6 +43,7 @@ import {
 import { signingSetupOptions } from "./create-signing-identity.mjs";
 import {
     regenerateNativeProject,
+    requireIosIdentity,
     requireNativeIdentity,
     runMobile,
 } from "./mobile.mjs";
@@ -54,7 +56,10 @@ const identity = JSON.parse(
 );
 const config = loadReleaseConfig();
 const temporary = (run) => {
-    const directory = mkdtempSync(join(tmpdir(), "cryptex-profile-test-"));
+    // macOS keeps tmpdir() under the /var symlink, which the signing checks reject.
+    const directory = mkdtempSync(
+        join(realpathSync(tmpdir()), "cryptex-profile-test-"),
+    );
     try {
         return run(directory);
     } finally {
@@ -571,6 +576,22 @@ test("dev native identity mismatch fails before prebuild and retains the existin
         );
         requireNativeIdentity(getProfile("preprod"), directory);
         assert.throws(() => requireNativeIdentity(getProfile(), directory));
+    }));
+
+test("iOS native identity accepts only the selected profile's bundle identifier", () =>
+    temporary((directory) => {
+        requireIosIdentity(getProfile(), directory);
+        mkdirSync(join(directory, "CryptexVault.xcodeproj"));
+        const id = getProfile("preprod").applicationId;
+        writeFileSync(
+            join(directory, "CryptexVault.xcodeproj/project.pbxproj"),
+            `PRODUCT_BUNDLE_IDENTIFIER = "${id}";\nPRODUCT_BUNDLE_IDENTIFIER = ${id}.autofill;\n`,
+        );
+        requireIosIdentity(getProfile("preprod"), directory);
+        assert.throws(
+            () => requireIosIdentity(getProfile(), directory),
+            /--platform ios --profile production --regenerate-native/,
+        );
     }));
 
 test("explicit native regeneration retains original bytes in a unique backup before prebuild", () =>

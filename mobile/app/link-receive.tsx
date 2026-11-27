@@ -6,7 +6,13 @@ import {
     useState,
     type RefObject,
 } from "react";
-import { AppState, Pressable, View, type TextInput } from "react-native";
+import {
+    AppState,
+    Platform,
+    Pressable,
+    View,
+    type TextInput,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useNavigation } from "expo-router";
 import { useIsFocused, usePreventRemove } from "expo-router/react-navigation";
@@ -1906,6 +1912,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                         autoCorrect={false}
                                         placeholder={t`Twelve words from the sender`}
                                         accessibilityLabel={t`Verification words`}
+                                        testID="link-verification-words"
                                         className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                                     />
                                     <VaultEntryFieldError
@@ -2022,6 +2029,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 placeholder={t`Linked vault`}
                                 autoCapitalize="words"
                                 accessibilityLabel={t`Linked vault name`}
+                                testID="linked-vault-name"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2048,6 +2056,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 textContentType="newPassword"
                                 placeholder={t`Master password`}
                                 accessibilityLabel={t`Master password`}
+                                testID="linked-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2076,6 +2085,7 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 autoCorrect={false}
                                 placeholder={t`Confirm password`}
                                 accessibilityLabel={t`Confirm master password`}
+                                testID="linked-confirm-master-password"
                                 className="h-[54px] min-h-[54px] rounded-md border-border bg-transparent px-3.5"
                             />
                             <VaultEntryFieldError
@@ -2336,7 +2346,9 @@ function LinkReceiveContent({ embedded = false }: { embedded?: boolean }) {
                                 {osOverwriteSameAccount
                                     ? t`This invitation uses a different Online Services device identity for the same account. Continuing replaces the identity saved in this vault; existing Online Services device links may need to be linked again.`
                                     : osOverwriteCanDelete
-                                      ? t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone.`
+                                      ? Platform.OS === "ios"
+                                          ? t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel an App Store subscription in your Apple Account settings. Deleting cannot be undone.`
+                                          : t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Delete it now to cancel a subscription bought on the web. Cancel a Google Play subscription in the Play Store. Deleting cannot be undone.`
                                       : t`The invitation comes from a different Online Services account. Linking moves this vault to that account.\n\nThis device's current account stays active, including any subscription on it. Only that account's root device can delete it.`}
                             </DialogDescription>
                         </DialogHeader>

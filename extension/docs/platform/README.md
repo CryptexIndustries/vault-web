@@ -17,7 +17,7 @@ build hardening.
 | `permissions`      | `storage`, `idle`, `activeTab`, `alarms`      | Same                        |
 | CSP                | `script-src 'self' 'wasm-unsafe-eval'`        | Same                        |
 | Content scripts    | `autofill-cs.js` on all http/https, any frame | Same                        |
-| WAR                | Three autofill panel pages + `assets/*`       | Same                        |
+| WAR                | Three autofill panel pages, dynamic URL       | Same                        |
 
 `activeTab` is declared but unused in extension source. `alarms` schedules the
 managed-backup job that follows a committed vault-security change.
@@ -27,16 +27,18 @@ directly.
 
 ### Web-accessible resources
 
-Host pages can load:
+Host pages can load only `autofill-menu.html`, `autofill-generator.html` and
+`autofill-save.html`. Extension pages (`popup.html`, `link.html`) and the
+bundles under `assets/` are **not** web-accessible; the panel pages load their
+own scripts as extension pages.
 
-- `autofill-menu.html`, `autofill-generator.html`, and `autofill-save.html`
-- Any hashed bundle under `assets/`
-
-Extension pages (`popup.html`, `link.html`) are
-**not** web-accessible.
-
-WAR enables extension-origin panels in host DOM but exposes bundle fingerprints
-to pages that probe `chrome.runtime.getURL()`.
+`use_dynamic_url` makes Chromium serve the panel pages only at a URL with a
+per-session ID, so a page can't detect the extension by loading a file at its
+fixed ID. A page where a panel is open can still read that URL from the
+iframe. `chrome.runtime.getURL()` returns that per-session URL for the panel
+pages, but a loaded panel reports the fixed `chrome-extension://<id>/` URL, so
+the service worker checks panel senders against `chrome.runtime.getURL("/")`.
+Firefox already gives each install a random extension UUID.
 
 ## Content script (summary)
 

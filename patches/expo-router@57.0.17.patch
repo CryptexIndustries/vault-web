@@ -1,0 +1,59 @@
+diff --git a/build/react-navigation/bottom-tabs/views/BottomTabView.js b/build/react-navigation/bottom-tabs/views/BottomTabView.js
+index 9b12c3eff34691b3b28aa8a7f1eee217818dd2b3..878f2494d7b46240a74c4220458b4556bf68c37c 100644
+--- a/build/react-navigation/bottom-tabs/views/BottomTabView.js
++++ b/build/react-navigation/bottom-tabs/views/BottomTabView.js
+@@ -47,7 +47,6 @@ const ScreenFallback_1 = require("./ScreenFallback");
+ const BottomTabBarHeightCallbackContext_1 = require("../utils/BottomTabBarHeightCallbackContext");
+ const BottomTabBarHeightContext_1 = require("../utils/BottomTabBarHeightContext");
+ const useAnimatedHashMap_1 = require("../utils/useAnimatedHashMap");
+-const EPSILON = 1e-5;
+ const STATE_INACTIVE = 0;
+ const STATE_TRANSITIONING_OR_BELOW_TOP = 1;
+ const STATE_ON_TOP = 2;
+@@ -85,6 +84,9 @@ function BottomTabView(props) {
+         setLoaded([...loaded, focusedRouteKey]);
+     }
+     const previousRouteKeyRef = React.useRef(focusedRouteKey);
++    // Kept attached until its transition ends. Deriving this from the native
++    // animated value could detach a tab refocused mid-transition, leaving it blank.
++    const [leavingRouteKey, setLeavingRouteKey] = React.useState(null);
+     const tabAnims = (0, useAnimatedHashMap_1.useAnimatedHashMap)(state);
+     React.useEffect(() => {
+         const previousRouteKey = previousRouteKeyRef.current;
+@@ -101,6 +103,7 @@ function BottomTabView(props) {
+         }
+         const animateToIndex = () => {
+             if (previousRouteKey !== focusedRouteKey) {
++                setLeavingRouteKey(previousRouteKey);
+                 navigation.emit({
+                     type: 'transitionStart',
+                     target: focusedRouteKey,
+@@ -125,6 +128,9 @@ function BottomTabView(props) {
+                 });
+             })
+                 .filter(Boolean)).start(({ finished }) => {
++                if (finished) {
++                    setLeavingRouteKey(null);
++                }
+                 if (finished && popToTopAction) {
+                     navigation.dispatch(popToTopAction);
+                 }
+@@ -189,15 +195,9 @@ function BottomTabView(props) {
+                     const activityState = isFocused
+                         ? STATE_ON_TOP // the screen is on top after the transition
+                         : animationEnabled // is animation is not enabled, immediately move to inactive state
+-                            ? tabAnims[route.key].interpolate({
+-                                inputRange: [0, 1 - EPSILON, 1],
+-                                outputRange: [
+-                                    STATE_TRANSITIONING_OR_BELOW_TOP, // screen visible during transition
+-                                    STATE_TRANSITIONING_OR_BELOW_TOP,
+-                                    STATE_INACTIVE, // the screen is detached after transition
+-                                ],
+-                                extrapolate: 'extend',
+-                            })
++                            ? route.key === leavingRouteKey
++                                ? STATE_TRANSITIONING_OR_BELOW_TOP
++                                : STATE_INACTIVE
+                             : STATE_INACTIVE;
+                     return ((0, jsx_runtime_1.jsx)(ScreenFallback_1.MaybeScreen, { style: [react_native_1.StyleSheet.absoluteFill, { zIndex: isFocused ? 0 : -1 }], active: activityState, enabled: detachInactiveScreens, freezeOnBlur: freezeOnBlur, shouldFreeze: activityState === STATE_INACTIVE && !isPreloaded, children: (0, jsx_runtime_1.jsx)(BottomTabBarHeightContext_1.BottomTabBarHeightContext.Provider, { value: tabBarPosition === 'bottom' ? tabBarHeight : 0, children: (0, jsx_runtime_1.jsx)(elements_1.Screen, { focused: isFocused, route: descriptor.route, navigation: descriptor.navigation, headerShown: headerShown, headerStatusBarHeight: headerStatusBarHeight, headerTransparent: headerTransparent, header: header({
+                                     layout: dimensions,

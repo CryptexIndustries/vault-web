@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, View } from "react-native";
+import { Alert, AppState, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
 import { ArrowLeft, Shield, Smartphone, User } from "lucide-react-native";
@@ -14,22 +14,36 @@ import {
     UnlockedScreen,
     UnlockedText as Text,
 } from "@/components/unlocked/unlocked-ui";
-import { AccountSummary } from "@/components/account/account-summary";
+import NetInfo from "@react-native-community/netinfo";
+import {
+    AccountSummary,
+    formatAccountDate,
+} from "@/components/account/account-summary";
 import { MembershipUpgrade } from "@/components/account/membership-upgrade";
 import { SubscriptionSignup } from "@/components/account/subscription-signup";
 import { InlineNotice } from "@/components/inline-notice";
 import { Snackbar, useSnackbar } from "@/components/snackbar";
-import { BillingPendingNotice } from "@/components/account/billing-pending-notice";
+import {
+    PaymentStatus,
+    type PaymentStatusProps,
+} from "@/components/account/payment-status";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import {
     establishOnlineServicesSession,
     syncOnlineServicesRemoteConfiguration,
 } from "@/app_lib/auth-session";
 import {
-    refreshSubscriptionAfterExternalBilling,
-    checkStorePurchaseStatus,
-    isGooglePlayBuild,
-    type BillingConfirmation,
+    type BillingResult,
+    type CheckoutTier,
+    type ConfirmationRun,
+    type PlanTerms,
+    confirmMembership,
+    confirmationSchedules,
+    openBillingManagement,
+    purchaseMembership,
+    restoreStorePurchases,
+    startConfirmation,
+    storeBilling,
 } from "@/app_lib/online-services-billing";
 import {
     getVaultSessionGeneration,
@@ -47,8 +61,36 @@ import { trpcReact } from "@/utils/trpc";
 import { Vault } from "@cryptex-industries/vault-core/vault-utils/vault";
 import { colors } from "@/theme";
 
+/** A checkout in progress; run is set while its confirmation loop runs. */
+type Payment = Omit<
+    PaymentStatusProps,
+    "store" | "compact" | "onPrimary" | "onSecondary"
+> & { run?: ConfirmationRun };
+
+/** The panel for a refused purchase or restore. */
+function failedPayment(
+    result: Extract<BillingResult, { message: string }>,
+): Payment {
+    if (result.alreadySubscribed === "storeAccount")
+        return { state: "storeOwned" };
+    if (result.alreadySubscribed === "otherAccount")
+        return { state: "ownedElsewhere" };
+    return {
+        state: "error",
+        message: result.message,
+        retryable: result.retryable !== false,
+    };
+}
+
+/** Paid, held by the store, or unknown after Stripe; these outlive the sheet. */
+const awaiting = (payment: Payment | null): payment is Payment =>
+    payment?.state === "confirming" ||
+    payment?.state === "unconfirmed" ||
+    payment?.state === "storePending" ||
+    payment?.state === "returned";
+
 export default function AccountScreen() {
-    const { t } = useLingui();
+    const { t, i18n } = useLingui();
     const focused = useIsFocused();
     const [appState, setAppState] = useState(AppState.currentState);
     const vault = useAtomValue(unlockedVaultAtom);
@@ -105,29 +147,39 @@ export default function AccountScreen() {
         `${billingScope}:${authFeedbackRevision}:${accountSummaryMode}:${accountDetailsOpen}`,
         focused && !subscriptionSignupOpen,
     );
-    const [pendingState, setPendingState] = useState({
-        scope: billingScope,
-        pending: false,
-    });
-    const billingPending =
-        pendingState.scope === billingScope && pendingState.pending;
-    const setBillingPending = useCallback(
-        (pending: boolean) => {
+    const [paymentState, setPaymentState] = useState<{
+        scope: string;
+        payment: Payment | null;
+    }>({ scope: billingScope, payment: null });
+    const payment =
+        paymentState.scope === billingScope ? paymentState.payment : null;
+    const paymentRef = useRef(payment);
+    paymentRef.current = payment;
+    const setPayment = useCallback(
+        (
+            next:
+                | Payment
+                | null
+                | ((current: Payment | null) => Payment | null),
+        ) => {
             if (
                 isSameActiveVaultSession(vaultGeneration) &&
                 billingScopeRef.current === billingScope
             )
-                setPendingState({ scope: billingScope, pending });
+                setPaymentState((state) => ({
+                    scope: billingScope,
+                    payment:
+                        typeof next === "function"
+                            ? next(
+                                  state.scope === billingScope
+                                      ? state.payment
+                                      : null,
+                              )
+                            : next,
+                }));
         },
         [vaultGeneration, billingScope],
     );
-    const recordPendingBilling = useCallback(
-        (pending: boolean) => {
-            if (pending) setBillingPending(true);
-        },
-        [setBillingPending],
-    );
-    const statusCheckInFlight = useRef<symbol | null>(null);
     const busyRef = useRef(busy);
     busyRef.current = busy;
     useEffect(() => {
@@ -135,15 +187,9 @@ export default function AccountScreen() {
         setBusy(false);
         setPlayBillingBusy(false);
         refreshPromiseRef.current = null;
-        statusCheckInFlight.current = null;
     }, [billingScope, authFeedbackRevision]);
     const automaticRecoveryStartedRef = useRef(false);
     const externalBillingOpenedRef = useRef(false);
-    const externalBillingOutcomeRef = useRef<"success" | "cancel" | "resume">(
-        "resume",
-    );
-    const confirmationRef = useRef<BillingConfirmation | undefined>(undefined);
-    const confirmationReturnRef = useRef<string | undefined>(undefined);
     const queryUtils = trpcReact.useUtils();
 
     useEffect(() => {
@@ -185,8 +231,7 @@ export default function AccountScreen() {
                 return;
             externalBillingOpenedRef.current = false;
             router.setParams({
-                billingOutcome:
-                    params.billingOutcome ?? externalBillingOutcomeRef.current,
+                billingOutcome: params.billingOutcome ?? "resume",
                 billingResume: String(Date.now()),
             });
         });
@@ -202,159 +247,11 @@ export default function AccountScreen() {
                 return;
             externalBillingOpenedRef.current = false;
             router.setParams({
-                billingOutcome:
-                    params.billingOutcome ?? externalBillingOutcomeRef.current,
+                billingOutcome: params.billingOutcome ?? "resume",
                 billingResume: String(Date.now()),
             });
         }, [params.billingOutcome]),
     );
-
-    const deviceId = vault.OnlineServices?.DeviceId;
-    useEffect(() => {
-        if (
-            !focused ||
-            appState !== "active" ||
-            !params.billingOutcome ||
-            !bound ||
-            !cloudOn
-        )
-            return;
-        const outcome =
-            params.billingOutcome === "success" ||
-            params.billingOutcome === "cancel"
-                ? params.billingOutcome
-                : "resume";
-        const controller = new AbortController();
-        const generation = getVaultSessionGeneration();
-        const scope = billingScope;
-        const authRevision = authFeedbackLifetime.current.revision;
-        const isCurrent = () =>
-            !controller.signal.aborted &&
-            isSameActiveVaultSession(generation) &&
-            billingScopeRef.current === scope &&
-            authFeedbackLifetime.current.revision === authRevision;
-        const backgroundListener = AppState.addEventListener(
-            "change",
-            (state) => {
-                if (state !== "active") {
-                    controller.abort();
-                    externalBillingOpenedRef.current = true;
-                    setBusy(false);
-                }
-            },
-        );
-        externalBillingOpenedRef.current = false;
-        externalBillingOutcomeRef.current = outcome;
-        if (confirmationReturnRef.current !== params.billingReturn) {
-            confirmationRef.current = undefined;
-            confirmationReturnRef.current = params.billingReturn;
-        }
-        if (
-            confirmationRef.current &&
-            confirmationRef.current.generation !== generation
-        ) {
-            confirmationRef.current = undefined;
-            router.setParams({
-                billingOutcome: undefined,
-                billingReturn: undefined,
-                billingResume: undefined,
-            });
-            return () => backgroundListener.remove();
-        }
-        confirmationRef.current ??= {
-            generation,
-            deadline: Date.now() + 60000,
-            nextPollAt: 0,
-            attempts: 0,
-            subscription: null,
-        };
-        setBusy(true);
-        dismissFeedback();
-        if (outcome === "success") setBillingPending(true);
-        void (async () => {
-            try {
-                const currentSubscription =
-                    await refreshSubscriptionAfterExternalBilling(
-                        outcome,
-                        controller.signal,
-                        confirmationRef.current,
-                    );
-                if (!isCurrent()) return;
-                if (!currentSubscription) {
-                    if (outcome === "success") setBillingPending(true);
-                    else if (outcome !== "cancel")
-                        showFeedback(
-                            translate`Could not refresh membership. Please try again.`,
-                            {
-                                label: translate`Check status`,
-                                onPress: () =>
-                                    router.setParams({
-                                        billingOutcome: "resume",
-                                        billingReturn: String(Date.now()),
-                                    }),
-                            },
-                        );
-                    return;
-                }
-                queryUtils.v1.payment.subscription.setData(
-                    undefined,
-                    currentSubscription,
-                );
-                await Promise.all([
-                    queryUtils.v1.payment.subscription.invalidate(undefined, {
-                        refetchType: "none",
-                    }),
-                    queryUtils.v1.user.configuration.invalidate(),
-                    queryUtils.v1.payment.customerPortal.invalidate(),
-                ]);
-                if (!isCurrent()) return;
-                if (currentSubscription.nonFree) setBillingPending(false);
-                else if (outcome === "success") setBillingPending(true);
-            } catch {
-                if (isCurrent() && outcome !== "cancel")
-                    showFeedback(
-                        translate`Could not refresh membership. Please try again.`,
-                        {
-                            label: translate`Check status`,
-                            onPress: () =>
-                                router.setParams({
-                                    billingOutcome: outcome,
-                                    billingReturn: String(Date.now()),
-                                }),
-                        },
-                    );
-            } finally {
-                if (isCurrent()) {
-                    confirmationRef.current = undefined;
-                    setBusy(false);
-                    router.setParams({
-                        billingOutcome: undefined,
-                        billingReturn: undefined,
-                        billingResume: undefined,
-                    });
-                }
-            }
-        })();
-        return () => {
-            controller.abort();
-            backgroundListener.remove();
-            setBusy(false);
-        };
-    }, [
-        focused,
-        appState,
-        params.billingOutcome,
-        params.billingReturn,
-        params.billingResume,
-        bound,
-        cloudOn,
-        deviceId,
-        queryUtils,
-        billingScope,
-        dismissFeedback,
-        showFeedback,
-        setBillingPending,
-    ]);
 
     const recoveryGenerationNeeded =
         onlineServicesData?.remoteData?.recoveryGenerationNeeded === true;
@@ -462,7 +359,7 @@ export default function AccountScreen() {
     }, [vault]);
 
     const openUpgrade = useCallback(() => {
-        if (billingPending) {
+        if (awaiting(payment)) {
             setAccountSummaryMode("membership");
             setAccountDetailsOpen(true);
             return;
@@ -481,7 +378,7 @@ export default function AccountScreen() {
         setAccountSummaryMode("upgrade");
         setAccountDetailsOpen(true);
     }, [
-        billingPending,
+        payment,
         currentSubscriptionSignup,
         remoteConfig,
         subscription?.nonFree,
@@ -511,55 +408,330 @@ export default function AccountScreen() {
     ]);
 
     useEffect(() => {
-        if (subscription?.nonFree) setBillingPending(false);
-    }, [subscription?.nonFree, setBillingPending]);
+        if (subscription?.nonFree)
+            setPayment((current) =>
+                current && !current.run && awaiting(current) ? null : current,
+            );
+    }, [subscription?.nonFree, setPayment]);
 
-    const checkPendingBilling = async () => {
-        if (busy || statusCheckInFlight.current || !focused) return;
-        const generation = getVaultSessionGeneration();
-        const report = showFeedback;
-        const scope = billingScope;
-        const authRevision = authFeedbackLifetime.current.revision;
-        const isCurrent = () =>
-            isSameActiveVaultSession(generation) &&
-            billingScopeRef.current === scope &&
-            authFeedbackLifetime.current.revision === authRevision;
-        const request = Symbol();
-        statusCheckInFlight.current = request;
-        dismissFeedback();
+    const store = storeBilling();
+    // Feedback changes with the open sheet; reading it late keeps effects from rerunning.
+    const showFeedbackRef = useRef(showFeedback);
+    showFeedbackRef.current = showFeedback;
+    const panelOpenRef = useRef(false);
+    panelOpenRef.current =
+        (currentSubscriptionSignup && subscriptionSignupOpen) ||
+        (accountDetailsOpen && accountSummaryMode === "upgrade");
+    const lastPurchaseRef = useRef<{ tier: CheckoutTier; terms: PlanTerms }>(
+        undefined,
+    );
+    const payingRef = useRef(false);
+    const pay = async (tier: CheckoutTier, terms: PlanTerms) => {
+        if (payingRef.current) return;
+        payingRef.current = true;
+        lastPurchaseRef.current = { tier, terms };
+        const plan = { tier, trial: terms.trial };
+        setPayment({ ...plan, state: "opening" });
         try {
-            if (isGooglePlayBuild()) {
-                setBusy(true);
-                const result = await checkStorePurchaseStatus();
-                if (!isCurrent()) return;
-                if (!result.ok) {
-                    if (!result.pending)
-                        report(result.message, {
-                            label: t`Check status`,
-                            onPress: checkPendingBilling,
-                        });
-                    return;
-                }
-            }
-            router.setParams({
-                billingOutcome: "success",
-                billingReturn: String(Date.now()),
-            });
-        } catch {
-            if (isCurrent())
-                report(
-                    t`Could not check your subscription. Please try again.`,
-                    {
-                        label: t`Check status`,
-                        onPress: checkPendingBilling,
-                    },
+            // The store and Stripe calls refuse a changed account themselves.
+            const result = await purchaseMembership(tier, terms, () =>
+                setPayment({ ...plan, state: "confirming" }),
+            );
+            // Stripe Checkout opened in the browser; the return link or coming back to the app settles it.
+            if (result.ok && !store) externalBillingOpenedRef.current = true;
+            else if (result.ok || "pending" in result) {
+                const pending = result.ok ? "sync" : result.pending;
+                setPayment(
+                    pending === "store"
+                        ? { ...plan, state: "storePending" }
+                        : {
+                              ...plan,
+                              state: "confirming",
+                              owned: pending === "owned",
+                              run: startConfirmation(
+                                  confirmationSchedules.store,
+                                  pending === "owned" ? "always" : "afterFirst",
+                              ),
+                          },
                 );
+            } else if ("offerChanged" in result)
+                setPayment({
+                    state: "offerChanged",
+                    trial: result.offerChanged.trial,
+                });
+            else if ("canceled" in result)
+                setPayment({ ...plan, state: "canceled" });
+            else setPayment({ ...plan, ...failedPayment(result) });
         } finally {
-            if (statusCheckInFlight.current === request)
-                statusCheckInFlight.current = null;
-            if (isCurrent()) setBusy(false);
+            payingRef.current = false;
         }
     };
+    // Without a purchase in this session, go back to the plan.
+    const retryPayment = () =>
+        lastPurchaseRef.current
+            ? void pay(
+                  lastPurchaseRef.current.tier,
+                  lastPurchaseRef.current.terms,
+              )
+            : setPayment(null);
+    const check = useCallback(
+        () =>
+            setPayment((current) =>
+                current && !current.run
+                    ? {
+                          ...current,
+                          checking: true,
+                          run: startConfirmation(
+                              confirmationSchedules.once,
+                              store ? "always" : "never",
+                          ),
+                      }
+                    : current,
+            ),
+        [setPayment, store],
+    );
+    const onRestored = () =>
+        setPayment((current) => ({
+            tier: current?.tier,
+            state: "confirming",
+            owned: true,
+            run: startConfirmation(confirmationSchedules.store, "afterFirst"),
+        }));
+    const restore = async () => {
+        setPayment((current) => current && { ...current, checking: true });
+        const result = await restoreStorePurchases();
+        if (result.ok || "pending" in result) onRestored();
+        else if ("message" in result)
+            setPayment((current) => ({
+                tier: current?.tier,
+                ...failedPayment(result),
+            }));
+        else
+            setPayment((current) => current && { ...current, checking: false });
+    };
+    const dropFinishedPayment = () =>
+        setPayment((current) => (awaiting(current) ? current : null));
+    const onSignupOpenChange = (open: boolean) => {
+        if (!open && bound) {
+            automaticRecoveryStartedRef.current = true;
+            // Resume signup only while the kit is unsaved;
+            // after that, Upgrade uses the normal sheet.
+            if (signupKitSavedRef.current) setSubscriptionSignupStarted(false);
+        } else if (!open) {
+            setSubscriptionSignupStarted(false);
+        }
+        if (!open) dropFinishedPayment();
+        setSubscriptionSignupOpen(open);
+    };
+    const onDetailsOpenChange = (open: boolean) => {
+        if (!open) dropFinishedPayment();
+        setAccountDetailsOpen(open);
+    };
+    const closePanel = () => {
+        if (subscriptionSignupOpen) onSignupOpenChange(false);
+        onDetailsOpenChange(false);
+    };
+
+    useEffect(() => {
+        if (
+            !focused ||
+            appState !== "active" ||
+            !params.billingOutcome ||
+            !bound ||
+            !cloudOn
+        )
+            return;
+        const outcome = params.billingOutcome;
+        externalBillingOpenedRef.current = false;
+        router.setParams({
+            billingOutcome: undefined,
+            billingReturn: undefined,
+            billingResume: undefined,
+        });
+        if (outcome === "success") {
+            if (!panelOpenRef.current) {
+                setAccountSummaryMode("upgrade");
+                setAccountDetailsOpen(true);
+            }
+            setPayment((current) => ({
+                tier: current?.tier,
+                trial: current?.trial,
+                state: "confirming",
+                run: startConfirmation(confirmationSchedules.stripe, "never"),
+            }));
+        } else if (outcome === "cancel" && !paymentRef.current)
+            showFeedbackRef.current(
+                translate`Payment canceled. Nothing was charged.`,
+            );
+        else if (outcome === "cancel")
+            // A late cancel link never overrides a payment being confirmed.
+            setPayment((current) =>
+                current?.state === "opening" ||
+                (current?.state === "returned" && !current.run)
+                    ? { ...current, state: "canceled", checking: false }
+                    : current,
+            );
+        else if (paymentRef.current?.state === "opening")
+            setPayment(
+                (current) =>
+                    current && {
+                        ...current,
+                        state: "returned",
+                        checking: true,
+                        run: startConfirmation(
+                            confirmationSchedules.returned,
+                            "never",
+                        ),
+                    },
+            );
+        else void handleRefresh();
+    }, [
+        focused,
+        appState,
+        params.billingOutcome,
+        params.billingReturn,
+        params.billingResume,
+        bound,
+        cloudOn,
+        setPayment,
+        handleRefresh,
+    ]);
+
+    const run = payment?.run;
+    const locale = i18n.locale;
+    useEffect(() => {
+        // Signing out stops the loop; reconnecting resumes it.
+        if (!run || !focused || appState !== "active" || !hasSession) return;
+        const controller = new AbortController();
+        const slow =
+            paymentRef.current?.state === "confirming"
+                ? setTimeout(
+                      () =>
+                          setPayment((current) =>
+                              current?.run === run
+                                  ? { ...current, slow: true }
+                                  : current,
+                          ),
+                      run.startedAt + 20000 - Date.now(),
+                  )
+                : undefined;
+        void confirmMembership(run, controller.signal).then(async (result) => {
+            if (!result || controller.signal.aborted) return;
+            const { subscription } = result;
+            if (!subscription) {
+                setPayment((current) =>
+                    current?.run === run
+                        ? {
+                              ...current,
+                              state:
+                                  current.state === "confirming"
+                                      ? "unconfirmed"
+                                      : current.state,
+                              checking: false,
+                              offline: result.offline,
+                              run: undefined,
+                          }
+                        : current,
+                );
+                return;
+            }
+            queryUtils.v1.payment.subscription.setData(undefined, subscription);
+            await Promise.all([
+                queryUtils.v1.payment.subscription.invalidate(undefined, {
+                    refetchType: "none",
+                }),
+                queryUtils.v1.user.configuration.invalidate(),
+                queryUtils.v1.payment.customerPortal.invalidate(),
+            ]);
+            if (controller.signal.aborted) return;
+            const trial = subscription.status === "trialing";
+            const date = formatAccountDate(
+                locale,
+                (trial && subscription.trialEndsAt) || subscription.expiresAt,
+            );
+            const shown = panelOpenRef.current;
+            setPayment((current) =>
+                current?.run !== run
+                    ? current
+                    : shown
+                      ? { state: "confirmed", tier: current.tier, trial, date }
+                      : null,
+            );
+            if (!shown)
+                showFeedbackRef.current(translate`Your membership is active.`);
+        });
+        return () => {
+            controller.abort();
+            clearTimeout(slow);
+        };
+    }, [run, focused, appState, hasSession, setPayment, queryUtils, locale]);
+
+    // Unconfirmed payments check again on return, at most once a minute.
+    const lastReturnCheckRef = useRef(0);
+    useEffect(() => {
+        const current = paymentRef.current;
+        if (
+            !focused ||
+            appState !== "active" ||
+            current?.run ||
+            !awaiting(current) ||
+            current.state === "confirming" ||
+            Date.now() - lastReturnCheckRef.current < 60000
+        )
+            return;
+        lastReturnCheckRef.current = Date.now();
+        check();
+    }, [focused, appState, check]);
+
+    const awaitingConnection =
+        payment?.state === "unconfirmed" && !!payment.offline && !payment.run;
+    useEffect(() => {
+        if (!awaitingConnection) return;
+        let connected = true;
+        return NetInfo.addEventListener((state) => {
+            if (state.isConnected && !connected) check();
+            connected = !!state.isConnected;
+        });
+    }, [awaitingConnection, check]);
+
+    const paymentPanel =
+        payment && payment.state !== "offerChanged" ? (
+            <PaymentStatus
+                {...payment}
+                store={store ?? "stripe"}
+                onPrimary={
+                    payment.state === "canceled" || payment.state === "error"
+                        ? retryPayment
+                        : payment.state === "returned" ||
+                            (payment.state === "unconfirmed" && !payment.owned)
+                          ? check
+                          : payment.state === "unconfirmed" ||
+                              payment.state === "storeOwned"
+                            ? () => void restore()
+                            : payment.state === "ownedElsewhere"
+                              ? () =>
+                                    void openBillingManagement().then(
+                                        (result) => {
+                                            // A system alert shows over the open sheet.
+                                            if (!result.ok)
+                                                Alert.alert(result.message);
+                                        },
+                                    )
+                              : closePanel
+                }
+                onSecondary={
+                    payment.state === "returned" ? retryPayment : closePanel
+                }
+            />
+        ) : null;
+    const paymentCard = awaiting(payment) ? (
+        <PaymentStatus
+            {...payment}
+            compact
+            store={store ?? "stripe"}
+            onPrimary={check}
+        />
+    ) : null;
 
     const accountSummaryProps = {
         tierName: subscription?.productName ?? t`Membership unavailable`,
@@ -588,29 +760,16 @@ export default function AccountScreen() {
             if (value) dismissFeedback();
             setPlayBillingBusy(value);
         },
-        pendingConfirmation: billingPending,
-        onPendingChange: recordPendingBilling,
+        paymentStatus: paymentCard,
+        onRestored,
         onMessage: showFeedback,
-        onExternalBillingOpened: (
-            outcome: "success" | "resume" | "external" = "external",
-        ) => {
+        onExternalBillingOpened: () => {
             if (
                 billingScopeRef.current !== billingScope ||
                 authFeedbackLifetime.current.revision !== authFeedbackRevision
             )
                 return;
-            externalBillingOpenedRef.current = outcome === "external";
-            externalBillingOutcomeRef.current = "resume";
-            if (outcome !== "external")
-                router.setParams({
-                    billingOutcome: outcome,
-                    billingReturn: String(Date.now()),
-                });
-            confirmationRef.current = undefined;
-            if (accountSummaryMode === "upgrade") {
-                setAccountDetailsOpen(false);
-                setAccountSummaryMode("membership");
-            }
+            externalBillingOpenedRef.current = true;
         },
     };
 
@@ -621,41 +780,18 @@ export default function AccountScreen() {
                     <SubscriptionSignup
                         key={vaultGeneration}
                         open={subscriptionSignupOpen}
-                        pendingConfirmation={billingPending}
-                        onPendingChange={recordPendingBilling}
+                        payment={payment}
+                        paymentPanel={paymentPanel}
+                        onPay={(tier, terms) => void pay(tier, terms)}
                         onRecoveryKitSaved={() => {
                             signupKitSavedRef.current = true;
                         }}
-                        onOpenChange={(open) => {
-                            if (!open && bound) {
-                                automaticRecoveryStartedRef.current = true;
-                                // Resume signup only while the kit is unsaved;
-                                // after that, Upgrade uses the normal sheet.
-                                if (signupKitSavedRef.current)
-                                    setSubscriptionSignupStarted(false);
-                            } else if (!open) {
-                                setSubscriptionSignupStarted(false);
-                            }
-                            setSubscriptionSignupOpen(open);
-                        }}
-                        onExternalBillingOpened={(outcome) => {
-                            if (
-                                billingScopeRef.current !== billingScope ||
-                                authFeedbackLifetime.current.revision !==
-                                    authFeedbackRevision
-                            )
-                                return;
-                            automaticRecoveryStartedRef.current = true;
-                            setSubscriptionSignupStarted(false);
-                            accountSummaryProps.onExternalBillingOpened(
-                                outcome,
-                            );
-                        }}
+                        onOpenChange={onSignupOpenChange}
                     />
                 ) : null}
                 <Dialog
                     open={accountDetailsOpen}
-                    onOpenChange={setAccountDetailsOpen}
+                    onOpenChange={onDetailsOpenChange}
                     placement="bottom"
                     footer={
                         accountDetailsOpen ? (
@@ -667,75 +803,75 @@ export default function AccountScreen() {
                         ) : null
                     }
                     scroll
-                    dismissible={!playBillingBusy}
+                    dismissible={
+                        !playBillingBusy &&
+                        !(store && payment?.state === "opening")
+                    }
                     scrollResetKey={accountSummaryMode}
                     loading={
                         accountSummaryMode === "membership" &&
                         accountSummaryProps.refreshing
                     }
-                    loadingLabel={
-                        billingPending
-                            ? t`Confirming your subscription…`
-                            : t`Updating membership…`
-                    }
+                    loadingLabel={t`Updating membership…`}
                 >
-                    <DialogHeader
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                        }}
-                    >
-                        {accountSummaryMode === "upgrade" ? (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={playBillingBusy}
-                                accessibilityLabel={t`Back to membership`}
-                                onPress={openMembership}
-                            >
-                                <ArrowLeft
-                                    size={20}
-                                    color={colors.foreground}
-                                />
-                            </Button>
-                        ) : null}
-                        <DialogTitle>
-                            {accountSummaryMode === "membership"
-                                ? t`Membership`
-                                : accountSummaryMode === "upgrade"
-                                  ? "Online Services"
-                                  : t`Account details`}
-                        </DialogTitle>
-                    </DialogHeader>
-                    {accountDetailsOpen &&
-                    accountSummaryMode === "membership" &&
-                    billingPending ? (
-                        <BillingPendingNotice
-                            busy={busy}
-                            onCheckStatus={() => void checkPendingBilling()}
-                        />
-                    ) : null}
+                    {/* The payment panel's own title names the state. */}
+                    {accountSummaryMode === "upgrade" && paymentPanel ? null : (
+                        <DialogHeader
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 10,
+                            }}
+                        >
+                            {accountSummaryMode === "upgrade" ? (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={playBillingBusy}
+                                    accessibilityLabel={t`Back to membership`}
+                                    onPress={openMembership}
+                                >
+                                    <ArrowLeft
+                                        size={20}
+                                        color={colors.foreground}
+                                    />
+                                </Button>
+                            ) : null}
+                            <DialogTitle>
+                                {accountSummaryMode === "membership"
+                                    ? t`Membership`
+                                    : accountSummaryMode === "upgrade"
+                                      ? "Online Services"
+                                      : t`Account details`}
+                            </DialogTitle>
+                        </DialogHeader>
+                    )}
                     {accountSummaryMode === "upgrade" ? (
-                        <MembershipUpgrade
-                            key={`${billingScope}:${authFeedbackRevision}:${accountDetailsOpen}`}
-                            onBillingBusyChange={
-                                accountSummaryProps.onBillingBusyChange
-                            }
-                            canUpgrade={
-                                hasSession &&
-                                subscription?.nonFree === false &&
-                                !billingPending
-                            }
-                            trialEligible={subscription?.trialEligible}
-                            pendingConfirmation={billingPending}
-                            onPendingChange={recordPendingBilling}
-                            refreshing={accountSummaryProps.refreshing}
-                            onMessage={accountSummaryProps.onMessage}
-                            onExternalBillingOpened={
-                                accountSummaryProps.onExternalBillingOpened
-                            }
-                        />
+                        (paymentPanel ?? (
+                            <MembershipUpgrade
+                                key={`${billingScope}:${authFeedbackRevision}:${accountDetailsOpen}`}
+                                canUpgrade={
+                                    hasSession &&
+                                    subscription?.nonFree === false
+                                }
+                                trialEligible={subscription?.trialEligible}
+                                offerTrial={
+                                    payment?.state === "offerChanged"
+                                        ? payment.trial
+                                        : undefined
+                                }
+                                refreshing={accountSummaryProps.refreshing}
+                                onMessage={accountSummaryProps.onMessage}
+                                onContinue={(tier, trial) =>
+                                    void pay(tier, {
+                                        trialEligible:
+                                            subscription?.trialEligible ??
+                                            false,
+                                        trial,
+                                    })
+                                }
+                            />
+                        ))
                     ) : (
                         <AccountSummary
                             {...accountSummaryProps}
@@ -911,15 +1047,6 @@ export default function AccountScreen() {
                         />
                     </View>
                 )}
-
-                {billingPending &&
-                !accountDetailsOpen &&
-                !subscriptionSignupOpen ? (
-                    <BillingPendingNotice
-                        busy={busy}
-                        onCheckStatus={() => void checkPendingBilling()}
-                    />
-                ) : null}
             </UnlockedScreen>
             {!accountDetailsOpen && !subscriptionSignupOpen ? (
                 <Snackbar

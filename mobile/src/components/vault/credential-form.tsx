@@ -738,6 +738,7 @@ function CredentialFormEditor({
                         autoCorrect={false}
                         textContentType="password"
                         accessibilityLabel={t`Password`}
+                        testID="credential-password"
                         accessibilityValue={{
                             text: t`Hidden. Show to hear value.`,
                         }}

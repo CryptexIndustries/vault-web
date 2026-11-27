@@ -12,10 +12,11 @@ name: Restore this device's backup from the bucket into a clean installation
       element:
           text: Restored vault name
       direction: DOWN
+      centerElement: true
 - tapOn: Restored vault name
 - eraseText: 100
 - inputText: Garage Restored Vault
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - scrollUntilVisible:
       element:
           id: restore-vault
@@ -27,16 +28,18 @@ name: Restore this device's backup from the bucket into a clean installation
       visible: Master password
       timeout: 10000
 # The backup left behind was made after the password change.
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - inputText: CorrectHorseBatteryStaple42
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: That password could not unlock this vault. Check it and try again.
-- tapOn: Master password
+- tapOn:
+      id: unlock-master-password
 - eraseText: 100
 - inputText: GarageRotatedPassword77
-- hideKeyboard
+- runFlow: hide-keyboard.yaml
 - tapOn:
       id: unlock-vault
 - assertVisible: Paused Login.*

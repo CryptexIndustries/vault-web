@@ -1,6 +1,19 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures";
 
 const VAULT_PASSWORD = "e2e-vault-password";
+
+// A tab opened after a request closes the popup the extension opened for it,
+// which declines the request, so open the tab first and load it once it exists.
+const pendingCeremony = (extensionPage: Page) =>
+    extensionPage.evaluate(
+        async () =>
+            (
+                await chrome.storage.session.get(
+                    "PASSKEY_ASSERTION_PENDING_CONFIRMATION",
+                )
+            ).PASSKEY_ASSERTION_PENDING_CONFIRMATION,
+    );
 
 test("creates, saves, and reopens a passkey from the relying-party page", async ({
     context,
@@ -55,11 +68,11 @@ test("creates, saves, and reopens a passkey from the relying-party page", async 
         "Registered",
     );
 
+    const confirmationPage = await context.newPage();
     await relyingParty
         .getByRole("button", { name: "Use saved passkey" })
         .click();
-    await relyingParty.waitForTimeout(250);
-    const confirmationPage = await context.newPage();
+    await expect.poll(() => pendingCeremony(vaultPage)).toBeTruthy();
     await confirmationPage.goto(`chrome-extension://${extensionId}/popup.html`);
     await expect(
         confirmationPage.getByRole("heading", { name: "Use a passkey" }),
@@ -82,11 +95,17 @@ test("creates, saves, and reopens a passkey from the relying-party page", async 
         "verified ES256 signature",
     );
 
+    const previousCeremony = await pendingCeremony(vaultPage);
+    const discoverableConfirmation = await context.newPage();
     await relyingParty
         .getByRole("button", { name: "Use discoverable passkey" })
         .click();
-    await relyingParty.waitForTimeout(250);
-    const discoverableConfirmation = await context.newPage();
+    await expect
+        .poll(async () => {
+            const ceremony = await pendingCeremony(vaultPage);
+            return Boolean(ceremony) && ceremony !== previousCeremony;
+        })
+        .toBe(true);
     await discoverableConfirmation.goto(
         `chrome-extension://${extensionId}/popup.html`,
     );

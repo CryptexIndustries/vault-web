@@ -95,6 +95,7 @@ jest.mock("@/utils/vault-mutations", () => ({
 const store = createStore();
 let renderer: ReactTestRenderer | undefined;
 let beforeMutation: (() => void) | undefined;
+let lastSave: Promise<unknown> | undefined;
 const persist = jest.mocked(persistVaultMutation);
 
 beforeEach(() => {
@@ -105,15 +106,18 @@ beforeEach(() => {
         globalThis as { IS_REACT_NATIVE_TEST_ENVIRONMENT?: boolean }
     ).IS_REACT_NATIVE_TEST_ENVIRONMENT = true;
     beforeMutation = undefined;
-    persist.mockImplementation(async (_kind, mutate) => {
-        beforeMutation?.();
-        try {
-            const mutation = await mutate(store.get(unlockedVaultAtom));
-            store.set(unlockedVaultAtom, mutation.vault);
-            return ok(mutation.result);
-        } catch {
-            return err("VAULT_MUTATION_FAILED");
-        }
+    persist.mockImplementation((_kind, mutate) => {
+        lastSave = (async () => {
+            beforeMutation?.();
+            try {
+                const mutation = await mutate(store.get(unlockedVaultAtom));
+                store.set(unlockedVaultAtom, mutation.vault);
+                return ok(mutation.result);
+            } catch {
+                return err("VAULT_MUTATION_FAILED");
+            }
+        })();
+        return lastSave as never;
     });
 });
 
@@ -181,6 +185,8 @@ async function save() {
             .findAllByType("Button" as never)
             .find((node) => node.props.testID === "credential-submit")!
             .props.onPress();
+        // Saving hashes the credential off the main thread, so act alone can finish first.
+        await lastSave;
     });
 }
 

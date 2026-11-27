@@ -6,6 +6,7 @@ name: Mobile iOS Simulator
 on:
   workflow_dispatch:
   push:
+    branches: ["**"]
     paths:
       - ".github/workflows/mobile-ios.yml"
 

@@ -141,13 +141,15 @@ export function regenerateNativeProject(
     return preserved;
 }
 
-// React Native caches autolinking until package.json or react-native.config.js
-// changes. CRYPTEX_DISTRIBUTION changes the linked modules without touching either.
-export function clearAutolinkingCache(project = android) {
-    rmSync(join(project, "build/generated/autolinking"), {
-        recursive: true,
-        force: true,
-    });
+// These outputs don't track build environment variables, so Gradle would reuse
+// them across values. CRYPTEX_DISTRIBUTION changes the autolinked modules, and
+// EXPO_PUBLIC_* values are inlined into the e2e JavaScript bundle.
+export function clearEnvironmentCaches(project = android) {
+    for (const output of [
+        "build/generated/autolinking",
+        "app/build/generated/assets/react/e2e",
+    ])
+        rmSync(join(project, output), { recursive: true, force: true });
 }
 
 export function runMobile(
@@ -160,7 +162,7 @@ export function runMobile(
         checkIosIdentity = requireIosIdentity,
         host = process.platform,
         regenerateNative = regenerateNativeProject,
-        clearAutolinking = clearAutolinkingCache,
+        clearCaches = clearEnvironmentCaches,
     } = {},
 ) {
     const args = [...argv];
@@ -404,7 +406,7 @@ export function runMobile(
                 ],
                 buildEnv,
             );
-            clearAutolinking();
+            clearCaches();
             execute(
                 gradle,
                 [`:app:assemble${e2e ? "E2e" : "Debug"}`, "--console=plain"],

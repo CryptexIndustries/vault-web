@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-    clearAutolinkingCache,
+    clearEnvironmentCaches,
     flows,
     requireAndroid,
     runMobile,
@@ -25,13 +25,13 @@ function capture(args, env = {}) {
         env,
         checkAndroid: () => {},
         checkNativeIdentity: () => {},
-        clearAutolinking: () => calls.push(["clear-autolinking"]),
+        clearCaches: () => calls.push(["clear-caches"]),
         run: (...parameters) => {
             calls.push(parameters);
             return { status: 0 };
         },
     });
-    return calls.filter((call) => call[0] !== "clear-autolinking");
+    return calls.filter((call) => call[0] !== "clear-caches");
 }
 
 test("production build defaults to the signed production helper from mobile cwd", () => {
@@ -148,7 +148,7 @@ for (const [flag, variant, nodeEnv, e2e] of [
 }
 
 for (const flag of ["--dev", "--e2e"]) {
-    test(`${flag} selects standard or Play billing and refreshes autolinking before Gradle`, () => {
+    test(`${flag} selects standard or Play billing and clears environment caches before Gradle`, () => {
         for (const [extra, distribution] of [
             [[], "standard"],
             [["--distribution", "standard"], "standard"],
@@ -159,7 +159,7 @@ for (const flag of ["--dev", "--e2e"]) {
                 env: { CRYPTEX_DISTRIBUTION: "fdroid" },
                 checkAndroid: () => {},
                 checkNativeIdentity: () => {},
-                clearAutolinking: () => order.push("clear"),
+                clearCaches: () => order.push("clear"),
                 run: (binary, _args, options) => {
                     order.push(
                         binary === "pnpm" || binary === "pnpm.cmd"
@@ -307,23 +307,22 @@ test("iOS dev builds fail before any command off macOS or with Android-only opti
     );
 });
 
-test("autolinking refresh removes only the cached React Native config", () => {
+test("environment cache clearing removes only autolinking and the e2e bundle", () => {
     const project = mkdtempSync(join(tmpdir(), "cryptex-autolinking-"));
+    const cached = [
+        "build/generated/autolinking",
+        "app/build/generated/assets/react/e2e",
+    ];
     try {
-        mkdirSync(join(project, "build/generated/autolinking"), {
-            recursive: true,
-        });
-        writeFileSync(
-            join(project, "build/generated/autolinking/autolinking.json"),
-            "{}",
-        );
+        for (const directory of cached) {
+            mkdirSync(join(project, directory), { recursive: true });
+            writeFileSync(join(project, directory, "cached"), "");
+        }
         writeFileSync(join(project, "build/keep.txt"), "");
-        clearAutolinkingCache(project);
-        clearAutolinkingCache(project);
-        assert.equal(
-            existsSync(join(project, "build/generated/autolinking")),
-            false,
-        );
+        clearEnvironmentCaches(project);
+        clearEnvironmentCaches(project);
+        for (const directory of cached)
+            assert.equal(existsSync(join(project, directory)), false);
         assert.equal(existsSync(join(project, "build/keep.txt")), true);
     } finally {
         rmSync(project, { recursive: true, force: true });

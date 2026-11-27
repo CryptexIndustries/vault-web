@@ -162,6 +162,7 @@ test("dev and E2E commands cannot inherit release classification or a different 
                     CRYPTEX_SOURCE_REVISION: "invalid inherited JSON",
                 },
                 checkNativeIdentity: () => {},
+                clearCaches: () => {},
                 run: (_binary, _args, options) => {
                     selected ??= options.env;
                     return { status: 0 };

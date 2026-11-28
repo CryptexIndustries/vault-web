@@ -141,6 +141,16 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Retry Gradle downloads
+        # Gradle home properties reach every Gradle JVM, and the release build
+        # scripts drop GRADLE_OPTS. Waits start at 2 s and double, about 4 minutes in all.
+        run: |
+          mkdir -p ~/.gradle
+          printf '%s\n' \
+            systemProp.org.gradle.internal.repository.max.tentatives=8 \
+            systemProp.org.gradle.internal.repository.initial.backoff=2000 \
+            >> ~/.gradle/gradle.properties
+
       - name: Install pinned Android build tools
         run: |
           test -n "$ANDROID_HOME"

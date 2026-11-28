@@ -118,7 +118,13 @@ PY
 sdkmanager --sdk_root="$ANDROID_HOME" 'ndk;27.1.12297006'
 cd /build/fdroid
 fdroid fetchsrclibs "$app_id:$version_code"
-chown -R vagrant:vagrant /build "$fdroid_tools" "$ANDROID_HOME"
+# The same Gradle download retries as the smoke and Play jobs.
+mkdir -p /home/vagrant/.gradle
+printf '%s\n' \
+  systemProp.org.gradle.internal.repository.max.tentatives=8 \
+  systemProp.org.gradle.internal.repository.initial.backoff=2000 \
+  >> /home/vagrant/.gradle/gradle.properties
+chown -R vagrant:vagrant /build "$fdroid_tools" "$ANDROID_HOME" /home/vagrant/.gradle
 sudo -H --user vagrant --preserve-env=PATH,PYTHONPATH,ANDROID_HOME \
   "$fdroid_tools/fdroid" build --on-server --verbose --scan-binary --no-tarball \
   "$app_id:$version_code" 2>&1 | tee build.log
